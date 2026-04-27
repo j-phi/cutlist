@@ -16,10 +16,47 @@ const { pickAndImport } = useImportProject();
 
 const showModal = ref(false);
 const showHistory = ref(false);
+const showMobileMenu = ref(false);
 const pendingDeleteId = ref<string | null>(null);
 const showClearConfirm = ref(false);
 const pendingCloseId = ref<string | null>(null);
 const pendingCloseName = ref('');
+
+const activeProjectName = computed(() => {
+  if (!activeId.value) return '';
+  return projects.value.get(activeId.value)?.name ?? '';
+});
+
+const allProjects = computed(() => [...projects.value.entries()]);
+
+function closeMobileMenu() {
+  showMobileMenu.value = false;
+}
+
+function selectProjectFromMenu(id: string) {
+  closeMobileMenu();
+  setActiveProject(id);
+}
+
+async function handleExportFromMenu() {
+  closeMobileMenu();
+  await exportProject();
+}
+
+async function handleImportFromMenu() {
+  closeMobileMenu();
+  await pickAndImport();
+}
+
+function openNewProjectFromMenu() {
+  closeMobileMenu();
+  openNewProject();
+}
+
+function goHomeFromMenu() {
+  closeMobileMenu();
+  goHome();
+}
 
 function requestClose(id: string) {
   const project = projects.value.get(id);
@@ -147,12 +184,55 @@ function openNewProject() {
 
 <template>
   <div
-    class="flex items-stretch bg-base min-h-10"
+    class="relative flex items-stretch bg-base min-h-10"
     role="toolbar"
     aria-label="Project toolbar"
   >
+    <!-- ─── Mobile toolbar ────────────────────────────────────────────────── -->
+    <div class="flex sm:hidden items-stretch w-full">
+      <button
+        class="shrink-0 h-10 px-3 flex items-center justify-center border-r border-subtle transition-colors"
+        :class="
+          showMobileMenu
+            ? 'text-teal-400 bg-surface'
+            : 'text-muted hover:text-teal-400 hover:bg-surface'
+        "
+        :aria-label="showMobileMenu ? 'Close menu' : 'Open menu'"
+        :aria-expanded="showMobileMenu"
+        aria-haspopup="true"
+        @click="showMobileMenu ? closeMobileMenu() : (showMobileMenu = true)"
+      >
+        <UIcon
+          :name="showMobileMenu ? 'i-lucide-x' : 'i-lucide-menu'"
+          class="block shrink-0 w-5 h-5"
+        />
+      </button>
+      <div class="flex-1 min-w-0 flex items-center px-3">
+        <span
+          v-if="activeProjectName"
+          class="truncate text-sm font-medium text-teal-400"
+          >{{ activeProjectName }}</span
+        >
+        <span v-else class="truncate text-sm font-medium text-muted"
+          >cutlist<span class="text-teal-400">studio</span></span
+        >
+      </div>
+      <div class="shrink-0 flex items-center px-2 border-l border-subtle">
+        <button
+          class="flex items-center gap-1 px-2 py-1 rounded border border-teal-400/40 text-teal-400 hover:bg-teal-400/10 hover:border-teal-400/70 transition-colors text-xs font-medium"
+          title="New project"
+          aria-label="New project"
+          @click="openNewProject"
+        >
+          <UIcon name="i-lucide-plus" class="block shrink-0 w-3.5 h-3.5" />
+          New
+        </button>
+      </div>
+    </div>
+
+    <!-- ─── Desktop toolbar ───────────────────────────────────────────────── -->
     <div
-      class="shrink-0 flex items-center px-3 border-r border-subtle select-none"
+      class="hidden sm:flex shrink-0 items-center px-3 border-r border-subtle select-none"
     >
       <span class="text-sm font-semibold tracking-tight text-white"
         >cutlist</span
@@ -161,7 +241,7 @@ function openNewProject() {
       >
     </div>
     <button
-      class="shrink-0 h-10 px-3 flex items-center justify-center border-r border-subtle transition-colors"
+      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle transition-colors"
       :class="
         !activeId
           ? 'text-teal-400 bg-surface'
@@ -173,7 +253,7 @@ function openNewProject() {
     >
       <UIcon name="i-lucide-house" class="block shrink-0 w-4 h-4" />
     </button>
-    <TabList class="flex-1 min-w-0">
+    <TabList class="hidden sm:flex flex-1 min-w-0">
       <TabListItem
         v-for="[id, project] in projects"
         :key="id"
@@ -193,7 +273,9 @@ function openNewProject() {
       />
     </TabList>
 
-    <div class="shrink-0 flex items-center px-2 border-l border-subtle">
+    <div
+      class="hidden sm:flex shrink-0 items-center px-2 border-l border-subtle"
+    >
       <button
         class="flex items-center gap-1 px-2 py-1 rounded border border-teal-400/40 text-teal-400 hover:bg-teal-400/10 hover:border-teal-400/70 transition-colors text-xs font-medium"
         title="New project"
@@ -207,7 +289,7 @@ function openNewProject() {
 
     <button
       v-if="activeId"
-      class="shrink-0 px-3 flex items-center gap-1.5 border-l border-subtle text-muted hover:text-teal-400 transition-colors"
+      class="hidden sm:flex shrink-0 px-3 items-center gap-1.5 border-l border-subtle text-muted hover:text-teal-400 transition-colors"
       title="Export project"
       aria-label="Export project"
       @click="exportProject"
@@ -217,7 +299,7 @@ function openNewProject() {
     </button>
 
     <button
-      class="shrink-0 px-3 flex items-center gap-1.5 border-l border-subtle text-muted hover:text-teal-400 transition-colors"
+      class="hidden sm:flex shrink-0 px-3 items-center gap-1.5 border-l border-subtle text-muted hover:text-teal-400 transition-colors"
       title="Import project"
       aria-label="Import project"
       @click="pickAndImport"
@@ -226,7 +308,7 @@ function openNewProject() {
       <span class="text-xs">Import</span>
     </button>
 
-    <div class="relative shrink-0">
+    <div class="relative shrink-0 hidden sm:flex">
       <button
         class="px-3 flex items-center gap-1.5 h-full border-l border-subtle transition-colors"
         :class="
@@ -356,6 +438,219 @@ function openNewProject() {
         @click="closeHistory"
       />
     </div>
+
+    <!-- ─── Mobile menu panel ─────────────────────────────────────────────── -->
+    <Transition
+      enter-active-class="transition ease-out duration-150"
+      enter-from-class="opacity-0 -translate-y-2"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition ease-in duration-100"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 -translate-y-2"
+    >
+      <div
+        v-if="showMobileMenu"
+        class="sm:hidden absolute top-10 inset-x-0 z-50 bg-elevated border-b border-default shadow-2xl max-h-[calc(100vh-2.5rem)] overflow-y-auto"
+      >
+        <!-- Home -->
+        <button
+          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle transition-colors"
+          :class="
+            !activeId
+              ? 'text-teal-400 bg-surface'
+              : 'text-body hover:bg-surface'
+          "
+          @click="goHomeFromMenu"
+        >
+          <UIcon name="i-lucide-house" class="w-4 h-4 shrink-0" />
+          <span class="text-sm">Home</span>
+        </button>
+
+        <!-- Open projects -->
+        <div
+          v-if="allProjects.length > 0"
+          class="px-4 pt-3 pb-1 text-xs font-semibold text-muted uppercase tracking-wider"
+        >
+          Open projects
+        </div>
+        <ul v-if="allProjects.length > 0">
+          <li
+            v-for="[id, project] in allProjects"
+            :key="id"
+            class="flex items-center border-b border-subtle"
+            :class="
+              id === activeId
+                ? 'bg-gradient-to-r from-teal-400/15 to-transparent'
+                : ''
+            "
+          >
+            <button
+              class="flex-1 min-w-0 flex items-center gap-2 px-4 py-3 text-left transition-colors"
+              :class="id === activeId ? 'cursor-default' : 'hover:bg-surface'"
+              :aria-current="id === activeId ? 'page' : undefined"
+              @click="selectProjectFromMenu(id)"
+            >
+              <UIcon
+                :name="
+                  id === activeId ? 'i-lucide-circle-dot' : 'i-lucide-file'
+                "
+                class="w-4 h-4 shrink-0"
+                :class="id === activeId ? 'text-teal-400' : 'text-muted'"
+              />
+              <span
+                class="truncate text-sm"
+                :class="
+                  id === activeId ? 'text-teal-400 font-medium' : 'text-body'
+                "
+                >{{ project.name }}</span
+              >
+              <span
+                v-if="id === activeId"
+                class="ml-auto text-[10px] uppercase tracking-wider text-teal-400/70"
+                >Active</span
+              >
+            </button>
+            <button
+              class="shrink-0 px-3 py-3 text-muted hover:text-white transition-colors"
+              :aria-label="`Close ${project.name}`"
+              @click.stop="requestClose(id)"
+            >
+              <UIcon name="i-lucide-x" class="w-4 h-4" />
+            </button>
+          </li>
+        </ul>
+
+        <!-- Actions -->
+        <div
+          class="px-4 pt-3 pb-1 text-xs font-semibold text-muted uppercase tracking-wider"
+        >
+          Actions
+        </div>
+        <button
+          class="flex items-center gap-3 w-full px-4 py-3 text-left text-body hover:bg-surface border-b border-subtle transition-colors"
+          @click="openNewProjectFromMenu"
+        >
+          <UIcon name="i-lucide-plus" class="w-4 h-4 shrink-0 text-teal-400" />
+          <span class="text-sm">New project</span>
+        </button>
+        <button
+          v-if="activeId"
+          class="flex items-center gap-3 w-full px-4 py-3 text-left text-body hover:bg-surface border-b border-subtle transition-colors"
+          @click="handleExportFromMenu"
+        >
+          <UIcon name="i-lucide-download" class="w-4 h-4 shrink-0" />
+          <span class="text-sm">Export project</span>
+        </button>
+        <button
+          class="flex items-center gap-3 w-full px-4 py-3 text-left text-body hover:bg-surface border-b border-subtle transition-colors"
+          @click="handleImportFromMenu"
+        >
+          <UIcon name="i-lucide-upload" class="w-4 h-4 shrink-0" />
+          <span class="text-sm">Import project</span>
+        </button>
+
+        <!-- History -->
+        <div class="px-4 pt-3 pb-1 flex items-center justify-between">
+          <span
+            class="text-xs font-semibold text-muted uppercase tracking-wider"
+            >History</span
+          >
+          <span
+            v-if="archivedList.length > 0"
+            class="text-xs tabular-nums text-muted"
+            >{{ archivedList.length }}</span
+          >
+        </div>
+        <div
+          v-if="archivedList.length === 0"
+          class="px-4 py-3 text-sm text-muted"
+        >
+          No closed projects
+        </div>
+        <ul v-else>
+          <li
+            v-for="p in archivedList"
+            :key="p.id"
+            class="flex items-center gap-2 px-4 py-2.5 border-b border-subtle"
+          >
+            <div class="flex-1 min-w-0">
+              <div class="text-sm text-body truncate">{{ p.name }}</div>
+              <div class="text-xs text-muted">
+                {{ formatArchivedDate(p.archivedAt) }}
+              </div>
+            </div>
+            <template v-if="pendingDeleteId === p.id">
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                label="Cancel"
+                @click="cancelDelete"
+              />
+              <UButton
+                size="xs"
+                color="error"
+                variant="solid"
+                label="Delete"
+                @click="handleDelete(p.id)"
+              />
+            </template>
+            <template v-else>
+              <UButton
+                size="xs"
+                icon="i-lucide-undo-2"
+                color="neutral"
+                variant="ghost"
+                title="Reopen"
+                @click="handleRestore(p.id).then(() => closeMobileMenu())"
+              />
+              <UButton
+                size="xs"
+                icon="i-lucide-trash-2"
+                color="error"
+                variant="ghost"
+                title="Delete permanently"
+                @click="handleDelete(p.id)"
+              />
+            </template>
+          </li>
+        </ul>
+        <div
+          v-if="archivedList.length > 0"
+          class="px-4 py-3 flex justify-end items-center gap-2 border-b border-subtle"
+        >
+          <template v-if="showClearConfirm">
+            <span class="text-xs text-muted">Delete all?</span>
+            <button
+              class="text-xs text-muted hover:text-white transition-colors"
+              @click="showClearConfirm = false"
+            >
+              Cancel
+            </button>
+            <button
+              class="text-xs text-red-400 hover:text-red-300 font-medium transition-colors"
+              @click="handleClearHistory"
+            >
+              Confirm
+            </button>
+          </template>
+          <button
+            v-else
+            class="text-xs text-muted hover:text-red-400 transition-colors"
+            @click="handleClearHistory"
+          >
+            Clear history
+          </button>
+        </div>
+      </div>
+    </Transition>
+
+    <div
+      v-if="showMobileMenu"
+      class="sm:hidden fixed inset-0 top-10 z-40 bg-black/50"
+      aria-hidden="true"
+      @click="closeMobileMenu"
+    />
 
     <UModal
       :open="!!pendingCloseId"

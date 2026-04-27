@@ -35,9 +35,11 @@ function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
 </script>
 
 <template>
-  <div class="absolute inset-0 flex flex-col p-4 gap-4">
+  <div class="absolute inset-0 flex flex-col p-4 gap-4 overflow-y-auto">
     <!-- Top bar: explainer + actions -->
-    <div class="shrink-0 flex items-center justify-between gap-3">
+    <div
+      class="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+    >
       <p class="text-sm text-muted">
         Add the board stock you have available. Parts will be laid out onto
         these materials.

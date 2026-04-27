@@ -32,10 +32,11 @@ async function onDownload() {
       icon="i-lucide-file-down"
       color="neutral"
       size="sm"
+      aria-label="Print"
       :disabled="!canExport || isComputing"
       @click="isOpen = true"
     >
-      Print
+      <span class="hidden sm:inline">Print</span>
     </UButton>
 
     <UModal

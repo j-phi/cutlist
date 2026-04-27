@@ -115,69 +115,68 @@ function stepLabel(n: number): string {
       >
         <!-- View mode -->
         <template v-if="editingId !== step.id">
-          <div class="p-4 flex gap-3">
-            <!-- Step number bubble -->
-            <div
-              class="shrink-0 w-10 h-10 rounded-lg bg-teal-500/15 border border-teal-500/30 flex items-center justify-center"
-            >
-              <span
-                class="text-sm font-bold font-mono text-teal-400 leading-none"
+          <div class="p-4">
+            <div class="flex items-center gap-3">
+              <!-- Step number bubble -->
+              <div
+                class="shrink-0 w-10 h-10 rounded-lg bg-teal-500/15 border border-teal-500/30 flex items-center justify-center"
               >
-                {{ stepLabel(step.stepNumber) }}
-              </span>
-            </div>
+                <span
+                  class="text-sm font-bold font-mono text-teal-400 leading-none"
+                >
+                  {{ stepLabel(step.stepNumber) }}
+                </span>
+              </div>
 
-            <!-- Content -->
-            <div class="flex-1 min-w-0">
-              <div class="flex items-start gap-1">
-                <div class="flex-1 min-w-0">
-                  <p
-                    class="text-base font-semibold text-white leading-tight"
-                    :class="{ 'text-muted italic': !step.title }"
-                  >
-                    {{ step.title || 'Untitled step' }}
-                  </p>
-                  <div
-                    v-if="step.description"
-                    class="mt-1 text-sm text-muted leading-relaxed [&_a]:text-teal-400 [&_a]:underline [&_a:hover]:text-teal-300 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mt-0.5 [&_p+p]:mt-1.5"
-                    v-html="step.description"
-                  />
-                </div>
-                <!-- Actions -->
-                <div class="flex items-center gap-0.5 shrink-0 ml-1">
-                  <UButton
-                    size="xs"
-                    icon="i-lucide-chevron-up"
-                    color="neutral"
-                    variant="ghost"
-                    :disabled="step.stepNumber === 1"
-                    @click="moveStep(step.id, 'up')"
-                  />
-                  <UButton
-                    size="xs"
-                    icon="i-lucide-chevron-down"
-                    color="neutral"
-                    variant="ghost"
-                    :disabled="step.stepNumber === buildSteps.length"
-                    @click="moveStep(step.id, 'down')"
-                  />
-                  <UButton
-                    size="xs"
-                    icon="i-lucide-pencil"
-                    color="neutral"
-                    variant="ghost"
-                    @click="startEdit(step)"
-                  />
-                  <UButton
-                    size="xs"
-                    icon="i-lucide-trash-2"
-                    color="error"
-                    variant="ghost"
-                    @click="removeStep(step.id)"
-                  />
-                </div>
+              <!-- Title -->
+              <p
+                class="flex-1 min-w-0 text-base font-semibold text-white leading-tight truncate"
+                :class="{ 'text-muted italic': !step.title }"
+              >
+                {{ step.title || 'Untitled step' }}
+              </p>
+
+              <!-- Actions -->
+              <div class="flex items-center gap-0.5 shrink-0">
+                <UButton
+                  size="xs"
+                  icon="i-lucide-chevron-up"
+                  color="neutral"
+                  variant="ghost"
+                  :disabled="step.stepNumber === 1"
+                  @click="moveStep(step.id, 'up')"
+                />
+                <UButton
+                  size="xs"
+                  icon="i-lucide-chevron-down"
+                  color="neutral"
+                  variant="ghost"
+                  :disabled="step.stepNumber === buildSteps.length"
+                  @click="moveStep(step.id, 'down')"
+                />
+                <UButton
+                  size="xs"
+                  icon="i-lucide-pencil"
+                  color="neutral"
+                  variant="ghost"
+                  @click="startEdit(step)"
+                />
+                <UButton
+                  size="xs"
+                  icon="i-lucide-trash-2"
+                  color="error"
+                  variant="ghost"
+                  @click="removeStep(step.id)"
+                />
               </div>
             </div>
+
+            <!-- Description — full-width on mobile, indented under title on desktop -->
+            <div
+              v-if="step.description"
+              class="mt-2 sm:pl-[52px] text-sm text-muted leading-relaxed [&_a]:text-teal-400 [&_a]:underline [&_a:hover]:text-teal-300 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mt-0.5 [&_p+p]:mt-1.5"
+              v-html="step.description"
+            />
           </div>
         </template>
 

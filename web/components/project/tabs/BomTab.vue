@@ -202,6 +202,7 @@ const totalModelParts = computed(() =>
 const hasModelPreview = computed(() =>
   enabledModels.value.some((m) => m.source !== 'manual'),
 );
+const isNarrow = useMediaQuery('(max-width: 767px)');
 const {
   panelWidth: previewPanelWidth,
   isResizing: isResizingPreview,
@@ -365,7 +366,10 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <div ref="splitContainer" class="absolute inset-0 flex min-h-0 min-w-0">
+    <div
+      ref="splitContainer"
+      class="absolute inset-0 flex flex-col-reverse md:flex-row min-h-0 min-w-0"
+    >
       <div
         class="relative flex-1 min-h-0 min-w-0 overflow-auto"
         @mouseleave="clearBomHover"
@@ -1104,7 +1108,7 @@ onUnmounted(() => {
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize preview panel"
-          class="relative w-3 shrink-0 cursor-col-resize select-none group"
+          class="relative w-3 shrink-0 cursor-col-resize select-none group hidden md:block"
           @mousedown="startPreviewResize"
         >
           <div
@@ -1126,8 +1130,8 @@ onUnmounted(() => {
         </div>
 
         <aside
-          class="relative shrink-0 min-h-0 bg-mist-950 shadow-[-1px_0_0_0_rgba(57,68,71,0.35)]"
-          :style="{ width: `${previewPanelWidth}px` }"
+          class="relative shrink-0 min-h-0 w-full h-[42vh] md:h-auto md:w-auto bg-mist-950 border-b border-subtle md:border-b-0 md:shadow-[-1px_0_0_0_rgba(57,68,71,0.35)]"
+          :style="isNarrow ? undefined : { width: `${previewPanelWidth}px` }"
           @mouseleave="clearBomHover"
         >
           <ModelTab compact show-open-button @expand="openModelTab" />

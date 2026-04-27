@@ -39,6 +39,10 @@ export default defineNuxtConfig({
       link: [{ rel: 'icon', href: 'favicon.svg' }],
       meta: [
         {
+          name: 'viewport',
+          content: 'width=device-width, initial-scale=1, viewport-fit=cover',
+        },
+        {
           name: 'description',
           content:
             'Import GLTF assemblies and generate optimised cutlists for boards and panels.',

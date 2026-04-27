@@ -33,7 +33,7 @@ const editor = useEditor({
   editorProps: {
     attributes: {
       class:
-        'focus:outline-none min-h-[3rem] px-3 py-2 text-sm text-body leading-relaxed [&_a]:text-teal-400 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mt-0.5 [&_p+p]:mt-1.5',
+        'focus:outline-none min-h-[8rem] px-3 py-2 text-sm text-body leading-relaxed [&_a]:text-teal-400 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mt-0.5 [&_p+p]:mt-1.5',
     },
   },
   onUpdate({ editor }) {
