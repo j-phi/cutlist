@@ -102,7 +102,7 @@ describe('NewProjectDialog', () => {
       await component.get('input').setValue('  My Project  ');
       await component.get('input').trigger('keydown.enter');
 
-      expect(addProject).toHaveBeenCalledWith('My Project');
+      expect(addProject).toHaveBeenCalledWith('My Project', 'mm');
     });
 
     it('Should not create when the name is whitespace', async () => {
@@ -124,7 +124,7 @@ describe('NewProjectDialog', () => {
       await nextTick();
       await nextTick();
 
-      expect(addProject).toHaveBeenCalledWith('My Project');
+      expect(addProject).toHaveBeenCalledWith('My Project', 'mm');
       const events = component.emitted('update:open') ?? [];
       expect(events.at(-1)).toEqual([false]);
       expect(toastAdd).not.toHaveBeenCalled();
@@ -139,7 +139,7 @@ describe('NewProjectDialog', () => {
       await nextTick();
       await nextTick();
 
-      expect(addProject).toHaveBeenCalledWith('My Project');
+      expect(addProject).toHaveBeenCalledWith('My Project', 'mm');
       // Modal should NOT have been closed.
       const events = component.emitted('update:open') ?? [];
       expect(events).not.toContainEqual([false]);
