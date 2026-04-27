@@ -8,7 +8,7 @@
       style="height: 26px"
     >
       <span>v{{ appConfig.version }} &mdash; BETA</span>
-      <div class="flex items-center gap-3">
+      <div class="hidden sm:flex items-center gap-3">
         <NuxtLink to="/about" class="hover:text-body transition-colors"
           >About</NuxtLink
         >

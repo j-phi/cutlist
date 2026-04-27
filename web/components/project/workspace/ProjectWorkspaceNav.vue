@@ -15,6 +15,19 @@ const items = computed(() =>
 );
 
 const tabScroller = ref<HTMLElement | null>(null);
+const canScrollLeft = ref(false);
+const canScrollRight = ref(false);
+
+function updateScrollState() {
+  const el = tabScroller.value;
+  if (!el) return;
+  canScrollLeft.value = el.scrollLeft > 2;
+  canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+}
+
+function scrollBy(dir: -1 | 1) {
+  tabScroller.value?.scrollBy({ left: dir * 120, behavior: 'smooth' });
+}
 
 function scrollToActiveTab(behavior: ScrollBehavior = 'auto') {
   const el = tabScroller.value;
@@ -24,60 +37,113 @@ function scrollToActiveTab(behavior: ScrollBehavior = 'auto') {
   active.scrollIntoView({ inline: 'center', block: 'nearest', behavior });
 }
 
+let ro: ResizeObserver | null = null;
+
 onMounted(() => {
   nextTick(() => scrollToActiveTab('auto'));
+
+  const el = tabScroller.value;
+  if (el) {
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+    ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    updateScrollState();
+  }
+});
+
+onBeforeUnmount(() => {
+  const el = tabScroller.value;
+  if (el) el.removeEventListener('scroll', updateScrollState);
+  ro?.disconnect();
 });
 
 watch(tab, () => {
-  nextTick(() => scrollToActiveTab('smooth'));
+  nextTick(() => {
+    scrollToActiveTab('smooth');
+    updateScrollState();
+  });
 });
 </script>
 
 <template>
   <header class="flex flex-col shrink-0 relative z-10 bg-base">
     <div class="flex items-center border-b border-subtle">
-      <div
-        ref="tabScroller"
-        class="flex-1 min-w-0 overflow-x-auto tab-nav-scroller"
-      >
-        <ul
-          role="tablist"
-          aria-label="Project sections"
-          class="flex w-max pl-2"
-        >
-          <li
-            v-for="item in items"
-            :key="item.key"
-            :data-tab-active="item.active ? 'true' : null"
-            class="shrink-0"
+      <div class="relative flex-1 min-w-0">
+        <div ref="tabScroller" class="overflow-x-auto tab-nav-scroller">
+          <ul
+            role="tablist"
+            aria-label="Project sections"
+            class="flex w-max pl-2"
           >
-            <button
-              role="tab"
-              :aria-selected="item.active"
-              :aria-label="item.label"
-              class="group relative flex items-center gap-2 px-3 h-10 text-sm whitespace-nowrap transition-colors"
-              :class="
-                item.active ? 'text-teal-400' : 'text-muted hover:text-body'
-              "
-              @click="item.onSelect"
+            <li
+              v-for="item in items"
+              :key="item.key"
+              :data-tab-active="item.active ? 'true' : null"
+              class="shrink-0"
             >
-              <span
-                class="shrink-0 inline-flex items-center justify-center"
-                style="width: 16px; height: 16px"
-                aria-hidden="true"
+              <button
+                role="tab"
+                :aria-selected="item.active"
+                :aria-label="item.label"
+                class="group relative flex items-center gap-2 px-3 h-10 text-sm whitespace-nowrap transition-colors"
+                :class="
+                  item.active ? 'text-teal-400' : 'text-muted hover:text-body'
+                "
+                @click="item.onSelect"
               >
-                <UIcon :name="item.icon" class="w-4 h-4" />
-              </span>
-              <span>{{ item.label }}</span>
-              <span
-                v-if="item.active"
-                class="absolute inset-x-2 bottom-0 h-0.5 bg-teal-400 rounded-full"
-                aria-hidden="true"
-              />
-            </button>
-          </li>
-        </ul>
+                <span
+                  class="shrink-0 inline-flex items-center justify-center"
+                  style="width: 16px; height: 16px"
+                  aria-hidden="true"
+                >
+                  <UIcon :name="item.icon" class="w-4 h-4" />
+                </span>
+                <span>{{ item.label }}</span>
+                <span
+                  v-if="item.active"
+                  class="absolute inset-x-2 bottom-0 h-0.5 bg-teal-400 rounded-full"
+                  aria-hidden="true"
+                />
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Left scroll arrow -->
+        <Transition
+          enter-active-class="transition-opacity duration-150"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-150"
+          leave-to-class="opacity-0"
+        >
+          <button
+            v-if="canScrollLeft"
+            class="absolute left-0 top-0 z-10 flex items-center justify-center w-7 h-10 text-muted hover:text-body transition-colors bg-base border-r border-subtle"
+            aria-label="Scroll tabs left"
+            @click="scrollBy(-1)"
+          >
+            <UIcon name="i-lucide-chevron-left" class="w-4 h-4" />
+          </button>
+        </Transition>
+
+        <!-- Right scroll arrow -->
+        <Transition
+          enter-active-class="transition-opacity duration-150"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-150"
+          leave-to-class="opacity-0"
+        >
+          <button
+            v-if="canScrollRight"
+            class="absolute right-0 top-0 z-10 flex items-center justify-center w-7 h-10 text-muted hover:text-body transition-colors bg-base border-l border-subtle"
+            aria-label="Scroll tabs right"
+            @click="scrollBy(1)"
+          >
+            <UIcon name="i-lucide-chevron-right" class="w-4 h-4" />
+          </button>
+        </Transition>
       </div>
+
       <Transition
         enter-active-class="transition-opacity duration-150"
         enter-from-class="opacity-0"

@@ -469,6 +469,24 @@ function openNewProject() {
           @clear="clearHistory"
           @reset="resetDatabase"
         />
+
+        <!-- About / Terms -->
+        <div class="flex items-center gap-4 px-4 py-3 border-t border-subtle">
+          <NuxtLink
+            to="/about"
+            class="text-sm text-muted hover:text-body transition-colors"
+            @click="closeMobileMenu"
+          >
+            About
+          </NuxtLink>
+          <NuxtLink
+            to="/terms"
+            class="text-sm text-muted hover:text-body transition-colors"
+            @click="closeMobileMenu"
+          >
+            Terms of Use
+          </NuxtLink>
+        </div>
       </div>
     </Transition>
 

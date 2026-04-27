@@ -311,7 +311,7 @@ onUnmounted(() => {
       class="absolute inset-0 flex flex-col-reverse md:flex-row min-h-0 min-w-0"
     >
       <div
-        class="relative flex-1 min-h-0 min-w-0 overflow-auto"
+        class="relative flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden"
         @mouseleave="clearBomHover"
       >
         <template v-if="activeProject">
@@ -401,426 +401,410 @@ onUnmounted(() => {
               />
             </div>
 
-            <!-- Parts table -->
-            <table
-              v-if="filteredGroups.length > 0"
-              class="w-full text-sm border-separate border-spacing-0"
-              aria-label="Bill of materials"
-            >
-              <thead
-                class="sticky top-0 z-10 bg-base shadow-[inset_0_-1px_0_var(--color-mist-800)]"
+            <!-- Parts table (horizontally scrollable on small screens) -->
+            <div v-if="filteredGroups.length > 0" class="overflow-x-auto">
+              <table
+                class="w-full text-sm border-separate border-spacing-0"
+                style="min-width: 480px"
+                aria-label="Bill of materials"
               >
-                <tr>
-                  <th
-                    class="pl-5 pr-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-14"
-                    :aria-sort="
-                      sortKey === 'number'
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    "
-                    @click="toggleSort('number')"
-                    @keydown.enter.prevent="toggleSort('number')"
-                    @keydown.space.prevent="toggleSort('number')"
-                    tabindex="0"
-                    role="columnheader"
-                  >
-                    <span class="inline-flex items-center gap-0.5">
-                      #
-                      <UIcon
-                        v-if="sortKey === 'number'"
-                        :name="
-                          sortDir === 'asc'
-                            ? 'i-lucide-chevron-up'
-                            : 'i-lucide-chevron-down'
-                        "
-                        class="w-3 h-3 text-teal-400"
-                      />
-                    </span>
-                  </th>
-                  <th
-                    class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors"
-                    :aria-sort="
-                      sortKey === 'name'
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    "
-                    @click="toggleSort('name')"
-                    @keydown.enter.prevent="toggleSort('name')"
-                    @keydown.space.prevent="toggleSort('name')"
-                    tabindex="0"
-                    role="columnheader"
-                  >
-                    <span class="inline-flex items-center gap-0.5">
-                      Name
-                      <UIcon
-                        v-if="sortKey === 'name'"
-                        :name="
-                          sortDir === 'asc'
-                            ? 'i-lucide-chevron-up'
-                            : 'i-lucide-chevron-down'
-                        "
-                        class="w-3 h-3 text-teal-400"
-                      />
-                    </span>
-                  </th>
-                  <th
-                    v-if="showModelColumn"
-                    class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide w-48"
-                  >
-                    Model
-                  </th>
-                  <th
-                    class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-14"
-                    :aria-sort="
-                      sortKey === 'qty'
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    "
-                    @click="toggleSort('qty')"
-                    @keydown.enter.prevent="toggleSort('qty')"
-                    @keydown.space.prevent="toggleSort('qty')"
-                    tabindex="0"
-                    role="columnheader"
-                  >
-                    <span class="inline-flex items-center justify-end gap-0.5">
-                      QTY
-                      <UIcon
-                        v-if="sortKey === 'qty'"
-                        :name="
-                          sortDir === 'asc'
-                            ? 'i-lucide-chevron-up'
-                            : 'i-lucide-chevron-down'
-                        "
-                        class="w-3 h-3 text-teal-400"
-                      />
-                    </span>
-                  </th>
-                  <th
-                    class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-18"
-                    :aria-sort="
-                      sortKey === 'thickness'
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    "
-                    @click="toggleSort('thickness')"
-                    @keydown.enter.prevent="toggleSort('thickness')"
-                    @keydown.space.prevent="toggleSort('thickness')"
-                    tabindex="0"
-                    role="columnheader"
-                  >
-                    <span class="inline-flex items-center justify-end gap-0.5">
-                      T<span v-if="distanceUnit" class="text-dim font-normal"
-                        >({{ distanceUnit }})</span
-                      >
-                      <UIcon
-                        v-if="sortKey === 'thickness'"
-                        :name="
-                          sortDir === 'asc'
-                            ? 'i-lucide-chevron-up'
-                            : 'i-lucide-chevron-down'
-                        "
-                        class="w-3 h-3 text-teal-400"
-                      />
-                    </span>
-                  </th>
-                  <th
-                    class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-22"
-                    :aria-sort="
-                      sortKey === 'width'
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    "
-                    @click="toggleSort('width')"
-                    @keydown.enter.prevent="toggleSort('width')"
-                    @keydown.space.prevent="toggleSort('width')"
-                    tabindex="0"
-                    role="columnheader"
-                  >
-                    <span class="inline-flex items-center justify-end gap-0.5">
-                      W<span v-if="distanceUnit" class="text-dim font-normal"
-                        >({{ distanceUnit }})</span
-                      >
-                      <UIcon
-                        v-if="sortKey === 'width'"
-                        :name="
-                          sortDir === 'asc'
-                            ? 'i-lucide-chevron-up'
-                            : 'i-lucide-chevron-down'
-                        "
-                        class="w-3 h-3 text-teal-400"
-                      />
-                    </span>
-                  </th>
-                  <th
-                    class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-22"
-                    :aria-sort="
-                      sortKey === 'length'
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    "
-                    @click="toggleSort('length')"
-                    @keydown.enter.prevent="toggleSort('length')"
-                    @keydown.space.prevent="toggleSort('length')"
-                    tabindex="0"
-                    role="columnheader"
-                  >
-                    <span class="inline-flex items-center justify-end gap-0.5">
-                      L<span v-if="distanceUnit" class="text-dim font-normal"
-                        >({{ distanceUnit }})</span
-                      >
-                      <UIcon
-                        v-if="sortKey === 'length'"
-                        :name="
-                          sortDir === 'asc'
-                            ? 'i-lucide-chevron-up'
-                            : 'i-lucide-chevron-down'
-                        "
-                        class="w-3 h-3 text-teal-400"
-                      />
-                    </span>
-                  </th>
-                  <th
-                    class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide"
-                  >
-                    Grain
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <template
-                  v-for="(group, gi) in filteredGroups"
-                  :key="group.material"
+                <thead
+                  class="sticky top-0 z-10 bg-base shadow-[inset_0_-1px_0_var(--color-mist-800)]"
                 >
-                  <!-- Material group header -->
                   <tr>
-                    <td
-                      :colspan="tableColspan"
-                      :class="['px-5 pb-1.5', gi === 0 ? 'pt-3' : 'pt-5']"
+                    <th
+                      class="pl-5 pr-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-14"
+                      :aria-sort="
+                        sortKey === 'number'
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      "
+                      @click="toggleSort('number')"
+                      @keydown.enter.prevent="toggleSort('number')"
+                      @keydown.space.prevent="toggleSort('number')"
+                      tabindex="0"
+                      role="columnheader"
                     >
-                      <div
-                        class="flex items-center gap-2.5 pb-1.5 border-b border-subtle"
-                      >
-                        <span class="text-sm font-semibold text-body">{{
-                          group.material
-                        }}</span>
-                        <span class="text-xs text-muted"
-                          >{{ group.totalParts }} part{{
-                            group.totalParts === 1 ? '' : 's'
-                          }}</span
-                        >
-                      </div>
-                    </td>
-                  </tr>
-
-                  <!-- Data rows -->
-                  <template v-for="row in group.rows" :key="row.number">
-                    <!-- Inline edit form for manual parts -->
-                    <tr v-if="row.isManual && editingPartNumber === row.number">
-                      <td :colspan="tableColspan" class="px-4 py-1.5">
-                        <ManualPartRow
-                          :materials="materials"
-                          :initial="getManualEditInfo(row.number)"
-                          @save="
-                            (d: ManualPartInput) =>
-                              handleUpdatePart(row.number, d)
+                      <span class="inline-flex items-center gap-0.5">
+                        #
+                        <UIcon
+                          v-if="sortKey === 'number'"
+                          :name="
+                            sortDir === 'asc'
+                              ? 'i-lucide-chevron-up'
+                              : 'i-lucide-chevron-down'
                           "
-                          @cancel="editingPartNumber = null"
+                          class="w-3 h-3 text-teal-400"
                         />
+                      </span>
+                    </th>
+                    <th
+                      class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors"
+                      :aria-sort="
+                        sortKey === 'name'
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      "
+                      @click="toggleSort('name')"
+                      @keydown.enter.prevent="toggleSort('name')"
+                      @keydown.space.prevent="toggleSort('name')"
+                      tabindex="0"
+                      role="columnheader"
+                    >
+                      <span class="inline-flex items-center gap-0.5">
+                        Name
+                        <UIcon
+                          v-if="sortKey === 'name'"
+                          :name="
+                            sortDir === 'asc'
+                              ? 'i-lucide-chevron-up'
+                              : 'i-lucide-chevron-down'
+                          "
+                          class="w-3 h-3 text-teal-400"
+                        />
+                      </span>
+                    </th>
+                    <th
+                      v-if="showModelColumn"
+                      class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide w-48"
+                    >
+                      Model
+                    </th>
+                    <th
+                      class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-14"
+                      :aria-sort="
+                        sortKey === 'qty'
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      "
+                      @click="toggleSort('qty')"
+                      @keydown.enter.prevent="toggleSort('qty')"
+                      @keydown.space.prevent="toggleSort('qty')"
+                      tabindex="0"
+                      role="columnheader"
+                    >
+                      <span
+                        class="inline-flex items-center justify-end gap-0.5"
+                      >
+                        QTY
+                        <UIcon
+                          v-if="sortKey === 'qty'"
+                          :name="
+                            sortDir === 'asc'
+                              ? 'i-lucide-chevron-up'
+                              : 'i-lucide-chevron-down'
+                          "
+                          class="w-3 h-3 text-teal-400"
+                        />
+                      </span>
+                    </th>
+                    <th
+                      class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-18"
+                      :aria-sort="
+                        sortKey === 'thickness'
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      "
+                      @click="toggleSort('thickness')"
+                      @keydown.enter.prevent="toggleSort('thickness')"
+                      @keydown.space.prevent="toggleSort('thickness')"
+                      tabindex="0"
+                      role="columnheader"
+                    >
+                      <span
+                        class="inline-flex items-center justify-end gap-0.5"
+                      >
+                        T<span v-if="distanceUnit" class="text-dim font-normal"
+                          >({{ distanceUnit }})</span
+                        >
+                        <UIcon
+                          v-if="sortKey === 'thickness'"
+                          :name="
+                            sortDir === 'asc'
+                              ? 'i-lucide-chevron-up'
+                              : 'i-lucide-chevron-down'
+                          "
+                          class="w-3 h-3 text-teal-400"
+                        />
+                      </span>
+                    </th>
+                    <th
+                      class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-22"
+                      :aria-sort="
+                        sortKey === 'width'
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      "
+                      @click="toggleSort('width')"
+                      @keydown.enter.prevent="toggleSort('width')"
+                      @keydown.space.prevent="toggleSort('width')"
+                      tabindex="0"
+                      role="columnheader"
+                    >
+                      <span
+                        class="inline-flex items-center justify-end gap-0.5"
+                      >
+                        W<span v-if="distanceUnit" class="text-dim font-normal"
+                          >({{ distanceUnit }})</span
+                        >
+                        <UIcon
+                          v-if="sortKey === 'width'"
+                          :name="
+                            sortDir === 'asc'
+                              ? 'i-lucide-chevron-up'
+                              : 'i-lucide-chevron-down'
+                          "
+                          class="w-3 h-3 text-teal-400"
+                        />
+                      </span>
+                    </th>
+                    <th
+                      class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-22"
+                      :aria-sort="
+                        sortKey === 'length'
+                          ? sortDir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      "
+                      @click="toggleSort('length')"
+                      @keydown.enter.prevent="toggleSort('length')"
+                      @keydown.space.prevent="toggleSort('length')"
+                      tabindex="0"
+                      role="columnheader"
+                    >
+                      <span
+                        class="inline-flex items-center justify-end gap-0.5"
+                      >
+                        L<span v-if="distanceUnit" class="text-dim font-normal"
+                          >({{ distanceUnit }})</span
+                        >
+                        <UIcon
+                          v-if="sortKey === 'length'"
+                          :name="
+                            sortDir === 'asc'
+                              ? 'i-lucide-chevron-up'
+                              : 'i-lucide-chevron-down'
+                          "
+                          class="w-3 h-3 text-teal-400"
+                        />
+                      </span>
+                    </th>
+                    <th
+                      class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide"
+                    >
+                      Grain
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template
+                    v-for="(group, gi) in filteredGroups"
+                    :key="group.material"
+                  >
+                    <!-- Material group header -->
+                    <tr>
+                      <td
+                        :colspan="tableColspan"
+                        :class="['px-5 pb-1.5', gi === 0 ? 'pt-3' : 'pt-5']"
+                      >
+                        <div
+                          class="flex items-center gap-2.5 pb-1.5 border-b border-subtle"
+                        >
+                          <span class="text-sm font-semibold text-body">{{
+                            group.material
+                          }}</span>
+                          <span class="text-xs text-muted"
+                            >{{ group.totalParts }} part{{
+                              group.totalParts === 1 ? '' : 's'
+                            }}</span
+                          >
+                        </div>
                       </td>
                     </tr>
 
-                    <!-- Normal data row -->
-                    <tr
-                      v-else
-                      class="group/row transition-colors text-[13px] cursor-pointer"
-                      :class="[
-                        row.leftoverCount > 0
-                          ? 'bg-amber-500/[0.06] hover:bg-amber-500/10'
-                          : 'hover:bg-surface',
-                        highlightedPartNumber === row.number
-                          ? 'bg-teal-500/12 ring-1 ring-inset ring-teal-400/40'
-                          : '',
-                      ]"
-                      @mouseenter="onRowEnter(row)"
-                      @mouseleave="onRowLeave(row)"
-                      @click="onRowClick(row, $event)"
-                    >
-                      <td class="pl-5 pr-4 py-2.5 text-muted tabular-nums">
-                        {{ row.number }}
-                      </td>
-                      <td class="px-4 py-2.5 text-body font-medium">
-                        <div
-                          v-if="renamingPartNumber === row.number"
-                          class="inline-flex items-center gap-1"
-                        >
-                          <input
-                            :ref="onPartNameInputMounted"
-                            v-model="partNameDraft"
-                            class="max-w-[14rem] text-[13px] font-medium bg-transparent text-teal-400 outline-none border-b border-teal-400/50"
-                            @keydown.enter.prevent="saveRenamePart(row)"
-                            @keydown.esc.prevent="cancelRenamePart"
-                            @blur="saveRenamePart(row)"
-                            @click.stop
-                            @dblclick.stop
+                    <!-- Data rows -->
+                    <template v-for="row in group.rows" :key="row.number">
+                      <!-- Inline edit form for manual parts -->
+                      <tr
+                        v-if="row.isManual && editingPartNumber === row.number"
+                      >
+                        <td :colspan="tableColspan" class="px-4 py-1.5">
+                          <ManualPartRow
+                            :materials="materials"
+                            :initial="getManualEditInfo(row.number)"
+                            @save="
+                              (d: ManualPartInput) =>
+                                handleUpdatePart(row.number, d)
+                            "
+                            @cancel="editingPartNumber = null"
                           />
-                          <button
-                            type="button"
-                            class="p-0.5 rounded text-teal-400 hover:text-teal-300 transition-colors"
-                            title="Save"
-                            @mousedown.prevent
-                            @click="saveRenamePart(row)"
+                        </td>
+                      </tr>
+
+                      <!-- Normal data row -->
+                      <tr
+                        v-else
+                        class="group/row transition-colors text-[13px] cursor-pointer"
+                        :class="[
+                          row.leftoverCount > 0
+                            ? 'bg-amber-500/[0.06] hover:bg-amber-500/10'
+                            : 'hover:bg-surface',
+                          highlightedPartNumber === row.number
+                            ? 'bg-teal-500/12 ring-1 ring-inset ring-teal-400/40'
+                            : '',
+                        ]"
+                        @mouseenter="onRowEnter(row)"
+                        @mouseleave="onRowLeave(row)"
+                        @click="onRowClick(row, $event)"
+                      >
+                        <td class="pl-5 pr-4 py-2.5 text-muted tabular-nums">
+                          {{ row.number }}
+                        </td>
+                        <td class="px-4 py-2.5 text-body font-medium">
+                          <div
+                            v-if="renamingPartNumber === row.number"
+                            class="inline-flex items-center gap-1"
                           >
-                            <UIcon name="i-lucide-check" class="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            class="p-0.5 rounded text-muted hover:text-body transition-colors"
-                            title="Cancel"
-                            @mousedown.prevent
-                            @click="cancelRenamePart"
-                          >
-                            <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <div v-else class="inline-flex items-center gap-1.5">
-                          <span
-                            class="cursor-text"
-                            :title="
-                              row.isManual
-                                ? 'Double click to edit part'
-                                : 'Double click to rename part'
-                            "
-                            @dblclick="
-                              row.isManual
-                                ? startEditManualPart(row.number)
-                                : startRenamePart(row)
-                            "
-                          >
-                            {{ row.name }}
-                          </span>
-                          <UIcon
-                            v-if="row.leftoverCount > 0"
-                            name="i-lucide-triangle-alert"
-                            class="w-3.5 h-3.5 shrink-0 text-amber-500"
-                            :title="
-                              row.leftoverCount === row.qty
-                                ? 'No board stock could be found for these dimensions'
-                                : `${row.leftoverCount} of ${row.qty} could not be placed on any board`
-                            "
-                          />
-                          <button
-                            v-if="!row.isManual"
-                            type="button"
-                            class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
-                            title="Rename part"
-                            @click="startRenamePart(row)"
-                          >
-                            <UIcon
-                              name="i-lucide-square-pen"
-                              class="w-3.5 h-3.5"
+                            <input
+                              :ref="onPartNameInputMounted"
+                              v-model="partNameDraft"
+                              class="max-w-[14rem] text-[13px] font-medium bg-transparent text-teal-400 outline-none border-b border-teal-400/50"
+                              @keydown.enter.prevent="saveRenamePart(row)"
+                              @keydown.esc.prevent="cancelRenamePart"
+                              @blur="saveRenamePart(row)"
+                              @click.stop
+                              @dblclick.stop
                             />
-                          </button>
-                          <template v-if="row.isManual">
                             <button
                               type="button"
+                              class="p-0.5 rounded text-teal-400 hover:text-teal-300 transition-colors"
+                              title="Save"
+                              @mousedown.prevent
+                              @click="saveRenamePart(row)"
+                            >
+                              <UIcon
+                                name="i-lucide-check"
+                                class="w-3.5 h-3.5"
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              class="p-0.5 rounded text-muted hover:text-body transition-colors"
+                              title="Cancel"
+                              @mousedown.prevent
+                              @click="cancelRenamePart"
+                            >
+                              <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div v-else class="inline-flex items-center gap-1.5">
+                            <span
+                              class="cursor-text"
+                              :title="
+                                row.isManual
+                                  ? 'Double click to edit part'
+                                  : 'Double click to rename part'
+                              "
+                              @dblclick="
+                                row.isManual
+                                  ? startEditManualPart(row.number)
+                                  : startRenamePart(row)
+                              "
+                            >
+                              {{ row.name }}
+                            </span>
+                            <UIcon
+                              v-if="row.leftoverCount > 0"
+                              name="i-lucide-triangle-alert"
+                              class="w-3.5 h-3.5 shrink-0 text-amber-500"
+                              :title="
+                                row.leftoverCount === row.qty
+                                  ? 'No board stock could be found for these dimensions'
+                                  : `${row.leftoverCount} of ${row.qty} could not be placed on any board`
+                              "
+                            />
+                            <button
+                              v-if="!row.isManual"
+                              type="button"
                               class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
-                              title="Edit part"
-                              @click="startEditManualPart(row.number)"
+                              title="Rename part"
+                              @click="startRenamePart(row)"
                             >
                               <UIcon
                                 name="i-lucide-square-pen"
                                 class="w-3.5 h-3.5"
                               />
                             </button>
+                            <template v-if="row.isManual">
+                              <button
+                                type="button"
+                                class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                title="Edit part"
+                                @click="startEditManualPart(row.number)"
+                              >
+                                <UIcon
+                                  name="i-lucide-square-pen"
+                                  class="w-3.5 h-3.5"
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                title="Remove part"
+                                @click="handleRemovePart(row.number)"
+                              >
+                                <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
+                              </button>
+                            </template>
+                          </div>
+                        </td>
+                        <td
+                          v-if="showModelColumn"
+                          class="px-4 py-2.5 text-muted truncate max-w-[14rem]"
+                          :title="row.modelName"
+                        >
+                          {{ row.modelName }}
+                        </td>
+                        <td
+                          class="px-4 py-2.5 text-right text-body tabular-nums"
+                        >
+                          {{ row.qty }}
+                        </td>
+                        <td
+                          class="px-4 py-2.5 text-right text-muted tabular-nums"
+                        >
+                          {{ formatDim(row.thicknessM) }}
+                        </td>
+                        <td
+                          class="px-4 py-2.5 text-right text-body tabular-nums"
+                        >
+                          {{ formatDim(row.widthM) }}
+                        </td>
+                        <td
+                          class="px-4 py-2.5 text-right text-body tabular-nums"
+                        >
+                          {{ formatDim(row.lengthM) }}
+                        </td>
+                        <td class="px-4 py-2.5">
+                          <div v-if="activeId" class="flex items-center gap-1">
+                            <!-- Unlocked state: plain icon button -->
                             <button
+                              v-if="!row.grainLock"
                               type="button"
-                              class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
-                              title="Remove part"
-                              @click="handleRemovePart(row.number)"
-                            >
-                              <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
-                            </button>
-                          </template>
-                        </div>
-                      </td>
-                      <td
-                        v-if="showModelColumn"
-                        class="px-4 py-2.5 text-muted truncate max-w-[14rem]"
-                        :title="row.modelName"
-                      >
-                        {{ row.modelName }}
-                      </td>
-                      <td class="px-4 py-2.5 text-right text-body tabular-nums">
-                        {{ row.qty }}
-                      </td>
-                      <td
-                        class="px-4 py-2.5 text-right text-muted tabular-nums"
-                      >
-                        {{ formatDim(row.thicknessM) }}
-                      </td>
-                      <td class="px-4 py-2.5 text-right text-body tabular-nums">
-                        {{ formatDim(row.widthM) }}
-                      </td>
-                      <td class="px-4 py-2.5 text-right text-body tabular-nums">
-                        {{ formatDim(row.lengthM) }}
-                      </td>
-                      <td class="px-4 py-2.5">
-                        <div v-if="activeId" class="flex items-center gap-1">
-                          <!-- Unlocked state: plain icon button -->
-                          <button
-                            v-if="!row.grainLock"
-                            type="button"
-                            aria-label="Grain unlocked. Click to lock grain."
-                            title="Free rotation — click to lock grain"
-                            class="flex items-center px-1.5 py-0.5 rounded text-xs text-dim hover:text-muted transition-colors"
-                            @click="
-                              requestGrainLockChange(
-                                row.number,
-                                row.grainLock,
-                                {
-                                  material: row.material,
-                                  thicknessM: row.thicknessM,
-                                  widthM: row.widthM,
-                                  lengthM: row.lengthM,
-                                },
-                              )
-                            "
-                          >
-                            <UIcon
-                              name="i-lucide-lock-open"
-                              class="w-3.5 h-3.5"
-                            />
-                          </button>
-                          <!-- Locked state: chip with cycle + clear -->
-                          <div
-                            v-else
-                            class="inline-flex items-center rounded-full bg-teal-400/10 border border-teal-400/25"
-                          >
-                            <button
-                              type="button"
-                              :aria-label="
-                                row.grainLock === 'length'
-                                  ? 'Grain locked to length. Click to lock width.'
-                                  : 'Grain locked to width. Click to lock length.'
-                              "
-                              :title="
-                                row.grainLock === 'length'
-                                  ? 'Length with grain (↕) — click to lock width'
-                                  : 'Width with grain (↔) — click to lock length'
-                              "
-                              class="flex items-center gap-1 pl-2 pr-1 py-0.5 text-xs text-teal-400 hover:text-teal-300 transition-colors"
+                              aria-label="Grain unlocked. Click to lock grain."
+                              title="Free rotation — click to lock grain"
+                              class="flex items-center px-1.5 py-0.5 rounded text-xs text-dim hover:text-muted transition-colors"
                               @click="
                                 requestGrainLockChange(
                                   row.number,
@@ -835,43 +819,80 @@ onUnmounted(() => {
                               "
                             >
                               <UIcon
-                                name="i-lucide-lock"
-                                class="w-3.5 h-3.5 shrink-0"
-                              />
-                              <UIcon
-                                v-if="row.grainLock === 'length'"
-                                name="i-ri-arrow-up-down-line"
-                                class="w-3.5 h-3.5 shrink-0"
-                              />
-                              <UIcon
-                                v-else
-                                name="i-ri-arrow-left-right-line"
-                                class="w-3.5 h-3.5 shrink-0"
+                                name="i-lucide-lock-open"
+                                class="w-3.5 h-3.5"
                               />
                             </button>
-                            <button
-                              type="button"
-                              aria-label="Clear grain lock"
-                              title="Clear grain lock"
-                              class="flex items-center pr-1.5 pl-0.5 py-0.5 text-teal-400/60 hover:text-teal-300 transition-colors"
-                              @click="
-                                updatePartGrainLock(
-                                  activeId!,
-                                  row.number,
-                                  undefined,
-                                )
-                              "
+                            <!-- Locked state: chip with cycle + clear -->
+                            <div
+                              v-else
+                              class="inline-flex items-center rounded-full bg-teal-400/10 border border-teal-400/25"
                             >
-                              <UIcon name="i-lucide-x" class="w-3 h-3" />
-                            </button>
+                              <button
+                                type="button"
+                                :aria-label="
+                                  row.grainLock === 'length'
+                                    ? 'Grain locked to length. Click to lock width.'
+                                    : 'Grain locked to width. Click to lock length.'
+                                "
+                                :title="
+                                  row.grainLock === 'length'
+                                    ? 'Length with grain (↕) — click to lock width'
+                                    : 'Width with grain (↔) — click to lock length'
+                                "
+                                class="flex items-center gap-1 pl-2 pr-1 py-0.5 text-xs text-teal-400 hover:text-teal-300 transition-colors"
+                                @click="
+                                  requestGrainLockChange(
+                                    row.number,
+                                    row.grainLock,
+                                    {
+                                      material: row.material,
+                                      thicknessM: row.thicknessM,
+                                      widthM: row.widthM,
+                                      lengthM: row.lengthM,
+                                    },
+                                  )
+                                "
+                              >
+                                <UIcon
+                                  name="i-lucide-lock"
+                                  class="w-3.5 h-3.5 shrink-0"
+                                />
+                                <UIcon
+                                  v-if="row.grainLock === 'length'"
+                                  name="i-ri-arrow-up-down-line"
+                                  class="w-3.5 h-3.5 shrink-0"
+                                />
+                                <UIcon
+                                  v-else
+                                  name="i-ri-arrow-left-right-line"
+                                  class="w-3.5 h-3.5 shrink-0"
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="Clear grain lock"
+                                title="Clear grain lock"
+                                class="flex items-center pr-1.5 pl-0.5 py-0.5 text-teal-400/60 hover:text-teal-300 transition-colors"
+                                @click="
+                                  updatePartGrainLock(
+                                    activeId!,
+                                    row.number,
+                                    undefined,
+                                  )
+                                "
+                              >
+                                <UIcon name="i-lucide-x" class="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                    </template>
                   </template>
-                </template>
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
 
             <!-- No search results -->
             <div
