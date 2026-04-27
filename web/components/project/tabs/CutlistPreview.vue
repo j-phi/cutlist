@@ -54,15 +54,7 @@ const filteredLayouts = computed(() => {
   );
 });
 
-const filteredLeftovers = computed(() => {
-  if (!data.value) return [];
-  const leftovers = data.value.leftovers;
-  if (selectedStock.value === ALL) return leftovers;
-  return leftovers.filter((l) => {
-    const key = `${l.material}__${l.thicknessM}`;
-    return selectedStock.value.startsWith(key);
-  });
-});
+const unplacedCount = computed(() => data.value?.leftovers.length ?? 0);
 </script>
 
 <template>
@@ -73,7 +65,7 @@ const filteredLeftovers = computed(() => {
 
       <template v-else-if="data">
         <p
-          v-if="filteredLayouts.length === 0 && filteredLeftovers.length === 0"
+          v-if="filteredLayouts.length === 0"
           class="m-auto bg-base border border-default rounded p-4 text-muted"
         >
           No board layouts found
@@ -85,10 +77,7 @@ const filteredLeftovers = computed(() => {
             class="canvas-plane"
             :style="`--zoom:${scale ?? 1}`"
           >
-            <LayoutList
-              :layouts="filteredLayouts"
-              :leftovers="filteredLeftovers"
-            />
+            <LayoutList :layouts="filteredLayouts" />
           </div>
         </template>
       </template>
@@ -102,16 +91,35 @@ const filteredLeftovers = computed(() => {
       </div>
     </div>
 
-    <!-- Part count warning banner -->
+    <!-- Warning banners -->
     <div
-      v-if="partCountWarning && !error"
-      class="absolute bottom-14 left-1/2 -translate-x-1/2 z-10 bg-amber-500/15 border border-amber-500/30 rounded-lg px-4 py-2 flex items-center gap-2 max-w-md"
+      v-if="!error && (partCountWarning || unplacedCount > 0)"
+      class="absolute bottom-14 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 max-w-md"
     >
-      <UIcon
-        name="i-lucide-triangle-alert"
-        class="w-4 h-4 text-amber-500 shrink-0"
-      />
-      <span class="text-xs text-amber-500">{{ partCountWarning }}</span>
+      <div
+        v-if="partCountWarning"
+        class="bg-amber-500/15 border border-amber-500/30 rounded-lg px-4 py-2 flex items-center gap-2"
+      >
+        <UIcon
+          name="i-lucide-triangle-alert"
+          class="w-4 h-4 text-amber-500 shrink-0"
+        />
+        <span class="text-xs text-amber-500">{{ partCountWarning }}</span>
+      </div>
+      <div
+        v-if="unplacedCount > 0"
+        class="bg-amber-500/15 border border-amber-500/30 rounded-lg px-4 py-2 flex items-center gap-2"
+      >
+        <UIcon
+          name="i-lucide-triangle-alert"
+          class="w-4 h-4 text-amber-500 shrink-0"
+        />
+        <span class="text-xs text-amber-500">
+          {{ unplacedCount }}
+          {{ unplacedCount === 1 ? 'part' : 'parts' }} could not be placed on
+          matching stock
+        </span>
+      </div>
     </div>
 
     <!-- Settings toolbar -->

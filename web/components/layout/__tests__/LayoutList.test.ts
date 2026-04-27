@@ -3,11 +3,7 @@ import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  BoardLayout,
-  BoardLayoutLeftover,
-  BoardLayoutPlacement,
-} from 'cutlist';
+import type { BoardLayout, BoardLayoutPlacement } from 'cutlist';
 
 import LayoutList from '../LayoutList.vue';
 
@@ -16,9 +12,6 @@ mockNuxtImport(
   'useFormatDistance',
   () => () => (m: number | undefined | null) => (m == null ? '' : `${m}m`),
 );
-mockNuxtImport('useGrainLockConfirm', () => () => ({
-  requestGrainLockChange: vi.fn(),
-}));
 
 interface LayoutFactoryArgs {
   material: string;
@@ -59,35 +52,13 @@ function makeLayout(args: LayoutFactoryArgs): BoardLayout {
   };
 }
 
-function makeLeftover(
-  partNumber: number,
-  material: string,
-  thicknessM: number,
-  overrides: Partial<BoardLayoutLeftover> = {},
-): BoardLayoutLeftover {
-  return {
-    partNumber,
-    instanceNumber: 1,
-    name: `Part ${partNumber}`,
-    material,
-    widthM: 0.2,
-    lengthM: 0.4,
-    thicknessM,
-    ...overrides,
-  };
-}
-
 describe('LayoutList', () => {
-  function getComponent(
-    layouts: BoardLayout[],
-    leftovers: BoardLayoutLeftover[] = [],
-  ) {
+  function getComponent(layouts: BoardLayout[]) {
     return shallowMount(LayoutList, {
-      props: { layouts, leftovers },
+      props: { layouts },
       global: {
         stubs: {
           LayoutListItem: true,
-          LayoutLeftoverList: true,
           UIcon: true,
         },
       },
@@ -174,90 +145,6 @@ describe('LayoutList', () => {
         (r) => r.findAllComponents({ name: 'LayoutListItem' }).length > 0,
       );
       expect(layoutRows).toHaveLength(3);
-    });
-
-    it('Should bucket leftovers into the matching material+thickness group', () => {
-      const layouts = [
-        makeLayout({
-          material: 'Plywood',
-          thicknessM: 0.018,
-          placements: [{}],
-        }),
-        makeLayout({
-          material: 'Birch',
-          thicknessM: 0.012,
-          placements: [{}],
-        }),
-      ];
-      const leftovers = [
-        makeLeftover(101, 'Plywood', 0.018),
-        makeLeftover(102, 'Plywood', 0.018),
-        makeLeftover(103, 'Birch', 0.012),
-      ];
-
-      const component = getComponent(layouts, leftovers);
-
-      // Each LayoutLeftoverList stub receives a `leftovers` prop. There should
-      // be one inline list per group that has matching leftovers; no
-      // "unmatched" column because every leftover matched a placed group.
-      const lists = component.findAllComponents({ name: 'LayoutLeftoverList' });
-      expect(lists).toHaveLength(2);
-
-      // Find which list corresponds to which group by inspecting partNumbers.
-      const buckets = lists.map((l) =>
-        (l.props('leftovers') as { part: BoardLayoutLeftover; qty: number }[])
-          .map((g) => g.part.partNumber)
-          .sort((a, b) => a - b),
-      );
-      // Sorted groups: Birch 0.012 first, then Plywood 0.018.
-      expect(buckets).toEqual([[103], [101, 102]]);
-    });
-
-    it('Should put leftovers without a matching board into the "No boards available" column', () => {
-      const layouts = [
-        makeLayout({
-          material: 'Plywood',
-          thicknessM: 0.018,
-          placements: [{}],
-        }),
-      ];
-      const leftovers = [
-        // matched
-        makeLeftover(1, 'Plywood', 0.018),
-        // unmatched (no board exists for this material+thickness)
-        makeLeftover(2, 'Walnut', 0.025),
-        makeLeftover(3, 'Walnut', 0.025),
-      ];
-
-      const component = getComponent(layouts, leftovers);
-      const lists = component.findAllComponents({ name: 'LayoutLeftoverList' });
-
-      // First list is the inline list under Plywood; second is the unmatched
-      // column.
-      expect(lists).toHaveLength(2);
-      const first = lists[0].props('leftovers') as {
-        part: BoardLayoutLeftover;
-        qty: number;
-      }[];
-      const second = lists[1].props('leftovers') as {
-        part: BoardLayoutLeftover;
-        qty: number;
-      }[];
-
-      expect(first.map((g) => g.part.partNumber)).toEqual([1]);
-      expect(second.map((g) => g.part.partNumber).sort()).toEqual([2, 3]);
-
-      // Unmatched column header must be visible.
-      expect(component.text()).toContain('No boards available');
-    });
-
-    it('Should render only the unmatched column when there are no boards', () => {
-      const leftovers = [makeLeftover(1, 'Walnut', 0.025)];
-      const component = getComponent([], leftovers);
-
-      const lists = component.findAllComponents({ name: 'LayoutLeftoverList' });
-      expect(lists).toHaveLength(1);
-      expect(component.text()).toContain('No boards available');
     });
   });
 });

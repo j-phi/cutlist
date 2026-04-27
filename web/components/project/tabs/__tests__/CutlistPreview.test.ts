@@ -97,8 +97,8 @@ describe('CutlistPreview', () => {
           USelect: USelectStub,
           LayoutList: {
             template:
-              '<div data-testid="layout-list" :data-count="layouts.length" :data-leftovers="leftovers.length" />',
-            props: ['layouts', 'leftovers'],
+              '<div data-testid="layout-list" :data-count="layouts.length" />',
+            props: ['layouts'],
           },
           PreviewToolbar: true,
           RulerToggle: true,
@@ -175,13 +175,10 @@ describe('CutlistPreview', () => {
   });
 
   describe('On stock filter change', () => {
-    it('Should filter layouts and leftovers by material__thicknessM prefix', async () => {
+    it('Should filter layouts by stock key', async () => {
       data.value = {
         layouts: [makeLayout('Plywood', 0.018), makeLayout('MDF', 0.012)],
-        leftovers: [
-          { material: 'Plywood', thicknessM: 0.018, partNumber: 1 },
-          { material: 'MDF', thicknessM: 0.012, partNumber: 2 },
-        ],
+        leftovers: [],
       };
       const component = getComponent();
       await nextTick();
@@ -193,7 +190,6 @@ describe('CutlistPreview', () => {
 
       const list = component.get('[data-testid="layout-list"]');
       expect(list.attributes('data-count')).toBe('1');
-      expect(list.attributes('data-leftovers')).toBe('1');
     });
   });
 
