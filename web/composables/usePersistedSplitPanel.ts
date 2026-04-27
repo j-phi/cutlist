@@ -5,13 +5,16 @@ import {
 
 type Direction = 'horizontal' | 'vertical';
 
+interface SplitConstraints {
+  minPanelPx?: number;
+  minMainPx?: number;
+}
+
 interface PersistedSplitPanelOptions {
   storageKey: string | Ref<string> | (() => string);
-  direction?: Direction | Ref<Direction>;
-  minPanelWidthPx?: number;
-  minMainWidthPx?: number;
-  minPanelHeightPx?: number;
-  minMainHeightPx?: number;
+  direction?: Direction | Ref<Direction> | (() => Direction);
+  horizontal?: SplitConstraints;
+  vertical?: SplitConstraints;
   defaultPanelRatio?: number;
 }
 
@@ -22,35 +25,23 @@ export default function usePersistedSplitPanel(
 ) {
   const panelSize = ref(0);
   const isResizing = ref(false);
-
   const defaultPanelRatio = options.defaultPanelRatio ?? 1 / 3;
 
-  const direction = computed<Direction>(() => {
-    if (!options.direction) return 'horizontal';
-    return typeof options.direction === 'string'
-      ? options.direction
-      : options.direction.value;
+  const direction = computed<Direction>(
+    () => toValue(options.direction) ?? 'horizontal',
+  );
+  const activeStorageKey = computed(() => toValue(options.storageKey));
+
+  const constraints = computed(() => {
+    const c =
+      direction.value === 'horizontal' ? options.horizontal : options.vertical;
+    const fallbackMin = direction.value === 'horizontal' ? 280 : 120;
+    const fallbackMain = direction.value === 'horizontal' ? 420 : 200;
+    return {
+      minPanel: c?.minPanelPx ?? fallbackMin,
+      minMain: c?.minMainPx ?? fallbackMain,
+    };
   });
-
-  const minPanelSize = computed(() =>
-    direction.value === 'horizontal'
-      ? (options.minPanelWidthPx ?? 280)
-      : (options.minPanelHeightPx ?? 120),
-  );
-
-  const minMainSize = computed(() =>
-    direction.value === 'horizontal'
-      ? (options.minMainWidthPx ?? 420)
-      : (options.minMainHeightPx ?? 200),
-  );
-
-  function resolveStorageKey() {
-    if (typeof options.storageKey === 'function') return options.storageKey();
-    if (typeof options.storageKey === 'string') return options.storageKey;
-    return options.storageKey.value;
-  }
-
-  const activeStorageKey = computed(() => resolveStorageKey());
 
   function getContainerSize() {
     if (!container.value) return 0;
@@ -59,32 +50,19 @@ export default function usePersistedSplitPanel(
       : container.value.clientHeight;
   }
 
-  function getMaxPanelSize() {
-    const maxBySpace = getContainerSize() - minMainSize.value;
-    return Math.max(minPanelSize.value, maxBySpace);
-  }
-
   function clampPanelSize(next: number) {
-    const max = getMaxPanelSize();
-    return Math.min(Math.max(next, minPanelSize.value), max);
-  }
-
-  function readStoredPanelSize(): number | null {
-    const stored = getLocalStorageNumber(activeStorageKey.value);
-    return stored != null && stored > 0 ? stored : null;
-  }
-
-  function writeStoredPanelSize(size: number) {
-    setLocalStorageNumber(activeStorageKey.value, size);
-  }
-
-  function defaultPanelSize() {
-    return clampPanelSize(getContainerSize() * defaultPanelRatio);
+    const { minPanel, minMain } = constraints.value;
+    const max = Math.max(minPanel, getContainerSize() - minMain);
+    return Math.min(Math.max(next, minPanel), max);
   }
 
   function initializePanelSize() {
-    const stored = readStoredPanelSize();
-    panelSize.value = clampPanelSize(stored ?? defaultPanelSize());
+    const stored = getLocalStorageNumber(activeStorageKey.value);
+    const base =
+      stored != null && stored > 0
+        ? stored
+        : getContainerSize() * defaultPanelRatio;
+    panelSize.value = clampPanelSize(base);
   }
 
   // AbortController for clean listener teardown — no stale closures.
@@ -97,7 +75,7 @@ export default function usePersistedSplitPanel(
     isResizing.value = false;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    if (persist) writeStoredPanelSize(panelSize.value);
+    if (persist) setLocalStorageNumber(activeStorageKey.value, panelSize.value);
   }
 
   function startResize(event: PointerEvent) {
@@ -106,27 +84,22 @@ export default function usePersistedSplitPanel(
     panelSize.value = clampPanelSize(panelSize.value);
     isResizing.value = true;
 
-    const cursor =
-      direction.value === 'horizontal' ? 'col-resize' : 'row-resize';
-    document.body.style.cursor = cursor;
+    // Capture direction at drag start so mid-drag breakpoint changes don't break.
+    const isHorizontal = direction.value === 'horizontal';
+    document.body.style.cursor = isHorizontal ? 'col-resize' : 'row-resize';
     document.body.style.userSelect = 'none';
 
     resizeAbort = new AbortController();
     const { signal } = resizeAbort;
-
-    // Capture direction at drag start so mid-drag breakpoint changes don't break.
-    const dir = direction.value;
 
     window.addEventListener(
       'pointermove',
       (e) => {
         const bounds = container.value?.getBoundingClientRect();
         if (!bounds) return;
-        if (dir === 'horizontal') {
-          panelSize.value = clampPanelSize(bounds.right - e.clientX);
-        } else {
-          panelSize.value = clampPanelSize(e.clientY - bounds.top);
-        }
+        panelSize.value = clampPanelSize(
+          isHorizontal ? bounds.right - e.clientX : e.clientY - bounds.top,
+        );
       },
       { signal },
     );
@@ -166,9 +139,5 @@ export default function usePersistedSplitPanel(
     window.removeEventListener('resize', onWindowResize);
   });
 
-  return {
-    panelSize,
-    isResizing,
-    startResize,
-  };
+  return { panelSize, isResizing, startResize };
 }

@@ -153,10 +153,8 @@ const {
       : STORAGE_KEYS.ui.projectBomPreviewWidth(id);
   },
   direction: splitDirection,
-  minPanelWidthPx: 280,
-  minMainWidthPx: 420,
-  minPanelHeightPx: 120,
-  minMainHeightPx: 200,
+  horizontal: { minPanelPx: 280, minMainPx: 420 },
+  vertical: { minPanelPx: 120, minMainPx: 200 },
   defaultPanelRatio: 1 / 2,
 });
 const highlightedPartNumber = computed(
@@ -870,44 +868,28 @@ onUnmounted(() => {
           ]"
           @pointerdown="startPreviewResize"
         >
-          <!-- Vertical handle (desktop) -->
-          <template v-if="!isNarrow">
-            <div
-              class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-mist-700/55 transition-colors"
-              :class="
-                isResizingPreview
-                  ? 'bg-teal-400/85'
-                  : 'group-hover:bg-teal-400/65'
-              "
-            />
-            <div
-              class="absolute top-1/2 left-1/2 h-14 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-mist-700/60 transition-colors"
-              :class="
-                isResizingPreview
-                  ? 'bg-teal-400/90'
-                  : 'group-hover:bg-teal-400/70'
-              "
-            />
-          </template>
-          <!-- Horizontal handle (mobile) -->
-          <template v-else>
-            <div
-              class="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-mist-700/55 transition-colors"
-              :class="
-                isResizingPreview
-                  ? 'bg-teal-400/85'
-                  : 'group-hover:bg-teal-400/65'
-              "
-            />
-            <div
-              class="absolute left-1/2 top-1/2 w-14 h-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-mist-700/60 transition-colors"
-              :class="
-                isResizingPreview
-                  ? 'bg-teal-400/90'
-                  : 'group-hover:bg-teal-400/70'
-              "
-            />
-          </template>
+          <!-- Track line -->
+          <div
+            :class="[
+              'absolute transition-colors bg-mist-700/55',
+              isNarrow
+                ? 'inset-x-0 top-1/2 h-px -translate-y-1/2'
+                : 'inset-y-0 left-1/2 w-px -translate-x-1/2',
+              isResizingPreview
+                ? 'bg-teal-400/85'
+                : 'group-hover:bg-teal-400/65',
+            ]"
+          />
+          <!-- Grip pill -->
+          <div
+            :class="[
+              'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors bg-mist-700/60',
+              isNarrow ? 'w-14 h-1' : 'h-14 w-1',
+              isResizingPreview
+                ? 'bg-teal-400/90'
+                : 'group-hover:bg-teal-400/70',
+            ]"
+          />
         </div>
 
         <aside
