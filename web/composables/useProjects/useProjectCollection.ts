@@ -111,8 +111,8 @@ export default function useProjectCollection() {
     archivedList.value = archivedList.value.filter((p) => p.id !== id);
     const updatedAt = new Date().toISOString();
     projectList.value = [
-      { id, name: item.name, updatedAt },
       ...projectList.value,
+      { id, name: item.name, updatedAt },
     ];
     activeId.value = id;
   }
@@ -138,6 +138,15 @@ export default function useProjectCollection() {
     await idb.updateProject(id, { name });
   }
 
+  async function appendProject(id: string) {
+    const project = await idb.getProjectWithModels(id);
+    if (!project) return;
+    projectList.value = [
+      ...projectList.value,
+      { id: project.id, name: project.name, updatedAt: project.updatedAt },
+    ];
+  }
+
   async function reloadProjectList() {
     const [list, archived] = await Promise.all([
       idb.getProjectList(),
@@ -156,6 +165,7 @@ export default function useProjectCollection() {
     projects,
     archivedList,
     addProject,
+    appendProject,
     closeProject,
     restoreProject,
     permanentlyDeleteProject,
