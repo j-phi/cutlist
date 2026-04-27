@@ -18,6 +18,7 @@ const {
   updateManualPart,
   removeManualPart,
   updatePartNameOverride,
+  updatePartGrainLock,
 } = useProjects();
 
 const { requestGrainLockChange } = useGrainLockConfirm();
@@ -167,10 +168,11 @@ const highlightedPartNumber = computed(
 function formatDim(m: number | undefined | null): string {
   const s = formatDistance(m);
   if (!s) return '';
-  return distanceUnit.value === 'mm' ? s.replace(/mm$/, '') : s;
+  if (distanceUnit.value === 'mm') return s.replace(/\s*mm$/, '');
+  return s.replace(/\s*"$/, '');
 }
 
-const tableColspan = computed(() => (showModelColumn.value ? 9 : 8));
+const tableColspan = computed(() => (showModelColumn.value ? 8 : 7));
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -515,7 +517,9 @@ onUnmounted(() => {
                     role="columnheader"
                   >
                     <span class="inline-flex items-center justify-end gap-0.5">
-                      T
+                      T<span v-if="distanceUnit" class="text-dim font-normal"
+                        >({{ distanceUnit }})</span
+                      >
                       <UIcon
                         v-if="sortKey === 'thickness'"
                         :name="
@@ -543,7 +547,9 @@ onUnmounted(() => {
                     role="columnheader"
                   >
                     <span class="inline-flex items-center justify-end gap-0.5">
-                      W
+                      W<span v-if="distanceUnit" class="text-dim font-normal"
+                        >({{ distanceUnit }})</span
+                      >
                       <UIcon
                         v-if="sortKey === 'width'"
                         :name="
@@ -571,7 +577,9 @@ onUnmounted(() => {
                     role="columnheader"
                   >
                     <span class="inline-flex items-center justify-end gap-0.5">
-                      L
+                      L<span v-if="distanceUnit" class="text-dim font-normal"
+                        >({{ distanceUnit }})</span
+                      >
                       <UIcon
                         v-if="sortKey === 'length'"
                         :name="
@@ -584,11 +592,10 @@ onUnmounted(() => {
                     </span>
                   </th>
                   <th
-                    class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide w-16"
+                    class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide"
                   >
                     Grain
                   </th>
-                  <th class="pr-5 w-28"></th>
                 </tr>
               </thead>
               <tbody>
@@ -656,35 +663,97 @@ onUnmounted(() => {
                       <td class="px-4 py-2.5 text-body font-medium">
                         <div
                           v-if="renamingPartNumber === row.number"
-                          class="max-w-[16rem]"
+                          class="inline-flex items-center gap-1"
                         >
                           <input
                             :ref="onPartNameInputMounted"
                             v-model="partNameDraft"
-                            class="w-full text-[13px] font-medium bg-transparent text-teal-400 outline-none border-b border-teal-400/50"
+                            class="max-w-[14rem] text-[13px] font-medium bg-transparent text-teal-400 outline-none border-b border-teal-400/50"
                             @keydown.enter.prevent="saveRenamePart(row)"
                             @keydown.esc.prevent="cancelRenamePart"
                             @blur="saveRenamePart(row)"
                             @click.stop
                             @dblclick.stop
                           />
+                          <button
+                            type="button"
+                            class="p-0.5 rounded text-teal-400 hover:text-teal-300 transition-colors"
+                            title="Save"
+                            @mousedown.prevent
+                            @click="saveRenamePart(row)"
+                          >
+                            <UIcon name="i-lucide-check" class="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            class="p-0.5 rounded text-muted hover:text-body transition-colors"
+                            title="Cancel"
+                            @mousedown.prevent
+                            @click="cancelRenamePart"
+                          >
+                            <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <span
-                          v-else
-                          class="cursor-text"
-                          :title="
-                            row.isManual
-                              ? 'Double click to edit part'
-                              : 'Double click to rename part'
-                          "
-                          @dblclick="
-                            row.isManual
-                              ? startEditManualPart(row.number)
-                              : startRenamePart(row)
-                          "
-                        >
-                          {{ row.name }}
-                        </span>
+                        <div v-else class="inline-flex items-center gap-1.5">
+                          <span
+                            class="cursor-text"
+                            :title="
+                              row.isManual
+                                ? 'Double click to edit part'
+                                : 'Double click to rename part'
+                            "
+                            @dblclick="
+                              row.isManual
+                                ? startEditManualPart(row.number)
+                                : startRenamePart(row)
+                            "
+                          >
+                            {{ row.name }}
+                          </span>
+                          <UIcon
+                            v-if="row.leftoverCount > 0"
+                            name="i-lucide-triangle-alert"
+                            class="w-3.5 h-3.5 shrink-0 text-amber-500"
+                            :title="
+                              row.leftoverCount === row.qty
+                                ? 'No board stock could be found for these dimensions'
+                                : `${row.leftoverCount} of ${row.qty} could not be placed on any board`
+                            "
+                          />
+                          <button
+                            v-if="!row.isManual"
+                            type="button"
+                            class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
+                            title="Rename part"
+                            @click="startRenamePart(row)"
+                          >
+                            <UIcon
+                              name="i-lucide-square-pen"
+                              class="w-3.5 h-3.5"
+                            />
+                          </button>
+                          <template v-if="row.isManual">
+                            <button
+                              type="button"
+                              class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
+                              title="Edit part"
+                              @click="startEditManualPart(row.number)"
+                            >
+                              <UIcon
+                                name="i-lucide-square-pen"
+                                class="w-3.5 h-3.5"
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
+                              title="Remove part"
+                              @click="handleRemovePart(row.number)"
+                            >
+                              <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
+                            </button>
+                          </template>
+                        </div>
                       </td>
                       <td
                         v-if="showModelColumn"
@@ -708,131 +777,94 @@ onUnmounted(() => {
                         {{ formatDim(row.lengthM) }}
                       </td>
                       <td class="px-4 py-2.5">
-                        <button
-                          v-if="activeId"
-                          type="button"
-                          :aria-label="
-                            row.grainLock === 'length'
-                              ? 'Grain locked to length. Click to lock width.'
-                              : row.grainLock === 'width'
-                                ? 'Grain locked to width. Click to unlock.'
-                                : 'Grain unlocked. Click to lock grain.'
-                          "
-                          :title="
-                            row.grainLock === 'length'
-                              ? 'Length with grain (\u2195) \u2014 click to lock width'
-                              : row.grainLock === 'width'
-                                ? 'Width with grain (\u2194) \u2014 click to unlock'
-                                : 'Free rotation \u2014 click to lock grain'
-                          "
-                          :class="[
-                            'flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors',
-                            row.grainLock
-                              ? 'text-teal-400 hover:text-teal-300'
-                              : 'text-dim hover:text-muted',
-                          ]"
-                          @click="
-                            requestGrainLockChange(row.number, row.grainLock, {
-                              material: row.material,
-                              thicknessM: row.thicknessM,
-                              widthM: row.widthM,
-                              lengthM: row.lengthM,
-                            })
-                          "
-                        >
-                          <UIcon
-                            :name="
-                              row.grainLock
-                                ? 'i-lucide-lock'
-                                : 'i-lucide-lock-open'
+                        <div v-if="activeId" class="flex items-center gap-1">
+                          <!-- Unlocked state: plain icon button -->
+                          <button
+                            v-if="!row.grainLock"
+                            type="button"
+                            aria-label="Grain unlocked. Click to lock grain."
+                            title="Free rotation — click to lock grain"
+                            class="flex items-center px-1.5 py-0.5 rounded text-xs text-dim hover:text-muted transition-colors"
+                            @click="
+                              requestGrainLockChange(
+                                row.number,
+                                row.grainLock,
+                                {
+                                  material: row.material,
+                                  thicknessM: row.thicknessM,
+                                  widthM: row.widthM,
+                                  lengthM: row.lengthM,
+                                },
+                              )
                             "
-                            class="w-3.5 h-3.5 shrink-0"
-                          />
-                          <UIcon
-                            v-if="row.grainLock === 'length'"
-                            name="i-ri-arrow-up-down-line"
-                            class="w-3.5 h-3.5 shrink-0"
-                          />
-                          <UIcon
-                            v-else-if="row.grainLock === 'width'"
-                            name="i-ri-arrow-left-right-line"
-                            class="w-3.5 h-3.5 shrink-0"
-                          />
-                        </button>
-                      </td>
-                      <td class="pr-5 pl-4 py-2.5">
-                        <div class="flex items-center justify-end gap-1.5">
-                          <template v-if="renamingPartNumber === row.number">
-                            <UButton
-                              size="xs"
-                              color="primary"
-                              variant="soft"
-                              label="Save"
-                              @mousedown.prevent
-                              @click="saveRenamePart(row)"
+                          >
+                            <UIcon
+                              name="i-lucide-lock-open"
+                              class="w-3.5 h-3.5"
                             />
-                            <UButton
-                              size="xs"
-                              color="neutral"
-                              variant="ghost"
-                              label="Cancel"
-                              @mousedown.prevent
-                              @click="cancelRenamePart"
-                            />
-                          </template>
-                          <template v-else>
-                            <span
-                              v-if="row.leftoverCount > 0"
-                              class="inline-flex items-center gap-1 text-xs text-amber-500"
+                          </button>
+                          <!-- Locked state: chip with cycle + clear -->
+                          <div
+                            v-else
+                            class="inline-flex items-center rounded-full bg-teal-400/10 border border-teal-400/25"
+                          >
+                            <button
+                              type="button"
+                              :aria-label="
+                                row.grainLock === 'length'
+                                  ? 'Grain locked to length. Click to lock width.'
+                                  : 'Grain locked to width. Click to lock length.'
+                              "
                               :title="
-                                row.leftoverCount === row.qty
-                                  ? 'No board found for this part'
-                                  : `${row.leftoverCount} of ${row.qty} could not be placed`
+                                row.grainLock === 'length'
+                                  ? 'Length with grain (↕) — click to lock width'
+                                  : 'Width with grain (↔) — click to lock length'
+                              "
+                              class="flex items-center gap-1 pl-2 pr-1 py-0.5 text-xs text-teal-400 hover:text-teal-300 transition-colors"
+                              @click="
+                                requestGrainLockChange(
+                                  row.number,
+                                  row.grainLock,
+                                  {
+                                    material: row.material,
+                                    thicknessM: row.thicknessM,
+                                    widthM: row.widthM,
+                                    lengthM: row.lengthM,
+                                  },
+                                )
                               "
                             >
                               <UIcon
-                                name="i-lucide-triangle-alert"
+                                name="i-lucide-lock"
                                 class="w-3.5 h-3.5 shrink-0"
                               />
-                              <span class="hidden sm:inline whitespace-nowrap">
-                                {{
-                                  row.leftoverCount === row.qty
-                                    ? 'No board'
-                                    : `${row.leftoverCount}/${row.qty}`
-                                }}
-                              </span>
-                            </span>
-                            <UButton
-                              v-if="!row.isManual"
-                              size="xs"
-                              icon="i-lucide-square-pen"
-                              color="neutral"
-                              variant="ghost"
-                              class="rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity"
-                              title="Rename part"
-                              @click="startRenamePart(row)"
-                            />
-                            <template v-if="row.isManual">
-                              <UButton
-                                size="xs"
-                                icon="i-lucide-square-pen"
-                                color="neutral"
-                                variant="ghost"
-                                class="rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity"
-                                title="Edit part"
-                                @click="startEditManualPart(row.number)"
+                              <UIcon
+                                v-if="row.grainLock === 'length'"
+                                name="i-ri-arrow-up-down-line"
+                                class="w-3.5 h-3.5 shrink-0"
                               />
-                              <UButton
-                                size="xs"
-                                icon="i-lucide-x"
-                                color="neutral"
-                                variant="ghost"
-                                class="rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity"
-                                title="Remove part"
-                                @click="handleRemovePart(row.number)"
+                              <UIcon
+                                v-else
+                                name="i-ri-arrow-left-right-line"
+                                class="w-3.5 h-3.5 shrink-0"
                               />
-                            </template>
-                          </template>
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Clear grain lock"
+                              title="Clear grain lock"
+                              class="flex items-center pr-1.5 pl-0.5 py-0.5 text-teal-400/60 hover:text-teal-300 transition-colors"
+                              @click="
+                                updatePartGrainLock(
+                                  activeId!,
+                                  row.number,
+                                  undefined,
+                                )
+                              "
+                            >
+                              <UIcon name="i-lucide-x" class="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
