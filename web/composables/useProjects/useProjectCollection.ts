@@ -128,7 +128,7 @@ export default function useProjectCollection() {
 
   async function resetDatabase() {
     await idbResetDatabase();
-    window.location.replace('/');
+    window.location.reload();
   }
 
   async function renameProject(id: string, name: string) {
