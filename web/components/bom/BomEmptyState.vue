@@ -3,10 +3,34 @@ defineEmits<{
   pickFile: [];
   addManualPart: [];
 }>();
+
+const importGuides = [
+  {
+    value: 'onshape',
+    label: 'From Onshape (.gltf)',
+    icon: 'i-lucide-box',
+    slot: 'onshape' as const,
+    content: ' ',
+  },
+  {
+    value: 'sketchup',
+    label: 'From SketchUp (.dae)',
+    icon: 'i-lucide-pentagon',
+    slot: 'sketchup' as const,
+    content: ' ',
+  },
+  {
+    value: 'other',
+    label: 'Other 3D tools',
+    icon: 'i-lucide-blocks',
+    slot: 'other' as const,
+    content: ' ',
+  },
+];
 </script>
 
 <template>
-  <div class="px-6 py-6 pb-24 space-y-6 max-w-lg mx-auto">
+  <div class="px-6 pt-16 pb-24 space-y-6 max-w-lg mx-auto">
     <!-- Heading + actions -->
     <div class="text-center space-y-3">
       <div
@@ -26,13 +50,14 @@ defineEmits<{
       <div class="space-y-1">
         <p class="text-base font-semibold text-hi">Drag your model here</p>
         <p class="text-sm text-muted leading-relaxed">
-          Import a .gltf (Onshape) or .dae (SketchUp) model to automatically
-          generate your cut list, or add parts manually.
+          Import a
+          <span class="font-mono text-dim">.gltf</span> from Onshape or
+          <span class="font-mono text-dim">.dae</span> from SketchUp to
+          automatically generate your cut list, or add parts manually.
         </p>
       </div>
       <div class="flex items-center justify-center gap-2">
         <UButton
-          size="sm"
           color="primary"
           variant="soft"
           icon="i-lucide-upload"
@@ -40,7 +65,6 @@ defineEmits<{
           @click="$emit('pickFile')"
         />
         <UButton
-          size="sm"
           color="neutral"
           variant="soft"
           icon="i-lucide-plus"
@@ -50,59 +74,80 @@ defineEmits<{
       </div>
     </div>
 
-    <!-- Workflow steps -->
-    <ol class="space-y-4 list-none pl-0">
-      <li class="flex gap-3">
-        <span
-          class="shrink-0 w-6 h-6 rounded-full bg-teal-400/15 text-teal-400 text-xs font-bold flex items-center justify-center mt-0.5"
-          >1</span
+    <!-- Export guides -->
+    <UAccordion
+      :items="importGuides"
+      type="single"
+      collapsible
+      :ui="{
+        item: 'border border-subtle rounded-lg mb-2 overflow-hidden last:border-b last:border-b-subtle',
+        trigger:
+          'px-4 py-2.5 hover:bg-mist-900 transition-colors data-[state=open]:bg-mist-900',
+        content: 'border-t border-subtle',
+        body: 'px-4 py-3',
+        label: 'text-sm font-medium text-body',
+        leadingIcon: 'text-teal-400',
+      }"
+    >
+      <template #onshape-body>
+        <ol
+          class="space-y-2 list-decimal list-inside text-sm text-muted leading-relaxed"
         >
-        <div>
-          <p class="text-sm font-medium text-body">
-            Build your model in Onshape
+          <li>
+            Model each part at real-world dimensions. Assign a
+            <strong class="text-body">unique colour</strong> per material.
+          </li>
+          <li>
+            <strong class="text-body">File &rarr; Export</strong>, set format to
+            <span class="font-mono text-dim">GLTF</span>, and download.
+          </li>
+          <li>
+            Drag the <span class="font-mono text-dim">.gltf</span> file here or
+            click <strong class="text-body">Import Model</strong>.
+          </li>
+        </ol>
+        <img
+          src="/onshape-export.png"
+          alt="Onshape export dialog showing GLTF format selected"
+          class="mt-3 rounded-lg border border-subtle w-full"
+        />
+      </template>
+
+      <template #sketchup-body>
+        <ol
+          class="space-y-2 list-decimal list-inside text-sm text-muted leading-relaxed"
+        >
+          <li>
+            Model each part as a
+            <strong class="text-body">separate component</strong>. Apply a
+            different material/colour per wood type.
+          </li>
+          <li>
+            <strong class="text-body">File &rarr; Export &rarr; 3D Model</strong
+            >, choose <span class="font-mono text-dim">COLLADA (.dae)</span>.
+          </li>
+          <li>
+            Drag the <span class="font-mono text-dim">.dae</span> file here or
+            click <strong class="text-body">Import Model</strong>.
+          </li>
+        </ol>
+      </template>
+
+      <template #other-body>
+        <div class="text-sm text-muted leading-relaxed space-y-2">
+          <p>
+            Any tool that exports
+            <strong class="text-body">GLTF</strong> or
+            <strong class="text-body">COLLADA (.dae)</strong> will work &mdash;
+            including Fusion 360, Blender, FreeCAD, and SolidWorks.
           </p>
-          <p class="text-sm text-muted leading-relaxed mt-0.5">
-            Model each part at its real-world dimensions. Assign a unique
-            appearance colour to each material&nbsp;&mdash; e.g. oak parts one
-            colour, plywood another.
+          <p>
+            Assign
+            <strong class="text-body">distinct colours per material</strong>
+            so the importer can tell your wood types apart.
           </p>
         </div>
-      </li>
-      <li class="flex gap-3">
-        <span
-          class="shrink-0 w-6 h-6 rounded-full bg-teal-400/15 text-teal-400 text-xs font-bold flex items-center justify-center mt-0.5"
-          >2</span
-        >
-        <div>
-          <p class="text-sm font-medium text-body">Export as GLTF</p>
-          <p class="text-sm text-muted leading-relaxed mt-0.5">
-            In Onshape, choose
-            <span class="font-semibold text-body">File &rarr; Export</span>, set
-            format to <span class="font-mono text-dim">GLTF</span>, and
-            download.
-          </p>
-          <img
-            src="/onshape-export.png"
-            alt="Onshape export dialog showing GLTF format selected"
-            class="mt-2 rounded-lg border border-subtle w-full"
-          />
-        </div>
-      </li>
-      <li class="flex gap-3">
-        <span
-          class="shrink-0 w-6 h-6 rounded-full bg-teal-400/15 text-teal-400 text-xs font-bold flex items-center justify-center mt-0.5"
-          >3</span
-        >
-        <div>
-          <p class="text-sm font-medium text-body">Import to Cutlist Studio</p>
-          <p class="text-sm text-muted leading-relaxed mt-0.5">
-            Drop the
-            <span class="font-mono text-dim">.gltf</span> file below or click
-            Import. Map each colour to a stock material, and the optimiser will
-            generate your board layouts.
-          </p>
-        </div>
-      </li>
-    </ol>
+      </template>
+    </UAccordion>
   </div>
 </template>
