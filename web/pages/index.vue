@@ -4,9 +4,35 @@ const { importFromFile, pickAndImport } = useImportProject();
 const toast = useToast();
 
 const showNewProject = ref(false);
+const loadingDemo = ref(false);
 
 function openNewProject() {
   showNewProject.value = true;
+}
+
+async function loadDemo() {
+  if (loadingDemo.value) return;
+  loadingDemo.value = true;
+  try {
+    const base = useRuntimeConfig().app.baseURL || '/';
+    const response = await fetch(`${base}demo.cutlist`);
+    if (!response.ok) {
+      throw new Error(`Failed to load demo project (${response.status})`);
+    }
+    const blob = await response.blob();
+    const file = new File([blob], 'demo.cutlist', {
+      type: blob.type || 'application/gzip',
+    });
+    await importFromFile(file);
+  } catch (err) {
+    toast.add({
+      title: 'Demo failed to load',
+      description: err instanceof Error ? err.message : String(err),
+      color: 'error',
+    });
+  } finally {
+    loadingDemo.value = false;
+  }
 }
 
 const isDragging = ref(false);
@@ -47,6 +73,12 @@ function scrollToContent() {
     .getElementById('how-it-works')
     ?.scrollIntoView({ behavior: 'smooth' });
 }
+
+function scrollToFormats() {
+  document
+    .getElementById('supported-formats')
+    ?.scrollIntoView({ behavior: 'smooth' });
+}
 </script>
 
 <template>
@@ -63,227 +95,229 @@ function scrollToContent() {
         <!-- HERO                                                            -->
         <!-- ════════════════════════════════════════════════════════════════ -->
         <section
-          class="relative min-h-[calc(100vh-2.5rem)] flex items-center justify-center overflow-hidden"
+          class="relative min-h-[calc(100vh-2.5rem)] flex flex-col items-center justify-center overflow-hidden pt-16 pb-0 px-4"
         >
-          <!-- Board layout SVG background -->
-          <!-- prettier-ignore -->
-          <div class="absolute inset-0 pointer-events-none select-none" aria-hidden="true">
-            <svg viewBox="0 0 1000 560" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" class="w-full h-full">
-              <!-- Board A: Cabinet sides + back + shelves (300x190) -->
-              <rect x="10" y="10" width="300" height="190" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="15" y="15" width="52" height="178" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="41" y="108" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Side L</text>
-              <rect x="70" y="15" width="52" height="178" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="96" y="108" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Side R</text>
-              <rect x="125" y="15" width="178" height="95" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="214" y="66" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Back</text>
-              <rect x="125" y="113" width="86" height="26" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="168" y="130" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Shelf</text>
-              <rect x="125" y="142" width="86" height="26" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="168" y="159" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Shelf</text>
-              <rect x="125" y="171" width="86" height="22" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="168" y="186" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Shelf</text>
-              <rect x="214" y="113" width="89" height="80" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-              <!-- Dimension line -->
-              <line x1="10" y1="4" x2="310" y2="4" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/><line x1="10" y1="1" x2="10" y2="7" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/><line x1="310" y1="1" x2="310" y2="7" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/>
-
-              <!-- Board B: Drawer fronts + dividers (260x170) -->
-              <rect x="325" y="15" width="260" height="170" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="330" y="20" width="120" height="28" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="390" y="38" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Drawer front</text>
-              <rect x="453" y="20" width="120" height="28" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="513" y="38" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Drawer front</text>
-              <rect x="330" y="51" width="120" height="28" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="390" y="69" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Drawer front</text>
-              <rect x="453" y="51" width="120" height="28" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="513" y="69" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Drawer front</text>
-              <rect x="330" y="82" width="72" height="96" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="366" y="134" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Divider</text>
-              <rect x="405" y="82" width="72" height="96" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="441" y="134" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Divider</text>
-              <rect x="480" y="82" width="98" height="96" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-
-              <!-- Board C: Long shelves stacked (190x200) -->
-              <rect x="600" y="8" width="175" height="200" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="605" y="13" width="162" height="26" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="686" y="30" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Top rail</text>
-              <rect x="605" y="42" width="162" height="26" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="686" y="59" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Bottom rail</text>
-              <rect x="605" y="71" width="162" height="26" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="686" y="88" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Stretcher</text>
-              <rect x="605" y="100" width="100" height="100" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="655" y="154" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Door</text>
-              <rect x="708" y="100" width="59" height="100" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-              <!-- Dimension line -->
-              <line x1="781" y1="8" x2="781" y2="208" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/><line x1="778" y1="8" x2="784" y2="8" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/><line x1="778" y1="208" x2="784" y2="208" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/>
-
-              <!-- Board D: Big panels (200x195) -->
-              <rect x="800" y="12" width="190" height="195" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="805" y="17" width="90" height="130" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="850" y="86" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Panel</text>
-              <rect x="898" y="17" width="85" height="85" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="940" y="63" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Top</text>
-              <rect x="898" y="105" width="85" height="42" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="940" y="130" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Kick</text>
-              <rect x="805" y="150" width="60" height="50" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="835" y="179" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Cleat</text>
-              <rect x="868" y="150" width="115" height="50" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-
-              <!-- Board E: Wide board with long parts (370x125) -->
-              <rect x="10" y="220" width="370" height="125" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="15" y="225" width="355" height="22" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="192" y="240" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Face frame top</text>
-              <rect x="15" y="250" width="355" height="22" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="192" y="265" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Face frame bottom</text>
-              <rect x="15" y="275" width="170" height="62" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="100" y="310" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Bottom</text>
-              <rect x="188" y="275" width="85" height="62" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="230" y="310" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Shelf</text>
-              <rect x="276" y="275" width="97" height="62" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-              <!-- Dimension line -->
-              <line x1="10" y1="351" x2="380" y2="351" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/><line x1="10" y1="348" x2="10" y2="354" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/><line x1="380" y1="348" x2="380" y2="354" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/>
-
-              <!-- Board F: Mixed small parts (220x165) -->
-              <rect x="395" y="215" width="220" height="165" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="400" y="220" width="42" height="152" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="421" y="300" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace" transform="rotate(-90,421,300)">Stile</text>
-              <rect x="445" y="220" width="42" height="152" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="466" y="300" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace" transform="rotate(-90,466,300)">Stile</text>
-              <rect x="490" y="220" width="118" height="45" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="549" y="247" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Rail</text>
-              <rect x="490" y="268" width="118" height="45" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="549" y="295" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Rail</text>
-              <rect x="490" y="316" width="118" height="56" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-
-              <!-- Board G: Small parts (180x155) -->
-              <rect x="630" y="225" width="165" height="155" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="635" y="230" width="75" height="68" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="672" y="268" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Gable</text>
-              <rect x="713" y="230" width="75" height="68" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="750" y="268" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Gable</text>
-              <rect x="635" y="301" width="50" height="72" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="660" y="341" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">End</text>
-              <rect x="688" y="301" width="50" height="72" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="713" y="341" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">End</text>
-              <rect x="741" y="301" width="47" height="72" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-
-              <!-- Board H: Narrow strips board (185x155) -->
-              <rect x="810" y="222" width="180" height="155" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="815" y="227" width="168" height="20" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="899" y="241" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Trim</text>
-              <rect x="815" y="250" width="168" height="20" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="899" y="264" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Trim</text>
-              <rect x="815" y="273" width="168" height="20" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="899" y="287" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Edging</text>
-              <rect x="815" y="296" width="168" height="20" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="899" y="310" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Edging</text>
-              <rect x="815" y="319" width="90" height="51" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="860" y="348" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Nailer</text>
-              <rect x="908" y="319" width="75" height="51" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-
-              <!-- Row 3 partial boards -->
-              <!-- Board I: Wide landscape (310x130) -->
-              <rect x="10" y="370" width="310" height="130" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="15" y="375" width="145" height="55" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="87" y="406" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Lid</text>
-              <rect x="163" y="375" width="150" height="55" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="238" y="406" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Base</text>
-              <rect x="15" y="433" width="95" height="22" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="62" y="448" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Apron F</text>
-              <rect x="113" y="433" width="95" height="22" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="160" y="448" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Apron B</text>
-              <rect x="211" y="433" width="48" height="22" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="235" y="448" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Cleat</text>
-              <rect x="15" y="458" width="298" height="35" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-              <rect x="262" y="433" width="51" height="22" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-
-              <!-- Board J (250x155) -->
-              <rect x="335" y="395" width="250" height="155" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="340" y="400" width="115" height="90" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="397" y="449" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Door L</text>
-              <rect x="458" y="400" width="115" height="90" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="515" y="449" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Door R</text>
-              <rect x="340" y="493" width="75" height="22" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="377" y="508" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Filler</text>
-              <rect x="418" y="493" width="75" height="22" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="455" y="508" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Filler</text>
-              <rect x="340" y="518" width="237" height="25" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-              <rect x="496" y="493" width="81" height="22" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-
-              <!-- Board K (190x145) -->
-              <rect x="600" y="400" width="190" height="150" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="605" y="405" width="178" height="65" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="694" y="441" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Countertop</text>
-              <rect x="605" y="473" width="55" height="70" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="632" y="512" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Brace</text>
-              <rect x="663" y="473" width="55" height="70" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="690" y="512" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Brace</text>
-              <rect x="721" y="473" width="62" height="70" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-              <!-- Dimension line -->
-              <line x1="797" y1="400" x2="797" y2="550" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/><line x1="794" y1="400" x2="800" y2="400" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/><line x1="794" y1="550" x2="800" y2="550" stroke="rgba(20,184,166,0.13)" stroke-width="0.5"/>
-
-              <!-- Board L (185x145) -->
-              <rect x="810" y="398" width="180" height="152" fill="rgba(20,184,166,0.03)" stroke="rgba(20,184,166,0.22)" stroke-width="1"/>
-              <rect x="815" y="403" width="80" height="140" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="855" y="477" font-size="7" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Tall</text>
-              <rect x="898" y="403" width="85" height="65" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="940" y="440" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Shelf</text>
-              <rect x="898" y="471" width="85" height="28" fill="rgba(20,184,166,0.07)" stroke="rgba(20,184,166,0.30)" stroke-width="0.75"/><text x="940" y="489" font-size="6" fill="rgba(20,184,166,0.20)" text-anchor="middle" font-family="monospace">Nailer</text>
-              <rect x="898" y="502" width="85" height="41" fill="rgba(20,184,166,0.02)" stroke="rgba(20,184,166,0.10)" stroke-width="0.75" stroke-dasharray="3,3"/>
-            </svg>
+          <!-- Grid background with radial fade -->
+          <div
+            class="absolute inset-0 pointer-events-none select-none"
+            aria-hidden="true"
+          >
+            <div
+              class="w-full h-full"
+              style="
+                background-image:
+                  linear-gradient(
+                    rgba(20, 184, 166, 0.18) 1px,
+                    transparent 1px
+                  ),
+                  linear-gradient(
+                    90deg,
+                    rgba(20, 184, 166, 0.18) 1px,
+                    transparent 1px
+                  );
+                background-size: 24px 24px;
+                background-position: center center;
+                mask-image: radial-gradient(
+                  ellipse 70% 60% at 50% 50%,
+                  black 0%,
+                  transparent 100%
+                );
+                -webkit-mask-image: radial-gradient(
+                  ellipse 70% 60% at 50% 50%,
+                  black 0%,
+                  transparent 100%
+                );
+              "
+            />
           </div>
 
-          <!-- Gradient overlay -->
+          <!-- Hero content: text + action panel + browser mockup -->
           <div
-            class="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_50%,rgba(9,11,12,0.94)_0%,rgba(9,11,12,0.72)_55%,rgba(9,11,12,0.42)_100%)]"
-          />
-
-          <!-- Hero content -->
-          <div
-            class="relative z-10 flex flex-col items-center gap-6 w-full max-w-md px-4 text-center"
+            class="relative z-10 flex flex-col items-center gap-8 w-full max-w-[1200px]"
           >
-            <div class="text-xl font-bold tracking-tight">
-              <span class="text-white">cutlist</span
-              ><span class="text-teal-400">studio</span>
-            </div>
-
-            <div class="-mt-2">
-              <p class="text-lg text-body leading-relaxed">
-                Turn your design into a cut plan.
-              </p>
-              <p class="text-sm text-muted mt-1.5">
+            <!-- Branding + tagline -->
+            <div class="text-center">
+              <div class="text-2xl font-bold tracking-tight mb-3">
+                <span class="text-white">cutlist</span
+                ><span class="text-teal-400">studio</span>
+              </div>
+              <h1 class="text-2xl font-bold leading-relaxed">
+                Turn your design into a cut plan
+              </h1>
+              <p class="text-body text-muted mt-1.5">
                 Free, forever. No account. Works offline.
               </p>
             </div>
 
+            <!-- Action panel -->
             <div
-              class="w-full rounded-xl border p-6 transition-all duration-200 backdrop-blur-sm"
+              class="w-full max-w-sm rounded-xl border p-5 transition-all duration-200 backdrop-blur-md"
               :class="
                 isDragging
                   ? 'border-teal-400/50 bg-teal-500/5 shadow-[0_0_40px_rgba(20,184,166,0.12)]'
-                  : 'border-subtle bg-mist-950/40'
+                  : 'border-subtle bg-mist-950/70'
               "
             >
-              <div class="flex justify-center mb-4">
-                <div
-                  class="w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200"
-                  :class="
-                    isDragging
-                      ? 'bg-teal-400/15 text-teal-400 scale-110'
-                      : 'bg-surface text-dim'
-                  "
-                >
-                  <UIcon
-                    :name="
-                      isDragging ? 'i-lucide-download' : 'i-lucide-layout-grid'
-                    "
-                    class="w-5 h-5"
-                  />
+              <template v-if="isDragging">
+                <div class="flex justify-center mb-3">
+                  <div
+                    class="w-11 h-11 rounded-xl flex items-center justify-center bg-teal-400/15 text-teal-400 scale-110"
+                  >
+                    <UIcon name="i-lucide-download" class="w-5 h-5" />
+                  </div>
                 </div>
-              </div>
+                <p class="text-sm font-semibold text-body text-center">
+                  Drop to import project
+                </p>
+              </template>
 
-              <p class="text-sm font-semibold text-body mb-1">
-                {{ isDragging ? 'Drop to import project' : 'Get started' }}
-              </p>
-              <p
-                v-if="!isDragging"
-                class="text-sm text-muted mb-5 leading-relaxed"
-              >
-                Create a new project or import a saved one
-              </p>
-
-              <div v-if="!isDragging" class="flex flex-col gap-2">
-                <button
-                  class="w-full py-2 px-4 rounded-lg bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-black font-semibold text-sm transition-colors"
-                  @click="openNewProject"
-                >
-                  New Project
-                </button>
-                <button
-                  class="w-full py-2 px-4 rounded-lg border border-subtle bg-surface hover:bg-mist-800 text-muted hover:text-body text-sm transition-colors"
-                  @click="pickAndImport"
-                >
-                  Import Project
-                </button>
-              </div>
-
-              <p v-if="!isDragging" class="mt-4 text-xs text-muted">
-                or drop a
-                <span class="font-mono text-dim">.cutlist</span> file anywhere
-              </p>
+              <template v-else>
+                <div class="flex flex-col gap-2">
+                  <button
+                    class="w-full py-2.5 px-4 rounded-lg bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-black font-semibold text-sm transition-colors"
+                    @click="openNewProject"
+                  >
+                    New Project
+                  </button>
+                  <button
+                    class="w-full py-2.5 px-4 rounded-lg border border-subtle bg-surface hover:bg-mist-800 text-muted hover:text-body text-sm transition-colors"
+                    @click="pickAndImport"
+                  >
+                    Import Project
+                  </button>
+                  <button
+                    class="w-full py-2.5 px-4 rounded-lg border border-subtle bg-surface hover:bg-mist-800 text-muted hover:text-body text-sm transition-colors flex items-center justify-center gap-2"
+                    :disabled="loadingDemo"
+                    @click="loadDemo"
+                  >
+                    <UIcon
+                      v-if="loadingDemo"
+                      name="i-lucide-loader-2"
+                      class="w-4 h-4 animate-spin"
+                    />
+                    {{ loadingDemo ? 'Loading demo...' : 'View Demo Project' }}
+                  </button>
+                </div>
+                <p class="mt-3 text-xs text-muted text-center">
+                  or drop a
+                  <span class="font-mono text-dim">.cutlist</span> file anywhere
+                </p>
+              </template>
             </div>
 
-            <p class="text-xs text-muted leading-relaxed">
-              Everything stays in your browser. Nothing to sign up for.
-            </p>
-          </div>
+            <!-- Import format hints -->
+            <div class="flex items-center justify-center gap-8">
+              <button
+                class="flex flex-col items-center gap-2 text-dim hover:text-muted transition-colors group"
+                @click="scrollToFormats"
+              >
+                <!-- Onshape file icon -->
+                <svg width="40" height="48" viewBox="0 0 40 48" fill="none">
+                  <path
+                    d="M4 2h20l12 12v30a4 4 0 0 1-4 4H4a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4z"
+                    fill="#0d3330"
+                    stroke="#14b8a6"
+                    stroke-width="1"
+                  />
+                  <path
+                    d="M24 2v8a4 4 0 0 0 4 4h8"
+                    fill="none"
+                    stroke="#14b8a6"
+                    stroke-width="1"
+                  />
+                  <text
+                    x="20"
+                    y="34"
+                    text-anchor="middle"
+                    font-family="monospace"
+                    font-size="8"
+                    font-weight="600"
+                    fill="#14b8a6"
+                  >
+                    .gltf
+                  </text>
+                </svg>
+                <span class="text-xs">Import from Onshape</span>
+              </button>
+              <span class="w-px h-10 bg-mist-800" />
+              <button
+                class="flex flex-col items-center gap-2 text-dim hover:text-muted transition-colors group"
+                @click="scrollToFormats"
+              >
+                <!-- SketchUp file icon -->
+                <svg width="40" height="48" viewBox="0 0 40 48" fill="none">
+                  <path
+                    d="M4 2h20l12 12v30a4 4 0 0 1-4 4H4a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4z"
+                    fill="#0d3330"
+                    stroke="#14b8a6"
+                    stroke-width="1"
+                  />
+                  <path
+                    d="M24 2v8a4 4 0 0 0 4 4h8"
+                    fill="none"
+                    stroke="#14b8a6"
+                    stroke-width="1"
+                  />
+                  <text
+                    x="20"
+                    y="34"
+                    text-anchor="middle"
+                    font-family="monospace"
+                    font-size="8"
+                    font-weight="600"
+                    fill="#14b8a6"
+                  >
+                    .dae
+                  </text>
+                </svg>
+                <span class="text-xs">Import from SketchUp</span>
+              </button>
+            </div>
 
-          <!-- Scroll indicator -->
-          <button
-            class="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 text-dim hover:text-muted transition-colors"
-            @click="scrollToContent"
-          >
-            <span class="text-xs uppercase tracking-widest">Learn more</span>
-            <UIcon
-              name="i-lucide-chevron-down"
-              class="w-5 h-5 animate-bounce"
-            />
-          </button>
+            <!-- Browser mockup — bottom crops into next section -->
+            <div
+              class="w-full rounded-t-xl overflow-hidden border border-b-0 border-mist-800 shadow-2xl shadow-black/50"
+            >
+              <!-- Title bar -->
+              <div
+                class="flex items-center gap-2 px-4 py-2.5 bg-mist-950 border-b border-mist-800"
+              >
+                <div class="flex items-center gap-1.5">
+                  <div class="w-3 h-3 rounded-full bg-mist-700" />
+                  <div class="w-3 h-3 rounded-full bg-mist-700" />
+                  <div class="w-3 h-3 rounded-full bg-mist-700" />
+                </div>
+                <div
+                  class="flex-1 mx-8 py-1 rounded-md bg-mist-900 text-center"
+                >
+                  <span class="text-xs text-dim font-mono"
+                    >cutliststudio.com</span
+                  >
+                </div>
+              </div>
+              <!-- Screenshot -->
+              <img
+                src="/preview.webp"
+                alt="Cutlist Studio app showing a workbench project with 3D model and bill of materials"
+                class="w-full block"
+              />
+            </div>
+          </div>
         </section>
+
+        <!-- Fixed scroll indicator -->
+        <button
+          class="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 text-dim hover:text-muted transition-colors"
+          @click="scrollToContent"
+        >
+          <span class="text-xs uppercase tracking-widest">Learn more</span>
+          <UIcon name="i-lucide-chevron-down" class="w-5 h-5 animate-bounce" />
+        </button>
 
         <!-- ════════════════════════════════════════════════════════════════ -->
         <!-- HOW IT WORKS                                                    -->
         <!-- ════════════════════════════════════════════════════════════════ -->
-        <section id="how-it-works" class="relative border-t border-subtle">
+        <section id="how-it-works" class="relative">
           <!-- Faint grid background -->
           <div class="absolute inset-0 pointer-events-none" aria-hidden="true">
             <div
@@ -339,15 +373,19 @@ function scrollToContent() {
                 </div>
                 <p class="text-muted leading-relaxed mb-4">
                   Import a 3D model and every flat panel gets extracted
-                  automatically. Built for
-                  <span class="text-body">Onshape</span> exports, but any GLTF
-                  file works. Prefer a spreadsheet? Just type your parts in
-                  manually.
+                  automatically. Works with
+                  <span class="text-body">Onshape</span> and
+                  <span class="text-body">SketchUp</span> exports out of the
+                  box. Prefer a spreadsheet? Just type your parts in manually.
                 </p>
                 <div class="flex flex-wrap gap-2">
                   <span
                     class="px-2.5 py-1 rounded-md text-xs text-teal-400 bg-teal-400/5 border border-teal-400/15"
-                    >Onshape / GLTF import</span
+                    >Onshape / GLTF</span
+                  >
+                  <span
+                    class="px-2.5 py-1 rounded-md text-xs text-teal-400 bg-teal-400/5 border border-teal-400/15"
+                    >SketchUp / COLLADA</span
                   >
                   <span
                     class="px-2.5 py-1 rounded-md text-xs text-teal-400 bg-teal-400/5 border border-teal-400/15"
@@ -564,6 +602,174 @@ function scrollToContent() {
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════════════ -->
+        <!-- SUPPORTED FORMATS                                               -->
+        <!-- ════════════════════════════════════════════════════════════════ -->
+        <section id="supported-formats" class="border-t border-subtle">
+          <div class="max-w-5xl mx-auto px-6 py-24 sm:py-32">
+            <div class="text-center mb-16">
+              <span
+                class="text-xs font-mono text-teal-400 uppercase tracking-widest"
+                >Import</span
+              >
+              <h2
+                class="mt-4 text-3xl sm:text-4xl font-bold text-white tracking-tight"
+              >
+                Works with your CAD tool
+              </h2>
+              <p
+                class="mt-4 text-lg text-muted max-w-2xl mx-auto leading-relaxed"
+              >
+                Export from the tool you already use. Every flat panel is
+                extracted automatically.
+              </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+              <!-- Onshape -->
+              <div
+                class="rounded-xl border border-subtle bg-surface p-6 hover:border-mist-600 transition-colors"
+              >
+                <div class="flex items-center gap-3 mb-5">
+                  <div
+                    class="w-10 h-10 rounded-xl bg-teal-400/10 border border-teal-400/20 flex items-center justify-center"
+                  >
+                    <UIcon name="i-lucide-box" class="w-5 h-5 text-teal-400" />
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-white">Onshape</h3>
+                    <span class="text-xs font-mono text-dim">.gltf</span>
+                  </div>
+                </div>
+                <ol class="space-y-2.5 text-sm text-muted list-none pl-0 mb-5">
+                  <li class="flex gap-2.5">
+                    <span
+                      class="text-teal-400/60 font-mono text-xs mt-0.5 shrink-0"
+                      >1.</span
+                    >
+                    <span
+                      >Model your parts at real-world dimensions in
+                      Onshape</span
+                    >
+                  </li>
+                  <li class="flex gap-2.5">
+                    <span
+                      class="text-teal-400/60 font-mono text-xs mt-0.5 shrink-0"
+                      >2.</span
+                    >
+                    <span
+                      >Assign a unique appearance colour to each material</span
+                    >
+                  </li>
+                  <li class="flex gap-2.5">
+                    <span
+                      class="text-teal-400/60 font-mono text-xs mt-0.5 shrink-0"
+                      >3.</span
+                    >
+                    <span
+                      >File &rarr; Export &rarr;
+                      <span class="font-mono text-dim">GLTF</span></span
+                    >
+                  </li>
+                  <li class="flex gap-2.5">
+                    <span
+                      class="text-teal-400/60 font-mono text-xs mt-0.5 shrink-0"
+                      >4.</span
+                    >
+                    <span>Drop the file into Cutlist Studio</span>
+                  </li>
+                </ol>
+                <img
+                  src="/onshape-export.png"
+                  alt="Onshape export dialog showing GLTF format selected"
+                  class="rounded-lg border border-subtle w-full"
+                />
+              </div>
+
+              <!-- SketchUp -->
+              <div
+                class="rounded-xl border border-subtle bg-surface p-6 hover:border-mist-600 transition-colors"
+              >
+                <div class="flex items-center gap-3 mb-5">
+                  <div
+                    class="w-10 h-10 rounded-xl bg-teal-400/10 border border-teal-400/20 flex items-center justify-center"
+                  >
+                    <UIcon
+                      name="i-lucide-pencil-ruler"
+                      class="w-5 h-5 text-teal-400"
+                    />
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-white">SketchUp</h3>
+                    <span class="text-xs font-mono text-dim">.dae</span>
+                  </div>
+                </div>
+                <ol class="space-y-2.5 text-sm text-muted list-none pl-0 mb-5">
+                  <li class="flex gap-2.5">
+                    <span
+                      class="text-teal-400/60 font-mono text-xs mt-0.5 shrink-0"
+                      >1.</span
+                    >
+                    <span
+                      >Model your parts as separate components in SketchUp</span
+                    >
+                  </li>
+                  <li class="flex gap-2.5">
+                    <span
+                      class="text-teal-400/60 font-mono text-xs mt-0.5 shrink-0"
+                      >2.</span
+                    >
+                    <span
+                      >Use materials to distinguish different stock types</span
+                    >
+                  </li>
+                  <li class="flex gap-2.5">
+                    <span
+                      class="text-teal-400/60 font-mono text-xs mt-0.5 shrink-0"
+                      >3.</span
+                    >
+                    <span
+                      >File &rarr; Export 3D Model &rarr;
+                      <span class="font-mono text-dim"
+                        >COLLADA (.dae)</span
+                      ></span
+                    >
+                  </li>
+                  <li class="flex gap-2.5">
+                    <span
+                      class="text-teal-400/60 font-mono text-xs mt-0.5 shrink-0"
+                      >4.</span
+                    >
+                    <span>Drop the file into Cutlist Studio</span>
+                  </li>
+                </ol>
+                <div class="rounded-lg border border-subtle bg-mist-900/50 p-4">
+                  <div class="flex items-start gap-2.5">
+                    <UIcon
+                      name="i-lucide-info"
+                      class="w-4 h-4 text-teal-400/60 mt-0.5 shrink-0"
+                    />
+                    <p class="text-xs text-muted leading-relaxed">
+                      Units are converted automatically. Edge lines are filtered
+                      out&nbsp;&mdash; only solid geometry becomes parts.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p class="text-center text-sm text-muted mt-8">
+              Don't use either? Just
+              <button
+                class="text-teal-400 hover:text-teal-300 transition-colors"
+                @click="openNewProject"
+              >
+                create a project</button
+              >&nbsp;and add parts manually.
+            </p>
           </div>
         </section>
 

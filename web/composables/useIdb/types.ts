@@ -67,16 +67,3 @@ export interface IdbBuildStep {
   description: string;
   createdAt: string;
 }
-
-export const DEMO_SEEDED_KEY = 'demo-seeded-v1' as const;
-
-export interface IdbDemoSeedRecord {
-  key: typeof DEMO_SEEDED_KEY;
-  seeded: boolean;
-}
-
-/**
- * Union of all record shapes kept in the `meta` store. Discriminated by the
- * `key` field. Extend with additional one-off markers as needed.
- */
-export type IdbMetaRecord = IdbDemoSeedRecord;

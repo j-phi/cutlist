@@ -311,24 +311,6 @@ describe('model CRUD', () => {
   });
 });
 
-// ─── Demo seed marker ───────────────────────────────────────────────────────
-
-describe('demo seed marker', () => {
-  it('can be explicitly reset to false', async () => {
-    await idb.setDemoSeeded(false);
-    const seeded = await idb.getDemoSeeded();
-    expect(seeded).toBe(false);
-  });
-
-  it('can be set and read back', async () => {
-    await idb.setDemoSeeded(true);
-    expect(await idb.getDemoSeeded()).toBe(true);
-
-    await idb.setDemoSeeded(false);
-    expect(await idb.getDemoSeeded()).toBe(false);
-  });
-});
-
 // ─── Build Steps ────────────────────────────────────────────────────────────
 
 describe('build steps', () => {

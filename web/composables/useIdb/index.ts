@@ -44,8 +44,6 @@ import {
   updateBuildStep,
   deleteBuildStep,
 } from './buildSteps';
-import { getDemoSeeded, setDemoSeeded } from './demoSeed';
-
 export { useIdbErrors, resetDatabase } from './db';
 export { applyProjectDefaults, applyModelDefaults } from './defaults';
 export type {
@@ -70,8 +68,6 @@ export function useIdb() {
     updateModel,
     deleteModel,
     getModelRawSource,
-    getDemoSeeded,
-    setDemoSeeded,
     getBuildSteps,
     createBuildStep,
     updateBuildStep,

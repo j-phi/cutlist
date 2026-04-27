@@ -14,7 +14,6 @@ import {
 } from '~/utils/settings';
 import { useIdb } from '~/composables/useIdb';
 import { resetDatabase as idbResetDatabase } from '~/composables/useIdb/db';
-import { maybeSeedDemo } from '~/composables/useDemoSeed';
 import {
   activeId,
   activeProjectData,
@@ -24,8 +23,6 @@ import {
 import type { Project } from './types';
 
 async function init(idb: ReturnType<typeof useIdb>) {
-  await maybeSeedDemo(idb);
-
   const [list, archived] = await Promise.all([
     idb.getProjectList(),
     idb.getArchivedList(),
