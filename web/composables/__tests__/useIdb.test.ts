@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { useIdb, applyModelDefaults } from '../useIdb';
+import { resetDatabase } from '../useIdb/db';
 import { DEFAULT_SETTINGS } from '../../utils/settings';
 import type { IdbModel, IdbBuildStep } from '../useIdb';
 
@@ -406,6 +407,49 @@ describe('build steps', () => {
   it('getBuildSteps returns empty for project with no steps', async () => {
     const project = await idb.createProject('NoSteps');
     const steps = await idb.getBuildSteps(project.id);
+    expect(steps).toHaveLength(0);
+  });
+});
+
+// ─── Reset database ────────────────────────────────────────────────────────
+
+describe('resetDatabase', () => {
+  it('wipes all projects, models, and build steps', async () => {
+    const project = await idb.createProject('WipeMe');
+    const model: IdbModel = {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      filename: 'test.glb',
+      source: 'gltf',
+      parts: [],
+      colors: [],
+      nodePartMap: [],
+      enabled: true,
+      rawSource: null,
+      partOverrides: {},
+      createdAt: new Date().toISOString(),
+    };
+    await idb.createModel(model);
+    const step: IdbBuildStep = {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      stepNumber: 1,
+      title: 'Step',
+      description: '',
+      createdAt: new Date().toISOString(),
+    };
+    await idb.createBuildStep(step);
+
+    await resetDatabase();
+
+    // After reset, the DB is deleted. A fresh useIdb() call should see
+    // empty tables once the DB is re-created on first access.
+    const freshIdb = useIdb();
+    const projects = await freshIdb.getProjectList();
+    expect(projects).toHaveLength(0);
+    const archived = await freshIdb.getArchivedList();
+    expect(archived).toHaveLength(0);
+    const steps = await freshIdb.getBuildSteps(project.id);
     expect(steps).toHaveLength(0);
   });
 });

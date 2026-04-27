@@ -18,6 +18,7 @@ const closeProject = vi.fn();
 const restoreProject = vi.fn().mockResolvedValue(undefined);
 const permanentlyDeleteProject = vi.fn().mockResolvedValue(undefined);
 const clearHistory = vi.fn().mockResolvedValue(undefined);
+const resetDatabase = vi.fn().mockResolvedValue(undefined);
 const renameProject = vi.fn().mockResolvedValue(undefined);
 const reorderProjects = vi.fn();
 
@@ -29,6 +30,7 @@ mockNuxtImport('useProjects', () => () => ({
   restoreProject,
   permanentlyDeleteProject,
   clearHistory,
+  resetDatabase,
   renameProject,
   reorderProjects,
 }));
@@ -88,7 +90,7 @@ const TabListStub = {
 const ProjectHistoryMenuStub = {
   name: 'ProjectHistoryMenu',
   props: ['archived'],
-  emits: ['restore', 'permanently-delete', 'clear'],
+  emits: ['restore', 'permanently-delete', 'clear', 'reset'],
   template: `
     <div
       data-testid="history-menu-stub"
@@ -100,6 +102,7 @@ const ProjectHistoryMenuStub = {
         @click="$emit('permanently-delete', 'a1')"
       >delete</button>
       <button class="emit-clear" @click="$emit('clear')">clear</button>
+      <button class="emit-reset" @click="$emit('reset')">reset</button>
     </div>
   `,
 };
@@ -140,6 +143,7 @@ beforeEach(() => {
   restoreProject.mockClear();
   permanentlyDeleteProject.mockClear();
   clearHistory.mockClear();
+  resetDatabase.mockClear();
   renameProject.mockClear();
   reorderProjects.mockClear();
 });
@@ -301,6 +305,17 @@ describe('ProjectTopBar', () => {
       await component.findComponent(ProjectHistoryMenuStub).vm.$emit('clear');
 
       expect(clearHistory).toHaveBeenCalledTimes(1);
+    });
+
+    it('Should call resetDatabase when the menu emits reset', async () => {
+      const component = getComponent();
+
+      await component
+        .get('button[aria-label="Project history"]')
+        .trigger('click');
+      await component.findComponent(ProjectHistoryMenuStub).vm.$emit('reset');
+
+      expect(resetDatabase).toHaveBeenCalledTimes(1);
     });
   });
 });

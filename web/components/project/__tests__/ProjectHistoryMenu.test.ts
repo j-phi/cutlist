@@ -145,6 +145,69 @@ describe('ProjectHistoryMenu', () => {
     });
   });
 
+  describe('On reset database', () => {
+    it('Should always render the Reset database button, even with no archived items', () => {
+      const component = getComponent({ archived: [] });
+      const resetBtn = component
+        .findAll('button')
+        .find((b) => b.text() === 'Reset database');
+      expect(resetBtn).toBeTruthy();
+    });
+
+    it('Should reveal the Delete-everything confirm row on first click and not emit', async () => {
+      const component = getComponent({ archived: [] });
+
+      const resetBtn = component
+        .findAll('button')
+        .find((b) => b.text() === 'Reset database');
+      expect(resetBtn).toBeTruthy();
+      await resetBtn!.trigger('click');
+
+      expect(component.text()).toContain('Delete everything?');
+      const confirmBtn = component
+        .findAll('button')
+        .find((b) => b.text() === 'Confirm');
+      expect(confirmBtn).toBeTruthy();
+      expect(component.emitted('reset')).toBeUndefined();
+    });
+
+    it('Should emit reset when the user confirms', async () => {
+      const component = getComponent({ archived: [] });
+
+      await component
+        .findAll('button')
+        .find((b) => b.text() === 'Reset database')!
+        .trigger('click');
+      await component
+        .findAll('button')
+        .find((b) => b.text() === 'Confirm')!
+        .trigger('click');
+
+      expect(component.emitted('reset')).toEqual([[]]);
+    });
+
+    it('Should revert to the Reset database button when cancel is clicked', async () => {
+      const component = getComponent({ archived: [] });
+
+      await component
+        .findAll('button')
+        .find((b) => b.text() === 'Reset database')!
+        .trigger('click');
+
+      const cancelBtn = component
+        .findAll('button')
+        .find((b) => b.text() === 'Cancel');
+      expect(cancelBtn).toBeTruthy();
+      await cancelBtn!.trigger('click');
+
+      expect(component.text()).not.toContain('Delete everything?');
+      expect(
+        component.findAll('button').find((b) => b.text() === 'Reset database'),
+      ).toBeTruthy();
+      expect(component.emitted('reset')).toBeUndefined();
+    });
+  });
+
   describe('On clear history', () => {
     it('Should reveal the Delete-all confirm row on first click and not emit', async () => {
       const component = getComponent({

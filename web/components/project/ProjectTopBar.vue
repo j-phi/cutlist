@@ -7,6 +7,7 @@ const {
   restoreProject,
   permanentlyDeleteProject,
   clearHistory,
+  resetDatabase,
   renameProject,
   reorderProjects,
 } = useProjects();
@@ -90,6 +91,11 @@ async function handleMobileRestore(id: string) {
 async function handleDesktopClear() {
   closeHistory();
   await clearHistory();
+}
+
+async function handleDesktopReset() {
+  closeHistory();
+  await resetDatabase();
 }
 
 // ─── Rename ───────────────────────────────────────────────────────────────────
@@ -321,6 +327,7 @@ function openNewProject() {
             @restore="handleDesktopRestore"
             @permanently-delete="permanentlyDeleteProject"
             @clear="handleDesktopClear"
+            @reset="handleDesktopReset"
           />
         </div>
       </Transition>
@@ -460,6 +467,7 @@ function openNewProject() {
           @restore="handleMobileRestore"
           @permanently-delete="permanentlyDeleteProject"
           @clear="clearHistory"
+          @reset="resetDatabase"
         />
       </div>
     </Transition>

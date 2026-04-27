@@ -13,6 +13,7 @@ import {
   getStockYamlForUnit,
 } from '~/utils/settings';
 import { useIdb } from '~/composables/useIdb';
+import { resetDatabase as idbResetDatabase } from '~/composables/useIdb/db';
 import { maybeSeedDemo } from '~/composables/useDemoSeed';
 import {
   activeId,
@@ -128,6 +129,14 @@ export default function useProjectCollection() {
     await Promise.all(ids.map((id) => idb.deleteProject(id)));
   }
 
+  async function resetDatabase() {
+    activeId.value = null;
+    activeProjectData.value = null;
+    projectList.value = [];
+    archivedList.value = [];
+    await idbResetDatabase();
+  }
+
   async function renameProject(id: string, name: string) {
     if (activeProjectData.value?.id === id) {
       activeProjectData.value = { ...activeProjectData.value, name };
@@ -170,6 +179,7 @@ export default function useProjectCollection() {
     restoreProject,
     permanentlyDeleteProject,
     clearHistory,
+    resetDatabase,
     renameProject,
     reorderProjects,
     reloadProjectList,

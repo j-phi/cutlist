@@ -11,6 +11,7 @@ const emit = defineEmits<{
   (e: 'restore', id: string): void;
   (e: 'permanently-delete', id: string): void;
   (e: 'clear'): void;
+  (e: 'reset'): void;
 }>();
 
 const pendingDeleteId = ref<string | null>(null);
@@ -44,6 +45,21 @@ function onClearClick() {
 
 function cancelClear() {
   showClearConfirm.value = false;
+}
+
+const showResetConfirm = ref(false);
+
+function onResetClick() {
+  if (showResetConfirm.value) {
+    showResetConfirm.value = false;
+    emit('reset');
+  } else {
+    showResetConfirm.value = true;
+  }
+}
+
+function cancelReset() {
+  showResetConfirm.value = false;
 }
 </script>
 
@@ -128,6 +144,32 @@ function cancelClear() {
         @click="onClearClick"
       >
         Clear history
+      </button>
+    </div>
+    <div
+      class="px-3 py-2 border-t border-subtle flex justify-end items-center gap-2"
+    >
+      <template v-if="showResetConfirm">
+        <span class="text-xs text-muted">Delete everything?</span>
+        <button
+          class="text-xs text-muted hover:text-white transition-colors"
+          @click="cancelReset"
+        >
+          Cancel
+        </button>
+        <button
+          class="text-xs text-red-400 hover:text-red-300 font-medium transition-colors"
+          @click="onResetClick"
+        >
+          Confirm
+        </button>
+      </template>
+      <button
+        v-else
+        class="text-xs text-muted hover:text-red-400 transition-colors"
+        @click="onResetClick"
+      >
+        Reset database
       </button>
     </div>
   </div>

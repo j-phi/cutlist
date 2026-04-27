@@ -46,7 +46,7 @@ import {
 } from './buildSteps';
 import { getDemoSeeded, setDemoSeeded } from './demoSeed';
 
-export { useIdbErrors } from './db';
+export { useIdbErrors, resetDatabase } from './db';
 export { applyProjectDefaults, applyModelDefaults } from './defaults';
 export type {
   IdbProject,

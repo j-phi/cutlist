@@ -143,6 +143,24 @@ export function getDb(): Promise<CutlistDB> {
 }
 
 /**
+ * Delete the entire database and reset the singleton so the next `getDb()`
+ * opens a fresh instance. Used by the "Reset database" UI action.
+ */
+export async function resetDatabase(): Promise<void> {
+  if (dbPromise) {
+    try {
+      const db = await dbPromise;
+      db.close();
+    } catch {
+      // ignore — db may have failed to open
+    }
+  }
+  dbPromise = null;
+  idbError.value = null;
+  await Dexie.delete('cutlist-db');
+}
+
+/**
  * Test-only: close the Dexie singleton and clear cached open promise so the
  * next `getDb()` opens against whatever `globalThis.indexedDB` is (e.g. a
  * fresh `IDBFactory` from fake-indexeddb). Do not import from app code.
