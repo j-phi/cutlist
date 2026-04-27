@@ -54,8 +54,10 @@ function onPartNameInputMounted(el: unknown) {
   const input = el as HTMLInputElement | null;
   if (input && input !== partNameInput.value) {
     partNameInput.value = input;
-    input.focus();
-    input.select();
+    nextTick(() => {
+      input.focus();
+      input.select();
+    });
   }
 }
 const splitContainer = ref<HTMLDivElement | null>(null);
