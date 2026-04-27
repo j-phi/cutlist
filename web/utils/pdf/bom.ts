@@ -41,7 +41,7 @@ export function drawBomPages(ctx: Ctx, rows: BomRow[]) {
   const margin = ctx.opts.margin;
   const colHeaders = ['#', 'Part Name', 'QTY', 'Material', 'Size'];
   // Column widths in mm (must sum <= A4_W_MM - 2*margin = 190)
-  const colWidthsMm = [12, 70, 14, 40, 54];
+  const colWidthsMm = [10, 54, 12, 44, 70];
   const rowHeightMm = 7;
   const headerRowHeightMm = 8;
   const titleAreaMm = 10;
@@ -108,7 +108,7 @@ function drawBomTable(
   });
   for (let i = 0; i < headers.length; i++) {
     page.drawText(headers[i], {
-      x: (xMm + 2) * MM,
+      x: (xMm + 1.5) * MM,
       y: headerY + 2 * MM,
       size: 9,
       font: ctx.fontBold,
@@ -132,15 +132,15 @@ function drawBomTable(
     const row = rows[r];
     const cells = [
       String(row.partNumber),
-      truncate(ctx.font, row.name, 9, (colWidthsMm[1] - 4) * MM),
+      truncate(ctx.font, row.name, 9, (colWidthsMm[1] - 3) * MM),
       String(row.qty),
-      truncate(ctx.font, row.material, 9, (colWidthsMm[3] - 4) * MM),
-      truncate(ctx.font, row.size, 9, (colWidthsMm[4] - 4) * MM),
+      truncate(ctx.font, row.material, 9, (colWidthsMm[3] - 3) * MM),
+      row.size,
     ];
     let cx = marginMm;
     for (let i = 0; i < cells.length; i++) {
       page.drawText(cells[i], {
-        x: (cx + 2) * MM,
+        x: (cx + 1.5) * MM,
         y: rowY + 1.5 * MM,
         size: 9,
         font: ctx.font,
