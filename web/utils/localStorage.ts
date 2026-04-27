@@ -8,6 +8,10 @@ export const STORAGE_KEYS = {
     projectBomPreviewWidth(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/bom-preview-width/v1`;
     },
+    // Split panel height on BOM tab (preview pane height in px on mobile), scoped per project.
+    projectBomPreviewHeight(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/bom-preview-height/v1`;
+    },
     // BOM filter/sort state, scoped per project.
     projectBomFilter(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/bom-filter/v1`;

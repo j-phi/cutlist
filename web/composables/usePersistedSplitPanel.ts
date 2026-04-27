@@ -3,10 +3,15 @@ import {
   setLocalStorageNumber,
 } from '~/utils/localStorage';
 
+type Direction = 'horizontal' | 'vertical';
+
 interface PersistedSplitPanelOptions {
   storageKey: string | Ref<string> | (() => string);
+  direction?: Direction | Ref<Direction>;
   minPanelWidthPx?: number;
   minMainWidthPx?: number;
+  minPanelHeightPx?: number;
+  minMainHeightPx?: number;
   defaultPanelRatio?: number;
 }
 
@@ -15,12 +20,29 @@ export default function usePersistedSplitPanel(
   enabled: Ref<boolean>,
   options: PersistedSplitPanelOptions,
 ) {
-  const panelWidth = ref(0);
+  const panelSize = ref(0);
   const isResizing = ref(false);
 
-  const minPanelWidthPx = options.minPanelWidthPx ?? 280;
-  const minMainWidthPx = options.minMainWidthPx ?? 420;
   const defaultPanelRatio = options.defaultPanelRatio ?? 1 / 3;
+
+  const direction = computed<Direction>(() => {
+    if (!options.direction) return 'horizontal';
+    return typeof options.direction === 'string'
+      ? options.direction
+      : options.direction.value;
+  });
+
+  const minPanelSize = computed(() =>
+    direction.value === 'horizontal'
+      ? (options.minPanelWidthPx ?? 280)
+      : (options.minPanelHeightPx ?? 120),
+  );
+
+  const minMainSize = computed(() =>
+    direction.value === 'horizontal'
+      ? (options.minMainWidthPx ?? 420)
+      : (options.minMainHeightPx ?? 200),
+  );
 
   function resolveStorageKey() {
     if (typeof options.storageKey === 'function') return options.storageKey();
@@ -30,36 +52,39 @@ export default function usePersistedSplitPanel(
 
   const activeStorageKey = computed(() => resolveStorageKey());
 
-  function getContainerWidth() {
-    return container.value?.clientWidth ?? 0;
+  function getContainerSize() {
+    if (!container.value) return 0;
+    return direction.value === 'horizontal'
+      ? container.value.clientWidth
+      : container.value.clientHeight;
   }
 
-  function getMaxPanelWidth() {
-    const maxBySpace = getContainerWidth() - minMainWidthPx;
-    return Math.max(minPanelWidthPx, maxBySpace);
+  function getMaxPanelSize() {
+    const maxBySpace = getContainerSize() - minMainSize.value;
+    return Math.max(minPanelSize.value, maxBySpace);
   }
 
-  function clampPanelWidth(next: number) {
-    const maxPanelWidth = getMaxPanelWidth();
-    return Math.min(Math.max(next, minPanelWidthPx), maxPanelWidth);
+  function clampPanelSize(next: number) {
+    const max = getMaxPanelSize();
+    return Math.min(Math.max(next, minPanelSize.value), max);
   }
 
-  function readStoredPanelWidth(): number | null {
+  function readStoredPanelSize(): number | null {
     const stored = getLocalStorageNumber(activeStorageKey.value);
     return stored != null && stored > 0 ? stored : null;
   }
 
-  function writeStoredPanelWidth(width: number) {
-    setLocalStorageNumber(activeStorageKey.value, width);
+  function writeStoredPanelSize(size: number) {
+    setLocalStorageNumber(activeStorageKey.value, size);
   }
 
-  function defaultPanelWidth() {
-    return clampPanelWidth(getContainerWidth() * defaultPanelRatio);
+  function defaultPanelSize() {
+    return clampPanelSize(getContainerSize() * defaultPanelRatio);
   }
 
-  function initializePanelWidth() {
-    const stored = readStoredPanelWidth();
-    panelWidth.value = clampPanelWidth(stored ?? defaultPanelWidth());
+  function initializePanelSize() {
+    const stored = readStoredPanelSize();
+    panelSize.value = clampPanelSize(stored ?? defaultPanelSize());
   }
 
   // AbortController for clean listener teardown — no stale closures.
@@ -72,39 +97,50 @@ export default function usePersistedSplitPanel(
     isResizing.value = false;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    if (persist) writeStoredPanelWidth(panelWidth.value);
+    if (persist) writeStoredPanelSize(panelSize.value);
   }
 
-  function startResize(event: MouseEvent) {
+  function startResize(event: PointerEvent) {
     if (event.button !== 0 || resizeAbort) return;
     event.preventDefault();
-    panelWidth.value = clampPanelWidth(panelWidth.value);
+    panelSize.value = clampPanelSize(panelSize.value);
     isResizing.value = true;
-    document.body.style.cursor = 'col-resize';
+
+    const cursor =
+      direction.value === 'horizontal' ? 'col-resize' : 'row-resize';
+    document.body.style.cursor = cursor;
     document.body.style.userSelect = 'none';
 
     resizeAbort = new AbortController();
     const { signal } = resizeAbort;
+
+    // Capture direction at drag start so mid-drag breakpoint changes don't break.
+    const dir = direction.value;
+
     window.addEventListener(
-      'mousemove',
+      'pointermove',
       (e) => {
         const bounds = container.value?.getBoundingClientRect();
         if (!bounds) return;
-        panelWidth.value = clampPanelWidth(bounds.right - e.clientX);
+        if (dir === 'horizontal') {
+          panelSize.value = clampPanelSize(bounds.right - e.clientX);
+        } else {
+          panelSize.value = clampPanelSize(e.clientY - bounds.top);
+        }
       },
       { signal },
     );
-    window.addEventListener('mouseup', () => stopResize(true), { signal });
+    window.addEventListener('pointerup', () => stopResize(true), { signal });
   }
 
   function onWindowResize() {
-    if (!enabled.value || panelWidth.value <= 0) return;
-    panelWidth.value = clampPanelWidth(panelWidth.value);
+    if (!enabled.value || panelSize.value <= 0) return;
+    panelSize.value = clampPanelSize(panelSize.value);
   }
 
   watch(activeStorageKey, () => {
     stopResize(false);
-    initializePanelWidth();
+    initializePanelSize();
   });
 
   watch(
@@ -115,8 +151,8 @@ export default function usePersistedSplitPanel(
         return;
       }
       await nextTick();
-      if (panelWidth.value <= 0) initializePanelWidth();
-      else panelWidth.value = clampPanelWidth(panelWidth.value);
+      if (panelSize.value <= 0) initializePanelSize();
+      else panelSize.value = clampPanelSize(panelSize.value);
     },
     { immediate: true },
   );
@@ -131,7 +167,7 @@ export default function usePersistedSplitPanel(
   });
 
   return {
-    panelWidth,
+    panelSize,
     isResizing,
     startResize,
   };

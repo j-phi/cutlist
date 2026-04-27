@@ -136,15 +136,25 @@ const hasModelPreview = computed(() =>
   enabledModels.value.some((m) => m.source !== 'manual'),
 );
 const isNarrow = useMediaQuery('(max-width: 767px)');
+const splitDirection = computed<'horizontal' | 'vertical'>(() =>
+  isNarrow.value ? 'vertical' : 'horizontal',
+);
 const {
-  panelWidth: previewPanelWidth,
+  panelSize: previewPanelSize,
   isResizing: isResizingPreview,
   startResize: startPreviewResize,
 } = usePersistedSplitPanel(splitContainer, hasModelPreview, {
-  storageKey: () =>
-    STORAGE_KEYS.ui.projectBomPreviewWidth(activeId.value ?? '__none__'),
+  storageKey: () => {
+    const id = activeId.value ?? '__none__';
+    return isNarrow.value
+      ? STORAGE_KEYS.ui.projectBomPreviewHeight(id)
+      : STORAGE_KEYS.ui.projectBomPreviewWidth(id);
+  },
+  direction: splitDirection,
   minPanelWidthPx: 280,
   minMainWidthPx: 420,
+  minPanelHeightPx: 120,
+  minMainHeightPx: 200,
   defaultPanelRatio: 1 / 2,
 });
 const highlightedPartNumber = computed(
@@ -850,32 +860,61 @@ onUnmounted(() => {
       <template v-if="activeProject && hasModelPreview">
         <div
           role="separator"
-          aria-orientation="vertical"
+          :aria-orientation="isNarrow ? 'horizontal' : 'vertical'"
           aria-label="Resize preview panel"
-          class="relative w-3 shrink-0 cursor-col-resize select-none group hidden md:block"
-          @mousedown="startPreviewResize"
+          :class="[
+            'relative shrink-0 select-none group touch-none',
+            isNarrow ? 'h-3 cursor-row-resize' : 'w-3 cursor-col-resize',
+          ]"
+          @pointerdown="startPreviewResize"
         >
-          <div
-            class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-mist-700/55 transition-colors"
-            :class="
-              isResizingPreview
-                ? 'bg-teal-400/85'
-                : 'group-hover:bg-teal-400/65'
-            "
-          />
-          <div
-            class="absolute top-1/2 left-1/2 h-14 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-mist-700/60 transition-colors"
-            :class="
-              isResizingPreview
-                ? 'bg-teal-400/90'
-                : 'group-hover:bg-teal-400/70'
-            "
-          />
+          <!-- Vertical handle (desktop) -->
+          <template v-if="!isNarrow">
+            <div
+              class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-mist-700/55 transition-colors"
+              :class="
+                isResizingPreview
+                  ? 'bg-teal-400/85'
+                  : 'group-hover:bg-teal-400/65'
+              "
+            />
+            <div
+              class="absolute top-1/2 left-1/2 h-14 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-mist-700/60 transition-colors"
+              :class="
+                isResizingPreview
+                  ? 'bg-teal-400/90'
+                  : 'group-hover:bg-teal-400/70'
+              "
+            />
+          </template>
+          <!-- Horizontal handle (mobile) -->
+          <template v-else>
+            <div
+              class="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-mist-700/55 transition-colors"
+              :class="
+                isResizingPreview
+                  ? 'bg-teal-400/85'
+                  : 'group-hover:bg-teal-400/65'
+              "
+            />
+            <div
+              class="absolute left-1/2 top-1/2 w-14 h-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-mist-700/60 transition-colors"
+              :class="
+                isResizingPreview
+                  ? 'bg-teal-400/90'
+                  : 'group-hover:bg-teal-400/70'
+              "
+            />
+          </template>
         </div>
 
         <aside
-          class="relative shrink-0 min-h-0 w-full h-[42vh] md:h-auto md:w-auto bg-mist-950 border-b border-subtle md:border-b-0 md:shadow-[-1px_0_0_0_rgba(57,68,71,0.35)]"
-          :style="isNarrow ? undefined : { width: `${previewPanelWidth}px` }"
+          class="relative shrink-0 min-h-0 bg-mist-950 border-b border-subtle md:border-b-0 md:shadow-[-1px_0_0_0_rgba(57,68,71,0.35)]"
+          :style="
+            isNarrow
+              ? { height: `${previewPanelSize}px`, width: '100%' }
+              : { width: `${previewPanelSize}px` }
+          "
           @mouseleave="clearBomHover"
         >
           <ModelTab compact show-open-button @expand="openModelTab" />

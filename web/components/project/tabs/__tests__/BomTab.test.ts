@@ -108,7 +108,7 @@ mockNuxtImport('useBomFilter', () => () => ({
 
 mockNuxtImport('useMediaQuery', () => () => ref(false));
 mockNuxtImport('usePersistedSplitPanel', () => () => ({
-  panelWidth: ref(400),
+  panelSize: ref(400),
   isResizing: ref(false),
   startResize: vi.fn(),
 }));
