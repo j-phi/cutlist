@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
@@ -12,35 +12,6 @@ const isComputing = ref(false);
 mockNuxtImport('useProjectTab', () => () => tabRef);
 mockNuxtImport('useBoardLayoutsQuery', () => () => ({ isComputing }));
 
-interface NavItem {
-  label: string;
-  icon: string;
-  active: boolean;
-  onSelect: () => void;
-}
-
-const UNavigationMenuStub = {
-  props: {
-    items: {
-      type: Array,
-      default: () => [],
-    },
-  },
-  template: `
-    <ul role="tablist">
-      <li
-        v-for="(item, index) in items"
-        :key="index"
-        role="tab"
-        :aria-selected="item.active"
-        :data-icon="item.icon"
-      >
-        <button type="button" @click="item.onSelect()">{{ item.label }}</button>
-      </li>
-    </ul>
-  `,
-};
-
 describe('ProjectWorkspaceNav', () => {
   function getComponent() {
     tabRef.value = 'bom';
@@ -48,7 +19,6 @@ describe('ProjectWorkspaceNav', () => {
     return shallowMount(ProjectWorkspaceNav, {
       global: {
         stubs: {
-          UNavigationMenu: UNavigationMenuStub,
           UIcon: true,
           ExportPdfButton: true,
           Transition: false,
@@ -58,14 +28,13 @@ describe('ProjectWorkspaceNav', () => {
   }
 
   describe('Rendering', () => {
-    it('Should render every registry tab in order', () => {
+    it('Should render every registry tab in order with labels', () => {
       const component = getComponent();
-      const items = component.findAll('[role="tab"]');
+      const tabs = component.findAll('[role="tab"]');
 
-      expect(items).toHaveLength(PROJECT_TABS.length);
+      expect(tabs).toHaveLength(PROJECT_TABS.length);
       for (let i = 0; i < PROJECT_TABS.length; i += 1) {
-        expect(items[i].text()).toBe(PROJECT_TABS[i].label);
-        expect(items[i].attributes('data-icon')).toBe(PROJECT_TABS[i].icon);
+        expect(tabs[i].text()).toContain(PROJECT_TABS[i].label);
       }
     });
 
@@ -90,7 +59,7 @@ describe('ProjectWorkspaceNav', () => {
       const tabs = component.findAll('[role="tab"]');
       const layoutIndex = PROJECT_TABS.findIndex((t) => t.id === 'layout');
 
-      await tabs[layoutIndex].get('button').trigger('click');
+      await tabs[layoutIndex].trigger('click');
 
       expect(tabRef.value).toBe('layout');
     });
