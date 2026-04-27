@@ -133,6 +133,14 @@ The app is always dark. The **mist palette** (cool blue-gray ramp) is the single
 
 ## Testing
 
+**Every feature or behavioral change must ship with tests.** This includes new composable methods, new component interactions (emits, confirm flows), new IDB operations, and new utility functions. When modifying existing behavior, update the corresponding tests to match. Run `bun run test` before considering any task complete.
+
+When a feature touches multiple layers (e.g. a new IDB operation wired through a composable to a component), test each layer:
+
+- **IDB/data layer** — verify the operation works against a real (fake) IndexedDB
+- **Composable layer** — if it has non-trivial logic beyond delegation, test it
+- **Component layer** — verify emits, confirm flows, and conditional rendering
+
 Tests use [Vitest](https://vitest.dev) with `@nuxt/test-utils` for component tests. Test files live alongside source in `__tests__/` subdirectories:
 
 - `web/lib/__tests__/` — packing algorithm tests
@@ -140,11 +148,14 @@ Tests use [Vitest](https://vitest.dev) with `@nuxt/test-utils` for component tes
 - `web/lib/utils/__tests__/` — utility tests
 - `web/utils/__tests__/` — web utility tests
 - `web/composables/__tests__/` — composable + IDB tests
+- `web/components/*/__tests__/` — component interaction tests
 - `web/middleware/__tests__/` — route middleware tests
 
 Config lives in [web/vitest.config.ts](web/vitest.config.ts). The default environment is `happy-dom` (fast, no Nuxt boot). [web/test-setup.ts](web/test-setup.ts) is loaded as a `setupFiles` entry: it installs `fake-indexeddb` and runs a global `beforeEach` that calls `__resetDbForTests()` (dynamic import so Dexie does not load before `fake-indexeddb/auto`) then `indexedDB.deleteDatabase('cutlist-db')`. **Every test starts with an empty IndexedDB** — do not rely on data from other tests or on test order.
 
 For component tests that need Nuxt auto-imports / `mountSuspended`, opt-in to the Nuxt environment per file with `// @vitest-environment nuxt` at the top.
+
+When adding a test for a component that already has a test file with stubs/mocks, update those stubs to include any new emits, props, or mock functions so the existing tests don't drift out of sync with the real component API.
 
 ## Data Model (`web/composables/useIdb/`)
 
