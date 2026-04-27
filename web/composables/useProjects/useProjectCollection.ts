@@ -7,7 +7,11 @@
  * restored so URL sync follows.
  */
 import { computed } from 'vue';
-import { DEFAULT_SETTINGS } from '~/utils/settings';
+import {
+  DEFAULT_SETTINGS,
+  getBladeWidthForUnit,
+  getStockYamlForUnit,
+} from '~/utils/settings';
 import { useIdb } from '~/composables/useIdb';
 import { maybeSeedDemo } from '~/composables/useDemoSeed';
 import {
@@ -67,8 +71,12 @@ export default function useProjectCollection() {
     return map;
   });
 
-  async function addProject(name: string) {
-    const project = await idb.createProject(name);
+  async function addProject(name: string, unit: 'mm' | 'in') {
+    const project = await idb.createProject(name, {
+      distanceUnit: unit,
+      bladeWidth: getBladeWidthForUnit(unit),
+      stock: getStockYamlForUnit(unit),
+    });
     projectList.value = [
       ...projectList.value,
       { id: project.id, name: project.name, updatedAt: project.updatedAt },

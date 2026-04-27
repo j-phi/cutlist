@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { useIdb, applyModelDefaults } from '../useIdb';
-import { DEFAULT_SETTINGS, DEFAULT_STOCK_YAML } from '../../utils/settings';
+import { DEFAULT_SETTINGS } from '../../utils/settings';
 import type { IdbModel, IdbBuildStep } from '../useIdb';
 
 const idb = useIdb();
@@ -14,7 +14,7 @@ describe('project CRUD', () => {
     expect(project.name).toBe('Test Project');
     expect(project.colorMap).toEqual({});
     expect(project.excludedColors).toEqual([]);
-    expect(project.stock).toBe(DEFAULT_STOCK_YAML);
+    expect(project.stock).toBe('');
     expect(project.distanceUnit).toBe(DEFAULT_SETTINGS.distanceUnit);
     expect(project.bladeWidth).toBe(DEFAULT_SETTINGS.bladeWidth);
     expect(project.margin).toBe(DEFAULT_SETTINGS.margin);

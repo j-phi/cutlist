@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SCHEMA_VERSION, FutureSchemaError } from '../../versions';
 import { migrations, migrateRecord, migrateExport } from '../migrations';
-import { DEFAULT_SETTINGS, DEFAULT_STOCK_YAML } from '../../settings';
+import { DEFAULT_SETTINGS } from '../../settings';
 import {
   applyProjectDefaults,
   applyModelDefaults,
@@ -122,7 +122,7 @@ describe('applyProjectDefaults', () => {
   it('fills missing stock, colorMap, excludedColors, distanceUnit, and packing settings', () => {
     const bare = { id: 'x', name: 'X', createdAt: '', updatedAt: '' };
     const result = applyProjectDefaults(bare);
-    expect(result.stock).toBe(DEFAULT_STOCK_YAML);
+    expect(result.stock).toBe('');
     expect(result.colorMap).toEqual({});
     expect(result.excludedColors).toEqual([]);
     expect(result.distanceUnit).toBe(DEFAULT_SETTINGS.distanceUnit);

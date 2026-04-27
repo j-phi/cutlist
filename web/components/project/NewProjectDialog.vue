@@ -4,16 +4,20 @@ const open = defineModel<boolean>('open', { default: false });
 const { addProject } = useProjects();
 const toast = useToast();
 const projectName = ref('');
+const unit = ref<'mm' | 'in'>('mm');
 
 watch(open, (v) => {
-  if (v) projectName.value = '';
+  if (v) {
+    projectName.value = '';
+    unit.value = 'mm';
+  }
 });
 
 async function createProject() {
   const name = projectName.value.trim();
   if (!name) return;
   try {
-    await addProject(name);
+    await addProject(name, unit.value);
     open.value = false;
   } catch (err) {
     toast.add({
@@ -51,6 +55,35 @@ async function createProject() {
           autofocus
           @keydown.enter="createProject"
         />
+        <div>
+          <label class="block text-xs text-muted mb-1.5">Units</label>
+          <div
+            class="flex gap-1 p-0.5 rounded-lg bg-surface border border-subtle"
+          >
+            <button
+              class="flex-1 py-1.5 text-sm font-medium rounded-md transition-colors"
+              :class="
+                unit === 'mm'
+                  ? 'bg-teal-500 text-black'
+                  : 'text-muted hover:text-body'
+              "
+              @click="unit = 'mm'"
+            >
+              mm
+            </button>
+            <button
+              class="flex-1 py-1.5 text-sm font-medium rounded-md transition-colors"
+              :class="
+                unit === 'in'
+                  ? 'bg-teal-500 text-black'
+                  : 'text-muted hover:text-body'
+              "
+              @click="unit = 'in'"
+            >
+              inch
+            </button>
+          </div>
+        </div>
         <div class="flex justify-end gap-2">
           <UButton color="neutral" variant="ghost" @click="open = false">
             Cancel

@@ -133,14 +133,20 @@ export const STOCK_PRESETS: StockPreset[] = [
   },
 ];
 
-const DEFAULT_STOCK: StockMatrix[] = STOCK_PRESETS.filter((p) => p.default).map(
-  (p) => p.stock,
-);
+/** Default stock presets for a given unit system (only `default: true` entries). */
+export function getStockYamlForUnit(unit: 'mm' | 'in'): string {
+  const presets = STOCK_PRESETS.filter(
+    (p) => p.default && p.stock.unit === unit,
+  ).map((p) => p.stock);
+  return presets.length > 0
+    ? YAML.dump(presets, { indent: 2, flowLevel: 2 })
+    : '';
+}
 
-export const DEFAULT_STOCK_YAML = YAML.dump(DEFAULT_STOCK, {
-  indent: 2,
-  flowLevel: 2,
-});
+/** Blade width default for a unit system: 3 mm or 1/8 in. */
+export function getBladeWidthForUnit(unit: 'mm' | 'in'): number {
+  return unit === 'mm' ? 3 : 0.125;
+}
 
 export const DEFAULT_SETTINGS: CutlistSettings = {
   bladeWidth: 3,
@@ -148,5 +154,5 @@ export const DEFAULT_SETTINGS: CutlistSettings = {
   margin: 0,
   optimize: 'Auto',
   showPartNumbers: true,
-  stock: DEFAULT_STOCK_YAML,
+  stock: '',
 };

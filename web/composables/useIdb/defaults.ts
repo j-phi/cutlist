@@ -3,7 +3,7 @@
  * versions (which may be missing fields added later) still hydrate cleanly.
  */
 
-import { DEFAULT_SETTINGS, DEFAULT_STOCK_YAML } from '~/utils/settings';
+import { DEFAULT_SETTINGS } from '~/utils/settings';
 import type { IdbProject, IdbModelMeta } from './types';
 
 export function applyProjectDefaults(
@@ -11,7 +11,7 @@ export function applyProjectDefaults(
 ): IdbProject {
   return {
     ...p,
-    stock: p.stock ?? DEFAULT_STOCK_YAML,
+    stock: p.stock ?? '',
     colorMap: p.colorMap ?? {},
     excludedColors: p.excludedColors ?? [],
     distanceUnit: p.distanceUnit ?? DEFAULT_SETTINGS.distanceUnit,

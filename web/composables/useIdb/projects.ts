@@ -5,7 +5,7 @@
  * single Dexie transaction so partial failures don't leave orphans.
  */
 
-import { DEFAULT_SETTINGS, DEFAULT_STOCK_YAML } from '~/utils/settings';
+import { DEFAULT_SETTINGS } from '~/utils/settings';
 import { getDb, safeWrite } from './db';
 import { applyProjectDefaults, applyModelDefaults } from './defaults';
 import type { IdbProject, IdbModelMeta } from './types';
@@ -95,7 +95,7 @@ export async function createProject(
     name,
     colorMap: {},
     excludedColors: [],
-    stock: opts?.stock ?? DEFAULT_STOCK_YAML,
+    stock: opts?.stock ?? '',
     distanceUnit: opts?.distanceUnit ?? DEFAULT_SETTINGS.distanceUnit,
     bladeWidth: opts?.bladeWidth ?? DEFAULT_SETTINGS.bladeWidth,
     margin: opts?.margin ?? DEFAULT_SETTINGS.margin,
