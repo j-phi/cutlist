@@ -22,7 +22,11 @@ export default defineNuxtConfig({
   alias: {
     cutlist: resolve(__dirname, 'lib'),
   },
-  runtimeConfig: {},
+  runtimeConfig: {
+    public: {
+      sentryDsn: process.env.NUXT_PUBLIC_SENTRY_DSN ?? '',
+    },
+  },
   sentry: {
     org: 'cutlist',
     project: 'cutlist',

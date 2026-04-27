@@ -12,6 +12,12 @@
  */
 
 import type { ProjectExport } from '~/composables/useExportProject';
+import type {
+  IdbAnnotation,
+  IdbBuildStep,
+  IdbModel,
+  IdbScene,
+} from '~/composables/useIdb';
 import { gzipDecompress } from '~/utils/compress';
 import { migrateExport } from './migrations';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
@@ -169,11 +175,6 @@ const ProjectExportSchema = z.object({
 /**
  * Minimal database interface for project import. Decouples import logic
  * from the concrete IDB composable so tests can provide a stub.
- *
- * `createModel` and `createBuildStep` accept `any` intentionally: the import
- * layer spreads Zod-validated output with fresh IDs, producing the correct
- * IDB record shape at runtime. Tightening these to IdbModel/IdbBuildStep
- * would couple this module to the concrete IDB types.
  */
 export interface ProjectImportDb {
   createProject: (
@@ -194,10 +195,10 @@ export interface ProjectImportDb {
       excludedColors: string[];
     }>,
   ) => Promise<unknown>;
-  createModel: (model: any) => Promise<void>;
-  createBuildStep: (step: any) => Promise<void>;
-  createScene: (scene: any) => Promise<void>;
-  createAnnotation: (annotation: any) => Promise<void>;
+  createModel: (model: IdbModel) => Promise<void>;
+  createBuildStep: (step: IdbBuildStep) => Promise<void>;
+  createScene: (scene: IdbScene) => Promise<void>;
+  createAnnotation: (annotation: IdbAnnotation) => Promise<void>;
 }
 
 /**
