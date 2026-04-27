@@ -58,6 +58,24 @@ describe('MaterialColorPicker', () => {
     });
   });
 
+  describe('Preset matching', () => {
+    it('Should mark the matching preset active when modelValue is uppercase hex', () => {
+      const presetHex = FALLBACK_PALETTE[2];
+      const upper = presetHex.toUpperCase();
+      const component = getComponent(upper);
+      const presetButtons = component.findAll('button.swatch');
+      const customSwatch = component.find('label .swatch');
+
+      // The matching preset (index 2) should have the active class
+      expect(presetButtons[2].classes()).toContain('active');
+      // Other presets should not be active
+      expect(presetButtons[0].classes()).not.toContain('active');
+      // The Custom row's swatch should be 'empty' (preset matched), not 'active'
+      expect(customSwatch.classes()).toContain('empty');
+      expect(customSwatch.classes()).not.toContain('active');
+    });
+  });
+
   describe('On custom color input', () => {
     it('Should emit the custom hex from the color input', async () => {
       const component = getComponent(FALLBACK_PALETTE[0]);

@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import { parseGltf } from '~/utils/parseGltf';
-import { parseCollada, type ParseColladaResult } from '~/utils/parseCollada';
 import { parseStock } from '~/utils/parseStock';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import { STORAGE_KEYS } from '~/utils/localStorage';
@@ -26,7 +24,6 @@ const { requestGrainLockChange } = useGrainLockConfirm();
 const { distanceUnit, stock } = useProjectSettings();
 const formatDistance = useFormatDistance();
 const toast = useToast();
-const fileInput = ref<HTMLInputElement | null>(null);
 const tab = useProjectTab();
 const modelViewer = useModelViewerStore();
 
@@ -48,7 +45,6 @@ const { search, sortKey, sortDir, toggleSort, filteredGroups } = useBomFilter(
 
 // ── UI state ─────────────────────────────────────────────────────────────────
 
-const modelsExpanded = ref(true);
 const showAddForm = ref(false);
 const editingPartNumber = ref<number | null>(null);
 const renamingPartNumber = ref<number | null>(null);
@@ -62,84 +58,21 @@ function onPartNameInputMounted(el: unknown) {
     input.select();
   }
 }
-const pendingRemoveModelId = ref<string | null>(null);
 const splitContainer = ref<HTMLDivElement | null>(null);
 
-// ── File import ──────────────────────────────────────────────────────────────
+// ── File import (drag/drop, picker) ──────────────────────────────────────────
 
-function pickFile() {
-  fileInput.value?.click();
-}
-
-async function importFiles(files: File[]) {
-  if (!files.length || !activeId.value) return;
-  for (const file of files) {
-    try {
-      const isDae = file.name.toLowerCase().endsWith('.dae');
-      const result = isDae ? await parseCollada(file) : await parseGltf(file);
-      const rawSource = isDae
-        ? (result as ParseColladaResult).colladaXml
-        : (result as Awaited<ReturnType<typeof parseGltf>>).gltfJson;
-      addModel(activeId.value, {
-        id: crypto.randomUUID(),
-        filename: file.name,
-        source: isDae ? 'collada' : 'gltf',
-        parts: result.parts,
-        colors: result.colors,
-        enabled: true,
-        rawSource,
-        nodePartMap: result.nodePartMap,
-      });
-      toast.add({
-        title: 'Imported',
-        description: `${file.name}: ${result.parts.length} parts, ${result.colors.length} color${result.colors.length === 1 ? '' : 's'}.`,
-      });
-    } catch (err) {
-      toast.add({
-        title: 'Import failed',
-        description: err instanceof Error ? err.message : String(err),
-        color: 'error',
-      });
-    }
-  }
-}
-
-async function onFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const files = [...(input.files ?? [])];
-  input.value = '';
-  await importFiles(files);
-}
-
-// ── Drag & drop ──────────────────────────────────────────────────────────────
-
-const isDragging = ref(false);
-
-function onDragOver(e: DragEvent) {
-  if (!activeId.value) return;
-  if (e.dataTransfer?.items.length) {
-    e.preventDefault();
-    isDragging.value = true;
-  }
-}
-
-function onDragLeave(e: DragEvent) {
-  const related = e.relatedTarget as Element | null;
-  const current = e.currentTarget as Element;
-  if (!related || !current.contains(related)) {
-    isDragging.value = false;
-  }
-}
-
-async function onDrop(e: DragEvent) {
-  e.preventDefault();
-  isDragging.value = false;
-  const files = [...(e.dataTransfer?.files ?? [])].filter((f) => {
-    const name = f.name.toLowerCase();
-    return name.endsWith('.gltf') || name.endsWith('.dae');
-  });
-  await importFiles(files);
-}
+const {
+  isDragging,
+  fileInput,
+  pickFile,
+  bind: importBind,
+} = useBomImport({
+  activeId,
+  onModelParsed: (model) => {
+    if (activeId.value) addModel(activeId.value, model);
+  },
+});
 
 // ── Materials list ───────────────────────────────────────────────────────────
 
@@ -326,12 +259,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    class="absolute inset-0 overflow-hidden"
-    @dragover="onDragOver"
-    @dragleave="onDragLeave"
-    @drop="onDrop"
-  >
+  <div class="absolute inset-0 overflow-hidden" v-bind="importBind.dropZone">
     <input
       ref="fileInput"
       type="file"
@@ -339,7 +267,7 @@ onUnmounted(() => {
       multiple
       class="hidden"
       aria-label="Import model files"
-      @change="onFileChange"
+      v-bind="importBind.fileInput"
     />
 
     <!-- Drag overlay -->
@@ -376,207 +304,23 @@ onUnmounted(() => {
       >
         <template v-if="activeProject">
           <!-- ─── Collapsible Models Panel ──────────────────────────────────── -->
-          <div
+          <BomModelsList
             v-if="activeProject.models.length > 0"
-            class="mx-4 mt-3 mb-2 border border-default rounded-lg bg-base overflow-hidden"
-          >
-            <button
-              type="button"
-              class="flex items-center gap-2 w-full p-3 text-left hover:bg-surface transition-colors"
-              :aria-expanded="modelsExpanded"
-              aria-label="Toggle models panel"
-              @click="modelsExpanded = !modelsExpanded"
-            >
-              <UIcon
-                :name="
-                  modelsExpanded
-                    ? 'i-lucide-chevron-down'
-                    : 'i-lucide-chevron-right'
-                "
-                class="w-4 h-4 text-dim shrink-0"
-              />
-              <span class="text-sm font-medium text-hi">Models</span>
-              <span
-                v-if="importedModels.length > 0"
-                class="text-xs text-muted ml-auto"
-              >
-                {{ importedModels.length }} model{{
-                  importedModels.length === 1 ? '' : 's'
-                }}
-                &middot; {{ totalModelParts }} part{{
-                  totalModelParts === 1 ? '' : 's'
-                }}
-              </span>
-            </button>
-
-            <div
-              v-if="modelsExpanded"
-              class="px-3 pb-3 space-y-2 border-t border-subtle"
-            >
-              <div
-                v-for="model in importedModels"
-                :key="model.id"
-                class="flex items-center gap-2 first:mt-2"
-              >
-                <UCheckbox
-                  :model-value="model.enabled"
-                  @update:model-value="toggleModel(activeProject!.id, model.id)"
-                />
-                <span class="text-sm text-body truncate flex-1">{{
-                  model.filename
-                }}</span>
-                <span class="text-xs text-muted shrink-0">
-                  {{ model.parts.length }} part{{
-                    model.parts.length === 1 ? '' : 's'
-                  }}
-                </span>
-                <template v-if="pendingRemoveModelId === model.id">
-                  <UButton
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    label="Cancel"
-                    @click="pendingRemoveModelId = null"
-                  />
-                  <UButton
-                    size="xs"
-                    color="error"
-                    variant="solid"
-                    label="Remove"
-                    @click="
-                      removeModel(activeProject!.id, model.id);
-                      pendingRemoveModelId = null;
-                    "
-                  />
-                </template>
-                <UButton
-                  v-else
-                  size="xs"
-                  icon="i-lucide-x"
-                  color="neutral"
-                  variant="ghost"
-                  class="rounded-full"
-                  title="Remove model"
-                  @click="pendingRemoveModelId = model.id"
-                />
-              </div>
-              <UButton
-                size="sm"
-                color="primary"
-                variant="soft"
-                icon="i-lucide-plus"
-                label="Import Model"
-                @click="pickFile"
-              />
-              <ColorMappingPanel />
-            </div>
-          </div>
+            :imported-models="importedModels"
+            :total-model-parts="totalModelParts"
+            @pick-file="pickFile"
+            @toggle-model="(id) => toggleModel(activeProject!.id, id)"
+            @remove-model="(id) => removeModel(activeProject!.id, id)"
+          />
 
           <!-- ─── Empty state ───────────────────────────────────────────────── -->
-          <div
+          <BomEmptyState
             v-if="
               activeProject.models.length === 0 && activeProject.id === activeId
             "
-            class="px-6 py-6 pb-24 space-y-6 max-w-lg mx-auto"
-          >
-            <!-- Heading + actions -->
-            <div class="text-center space-y-3">
-              <div
-                class="w-14 h-14 rounded-2xl bg-surface border border-subtle flex items-center justify-center mx-auto cursor-pointer hover:bg-teal-400/10 hover:border-teal-400/20 transition-colors group"
-                @click="pickFile"
-              >
-                <UIcon
-                  name="i-lucide-package-open"
-                  class="w-6 h-6 text-dim group-hover:text-teal-400/60 transition-colors"
-                />
-              </div>
-              <div class="space-y-1">
-                <p class="text-base font-semibold text-hi">
-                  Drag your model here
-                </p>
-                <p class="text-sm text-muted leading-relaxed">
-                  Import a .gltf (Onshape) or .dae (SketchUp) model to
-                  automatically generate your cut list, or add parts manually.
-                </p>
-              </div>
-              <div class="flex items-center justify-center gap-2">
-                <UButton
-                  size="sm"
-                  color="primary"
-                  variant="soft"
-                  icon="i-lucide-upload"
-                  label="Import Model"
-                  @click="pickFile"
-                />
-                <UButton
-                  size="sm"
-                  color="neutral"
-                  variant="soft"
-                  icon="i-lucide-plus"
-                  label="Add Part Manually"
-                  @click="showAddForm = true"
-                />
-              </div>
-            </div>
-
-            <!-- Workflow steps -->
-            <ol class="space-y-4 list-none pl-0">
-              <li class="flex gap-3">
-                <span
-                  class="shrink-0 w-6 h-6 rounded-full bg-teal-400/15 text-teal-400 text-xs font-bold flex items-center justify-center mt-0.5"
-                  >1</span
-                >
-                <div>
-                  <p class="text-sm font-medium text-body">
-                    Build your model in Onshape
-                  </p>
-                  <p class="text-sm text-muted leading-relaxed mt-0.5">
-                    Model each part at its real-world dimensions. Assign a
-                    unique appearance colour to each material&nbsp;&mdash; e.g.
-                    oak parts one colour, plywood another.
-                  </p>
-                </div>
-              </li>
-              <li class="flex gap-3">
-                <span
-                  class="shrink-0 w-6 h-6 rounded-full bg-teal-400/15 text-teal-400 text-xs font-bold flex items-center justify-center mt-0.5"
-                  >2</span
-                >
-                <div>
-                  <p class="text-sm font-medium text-body">Export as GLTF</p>
-                  <p class="text-sm text-muted leading-relaxed mt-0.5">
-                    In Onshape, choose
-                    <span class="font-semibold text-body"
-                      >File &rarr; Export</span
-                    >, set format to
-                    <span class="font-mono text-dim">GLTF</span>, and download.
-                  </p>
-                  <img
-                    src="/onshape-export.png"
-                    alt="Onshape export dialog showing GLTF format selected"
-                    class="mt-2 rounded-lg border border-subtle w-full"
-                  />
-                </div>
-              </li>
-              <li class="flex gap-3">
-                <span
-                  class="shrink-0 w-6 h-6 rounded-full bg-teal-400/15 text-teal-400 text-xs font-bold flex items-center justify-center mt-0.5"
-                  >3</span
-                >
-                <div>
-                  <p class="text-sm font-medium text-body">
-                    Import to Cutlist Studio
-                  </p>
-                  <p class="text-sm text-muted leading-relaxed mt-0.5">
-                    Drop the
-                    <span class="font-mono text-dim">.gltf</span> file below or
-                    click Import. Map each colour to a stock material, and the
-                    optimiser will generate your board layouts.
-                  </p>
-                </div>
-              </li>
-            </ol>
-          </div>
+            @pick-file="pickFile"
+            @add-manual-part="showAddForm = true"
+          />
 
           <!-- ─── First-load computing spinner ────────────────────────────── -->
           <div

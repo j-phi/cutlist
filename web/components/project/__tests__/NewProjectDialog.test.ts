@@ -7,10 +7,12 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import NewProjectDialog from '../NewProjectDialog.vue';
 
 const addProject = vi.fn().mockResolvedValue(undefined);
+const toastAdd = vi.fn();
 
 mockNuxtImport('useProjects', () => () => ({
   addProject,
 }));
+mockNuxtImport('useToast', () => () => ({ add: toastAdd }));
 
 const UButtonStub = {
   inheritAttrs: false,
@@ -49,6 +51,8 @@ const UInputStub = defineComponent({
 describe('NewProjectDialog', () => {
   function getComponent(props: { open?: boolean } = {}) {
     addProject.mockClear();
+    addProject.mockResolvedValue(undefined);
+    toastAdd.mockClear();
     return shallowMount(NewProjectDialog, {
       props: {
         open: true,
@@ -108,6 +112,45 @@ describe('NewProjectDialog', () => {
       await component.get('input').trigger('keydown.enter');
 
       expect(addProject).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('On createProject', () => {
+    it('Should close the modal when addProject resolves', async () => {
+      const component = getComponent();
+
+      await component.get('input').setValue('My Project');
+      await getButton(component, 'Create').trigger('click');
+      await nextTick();
+      await nextTick();
+
+      expect(addProject).toHaveBeenCalledWith('My Project');
+      const events = component.emitted('update:open') ?? [];
+      expect(events.at(-1)).toEqual([false]);
+      expect(toastAdd).not.toHaveBeenCalled();
+    });
+
+    it('Should keep the modal open and toast an error when addProject rejects', async () => {
+      addProject.mockRejectedValueOnce(new Error('quota exceeded'));
+      const component = getComponent();
+
+      await component.get('input').setValue('My Project');
+      await getButton(component, 'Create').trigger('click');
+      await nextTick();
+      await nextTick();
+
+      expect(addProject).toHaveBeenCalledWith('My Project');
+      // Modal should NOT have been closed.
+      const events = component.emitted('update:open') ?? [];
+      expect(events).not.toContainEqual([false]);
+      expect(toastAdd).toHaveBeenCalledTimes(1);
+      expect(toastAdd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Failed to create project',
+          description: 'quota exceeded',
+          color: 'error',
+        }),
+      );
     });
   });
 

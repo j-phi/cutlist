@@ -85,6 +85,25 @@ const TabListStub = {
   template: '<ul role="tablist"><slot /></ul>',
 };
 
+const ProjectHistoryMenuStub = {
+  name: 'ProjectHistoryMenu',
+  props: ['archived'],
+  emits: ['restore', 'permanently-delete', 'clear'],
+  template: `
+    <div
+      data-testid="history-menu-stub"
+      :data-archived-count="archived.length"
+    >
+      <button class="emit-restore" @click="$emit('restore', 'a1')">restore</button>
+      <button
+        class="emit-permanently-delete"
+        @click="$emit('permanently-delete', 'a1')"
+      >delete</button>
+      <button class="emit-clear" @click="$emit('clear')">clear</button>
+    </div>
+  `,
+};
+
 const stubs = {
   UButton: UButtonStub,
   UIcon: true,
@@ -95,6 +114,7 @@ const stubs = {
   },
   TabList: TabListStub,
   TabListItem: TabListItemStub,
+  ProjectHistoryMenu: ProjectHistoryMenuStub,
   NewProjectDialog: true,
   Transition: false,
 };
@@ -119,6 +139,7 @@ beforeEach(() => {
   closeProject.mockClear();
   restoreProject.mockClear();
   permanentlyDeleteProject.mockClear();
+  clearHistory.mockClear();
   renameProject.mockClear();
   reorderProjects.mockClear();
 });
@@ -219,19 +240,24 @@ describe('ProjectTopBar', () => {
   });
 
   describe('On history menu', () => {
-    it('Should list archived projects when opened', async () => {
+    it('Should render the history menu with the archived list when opened', async () => {
       archivedList.value = [
         { id: 'a1', name: 'Old Cabinet', archivedAt: new Date().toISOString() },
+        { id: 'a2', name: 'Older', archivedAt: new Date().toISOString() },
       ];
       const component = getComponent();
 
-      const historyBtn = component.get('button[aria-label="Project history"]');
-      await historyBtn.trigger('click');
+      await component
+        .get('button[aria-label="Project history"]')
+        .trigger('click');
 
-      expect(component.text()).toContain('Old Cabinet');
+      const stub = component.findComponent(ProjectHistoryMenuStub);
+      expect(stub.exists()).toBe(true);
+      expect(stub.props('archived')).toHaveLength(2);
+      expect(stub.props('archived')[0].name).toBe('Old Cabinet');
     });
 
-    it('Should call restoreProject when reopen is clicked', async () => {
+    it('Should call restoreProject when the menu emits restore', async () => {
       archivedList.value = [
         { id: 'a1', name: 'Old', archivedAt: new Date().toISOString() },
       ];
@@ -240,16 +266,14 @@ describe('ProjectTopBar', () => {
       await component
         .get('button[aria-label="Project history"]')
         .trigger('click');
-      const reopenBtn = component
-        .findAll('button')
-        .find((b) => b.attributes('title') === 'Reopen');
-      expect(reopenBtn).toBeTruthy();
-      await reopenBtn!.trigger('click');
+      await component
+        .findComponent(ProjectHistoryMenuStub)
+        .vm.$emit('restore', 'a1');
 
       expect(restoreProject).toHaveBeenCalledWith('a1');
     });
 
-    it('Should require two clicks before permanentlyDeleteProject is called', async () => {
+    it('Should call permanentlyDeleteProject when the menu emits permanently-delete', async () => {
       archivedList.value = [
         { id: 'a1', name: 'Old', archivedAt: new Date().toISOString() },
       ];
@@ -258,30 +282,30 @@ describe('ProjectTopBar', () => {
       await component
         .get('button[aria-label="Project history"]')
         .trigger('click');
-
-      const trashButtons = component
-        .findAll('button')
-        .filter((b) => b.attributes('title') === 'Delete permanently');
-      expect(trashButtons.length).toBeGreaterThan(0);
-      // First click on the (only) trash icon — arms the confirm prompt.
-      await trashButtons[0].trigger('click');
-      await component.vm.$nextTick();
-      expect(permanentlyDeleteProject).not.toHaveBeenCalled();
-
-      // Now a "Delete" confirm button is visible.
-      const confirmDelete = component
-        .findAll('button')
-        .find((b) => b.text() === 'Delete');
-      expect(confirmDelete).toBeTruthy();
-      await confirmDelete!.trigger('click');
+      await component
+        .findComponent(ProjectHistoryMenuStub)
+        .vm.$emit('permanently-delete', 'a1');
 
       expect(permanentlyDeleteProject).toHaveBeenCalledWith('a1');
+    });
+
+    it('Should call clearHistory when the menu emits clear', async () => {
+      archivedList.value = [
+        { id: 'a1', name: 'Old', archivedAt: new Date().toISOString() },
+      ];
+      const component = getComponent();
+
+      await component
+        .get('button[aria-label="Project history"]')
+        .trigger('click');
+      await component.findComponent(ProjectHistoryMenuStub).vm.$emit('clear');
+
+      expect(clearHistory).toHaveBeenCalledTimes(1);
     });
   });
 });
 
 // TODO(test): mobile menu — duplicates desktop flows in a different DOM branch.
-// TODO(test): clear-history confirm — small two-state bookkeeping.
 // TODO(test): export/import buttons — pure delegation to mocked composables.
 // TODO(test): goHome / new project dialog open — delegation only.
 // TODO(test): scroll buttons in TabList — covered by component-internal logic.

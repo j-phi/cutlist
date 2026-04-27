@@ -2,6 +2,7 @@
 const open = defineModel<boolean>('open', { default: false });
 
 const { addProject } = useProjects();
+const toast = useToast();
 const projectName = ref('');
 
 watch(open, (v) => {
@@ -11,8 +12,16 @@ watch(open, (v) => {
 async function createProject() {
   const name = projectName.value.trim();
   if (!name) return;
-  await addProject(name);
-  open.value = false;
+  try {
+    await addProject(name);
+    open.value = false;
+  } catch (err) {
+    toast.add({
+      title: 'Failed to create project',
+      description: err instanceof Error ? err.message : String(err),
+      color: 'error',
+    });
+  }
 }
 </script>
 

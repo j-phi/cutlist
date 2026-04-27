@@ -12,16 +12,30 @@ const { stock } = useProjectSettings();
 
 const expanded = ref(true);
 
-const materialOptions = computed<string[]>(() => {
-  if (stock.value == null) return [];
+type ParsedStock =
+  | { ok: true; materials: string[] }
+  | { ok: false; error: Error };
+
+const parsedStock = computed<ParsedStock>(() => {
+  if (stock.value == null) return { ok: true, materials: [] };
   try {
-    return Array.from(
+    const materials = Array.from(
       new Set(parseStock(stock.value).map((s) => s.material)),
     ).sort();
-  } catch {
-    return [];
+    return { ok: true, materials };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err : new Error(String(err)),
+    };
   }
 });
+
+const materialOptions = computed<string[]>(() =>
+  parsedStock.value.ok ? parsedStock.value.materials : [],
+);
+
+const hasParseError = computed(() => !parsedStock.value.ok);
 
 function setMapping(colorKey: string, material: string) {
   if (activeId.value == null) return;
@@ -66,7 +80,13 @@ function rgbStyle(rgb: [number, number, number]): string {
       >
     </button>
     <template v-if="expanded">
-      <p v-if="materialOptions.length === 0" class="text-xs text-amber-400">
+      <p v-if="hasParseError" class="text-xs text-amber-400">
+        Stock has invalid YAML. Open Settings to fix it.
+      </p>
+      <p
+        v-else-if="materialOptions.length === 0"
+        class="text-xs text-amber-400"
+      >
         No stock materials defined. Open Settings to add stock first.
       </p>
       <div

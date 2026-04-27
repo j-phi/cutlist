@@ -17,6 +17,7 @@ function onCustomInput(e: Event) {
 }
 
 const display = computed(() => model.value || presets[0]);
+const displayLower = computed(() => display.value?.toLowerCase());
 </script>
 
 <template>
@@ -41,7 +42,7 @@ const display = computed(() => model.value || presets[0]);
             :key="hex"
             type="button"
             class="swatch"
-            :class="{ active: display === hex }"
+            :class="{ active: displayLower === hex.toLowerCase() }"
             :style="{ background: hex }"
             @click="pick(hex)"
           />
@@ -54,9 +55,11 @@ const display = computed(() => model.value || presets[0]);
         <label class="flex items-center gap-2 cursor-pointer group">
           <span
             class="swatch"
-            :class="presets.includes(display) ? 'empty' : 'active'"
+            :class="presets.includes(displayLower ?? '') ? 'empty' : 'active'"
             :style="{
-              background: presets.includes(display) ? 'transparent' : display,
+              background: presets.includes(displayLower ?? '')
+                ? 'transparent'
+                : display,
             }"
           />
           <span

@@ -168,6 +168,16 @@ describe('ColorMappingPanel', () => {
       expect(component.text()).toContain('No stock materials defined');
       expect(component.find('.text-amber-400').exists()).toBe(true);
     });
+
+    it('Should warn about invalid YAML when stock cannot be parsed', () => {
+      // Malformed YAML / not parseable as array of stock entries
+      stock.value = 'foo: [unterminated';
+      const component = getComponent();
+
+      expect(component.text()).toContain('Stock has invalid YAML');
+      expect(component.text()).not.toContain('No stock materials defined');
+      expect(component.find('.text-amber-400').exists()).toBe(true);
+    });
   });
 
   describe('On collapse toggle', () => {
