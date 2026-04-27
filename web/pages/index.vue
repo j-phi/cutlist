@@ -258,8 +258,7 @@ function scrollToContent() {
 
               <p v-if="!isDragging" class="mt-4 text-xs text-muted">
                 or drop a
-                <span class="font-mono text-dim">.cutlist.gz</span> file
-                anywhere
+                <span class="font-mono text-dim">.cutlist</span> file anywhere
               </p>
             </div>
 

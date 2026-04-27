@@ -222,7 +222,7 @@ describe('importProjectFromFile', () => {
   it('supports gzipped input', async () => {
     const payload = makePayload();
     const gz = gzipSync(JSON.stringify(payload));
-    const file = new File([new Uint8Array(gz)], 'demo.cutlist.gz', {
+    const file = new File([new Uint8Array(gz)], 'demo.cutlist', {
       type: 'application/gzip',
     });
     const { db, calls } = makeIdbMock();
@@ -233,7 +233,7 @@ describe('importProjectFromFile', () => {
 
   it('falls back to plain JSON when gzip decode fails', async () => {
     const payload = makePayload();
-    const file = new File([JSON.stringify(payload)], 'demo.cutlist.gz', {
+    const file = new File([JSON.stringify(payload)], 'demo.cutlist', {
       type: 'application/json',
     });
     const { db, calls } = makeIdbMock();
@@ -243,7 +243,7 @@ describe('importProjectFromFile', () => {
   });
 
   it('rejects non-JSON content with readable error', async () => {
-    const file = new File(['this is not json'], 'bad.cutlist.gz', {
+    const file = new File(['this is not json'], 'bad.cutlist', {
       type: 'text/plain',
     });
     const { db } = makeIdbMock();
@@ -256,13 +256,13 @@ describe('importProjectFromFile', () => {
     }
     expect(caught).not.toBeNull();
     expect(caught!.message).toContain('Could not parse');
-    expect(caught!.message).toContain('.cutlist.gz');
+    expect(caught!.message).toContain('.cutlist');
   });
 
   it('rejects structurally invalid JSON with readable error', async () => {
     const file = new File(
       [JSON.stringify({ random: 'garbage' })],
-      'bad.cutlist.gz',
+      'bad.cutlist',
     );
     const { db } = makeIdbMock();
 

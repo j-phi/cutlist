@@ -1,5 +1,5 @@
 /**
- * Export/import format migration pipeline for `.cutlist.gz` files.
+ * Export/import format migration pipeline for `.cutlist` files.
  *
  * Scope of this module: transforming record shapes inside imported export
  * files from the version they were written at up to the current
@@ -11,7 +11,7 @@
  * expressed twice:
  *   1. Inside Dexie's `.upgrade(tx => ...)` callback — runs on local IDB.
  *   2. As a pure entry in the `migrations` array below — runs on incoming
- *      `.cutlist.gz` payloads in `migrateExport`.
+ *      `.cutlist` payloads in `migrateExport`.
  *
  * Rules for the `migrations` array:
  *  - Append only; never edit or delete a shipped entry.
@@ -66,7 +66,7 @@ interface RawExport {
 }
 
 /**
- * Migrate an imported `.cutlist.gz` from its version to `SCHEMA_VERSION`.
+ * Migrate an imported `.cutlist` from its version to `SCHEMA_VERSION`.
  * Throws `FutureSchemaError` when the export advertises a version greater
  * than this client supports — the same error class used on DB open, so
  * callers can handle "future schema" uniformly regardless of source.

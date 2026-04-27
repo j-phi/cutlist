@@ -28,7 +28,7 @@
             Import a 3D model (GLTF/GLB) or enter parts by hand, assign stock
             materials, and the app computes efficient board layouts that
             minimize waste. Export to PDF for the workshop or share projects as
-            <code class="text-teal-300">.cutlist.gz</code> files.
+            <code class="text-teal-300">.cutlist</code> files.
           </p>
         </div>
 

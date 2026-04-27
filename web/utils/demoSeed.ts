@@ -1,4 +1,4 @@
-export const DEMO_PROJECT_FILENAME = 'demo.cutlist.gz';
+export const DEMO_PROJECT_FILENAME = 'demo.cutlist';
 
 export function shouldSeedDemoProject(params: {
   projects: number;

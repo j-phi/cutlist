@@ -194,7 +194,7 @@ describe('importProjectFromFile corrupt data', () => {
 
   it('rejects structurally invalid gzipped JSON', async () => {
     const gz = gzipSync(JSON.stringify({ random: 'garbage' }));
-    const file = new File([new Uint8Array(gz)], 'bad.cutlist.gz');
+    const file = new File([new Uint8Array(gz)], 'bad.cutlist');
     const { db } = makeIdbMock();
     let caught: Error | null = null;
     try {
@@ -209,7 +209,7 @@ describe('importProjectFromFile corrupt data', () => {
   it('accepts valid gzipped export', async () => {
     const payload = makePayload();
     const gz = gzipSync(JSON.stringify(payload));
-    const file = new File([new Uint8Array(gz)], 'valid.cutlist.gz');
+    const file = new File([new Uint8Array(gz)], 'valid.cutlist');
     const { db, calls } = makeIdbMock();
     await importProjectFromFile(file, db as any);
     expect(calls.createProject).toHaveLength(1);

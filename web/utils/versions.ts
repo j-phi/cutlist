@@ -26,7 +26,7 @@ export const SCHEMA_VERSION = 1;
  * Raised from:
  * - `useIdb/db.ts` — translates Dexie's `VersionError` on DB open.
  * - `projectImport/migrations.ts:migrateExport` — when an imported
- *   `.cutlist.gz` advertises a version greater than `SCHEMA_VERSION`.
+ *   `.cutlist` advertises a version greater than `SCHEMA_VERSION`.
  */
 export class FutureSchemaError extends Error {
   constructor(

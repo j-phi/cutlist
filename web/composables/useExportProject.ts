@@ -68,7 +68,7 @@ export default function useExportProject() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${idbProject.name.replace(/\s+/g, '-')}.cutlist.gz`;
+    a.download = `${idbProject.name.replace(/\s+/g, '-')}.cutlist`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

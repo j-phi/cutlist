@@ -1,7 +1,7 @@
 /**
  * Tests for useDemoSeed — maybeSeedDemo guard logic and error handling.
  *
- * The happy path (actual fetch + import of the demo .cutlist.gz) requires
+ * The happy path (actual fetch + import of the demo .cutlist) requires
  * a bundled asset served by the dev server, which is not available in unit
  * tests. We test the guard logic (shouldSeedDemoProject is already tested
  * in utils/__tests__/demoSeed.test.ts) and verify graceful error handling when

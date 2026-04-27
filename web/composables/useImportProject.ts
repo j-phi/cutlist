@@ -2,14 +2,14 @@ import { importProjectFromFile as importProjectFromCompressedFile } from '~/util
 import { reportError } from './useAppErrors';
 
 export default function useImportProject() {
-  const { reloadProjectList } = useProjects();
+  const { appendProject } = useProjects();
   const { setActiveProject } = useProjectNavigation();
   const { reloadSteps } = useBuildSteps();
   const idb = useIdb();
 
   async function importFromFile(file: File) {
     const newProjectId = await importProjectFromCompressedFile(file, idb);
-    await reloadProjectList();
+    await appendProject(newProjectId);
     setActiveProject(newProjectId);
     await reloadSteps(newProjectId);
   }
@@ -17,7 +17,7 @@ export default function useImportProject() {
   function pickAndImport() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.gz';
+    input.accept = '.cutlist';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;

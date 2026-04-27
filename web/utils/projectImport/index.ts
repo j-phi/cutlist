@@ -1,5 +1,5 @@
 /**
- * Import validation and processing for .cutlist.gz project files.
+ * Import validation and processing for .cutlist project files.
  *
  * All incoming data is validated against strict Zod schemas before touching
  * any runtime state. Malformed or hostile imports fail with user-readable
@@ -204,7 +204,7 @@ export async function importProjectData(
 }
 
 /**
- * Import a .cutlist.gz file. Handles both gzipped and plain JSON input.
+ * Import a .cutlist file. Handles both gzipped and plain JSON input.
  * Returns the new project ID on success.
  * Throws with a user-readable message on any failure.
  */
@@ -226,7 +226,7 @@ export async function importProjectFromFile(
     raw = JSON.parse(text);
   } catch {
     throw new Error(
-      'Could not parse the file as JSON. Make sure this is a valid .cutlist.gz file.',
+      'Could not parse the file as JSON. Make sure this is a valid .cutlist file.',
     );
   }
 
