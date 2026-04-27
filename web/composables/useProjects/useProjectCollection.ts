@@ -130,11 +130,8 @@ export default function useProjectCollection() {
   }
 
   async function resetDatabase() {
-    activeId.value = null;
-    activeProjectData.value = null;
-    projectList.value = [];
-    archivedList.value = [];
     await idbResetDatabase();
+    window.location.replace('/');
   }
 
   async function renameProject(id: string, name: string) {
