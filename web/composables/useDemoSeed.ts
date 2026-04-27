@@ -13,7 +13,13 @@ import { reportError } from '~/composables/useAppErrors';
 export async function seedDemoProject(
   idb: ReturnType<typeof useIdb>,
 ): Promise<string> {
-  const url = `/${DEMO_PROJECT_FILENAME}`;
+  let base = '/';
+  try {
+    base = useRuntimeConfig().app.baseURL || '/';
+  } catch {
+    // Outside Nuxt context (e.g. tests) — fall back to root
+  }
+  const url = `${base}${DEMO_PROJECT_FILENAME}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to load demo project (${response.status})`);
