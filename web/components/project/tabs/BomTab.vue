@@ -417,194 +417,66 @@ onUnmounted(() => {
                   class="sticky top-0 z-10 bg-base shadow-[inset_0_-1px_0_var(--color-mist-800)]"
                 >
                   <tr>
-                    <th
-                      class="pl-5 pr-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-14"
-                      :aria-sort="
-                        sortKey === 'number'
-                          ? sortDir === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : 'none'
-                      "
-                      @click="toggleSort('number')"
-                      @keydown.enter.prevent="toggleSort('number')"
-                      @keydown.space.prevent="toggleSort('number')"
-                      tabindex="0"
-                      role="columnheader"
-                    >
-                      <span class="inline-flex items-center gap-0.5">
-                        #
-                        <UIcon
-                          v-if="sortKey === 'number'"
-                          :name="
-                            sortDir === 'asc'
-                              ? 'i-lucide-chevron-up'
-                              : 'i-lucide-chevron-down'
-                          "
-                          class="w-3 h-3 text-teal-400"
-                        />
-                      </span>
-                    </th>
-                    <th
-                      class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors"
-                      :aria-sort="
-                        sortKey === 'name'
-                          ? sortDir === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : 'none'
-                      "
-                      @click="toggleSort('name')"
-                      @keydown.enter.prevent="toggleSort('name')"
-                      @keydown.space.prevent="toggleSort('name')"
-                      tabindex="0"
-                      role="columnheader"
-                    >
-                      <span class="inline-flex items-center gap-0.5">
-                        Name
-                        <UIcon
-                          v-if="sortKey === 'name'"
-                          :name="
-                            sortDir === 'asc'
-                              ? 'i-lucide-chevron-up'
-                              : 'i-lucide-chevron-down'
-                          "
-                          class="w-3 h-3 text-teal-400"
-                        />
-                      </span>
-                    </th>
+                    <BomSortableHeader
+                      column-key="number"
+                      label="#"
+                      :current-sort="sortKey"
+                      :sort-dir="sortDir"
+                      width-class="w-14 pl-5"
+                      @toggle="toggleSort"
+                    />
+                    <BomSortableHeader
+                      column-key="name"
+                      label="Name"
+                      :current-sort="sortKey"
+                      :sort-dir="sortDir"
+                      @toggle="toggleSort"
+                    />
                     <th
                       v-if="showModelColumn"
                       class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide w-48"
                     >
                       Model
                     </th>
-                    <th
-                      class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-14"
-                      :aria-sort="
-                        sortKey === 'qty'
-                          ? sortDir === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : 'none'
-                      "
-                      @click="toggleSort('qty')"
-                      @keydown.enter.prevent="toggleSort('qty')"
-                      @keydown.space.prevent="toggleSort('qty')"
-                      tabindex="0"
-                      role="columnheader"
-                    >
-                      <span
-                        class="inline-flex items-center justify-end gap-0.5"
-                      >
-                        QTY
-                        <UIcon
-                          v-if="sortKey === 'qty'"
-                          :name="
-                            sortDir === 'asc'
-                              ? 'i-lucide-chevron-up'
-                              : 'i-lucide-chevron-down'
-                          "
-                          class="w-3 h-3 text-teal-400"
-                        />
-                      </span>
-                    </th>
-                    <th
-                      class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-18"
-                      :aria-sort="
-                        sortKey === 'thickness'
-                          ? sortDir === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : 'none'
-                      "
-                      @click="toggleSort('thickness')"
-                      @keydown.enter.prevent="toggleSort('thickness')"
-                      @keydown.space.prevent="toggleSort('thickness')"
-                      tabindex="0"
-                      role="columnheader"
-                    >
-                      <span
-                        class="inline-flex items-center justify-end gap-0.5"
-                      >
-                        T<span v-if="distanceUnit" class="text-dim font-normal"
-                          >({{ distanceUnit }})</span
-                        >
-                        <UIcon
-                          v-if="sortKey === 'thickness'"
-                          :name="
-                            sortDir === 'asc'
-                              ? 'i-lucide-chevron-up'
-                              : 'i-lucide-chevron-down'
-                          "
-                          class="w-3 h-3 text-teal-400"
-                        />
-                      </span>
-                    </th>
-                    <th
-                      class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-22"
-                      :aria-sort="
-                        sortKey === 'width'
-                          ? sortDir === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : 'none'
-                      "
-                      @click="toggleSort('width')"
-                      @keydown.enter.prevent="toggleSort('width')"
-                      @keydown.space.prevent="toggleSort('width')"
-                      tabindex="0"
-                      role="columnheader"
-                    >
-                      <span
-                        class="inline-flex items-center justify-end gap-0.5"
-                      >
-                        W<span v-if="distanceUnit" class="text-dim font-normal"
-                          >({{ distanceUnit }})</span
-                        >
-                        <UIcon
-                          v-if="sortKey === 'width'"
-                          :name="
-                            sortDir === 'asc'
-                              ? 'i-lucide-chevron-up'
-                              : 'i-lucide-chevron-down'
-                          "
-                          class="w-3 h-3 text-teal-400"
-                        />
-                      </span>
-                    </th>
-                    <th
-                      class="px-4 py-2.5 text-right text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors w-22"
-                      :aria-sort="
-                        sortKey === 'length'
-                          ? sortDir === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : 'none'
-                      "
-                      @click="toggleSort('length')"
-                      @keydown.enter.prevent="toggleSort('length')"
-                      @keydown.space.prevent="toggleSort('length')"
-                      tabindex="0"
-                      role="columnheader"
-                    >
-                      <span
-                        class="inline-flex items-center justify-end gap-0.5"
-                      >
-                        L<span v-if="distanceUnit" class="text-dim font-normal"
-                          >({{ distanceUnit }})</span
-                        >
-                        <UIcon
-                          v-if="sortKey === 'length'"
-                          :name="
-                            sortDir === 'asc'
-                              ? 'i-lucide-chevron-up'
-                              : 'i-lucide-chevron-down'
-                          "
-                          class="w-3 h-3 text-teal-400"
-                        />
-                      </span>
-                    </th>
+                    <BomSortableHeader
+                      column-key="qty"
+                      label="QTY"
+                      align="right"
+                      width-class="w-14"
+                      :current-sort="sortKey"
+                      :sort-dir="sortDir"
+                      @toggle="toggleSort"
+                    />
+                    <BomSortableHeader
+                      column-key="thickness"
+                      label="T"
+                      align="right"
+                      width-class="w-18"
+                      :unit-suffix="distanceUnit ?? ''"
+                      :current-sort="sortKey"
+                      :sort-dir="sortDir"
+                      @toggle="toggleSort"
+                    />
+                    <BomSortableHeader
+                      column-key="width"
+                      label="W"
+                      align="right"
+                      width-class="w-22"
+                      :unit-suffix="distanceUnit ?? ''"
+                      :current-sort="sortKey"
+                      :sort-dir="sortDir"
+                      @toggle="toggleSort"
+                    />
+                    <BomSortableHeader
+                      column-key="length"
+                      label="L"
+                      align="right"
+                      width-class="w-22"
+                      :unit-suffix="distanceUnit ?? ''"
+                      :current-sort="sortKey"
+                      :sort-dir="sortDir"
+                      @toggle="toggleSort"
+                    />
                     <th
                       class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide"
                     >
