@@ -152,6 +152,75 @@ export default function useProjectModels() {
     await applyPartOverride(projectId, adjustedPartNumber, { name: nextName });
   }
 
+  /** Batch-set (or clear) `name` on every part that matches `colorKey`. */
+  async function batchRenameByColor(
+    projectId: string,
+    colorKey: string,
+    name: string | undefined,
+  ) {
+    const project = activeProjectData.value;
+    if (!project || project.id !== projectId) return;
+
+    const trimmed = name?.trim() || undefined;
+    const clearing = trimmed === undefined;
+    const enabled = project.models.filter((m) => m.enabled);
+
+    // Read IDB up-front so we can restore original names when clearing
+    const existing = await idb.getProjectWithModels(projectId);
+    if (!existing) return;
+
+    const affectedModels: { modelId: string; partNumbers: Set<number> }[] = [];
+    let updatedModels = project.models;
+
+    for (const model of enabled) {
+      const partNumbers = new Set<number>();
+      for (const part of model.parts) {
+        if (part.colorKey === colorKey) partNumbers.add(part.partNumber);
+      }
+      if (partNumbers.size === 0) continue;
+      affectedModels.push({ modelId: model.id, partNumbers });
+
+      // When clearing, restore each part's original name from IDB
+      const idbModel = existing.models.find((m) => m.id === model.id);
+      const originalNames = new Map<number, string>();
+      if (clearing && idbModel) {
+        for (const p of idbModel.parts) {
+          if (partNumbers.has(p.partNumber))
+            originalNames.set(p.partNumber, p.name);
+        }
+      }
+
+      const updatedParts = model.parts.map((p) => {
+        if (!partNumbers.has(p.partNumber)) return p;
+        if (clearing) {
+          return { ...p, name: originalNames.get(p.partNumber) ?? p.name };
+        }
+        return { ...p, name: trimmed };
+      });
+      updatedModels = updatedModels.map((m) =>
+        m.id === model.id ? { ...m, parts: updatedParts } : m,
+      );
+    }
+
+    activeProjectData.value = { ...project, models: updatedModels };
+
+    // Persist override changes to IDB
+    const patch: Partial<PartOverride> = { name: trimmed };
+    for (const { modelId, partNumbers } of affectedModels) {
+      const idbModel = existing.models.find((m) => m.id === modelId);
+      const overrides = { ...(idbModel?.partOverrides ?? {}) };
+      for (const pn of partNumbers) {
+        const merged = { ...overrides[pn], ...patch };
+        const cleaned = Object.fromEntries(
+          Object.entries(merged).filter(([, v]) => v !== undefined),
+        ) as PartOverride;
+        if (Object.keys(cleaned).length === 0) delete overrides[pn];
+        else overrides[pn] = cleaned;
+      }
+      await idb.updateModel(modelId, { partOverrides: overrides });
+    }
+  }
+
   const { addManualPart, updateManualPart, removeManualPart } = useManualParts({
     activeProjectData,
     idb,
@@ -169,5 +238,6 @@ export default function useProjectModels() {
     removeManualPart,
     updatePartGrainLock,
     updatePartNameOverride,
+    batchRenameByColor,
   };
 }

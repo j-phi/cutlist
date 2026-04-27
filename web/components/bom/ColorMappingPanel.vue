@@ -4,8 +4,10 @@ import { parseStock } from '~/utils/parseStock';
 const {
   activeId,
   allColors,
+  enabledModels,
   updateColorMap,
   toggleColorExcluded,
+  batchRenameByColor,
   activeProject,
 } = useProjects();
 const { stock } = useProjectSettings();
@@ -56,6 +58,38 @@ function rgbStyle(rgb: [number, number, number]): string {
   const g = Math.round(rgb[1] * 255);
   const b = Math.round(rgb[2] * 255);
   return `background: rgb(${r}, ${g}, ${b});`;
+}
+
+// ─── Batch rename by color ──────────────────────────────────────────────────
+
+const batchNames = ref(new Map<string, string>());
+
+watch(activeId, () => batchNames.value.clear());
+
+function getBatchName(colorKey: string): string {
+  const draft = batchNames.value.get(colorKey);
+  if (draft !== undefined) return draft;
+
+  const names = new Set<string>();
+  for (const model of enabledModels.value) {
+    for (const part of model.parts) {
+      if (part.colorKey === colorKey) names.add(part.name);
+    }
+  }
+  return names.size === 1 ? [...names][0] : '';
+}
+
+function onBatchNameInput(colorKey: string, value: string) {
+  batchNames.value = new Map(batchNames.value).set(colorKey, value);
+}
+
+function commitBatchName(colorKey: string) {
+  if (activeId.value == null) return;
+  const value = batchNames.value.get(colorKey);
+  if (value === undefined) return;
+  batchRenameByColor(activeId.value, colorKey, value || undefined);
+  batchNames.value = new Map(batchNames.value);
+  batchNames.value.delete(colorKey);
 }
 </script>
 
@@ -117,6 +151,15 @@ function rgbStyle(rgb: [number, number, number]): string {
           @update:model-value="
             (v: string) => setMapping(color.key, v === '__none__' ? '' : v)
           "
+        />
+        <UInput
+          :model-value="getBatchName(color.key)"
+          placeholder="Name (optional)"
+          size="sm"
+          class="flex-1 max-w-40"
+          @update:model-value="(v: string) => onBatchNameInput(color.key, v)"
+          @keydown.enter="commitBatchName(color.key)"
+          @blur="commitBatchName(color.key)"
         />
       </div>
     </template>

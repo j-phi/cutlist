@@ -13,8 +13,7 @@ import { reportError } from '~/composables/useAppErrors';
 export async function seedDemoProject(
   idb: ReturnType<typeof useIdb>,
 ): Promise<string> {
-  const base = import.meta.env.BASE_URL ?? '/';
-  const url = `${base.endsWith('/') ? base : `${base}/`}${DEMO_PROJECT_FILENAME}`;
+  const url = `/${DEMO_PROJECT_FILENAME}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to load demo project (${response.status})`);

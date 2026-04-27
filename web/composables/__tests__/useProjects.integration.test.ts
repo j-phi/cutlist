@@ -183,6 +183,129 @@ describe('GLTF model IDB metadata', () => {
   });
 });
 
+// ─── Batch name override round-trip ─────────────────────────────────────────
+
+describe('batch name override IDB round-trip', () => {
+  it('batch name overrides persist and hydrate correctly', async () => {
+    const project = await idb.createProject('BatchRenameTest');
+    const modelId = crypto.randomUUID();
+
+    const parts: Part[] = [
+      makePart(1, { name: 'Mesh_001', colorKey: 'red' }),
+      makePart(1, { name: 'Mesh_001', colorKey: 'red', instanceNumber: 2 }),
+      makePart(2, { name: 'Mesh_002', colorKey: 'red' }),
+      makePart(3, { name: 'Mesh_003', colorKey: 'blue' }),
+    ];
+
+    const model: IdbModel = {
+      id: modelId,
+      projectId: project.id,
+      filename: 'test.glb',
+      source: 'gltf',
+      parts,
+      colors: [],
+      nodePartMap: [],
+      enabled: true,
+      rawSource: {},
+      partOverrides: {},
+      createdAt: new Date().toISOString(),
+    };
+    await idb.createModel(model);
+
+    // Simulate batch rename: set name override for all red parts (1 and 2)
+    await idb.updateModel(modelId, {
+      partOverrides: { 1: { name: 'Shelf' }, 2: { name: 'Shelf' } },
+    });
+    await idb.flushPendingModelWrites();
+
+    const full = await idb.getProjectWithModels(project.id);
+    const hydrated = applyOverrides(
+      full!.models[0].parts,
+      full!.models[0].partOverrides,
+    );
+
+    // Red parts renamed
+    expect(hydrated[0].name).toBe('Shelf');
+    expect(hydrated[1].name).toBe('Shelf');
+    expect(hydrated[2].name).toBe('Shelf');
+    // Blue part unchanged
+    expect(hydrated[3].name).toBe('Mesh_003');
+  });
+
+  it('clearing batch name overrides restores original names', async () => {
+    const project = await idb.createProject('BatchClearTest');
+    const modelId = crypto.randomUUID();
+
+    const parts: Part[] = [
+      makePart(1, { name: 'Original_A', colorKey: 'red' }),
+      makePart(2, { name: 'Original_B', colorKey: 'red' }),
+    ];
+
+    const model: IdbModel = {
+      id: modelId,
+      projectId: project.id,
+      filename: 'test.glb',
+      source: 'gltf',
+      parts,
+      colors: [],
+      nodePartMap: [],
+      enabled: true,
+      rawSource: {},
+      partOverrides: { 1: { name: 'Shelf' }, 2: { name: 'Shelf' } },
+      createdAt: new Date().toISOString(),
+    };
+    await idb.createModel(model);
+
+    // Clear name overrides (simulating batch clear)
+    await idb.updateModel(modelId, { partOverrides: {} });
+    await idb.flushPendingModelWrites();
+
+    const full = await idb.getProjectWithModels(project.id);
+    const hydrated = applyOverrides(
+      full!.models[0].parts,
+      full!.models[0].partOverrides,
+    );
+
+    expect(hydrated[0].name).toBe('Original_A');
+    expect(hydrated[1].name).toBe('Original_B');
+  });
+
+  it('individual override survives alongside batch overrides', async () => {
+    const project = await idb.createProject('MixedOverrideTest');
+    const modelId = crypto.randomUUID();
+
+    const parts: Part[] = [
+      makePart(1, { name: 'Mesh_001', colorKey: 'red' }),
+      makePart(2, { name: 'Mesh_002', colorKey: 'red' }),
+    ];
+
+    const model: IdbModel = {
+      id: modelId,
+      projectId: project.id,
+      filename: 'test.glb',
+      source: 'gltf',
+      parts,
+      colors: [],
+      nodePartMap: [],
+      enabled: true,
+      rawSource: {},
+      // Batch rename both to "Shelf", then individual rename part 2
+      partOverrides: { 1: { name: 'Shelf' }, 2: { name: 'Custom Rail' } },
+      createdAt: new Date().toISOString(),
+    };
+    await idb.createModel(model);
+
+    const full = await idb.getProjectWithModels(project.id);
+    const hydrated = applyOverrides(
+      full!.models[0].parts,
+      full!.models[0].partOverrides,
+    );
+
+    expect(hydrated[0].name).toBe('Shelf');
+    expect(hydrated[1].name).toBe('Custom Rail');
+  });
+});
+
 // ─── Multiple models per project ─────────────────────────────────────────────
 
 describe('multiple models per project', () => {
