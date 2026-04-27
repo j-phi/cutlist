@@ -901,7 +901,7 @@ onUnmounted(() => {
           "
           @mouseleave="clearBomHover"
         >
-          <ModelTab compact show-open-button @expand="openModelTab" />
+          <ModelTab show-open-button @expand="openModelTab" />
         </aside>
       </template>
     </div>

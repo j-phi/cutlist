@@ -4,11 +4,9 @@ import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 
 const props = withDefaults(
   defineProps<{
-    compact?: boolean;
     showOpenButton?: boolean;
   }>(),
   {
-    compact: false,
     showOpenButton: false,
   },
 );
@@ -243,10 +241,7 @@ const infoPart = computed(
       </div>
 
       <!-- Bottom-right controls -->
-      <div
-        v-if="!props.compact"
-        class="absolute bottom-4 right-4 z-10 flex flex-col items-end gap-2"
-      >
+      <div class="absolute bottom-4 right-4 z-10 flex flex-col items-end gap-2">
         <!-- Mouse controls legend -->
         <div
           class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2.5 flex flex-col gap-2"
