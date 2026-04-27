@@ -72,38 +72,6 @@
             cookies, or tracking of any kind.
           </p>
         </div>
-
-        <div>
-          <h2
-            class="text-teal-400 text-xs font-semibold uppercase tracking-wider mb-3"
-          >
-            Open Source Software
-          </h2>
-          <p class="mb-4">
-            Cutlist Generator is built on the following open source libraries.
-            Each is used under its respective license.
-          </p>
-          <table class="w-full text-xs border-collapse">
-            <thead>
-              <tr class="border-b border-subtle">
-                <th class="text-left text-dim font-normal pb-2 pr-6">
-                  Package
-                </th>
-                <th class="text-left text-dim font-normal pb-2 pr-6">
-                  Version
-                </th>
-                <th class="text-left text-dim font-normal pb-2">License</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-mist-900">
-              <tr v-for="dep in deps" :key="dep.name" class="hover:bg-surface">
-                <td class="py-2 pr-6 text-body">{{ dep.name }}</td>
-                <td class="py-2 pr-6 text-dim">{{ dep.version }}</td>
-                <td class="py-2 text-dim">{{ dep.license }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </section>
 
       <p class="mt-12 text-dim text-xs">
@@ -115,20 +83,6 @@
 
 <script lang="ts" setup>
 const appConfig = useAppConfig();
-
-const deps = [
-  { name: 'Nuxt', version: '4', license: 'MIT' },
-  { name: 'Vue', version: '3', license: 'MIT' },
-  { name: 'Nuxt UI', version: '3', license: 'MIT' },
-  { name: 'VueUse', version: '14', license: 'MIT' },
-  { name: 'Three.js', version: '0.184', license: 'MIT' },
-  { name: 'pdf-lib', version: '1.17', license: 'MIT' },
-  { name: 'Dexie', version: '4', license: 'Apache-2.0' },
-  { name: 'js-yaml', version: '4', license: 'MIT' },
-  { name: 'Zod', version: '4', license: 'MIT' },
-  { name: 'Tailwind CSS', version: '4', license: 'MIT' },
-  { name: 'Lucide Icons', version: '1', license: 'ISC' },
-];
 
 useHead({ title: 'Terms of Use — Cutlist Generator' });
 </script>
