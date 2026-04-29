@@ -42,7 +42,12 @@ export interface SnapEdgeResult {
 export type ViewerEvent =
   | { type: 'user-interaction' }
   | { type: 'object-moved'; groupId: ObjectId }
-  | { type: 'selection-changed'; groupIds: ObjectId[] }
+  | {
+      type: 'selection-changed';
+      groupIds: ObjectId[];
+      /** True when the originating input event had Shift held. */
+      shiftKey?: boolean;
+    }
   | { type: 'render-requested' }
   | { type: 'pick'; result: PickResult | null }
   | { type: 'snap-edge'; result: SnapEdgeResult | null };

@@ -36,7 +36,10 @@ const cubeTransform = computed(() => {
   const x = d.x / len;
   const y = d.y / len;
   const z = d.z / len;
-  const yaw = Math.atan2(x, z);
+  // CSS rotateY(+) goes +Z → -X (left-hand from screen's PoV); world dir
+  // uses the right-hand convention. Negate yaw so the +X preset brings the
+  // face-right element to the front of the cube.
+  const yaw = -Math.atan2(x, z);
   const pitch = Math.asin(Math.max(-1, Math.min(1, y)));
   return `rotateX(${-pitch}rad) rotateY(${yaw}rad)`;
 });

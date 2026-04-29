@@ -120,6 +120,7 @@ export class InputRouter {
     this.deps.bus.emit({
       type: 'selection-changed',
       groupIds: result ? [result.groupId] : [],
+      shiftKey: event.shiftKey,
     });
   };
 

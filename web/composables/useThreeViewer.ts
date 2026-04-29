@@ -71,16 +71,26 @@ export default function useThreeViewer(
     offBus.push(
       core.on('selection-changed', (e) => {
         if (!core) return;
+        // Canvas clicks own per-Object selection. Clear the BOM-driven
+        // partNumber selection so the two paths don't double-highlight.
+        if (store.selectedPartNumber.value !== null) {
+          store.selectedPartNumber.value = null;
+        }
         if (e.groupIds.length === 0) {
-          if (store.selectedPartNumber.value !== null) {
-            store.selectedPartNumber.value = null;
-          }
+          if (!e.shiftKey) store.clearGroupSelection();
           return;
         }
-        const part = partNumberFor(core, e.groupIds[0]);
-        // Toggle selection on repeat click of the same part.
-        store.selectedPartNumber.value =
-          store.selectedPartNumber.value === part ? null : part;
+        const gid = e.groupIds[0];
+        if (e.shiftKey) {
+          store.toggleGroupSelection(gid);
+        } else if (
+          store.selectedGroupIds.value.size === 1 &&
+          store.selectedGroupIds.value.has(gid)
+        ) {
+          store.clearGroupSelection();
+        } else {
+          store.selectGroupIds([gid]);
+        }
       }),
     );
   }
@@ -105,17 +115,32 @@ export default function useThreeViewer(
     { immediate: true },
   );
 
-  // Re-apply hover/select when the underlying part number store changes
-  // (driven from BomTab clicks etc.). A Part can map to many Objects, so we
-  // fan the partNumber out to every groupId in that part-group.
+  // Re-apply hover/select on every store change. The viewer takes the union
+  // of partNumber-fanned groupIds (driven by the BOM linkage) and explicit
+  // groupIds (driven by the Objects panel / canvas multi-select).
   watch(
-    () => [store.hoveredPartNumber.value, store.selectedPartNumber.value],
-    ([hovered, selected]) => {
+    () => [
+      store.hoveredPartNumber.value,
+      store.selectedPartNumber.value,
+      store.hoveredGroupId.value,
+      store.selectedGroupIds.value,
+    ],
+    ([hoveredPart, selectedPart, hoveredGroup, selectedGroups]) => {
       if (!core) return;
-      core.setHoveredObjects(hovered == null ? [] : idsForPart(core, hovered));
-      core.setSelectedObjects(
-        selected == null ? [] : idsForPart(core, selected),
-      );
+      const hoveredIds = new Set<ObjectId>();
+      if (hoveredPart != null)
+        for (const id of idsForPart(core, hoveredPart as number))
+          hoveredIds.add(id);
+      if (hoveredGroup != null) hoveredIds.add(hoveredGroup as ObjectId);
+      core.setHoveredObjects([...hoveredIds]);
+
+      const selectedIds = new Set<ObjectId>();
+      if (selectedPart != null)
+        for (const id of idsForPart(core, selectedPart as number))
+          selectedIds.add(id);
+      for (const id of (selectedGroups as Set<ObjectId>) ?? [])
+        selectedIds.add(id);
+      core.setSelectedObjects([...selectedIds]);
     },
   );
 

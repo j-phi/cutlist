@@ -37,26 +37,60 @@ function partEyeClass(p: PartNumber): string {
     : 'text-muted';
 }
 
-function isPartActive(part: PartGroup): boolean {
-  return store.selectedPartNumber.value === part.partNumber;
+function isObjectSelected(gid: GroupId): boolean {
+  return store.selectedGroupIds.value.has(gid);
 }
 
-function onObjectClick(part: PartGroup, _gid: GroupId, e: MouseEvent) {
+function isPartActive(part: PartGroup): boolean {
+  return (
+    part.objects.length > 0 &&
+    part.objects.every((o) => isObjectSelected(o.groupId))
+  );
+}
+
+function onPartClick(part: PartGroup, e: MouseEvent) {
+  store.selectedPartNumber.value = null;
+  const ids = part.objects.map((o) => o.groupId);
   if (e.shiftKey) {
-    store.selectedPartNumber.value =
-      store.selectedPartNumber.value === part.partNumber
-        ? null
-        : part.partNumber;
+    const next = new Set(store.selectedGroupIds.value);
+    const allIn = ids.every((id) => next.has(id));
+    for (const id of ids) {
+      if (allIn) next.delete(id);
+      else next.add(id);
+    }
+    store.selectedGroupIds.value = next;
   } else {
-    store.selectedPartNumber.value =
-      store.selectedPartNumber.value === part.partNumber
-        ? null
-        : part.partNumber;
+    if (isPartActive(part)) store.clearGroupSelection();
+    else store.selectGroupIds(ids);
   }
 }
 
-function onObjectHover(part: PartGroup | null) {
+function onPartHover(part: PartGroup | null) {
+  store.hoveredGroupId.value = null;
   store.hoveredPartNumber.value = part ? part.partNumber : null;
+}
+
+function onObjectHover(gid: GroupId | null) {
+  store.hoveredPartNumber.value = null;
+  store.hoveredGroupId.value = gid;
+}
+
+function onObjectClick(gid: GroupId, e: MouseEvent) {
+  // The panel owns groupId-level selection; clear the partNumber selection
+  // so the canvas state reflects the panel's intent.
+  store.selectedPartNumber.value = null;
+  if (e.shiftKey) {
+    store.toggleGroupSelection(gid);
+  } else {
+    if (
+      store.selectedGroupIds.value.size === 1 &&
+      store.selectedGroupIds.value.has(gid)
+    ) {
+      store.clearGroupSelection();
+    } else {
+      store.selectGroupIds([gid]);
+    }
+  }
 }
 </script>
 
@@ -105,22 +139,36 @@ function onObjectHover(part: PartGroup | null) {
       >
         <div
           :class="[
-            'flex items-center gap-1 px-2 py-1.5 cursor-pointer',
-            isPartActive(part) ? 'bg-teal-400/10' : 'hover:bg-default/40',
+            'flex items-center gap-1 px-2 py-1.5 cursor-pointer border-l-2',
+            isPartActive(part)
+              ? 'bg-teal-400/25 border-teal-400'
+              : 'border-transparent hover:bg-default/40',
           ]"
-          @click="panel.togglePartCollapse(part.partNumber)"
-          @mouseenter="onObjectHover(part)"
-          @mouseleave="onObjectHover(null)"
+          @click="(e) => onPartClick(part, e)"
+          @mouseenter="onPartHover(part)"
+          @mouseleave="onPartHover(null)"
         >
-          <UIcon
-            :name="
-              panel.isCollapsed(part.partNumber)
-                ? 'i-lucide-chevron-right'
-                : 'i-lucide-chevron-down'
-            "
-            class="text-muted text-base shrink-0"
-          />
-          <span class="text-sm text-body flex-1 truncate">
+          <button
+            type="button"
+            class="shrink-0 p-0.5 -ml-0.5 rounded hover:bg-elevated"
+            :title="panel.isCollapsed(part.partNumber) ? 'Expand' : 'Collapse'"
+            @click.stop="panel.togglePartCollapse(part.partNumber)"
+          >
+            <UIcon
+              :name="
+                panel.isCollapsed(part.partNumber)
+                  ? 'i-lucide-chevron-right'
+                  : 'i-lucide-chevron-down'
+              "
+              class="text-muted text-base"
+            />
+          </button>
+          <span
+            :class="[
+              'text-sm flex-1 truncate',
+              isPartActive(part) ? 'text-teal-200' : 'text-body',
+            ]"
+          >
             {{ part.partName }}
             <span v-if="part.objects.length > 1" class="text-dim">
               ({{ part.objects.length }})
@@ -148,15 +196,22 @@ function onObjectHover(part: PartGroup | null) {
             v-for="obj in part.objects"
             :key="obj.groupId"
             :class="[
-              'flex items-center gap-1 pl-7 pr-2 py-1 cursor-pointer',
+              'flex items-center gap-1 pl-7 pr-2 py-1 cursor-pointer border-l-2',
               !obj.visible ? 'opacity-50' : '',
-              'hover:bg-default/40',
+              isObjectSelected(obj.groupId)
+                ? 'bg-teal-400/25 border-teal-400'
+                : 'border-transparent hover:bg-default/40',
             ]"
-            @click="(e) => onObjectClick(part, obj.groupId, e)"
-            @mouseenter="onObjectHover(part)"
+            @click="(e) => onObjectClick(obj.groupId, e)"
+            @mouseenter="onObjectHover(obj.groupId)"
             @mouseleave="onObjectHover(null)"
           >
-            <span class="text-xs text-body flex-1 truncate">
+            <span
+              :class="[
+                'text-xs flex-1 truncate',
+                isObjectSelected(obj.groupId) ? 'text-teal-200' : 'text-body',
+              ]"
+            >
               {{ obj.name }}
             </span>
             <button

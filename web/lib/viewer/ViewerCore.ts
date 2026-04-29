@@ -588,7 +588,10 @@ export class ViewerCore {
 
   setSelectedObjects(ids: ObjectId[]): void {
     this.highlighter?.setSelected(ids);
-    this.bus.emit({ type: 'selection-changed', groupIds: ids });
+    // Intentionally no `selection-changed` bus emit: the bus event is the
+    // canvas-input signal (InputRouter is the sole emitter). Programmatic
+    // setters update the highlighter directly; observers should watch the
+    // store, not re-listen to the bus, to avoid loop-backs.
   }
   setHoveredObjects(ids: ObjectId[]): void {
     this.highlighter?.setHovered(ids);
@@ -604,6 +607,7 @@ export class ViewerCore {
     const r = this.registry.get(id);
     if (!r) return;
     for (const b of r.batchIds) this.batched.setVisibleAt(b, visible);
+    if (r.edgeLines) r.edgeLines.visible = visible;
     this.renderer?.requestRender();
   }
 
@@ -611,6 +615,7 @@ export class ViewerCore {
     if (!this.batched || !this.registry) return;
     this.registry.forEach((r) => {
       for (const b of r.batchIds) this.batched!.setVisibleAt(b, visible);
+      if (r.edgeLines) r.edgeLines.visible = visible;
     });
     this.renderer?.requestRender();
   }
