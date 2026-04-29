@@ -81,14 +81,6 @@ export class InputRouter {
     this.pickHandler = mode === 'pick' ? (handler ?? null) : null;
   }
 
-  /**
-   * Legacy two-step setter retained for callers that wire mode and handler
-   * separately. New code should prefer `setMode(mode, handler)`.
-   */
-  setPickHandler(handler: PickHandler | null): void {
-    this.pickHandler = handler;
-  }
-
   private now(): number {
     return typeof performance !== 'undefined' ? performance.now() : Date.now();
   }

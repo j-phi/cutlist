@@ -154,9 +154,8 @@ describe('InputRouter', () => {
 
   it('Should not call any handler when Escape is pressed in select mode', () => {
     const onEsc = vi.fn();
+    router.setMode('pick', { onEsc });
     router.setMode('select');
-    // Register a pick handler then back out — onEsc should not fire.
-    router.setPickHandler({ onEsc });
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onEsc).not.toHaveBeenCalled();
   });
