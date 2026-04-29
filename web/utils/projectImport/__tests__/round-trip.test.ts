@@ -73,7 +73,9 @@ function makePayload(): ProjectExport {
         order: 0,
         cameraMode: 'perspective',
         cameraPose: { position: [1, 2, 3], target: [0, 0, 0] },
-        objectOffsets: { 5: [0.1, 0, 0] },
+        objectOffsets: {
+          5: { position: [0.1, 0, 0], quaternion: [0, 0, 0, 1] },
+        },
         floorVisible: true,
         createdAt: now,
         updatedAt: now,

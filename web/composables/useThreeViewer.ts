@@ -9,6 +9,7 @@
 
 import type { Ref } from 'vue';
 import type { GroupId, ObjectGraph, PartNumber } from '~/utils/types';
+import type { ObjectOffset } from '~/composables/useIdb';
 import type {
   CameraMode,
   CameraPose,
@@ -17,7 +18,6 @@ import type {
   ObjectId,
   PickResult,
   RenderedLeaderSpec,
-  Vec3,
   ViewPreset,
 } from '~/lib/viewer/types';
 
@@ -172,9 +172,10 @@ export default function useThreeViewer(
       core?.raycastFromClient(x, y) ?? null,
     captureThumbnail: (w?: number, h?: number) =>
       core?.captureThumbnail(w, h) ?? null,
-    applyObjectOffsets: (offsets: Map<ObjectId, Vec3>) =>
+    applyObjectOffsets: (offsets: Map<ObjectId, ObjectOffset>) =>
       core?.applyObjectOffsets(offsets),
-    getObjectOffsets: () => core?.getObjectOffsets() ?? new Map(),
+    getObjectOffsets: (): Map<ObjectId, ObjectOffset> =>
+      core?.getObjectOffsets() ?? new Map(),
     onFrame: (cb: (dt: number) => void) => core?.onFrame(cb) ?? (() => {}),
     on: <T extends import('~/lib/viewer/types').ViewerEvent['type']>(
       type: T,

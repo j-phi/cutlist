@@ -4,14 +4,23 @@ import { EventBus } from '../EventBus';
 import { ObjectRegistry } from '../ObjectRegistry';
 import type { ObjectRecord, ViewerEvent } from '../../types';
 
-function makeRecord(
-  groupId: number,
-  edgeLines?: {
-    position: { set: (x: number, y: number, z: number) => void };
-    geometry: { dispose: () => void };
-    removeFromParent: () => void;
-  },
-): ObjectRecord {
+interface FakeEdgeLines {
+  position: import('three').Vector3;
+  quaternion: import('three').Quaternion;
+  geometry: { dispose: () => void };
+  removeFromParent: () => void;
+}
+
+function makeFakeEdgeLines(): FakeEdgeLines {
+  return {
+    position: new THREE.Vector3(),
+    quaternion: new THREE.Quaternion(),
+    geometry: { dispose: vi.fn() },
+    removeFromParent: vi.fn(),
+  };
+}
+
+function makeRecord(groupId: number, edgeLines?: FakeEdgeLines): ObjectRecord {
   return {
     groupId,
     partNumber: 1,
@@ -20,16 +29,35 @@ function makeRecord(
     originalMatrix: new THREE.Matrix4(),
     originalMatrixInverse: new THREE.Matrix4(),
     center: new THREE.Vector3(),
-    offset: new THREE.Vector3(),
+    offset: {
+      position: new THREE.Vector3(),
+      quaternion: new THREE.Quaternion(),
+    },
+    offsetMatrix: new THREE.Matrix4(),
+    offsetMatrixInverse: new THREE.Matrix4(),
     edgesLocal: new Float32Array(0),
     edgeLines: edgeLines as ObjectRecord['edgeLines'],
   };
 }
 
+function makeRegistry(): {
+  reg: ObjectRegistry;
+  bus: EventBus<ViewerEvent>;
+  requestRender: ReturnType<typeof vi.fn>;
+} {
+  const bus = new EventBus<ViewerEvent>();
+  const requestRender = vi.fn();
+  const reg = new ObjectRegistry({
+    bus,
+    requestRender,
+    oneScale: new THREE.Vector3(1, 1, 1),
+  });
+  return { reg, bus, requestRender };
+}
+
 describe('ObjectRegistry', () => {
   it('Should register and retrieve records by groupId', () => {
-    const bus = new EventBus<ViewerEvent>();
-    const reg = new ObjectRegistry({ bus, requestRender: () => {} });
+    const { reg } = makeRegistry();
     const r = makeRecord(5);
 
     reg.register(r);
@@ -39,69 +67,116 @@ describe('ObjectRegistry', () => {
     expect(reg.size()).toBe(1);
   });
 
-  it('Should emit object-moved when setOffset is called', () => {
-    const bus = new EventBus<ViewerEvent>();
-    const reg = new ObjectRegistry({ bus, requestRender: () => {} });
+  it('Should emit object-moved and update position when setOffset is called', () => {
+    const { reg, bus } = makeRegistry();
     reg.register(makeRecord(2));
 
     const handler = vi.fn();
     bus.on('object-moved', handler);
-    reg.setOffset(2, [1, 2, 3]);
+    reg.setOffset(2, { position: [1, 2, 3] });
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler).toHaveBeenCalledWith({ type: 'object-moved', groupId: 2 });
-    expect(reg.get(2)?.offset.toArray()).toEqual([1, 2, 3]);
+    const r = reg.get(2)!;
+    expect(r.offset.position.toArray()).toEqual([1, 2, 3]);
+    expect(r.offset.quaternion.toArray()).toEqual([0, 0, 0, 1]);
   });
 
-  it('Should translate edgeLines.position when an object moves', () => {
-    const bus = new EventBus<ViewerEvent>();
-    const reg = new ObjectRegistry({ bus, requestRender: () => {} });
-    const setSpy = vi.fn();
-    reg.register(
-      makeRecord(7, {
-        position: { set: setSpy },
-        geometry: { dispose: () => {} },
-        removeFromParent: () => {},
-      }),
+  it('Should compose offsetMatrix and offsetMatrixInverse on setOffset', () => {
+    const { reg } = makeRegistry();
+    reg.register(makeRecord(2));
+    // 90° rotation around Y
+    const q = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      Math.PI / 2,
     );
+    reg.setOffset(2, {
+      position: [10, 0, 0],
+      quaternion: [q.x, q.y, q.z, q.w],
+    });
 
-    reg.setOffset(7, [4, 5, 6]);
+    const r = reg.get(2)!;
+    // Local-origin should map to position via offsetMatrix.
+    const v = new THREE.Vector3(0, 0, 0).applyMatrix4(r.offsetMatrix);
+    expect(v.x).toBeCloseTo(10);
+    expect(v.y).toBeCloseTo(0);
+    expect(v.z).toBeCloseTo(0);
 
-    expect(setSpy).toHaveBeenCalledWith(4, 5, 6);
+    // Round-trip through inverse should land back at origin.
+    const back = v.clone().applyMatrix4(r.offsetMatrixInverse);
+    expect(back.x).toBeCloseTo(0);
+    expect(back.y).toBeCloseTo(0);
+    expect(back.z).toBeCloseTo(0);
+  });
+
+  it('Should update edgeLines transform when an object moves', () => {
+    const { reg } = makeRegistry();
+    const edgeLines = makeFakeEdgeLines();
+    reg.register(makeRecord(7, edgeLines));
+
+    const q = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(1, 0, 0),
+      0.5,
+    );
+    reg.setOffset(7, {
+      position: [4, 5, 6],
+      quaternion: [q.x, q.y, q.z, q.w],
+    });
+
+    expect(edgeLines.position.toArray()).toEqual([4, 5, 6]);
+    expect(edgeLines.quaternion.x).toBeCloseTo(q.x);
+    expect(edgeLines.quaternion.w).toBeCloseTo(q.w);
+  });
+
+  it('Should leave omitted offset components unchanged', () => {
+    const { reg } = makeRegistry();
+    reg.register(makeRecord(9));
+
+    reg.setOffset(9, { position: [1, 2, 3] });
+    reg.setOffset(9, { quaternion: [0, 0, 0.7071, 0.7071] });
+
+    const r = reg.get(9)!;
+    expect(r.offset.position.toArray()).toEqual([1, 2, 3]);
+    expect(r.offset.quaternion.x).toBeCloseTo(0);
+    expect(r.offset.quaternion.z).toBeCloseTo(0.7071);
+    expect(r.offset.quaternion.w).toBeCloseTo(0.7071);
+  });
+
+  it('Should reset position and quaternion to identity on resetOffset', () => {
+    const { reg } = makeRegistry();
+    reg.register(makeRecord(11));
+    reg.setOffset(11, {
+      position: [1, 2, 3],
+      quaternion: [0, 0, 0.7071, 0.7071],
+    });
+    reg.resetOffset(11);
+
+    const r = reg.get(11)!;
+    expect(r.offset.position.toArray()).toEqual([0, 0, 0]);
+    expect(r.offset.quaternion.toArray()).toEqual([0, 0, 0, 1]);
   });
 
   it('Should request a render after setOffset', () => {
-    const bus = new EventBus<ViewerEvent>();
-    const requestRender = vi.fn();
-    const reg = new ObjectRegistry({ bus, requestRender });
+    const { reg, requestRender } = makeRegistry();
     reg.register(makeRecord(3));
-    reg.setOffset(3, [1, 0, 0]);
+    reg.setOffset(3, { position: [1, 0, 0] });
     expect(requestRender).toHaveBeenCalled();
   });
 
   it('Should dispose edge geometries on clear', () => {
-    const bus = new EventBus<ViewerEvent>();
-    const reg = new ObjectRegistry({ bus, requestRender: () => {} });
-    const dispose = vi.fn();
-    const removeFromParent = vi.fn();
-    reg.register(
-      makeRecord(1, {
-        position: { set: () => {} },
-        geometry: { dispose },
-        removeFromParent,
-      }),
-    );
+    const { reg } = makeRegistry();
+    const edgeLines = makeFakeEdgeLines();
+    reg.register(makeRecord(1, edgeLines));
 
     reg.clear();
 
-    expect(dispose).toHaveBeenCalled();
-    expect(removeFromParent).toHaveBeenCalled();
+    expect(edgeLines.geometry.dispose).toHaveBeenCalled();
+    expect(edgeLines.removeFromParent).toHaveBeenCalled();
     expect(reg.size()).toBe(0);
   });
 
   it('Should filter records by partNumber', () => {
-    const bus = new EventBus<ViewerEvent>();
-    const reg = new ObjectRegistry({ bus, requestRender: () => {} });
+    const { reg } = makeRegistry();
     const a = makeRecord(1);
     a.partNumber = 10;
     const b = makeRecord(2);

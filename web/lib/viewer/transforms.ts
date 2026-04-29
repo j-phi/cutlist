@@ -1,9 +1,15 @@
 /**
  * Coordinate transforms between Object-local space and world space. These are
- * the single source of truth for any code that needs to anchor data (annotations,
- * snap points, etc.) to an Object that may be offset from its load position.
+ * the single source of truth for any code that needs to anchor data
+ * (annotations, snap points, etc.) to an Object that may be rigidly
+ * transformed (translated and/or rotated) from its load position.
  *
- * Pre-allocated scratch vectors avoid GC churn — callers must pass `out`.
+ * Local → world: `world = M_offset · M_orig · local`
+ * World → local: `local = M_orig⁻¹ · M_offset⁻¹ · world`
+ *
+ * `M_offset` is `T(offset.position) · R(offset.quaternion)`. The registry
+ * keeps both `offsetMatrix` and `offsetMatrixInverse` cached on the record
+ * so this hot path is a single `applyMatrix4` per direction.
  */
 
 import type { ObjectRecord } from './types';
@@ -15,7 +21,10 @@ export function transformLocalToWorld(
   local: Vector3,
   out: Vector3,
 ): Vector3 {
-  return out.copy(local).applyMatrix4(record.originalMatrix).add(record.offset);
+  return out
+    .copy(local)
+    .applyMatrix4(record.originalMatrix)
+    .applyMatrix4(record.offsetMatrix);
 }
 
 export function transformWorldToLocal(
@@ -25,7 +34,7 @@ export function transformWorldToLocal(
 ): Vector3 {
   return out
     .copy(world)
-    .sub(record.offset)
+    .applyMatrix4(record.offsetMatrixInverse)
     .applyMatrix4(record.originalMatrixInverse);
 }
 
@@ -34,7 +43,10 @@ export function transformDirLocalToWorld(
   localDir: Vector3,
   out: Vector3,
 ): Vector3 {
-  return out.copy(localDir).transformDirection(record.originalMatrix);
+  return out
+    .copy(localDir)
+    .transformDirection(record.originalMatrix)
+    .applyQuaternion(record.offset.quaternion);
 }
 
 export function transformDirWorldToLocal(
@@ -42,5 +54,5 @@ export function transformDirWorldToLocal(
   worldDir: Vector3,
   out: Vector3,
 ): Vector3 {
-  return out.copy(worldDir).transformDirection(record.originalMatrixInverse);
+  return out.copy(worldDir).transformDirection(record.offsetMatrixInverse);
 }

@@ -34,6 +34,7 @@ import type {
   ViewerEvent,
   ViewPreset,
 } from './types';
+import type { ObjectOffset } from '~/composables/useIdb';
 
 type Mesh = import('three').Mesh;
 type BatchedMesh = import('three').BatchedMesh;
@@ -184,6 +185,7 @@ export class ViewerCore {
     this.registry = new ObjectRegistry({
       bus: this.bus,
       requestRender: () => this.renderer?.requestRender(),
+      oneScale: new THREE.Vector3(1, 1, 1),
     });
 
     this.highlighter = new Highlighter({
@@ -448,7 +450,12 @@ export class ViewerCore {
         originalMatrix: obj.originalMatrix.clone(),
         originalMatrixInverse,
         center,
-        offset: new THREE.Vector3(0, 0, 0),
+        offset: {
+          position: new THREE.Vector3(0, 0, 0),
+          quaternion: new THREE.Quaternion(0, 0, 0, 1),
+        },
+        offsetMatrix: new THREE.Matrix4(),
+        offsetMatrixInverse: new THREE.Matrix4(),
         edgesLocal: obj.edgesLocal,
         edgeLines,
       };
@@ -697,15 +704,24 @@ export class ViewerCore {
 
   // ── Object offsets / scene state ────────────────────────────────
 
-  applyObjectOffsets(offsets: Map<ObjectId, Vec3>): void {
+  applyObjectOffsets(offsets: Map<ObjectId, ObjectOffset>): void {
     if (!this.registry) return;
-    for (const [id, off] of offsets) this.registry.setOffset(id, off);
+    for (const [id, off] of offsets)
+      this.registry.setOffset(id, {
+        position: off.position,
+        quaternion: off.quaternion,
+      });
   }
 
-  getObjectOffsets(): Map<ObjectId, Vec3> {
-    const out = new Map<ObjectId, Vec3>();
+  getObjectOffsets(): Map<ObjectId, ObjectOffset> {
+    const out = new Map<ObjectId, ObjectOffset>();
     this.registry?.forEach((r) => {
-      out.set(r.groupId, [r.offset.x, r.offset.y, r.offset.z]);
+      const p = r.offset.position;
+      const q = r.offset.quaternion;
+      out.set(r.groupId, {
+        position: [p.x, p.y, p.z],
+        quaternion: [q.x, q.y, q.z, q.w],
+      });
     });
     return out;
   }

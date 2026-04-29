@@ -28,12 +28,12 @@ export class GizmoController {
   }
 
   resetSelectedOffsets(ids: number[]): void {
-    for (const id of ids) this.deps.registry.setOffset(id, [0, 0, 0]);
+    for (const id of ids) this.deps.registry.resetOffset(id);
   }
 
   resetAllOffsets(): void {
     for (const id of this.deps.registry.getAllIds()) {
-      this.deps.registry.setOffset(id, [0, 0, 0]);
+      this.deps.registry.resetOffset(id);
     }
   }
 

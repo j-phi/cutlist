@@ -78,6 +78,28 @@ export interface CameraPose {
 }
 
 /**
+ * A rigid (translation + rotation) offset applied to an Object after its
+ * load-time `originalMatrix`. Stored as a 3-tuple position and a 4-tuple
+ * quaternion (THREE.Quaternion order: x, y, z, w).
+ *
+ * Identity = `{ position: [0,0,0], quaternion: [0,0,0,1] }`.
+ *
+ * The rotation pivot is the world origin: applying a non-identity quaternion
+ * rotates the Object around `(0,0,0)` after its originalMatrix has placed it.
+ * Gizmo callers that want "rotate around the Object's centroid" must
+ * conjugate (`T(c) · R · T(-c)`) before persisting.
+ */
+export interface ObjectOffset {
+  position: [number, number, number];
+  quaternion: [number, number, number, number];
+}
+
+export const IDENTITY_OBJECT_OFFSET: ObjectOffset = {
+  position: [0, 0, 0],
+  quaternion: [0, 0, 0, 1],
+};
+
+/**
  * A captured viewer state. Per-Object offsets and visibility are keyed by
  * `groupId` (the source-file node identity), never `batchId`.
  *
@@ -92,8 +114,8 @@ export interface IdbScene {
   order: number;
   cameraMode: CameraMode;
   cameraPose: CameraPose;
-  /** Per-Object positional offsets, keyed by groupId. */
-  objectOffsets: Record<number, [number, number, number]>;
+  /** Per-Object rigid offsets, keyed by groupId. */
+  objectOffsets: Record<number, ObjectOffset>;
   /** groupId[] of currently visible Objects. `undefined` ≡ all visible. */
   visibleObjects?: number[];
   floorVisible: boolean;

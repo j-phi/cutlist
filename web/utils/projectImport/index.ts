@@ -75,6 +75,11 @@ const BuildStepSchema = z.object({
 });
 
 const Vec3Schema = z.tuple([z.number(), z.number(), z.number()]);
+const Quat4Schema = z.tuple([z.number(), z.number(), z.number(), z.number()]);
+const ObjectOffsetSchema = z.object({
+  position: Vec3Schema,
+  quaternion: Quat4Schema,
+});
 
 const SceneSchema = z.object({
   id: z.string(),
@@ -86,7 +91,7 @@ const SceneSchema = z.object({
     position: Vec3Schema,
     target: Vec3Schema,
   }),
-  objectOffsets: z.record(z.string(), Vec3Schema).default({}),
+  objectOffsets: z.record(z.string(), ObjectOffsetSchema).default({}),
   visibleObjects: z.array(z.number().int()).optional(),
   floorVisible: z.boolean(),
   thumbnailDataUrl: z.string().optional(),

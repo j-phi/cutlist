@@ -79,7 +79,9 @@ export type {
   AnnotationKind,
   CameraMode,
   CameraPose,
+  ObjectOffset,
 } from './types';
+export { IDENTITY_OBJECT_OFFSET } from './types';
 
 export function useIdb() {
   return {
