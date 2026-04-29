@@ -100,4 +100,26 @@ describe('CalloutLabel — draft', () => {
     expect(remove).toHaveBeenCalledWith('a-1');
     expect(update).not.toHaveBeenCalled();
   });
+
+  it('Should not double-commit when Enter is followed by a later blur', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout(''), draft: true },
+    });
+    const input = wrapper.find('input');
+    await input.setValue('Hello');
+    await input.trigger('keydown', { key: 'Enter' });
+    await input.trigger('blur');
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it('Should not commit after Esc removed the draft', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout(''), draft: true },
+    });
+    const input = wrapper.find('input');
+    await input.trigger('keydown', { key: 'Escape' });
+    await input.trigger('blur');
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
+  });
 });

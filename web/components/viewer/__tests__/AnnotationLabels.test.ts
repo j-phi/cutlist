@@ -128,6 +128,52 @@ describe('AnnotationLabels — rendering', () => {
     });
   });
 
+  it('Should keep label opacity at 1 outside a tween', () => {
+    const projector = makeProjector();
+    (projector.getScreenPositions() as Map<string, unknown>).set('a1', {
+      x: 10,
+      y: 20,
+      inFront: true,
+      worldAnchor: [0, 0, 0],
+    });
+    const wrapper = shallowMount(AnnotationLabels, {
+      props: {
+        annotations: [callout('a1', 's1')],
+        activeSceneId: 's1',
+        tweenFromSceneId: null,
+        tweenT: 0,
+        tweening: false,
+        projector,
+      },
+    });
+    const label = wrapper.find('[data-annotation-id="a1"]');
+    const style = label.attributes('style') ?? '';
+    expect(style).toContain('opacity: 1');
+  });
+
+  it('Should hide labels whose projected position is behind the camera', () => {
+    const projector = makeProjector();
+    (projector.getScreenPositions() as Map<string, unknown>).set('a1', {
+      x: 10,
+      y: 20,
+      inFront: false,
+      worldAnchor: [0, 0, 0],
+    });
+    const wrapper = shallowMount(AnnotationLabels, {
+      props: {
+        annotations: [callout('a1', 's1')],
+        activeSceneId: 's1',
+        tweenFromSceneId: null,
+        tweenT: 0,
+        tweening: false,
+        projector,
+      },
+    });
+    const style =
+      wrapper.find('[data-annotation-id="a1"]').attributes('style') ?? '';
+    expect(style).toContain('display: none');
+  });
+
   it('Should render kindComponents when provided', () => {
     const projector = makeProjector();
     (projector.getScreenPositions() as Map<string, unknown>).set('a1', {

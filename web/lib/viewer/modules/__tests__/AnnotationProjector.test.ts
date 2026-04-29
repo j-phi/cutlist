@@ -177,6 +177,34 @@ describe('AnnotationProjector', () => {
     expect(p.version.value).toBe(before + 2);
   });
 
+  it('Should let registerKind override the default primaryLocal', () => {
+    const v = makeViewer();
+    const annotations: IdbAnnotation[] = [
+      callout('a', 1, [3, 4, 0], [10, 10, 10]),
+    ];
+    const p = new AnnotationProjector(v, () => annotations);
+    p.registerKind('callout', { primaryLocal: () => [99, 99, 99] });
+    p.start();
+    v.frameTick();
+    expect(p.getScreenPositions().get('a')?.x).toBe(99);
+  });
+
+  it('Should restore the previous hooks when the registration is undone', () => {
+    const v = makeViewer();
+    const annotations: IdbAnnotation[] = [
+      callout('a', 1, [3, 4, 0], [0, 0.5, 0]),
+    ];
+    const p = new AnnotationProjector(v, () => annotations);
+    const off = p.registerKind('callout', { primaryLocal: () => [0, 0, 0] });
+    p.start();
+    v.frameTick();
+    expect(p.getScreenPositions().get('a')?.x).toBe(0);
+    off();
+    v.frameTick();
+    // After unregister, default hooks (anchor + offset) take over again.
+    expect(p.getScreenPositions().get('a')?.y).toBe(4.5);
+  });
+
   it('Should publish leader specs to the viewer when a kind registers them', () => {
     const v = makeViewer();
     const setRenderedLeaders = vi.fn();

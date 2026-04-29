@@ -219,9 +219,22 @@ const annotationAuthor = useAnnotationAuthor(
   sceneAuthor.activeSceneId,
 );
 
+const renderableSceneId = computed<string | null>(() => {
+  if (sceneAuthor.tweening.value && sceneAuthor.tweenT.value < 0.5) {
+    return sceneAuthor.tweenFromSceneId.value;
+  }
+  return sceneAuthor.activeSceneId.value;
+});
+
+const visibleAnnotations = computed(() => {
+  const sid = renderableSceneId.value;
+  if (!sid) return [];
+  return annotationsApi.annotations.value.filter((a) => a.sceneId === sid);
+});
+
 const projector = new AnnotationProjector(
   viewer,
-  () => annotationsApi.annotations.value,
+  () => visibleAnnotations.value,
 );
 projector.registerKind('callout', calloutKindHooks);
 
@@ -245,7 +258,7 @@ watch(
 onUnmounted(() => projector.dispose());
 
 function onAddCallout() {
-  if (!sceneAuthor.activeSceneId.value) return;
+  if (!sceneAuthor.activeSceneId.value || sceneAuthor.tweening.value) return;
   annotationAuthor.enter('callout');
 }
 

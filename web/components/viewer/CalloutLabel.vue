@@ -24,6 +24,10 @@ const annotationsApi = useAnnotations();
 
 const text = ref(props.annotation.text);
 const inputEl = ref<HTMLInputElement | null>(null);
+// Enter doesn't blur by default, so a user who hits Enter then later clicks
+// elsewhere would fire commit twice. The flag collapses that to one write
+// per draft session; resets when a fresh draft cycle begins.
+let committed = false;
 
 watch(
   () => props.annotation.text,
@@ -37,6 +41,7 @@ watch(
   async (isDraft) => {
     if (!isDraft) return;
     text.value = props.annotation.text;
+    committed = false;
     await nextTick();
     inputEl.value?.focus();
     inputEl.value?.select();
@@ -45,11 +50,15 @@ watch(
 );
 
 async function commit(): Promise<void> {
+  if (committed) return;
+  committed = true;
   const trimmed = text.value.trim();
   await annotationsApi.update(props.annotation.id, { text: trimmed });
 }
 
 async function cancel(): Promise<void> {
+  if (committed) return;
+  committed = true;
   await annotationsApi.remove(props.annotation.id);
 }
 </script>
