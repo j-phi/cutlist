@@ -1,6 +1,6 @@
 import { ref, type Ref } from 'vue';
 import { parseGltf } from '~/utils/parseGltf';
-import { parseCollada, type ParseColladaResult } from '~/utils/parseCollada';
+import { parseCollada } from '~/utils/parseCollada';
 import type { Model } from '~/composables/useProjects';
 
 export interface UseBomImportOptions {
@@ -36,22 +36,20 @@ export function useBomImport({ activeId, onModelParsed }: UseBomImportOptions) {
       try {
         const isDae = file.name.toLowerCase().endsWith('.dae');
         const result = isDae ? await parseCollada(file) : await parseGltf(file);
-        const rawSource = isDae
-          ? (result as ParseColladaResult).colladaXml
-          : (result as Awaited<ReturnType<typeof parseGltf>>).gltfJson;
+        const colorList = Object.values(result.colorMap);
         onModelParsed({
           id: crypto.randomUUID(),
           filename: file.name,
           source: isDae ? 'collada' : 'gltf',
           parts: result.parts,
-          colors: result.colors,
+          colors: colorList,
           enabled: true,
-          rawSource,
+          rawSource: result.rawSource,
           nodePartMap: result.nodePartMap,
         });
         toast.add({
           title: 'Imported',
-          description: `${file.name}: ${result.parts.length} parts, ${result.colors.length} color${result.colors.length === 1 ? '' : 's'}.`,
+          description: `${file.name}: ${result.parts.length} parts, ${colorList.length} color${colorList.length === 1 ? '' : 's'}.`,
         });
       } catch (err) {
         toast.add({

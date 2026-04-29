@@ -37,7 +37,10 @@ const baseParseResult = {
       colorKey: 'red',
     },
   ],
-  colors: [{ key: 'red', label: 'Red' }],
+  objects: [],
+  objectIndex: new Map(),
+  partIndex: new Map(),
+  colorMap: { red: { key: 'red', rgb: [1, 0, 0], count: 1 } },
   nodePartMap: [],
 };
 
@@ -78,7 +81,7 @@ describe('useBomImport', () => {
     it('Should call parseGltf and onModelParsed for a .gltf file', async () => {
       parseGltfMock.mockResolvedValueOnce({
         ...baseParseResult,
-        gltfJson: { v: 1 },
+        rawSource: { v: 1 },
       });
       const onModelParsed = vi.fn();
       const activeId = ref<string | null>('p1');
@@ -100,7 +103,7 @@ describe('useBomImport', () => {
     it('Should call parseCollada for a .dae file', async () => {
       parseColladaMock.mockResolvedValueOnce({
         ...baseParseResult,
-        colladaXml: '<x/>',
+        rawSource: '<x/>',
       });
       const onModelParsed = vi.fn();
       const activeId = ref<string | null>('p1');

@@ -102,13 +102,12 @@ async function loadAllModels() {
     const modelIdx = enabledModels.value.findIndex((m) => m.id === model.id);
     const offset = modelIdx >= 0 ? allOffsets[modelIdx] : 0;
     const entry = data.get(model.id);
-    if (entry && model.nodePartMap) {
-      const resolvedNodes = await resolveModelScene(
-        entry.raw,
-        entry.source,
-        model.nodePartMap,
-      );
-      viewer.loadModel(resolvedNodes, offset);
+    if (entry) {
+      const graph = await resolveModelScene({
+        source: entry.source,
+        rawSource: entry.raw,
+      });
+      if (graph) await viewer.loadModel(graph, offset);
     }
   }
 }

@@ -179,8 +179,11 @@ const baseParseResult = {
       colorKey: 'red',
     },
   ],
-  colors: [{ key: 'red', label: 'Red' }],
-  nodePartMap: {},
+  objects: [],
+  objectIndex: new Map(),
+  partIndex: new Map(),
+  colorMap: { red: { key: 'red', rgb: [1, 0, 0], count: 1 } },
+  nodePartMap: [],
 };
 
 beforeEach(() => {
@@ -204,7 +207,7 @@ describe('BomTab', () => {
     it('Should call parseGltf and addModel for a .gltf file', async () => {
       parseGltfMock.mockResolvedValueOnce({
         ...baseParseResult,
-        gltfJson: { v: 1 },
+        rawSource: { v: 1 },
       });
       const component = getComponent();
 
@@ -226,7 +229,7 @@ describe('BomTab', () => {
     it('Should call parseCollada for a .dae file', async () => {
       parseColladaMock.mockResolvedValueOnce({
         ...baseParseResult,
-        colladaXml: '<x/>',
+        rawSource: '<x/>',
       });
       const component = getComponent();
 
