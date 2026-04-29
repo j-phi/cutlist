@@ -55,6 +55,10 @@ export interface SceneAuthorViewer {
 export interface SceneAuthor {
   visibleObjects: Ref<Set<GroupId> | null>;
   activeSceneId: Ref<string | null>;
+  /** Scene we're tweening from. Set on tweenToScene start, cleared on end. */
+  tweenFromSceneId: Ref<string | null>;
+  /** Linear tween progress in [0, 1]. 0 when not tweening. */
+  tweenT: Ref<number>;
   tweening: Ref<boolean>;
   dirty: Ref<boolean>;
 
@@ -77,6 +81,8 @@ export interface SceneAuthor {
 export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
   const visibleObjects = ref<Set<GroupId> | null>(null);
   const activeSceneId = ref<string | null>(null);
+  const tweenFromSceneId = ref<string | null>(null);
+  const tweenT = ref(0);
   const tweening = ref(false);
   const dirty = ref(false);
 
@@ -202,6 +208,8 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
       stopFrame = null;
     }
     tweening.value = false;
+    tweenFromSceneId.value = null;
+    tweenT.value = 0;
   }
 
   function applyVisibility(set: Set<GroupId> | null): void {
@@ -266,6 +274,8 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
     const start = performance.now();
     let midCutDone = false;
 
+    tweenFromSceneId.value = activeSceneId.value;
+    tweenT.value = 0;
     tweening.value = true;
     activeSceneId.value = scene.id;
 
@@ -282,6 +292,7 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
 
         viewer.setCameraPose(applied.cameraPose);
         viewer.applyObjectOffsets(applied.objectOffsets);
+        tweenT.value = raw;
 
         if (!midCutDone && raw >= 0.5) {
           midCutDone = true;
@@ -306,6 +317,8 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
   return {
     visibleObjects,
     activeSceneId,
+    tweenFromSceneId,
+    tweenT,
     tweening,
     dirty,
     toggleObjectVisibility,

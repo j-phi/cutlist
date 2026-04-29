@@ -21,6 +21,7 @@ import {
   nextSceneOrder,
   removeScene as removeSceneOrdered,
 } from '~/utils/sceneOrder';
+import { useAnnotations } from '~/composables/useAnnotations';
 
 const scenes = ref<IdbScene[]>([]);
 let loadedForId: string | null = null;
@@ -108,6 +109,7 @@ export function useScenes(): UseScenesApi {
     loadGen++;
     const remaining = removeSceneOrdered(scenes.value, id);
     scenes.value = remaining;
+    useAnnotations().purgeForScene(id);
     await idb.deleteScene(id);
     await Promise.all(
       remaining.map((s) => idb.updateScene(s.id, { order: s.order })),

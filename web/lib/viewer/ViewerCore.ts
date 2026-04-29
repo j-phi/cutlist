@@ -10,6 +10,7 @@
  */
 
 import type { ObjectGraph } from '~/utils/types';
+import { transformLocalToWorld } from './transforms';
 import { EventBus } from './modules/EventBus';
 import { Renderer } from './modules/Renderer';
 import { SceneGraph } from './modules/SceneGraph';
@@ -472,6 +473,20 @@ export class ViewerCore {
     };
   }
 
+  /**
+   * Transform a point from an Object's local frame to world space, composing
+   * its load-time `originalMatrix` with its current `offsetMatrix`. Returns
+   * `null` if the Object isn't loaded.
+   */
+  objectLocalToWorld(groupId: ObjectId, local: Vec3): Vec3 | null {
+    if (!this.registry || !this.modules) return null;
+    const r = this.registry.get(groupId);
+    if (!r) return null;
+    const tmp = new this.modules.THREE.Vector3(local[0], local[1], local[2]);
+    transformLocalToWorld(r, tmp, tmp);
+    return [tmp.x, tmp.y, tmp.z];
+  }
+
   // ── Object offsets / scene state ────────────────────────────────
 
   applyObjectOffsets(offsets: Map<ObjectId, ObjectOffset>): void {
@@ -535,6 +550,10 @@ export class ViewerCore {
 
   setRenderedLeaders(specs: Map<string, RenderedLeaderSpec>): void {
     this.leaders?.setRenderedLeaders(specs);
+  }
+
+  setLeaderOpacityScale(scale: number): void {
+    this.leaders?.setOpacityScale(scale);
   }
 
   // ── Thumbnails ───────────────────────────────────────────────────

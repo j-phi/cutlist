@@ -168,8 +168,17 @@ export default function useThreeViewer(
     getFloorVisible: () => core?.getFloorVisible() ?? true,
     setRenderedLeaders: (specs: Map<string, RenderedLeaderSpec>) =>
       core?.setRenderedLeaders(specs),
+    setLeaderOpacityScale: (scale: number) =>
+      core?.setLeaderOpacityScale(scale),
     raycastFromClient: (x: number, y: number): PickResult | null =>
       core?.raycastFromClient(x, y) ?? null,
+    worldToScreen: (world: [number, number, number]) =>
+      core?.worldToScreen(world) ?? null,
+    objectLocalToWorld: (
+      groupId: ObjectId,
+      local: [number, number, number],
+    ): [number, number, number] | null =>
+      core?.objectLocalToWorld(groupId, local) ?? null,
     captureThumbnail: (w?: number, h?: number) =>
       core?.captureThumbnail(w, h) ?? null,
     applyObjectOffsets: (offsets: Map<ObjectId, ObjectOffset>) =>

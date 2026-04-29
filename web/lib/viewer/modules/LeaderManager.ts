@@ -21,9 +21,12 @@ interface LeaderDeps {
   requestRender: () => void;
 }
 
+const BASE_LEADER_OPACITY = 0.9;
+
 export class LeaderManager {
   private material: LineMaterial;
   private lines = new Map<string, LineSegments2>();
+  private opacityScale = 1;
   private disposed = false;
 
   constructor(private deps: LeaderDeps) {
@@ -32,10 +35,26 @@ export class LeaderManager {
       color: 0xffffff,
       linewidth: 2,
       transparent: true,
-      opacity: 0.9,
+      opacity: BASE_LEADER_OPACITY,
       depthTest: true,
       resolution: new THREE.Vector2(resolution.width, resolution.height),
     });
+  }
+
+  /**
+   * Multiply the global leader opacity by `scale ∈ [0, 1]`. Used by the
+   * AnnotationLabels overlay to drive the cross-fade during a scene tween:
+   * leaders share one material so we can't fade individuals independently,
+   * which is fine for v1 since the AnnotationLabels overlay swaps the active
+   * scene's leader set at the tween midpoint.
+   */
+  setOpacityScale(scale: number): void {
+    if (this.disposed) return;
+    const next = Math.max(0, Math.min(1, scale));
+    if (this.opacityScale === next) return;
+    this.opacityScale = next;
+    this.material.opacity = BASE_LEADER_OPACITY * next;
+    this.deps.requestRender();
   }
 
   setRenderedLeaders(specs: Map<string, RenderedLeaderSpec>): void {
