@@ -44,6 +44,7 @@ type LineMaterial = import('three/addons/lines/LineMaterial.js').LineMaterial;
 interface Modules {
   THREE: typeof import('three');
   OrbitControls: (typeof import('three/addons/controls/OrbitControls.js'))['OrbitControls'];
+  TransformControls: (typeof import('three/addons/controls/TransformControls.js'))['TransformControls'];
   RoomEnvironment: (typeof import('three/addons/environments/RoomEnvironment.js'))['RoomEnvironment'];
   LineSegmentsGeometry: (typeof import('three/addons/lines/LineSegmentsGeometry.js'))['LineSegmentsGeometry'];
   LineSegments2: (typeof import('three/addons/lines/LineSegments2.js'))['LineSegments2'];
@@ -56,6 +57,7 @@ async function loadModules(): Promise<Modules> {
   const [
     THREE,
     { OrbitControls },
+    { TransformControls },
     { RoomEnvironment },
     { LineSegmentsGeometry },
     { LineSegments2 },
@@ -63,6 +65,7 @@ async function loadModules(): Promise<Modules> {
   ] = await Promise.all([
     import('three'),
     import('three/addons/controls/OrbitControls.js'),
+    import('three/addons/controls/TransformControls.js'),
     import('three/addons/environments/RoomEnvironment.js'),
     import('three/addons/lines/LineSegmentsGeometry.js'),
     import('three/addons/lines/LineSegments2.js'),
@@ -71,6 +74,7 @@ async function loadModules(): Promise<Modules> {
   _modules = {
     THREE,
     OrbitControls,
+    TransformControls,
     RoomEnvironment,
     LineSegmentsGeometry,
     LineSegments2,
@@ -104,6 +108,7 @@ export class ViewerCore {
   private raycaster: import('three').Raycaster | null = null;
   private mouse: import('three').Vector2 | null = null;
   private loadGeneration = 0;
+  private interactionLockCount = 0;
   private disposed = false;
 
   constructor(private container: HTMLElement) {
@@ -150,7 +155,20 @@ export class ViewerCore {
       requestRender: () => this.renderer?.requestRender(),
     });
 
-    this.gizmo = new GizmoController({ registry: this.registry });
+    this.gizmo = new GizmoController({
+      THREE,
+      TransformControlsCtor:
+        modules.TransformControls as unknown as ConstructorParameters<
+          typeof GizmoController
+        >[0]['TransformControlsCtor'],
+      camera: this.cameraRig.camera,
+      domElement: this.renderer.domElement,
+      registry: this.registry,
+      sceneGraph: this.sceneGraph,
+      cameraControls: this.cameraRig.controls,
+      acquireInteractionLock: () => this.acquireInteractionLock(),
+      requestRender: () => this.renderer?.requestRender(),
+    });
 
     const rect = this.container.getBoundingClientRect();
     this.leaders = new LeaderManager({
@@ -203,6 +221,7 @@ export class ViewerCore {
       bus: this.bus,
       raycast: (x, y) => this.raycastFromClient(x, y),
       isCameraMoving: () => !!this.cameraRig?.isMoving(),
+      isInputLocked: () => this.interactionLockCount > 0,
     });
 
     this.renderer.onResize((w, h) => {
@@ -305,6 +324,7 @@ export class ViewerCore {
   }
   setCameraMode(mode: CameraMode): void {
     this.cameraRig?.setCameraMode(mode);
+    if (this.cameraRig) this.gizmo?.setCamera(this.cameraRig.camera);
   }
   getCameraPose(): CameraPose {
     return (
@@ -344,6 +364,7 @@ export class ViewerCore {
 
   setSelectedObjects(ids: ObjectId[]): void {
     this.highlighter?.setSelected(ids);
+    this.gizmo?.setSelection(ids);
     // Intentionally no `selection-changed` bus emit: the bus event is the
     // canvas-input signal (InputRouter is the sole emitter). Programmatic
     // setters update the highlighter directly; observers should watch the
@@ -490,6 +511,26 @@ export class ViewerCore {
     this.input?.setMode(mode, handler);
   }
 
+  /**
+   * Refcounted interaction lock. While the count is > 0, hover/pick is
+   * suppressed (so a tool's drag isn't fighting the global highlight pass)
+   * and pending-click recording is skipped (so a brief gizmo handle drag
+   * doesn't trail a stray selection-changed). Used by GizmoController and
+   * intended for future tools like annotation placement.
+   */
+  acquireInteractionLock(): () => void {
+    this.interactionLockCount++;
+    if (this.interactionLockCount === 1) {
+      this.highlighter?.setHovered([]);
+    }
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.interactionLockCount = Math.max(0, this.interactionLockCount - 1);
+    };
+  }
+
   // ── Annotations ──────────────────────────────────────────────────
 
   setRenderedLeaders(specs: Map<string, RenderedLeaderSpec>): void {
@@ -507,8 +548,23 @@ export class ViewerCore {
     // into the 4:3 thumbnail.
     r.setSize(width, height, false);
     this.cameraRig.onResize(width, height);
+    // Hide selection visuals (gizmo + tint/ghost) so the thumbnail captures
+    // the model cleanly regardless of what the user has selected. The
+    // highlight is baked into per-instance BatchedMesh colors via
+    // Highlighter, so we have to clear it (not just toggle a group's
+    // visibility) and re-apply afterward.
+    const gizmoGroup = this.sceneGraph.groups.gizmoGroup;
+    const prevGizmoVisible = gizmoGroup.visible;
+    gizmoGroup.visible = false;
+    const prevHovered = this.highlighter?.getHovered() ?? [];
+    const prevSelected = this.highlighter?.getSelected() ?? [];
+    this.highlighter?.setHovered([]);
+    this.highlighter?.setSelected([]);
     r.render(this.sceneGraph.scene, this.cameraRig.camera);
     const url = r.domElement.toDataURL('image/png');
+    this.highlighter?.setHovered(prevHovered);
+    this.highlighter?.setSelected(prevSelected);
+    gizmoGroup.visible = prevGizmoVisible;
     r.setSize(prevSize.x, prevSize.y, false);
     this.cameraRig.onResize(prevSize.x, prevSize.y);
     this.renderer.requestRender();

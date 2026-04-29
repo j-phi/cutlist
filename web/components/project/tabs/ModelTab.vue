@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { BoardLayoutLeftover } from 'cutlist';
 import type { CameraMode } from '~/composables/useIdb';
-import type { ViewPreset } from '~/lib/viewer/types';
+import type { GizmoMode, ViewPreset } from '~/lib/viewer/types';
 import type {
   GroupId,
   ObjectGraph,
@@ -192,6 +192,14 @@ const infoPart = computed(() => {
 
 const cameraMode = ref<CameraMode>('perspective');
 const floorVisible = ref(true);
+const gizmoMode = ref<GizmoMode>('translate');
+
+const hasSelection = computed(() => store.selectedGroupIds.value.size > 0);
+
+function onGizmoMode(mode: GizmoMode) {
+  gizmoMode.value = mode;
+  viewer.setGizmoMode(mode);
+}
 
 const sceneAuthor = useSceneAuthor(viewer);
 const scenesApi = useScenes();
@@ -328,6 +336,34 @@ function onFloorVisible(v: boolean) {
         :class="enabledModels.length > 1 ? 'top-16' : 'top-4'"
       >
         <ObjectsPanel :graph="loadedGraph" :author="sceneAuthor" />
+      </div>
+
+      <!-- Gizmo mode toolbar (only when something is selected) -->
+      <div
+        v-if="hasModelData && !hasOnlyManualModels && hasSelection"
+        class="absolute top-4 z-10"
+        :class="props.showOpenButton ? 'right-[16.5rem]' : 'right-32'"
+      >
+        <div
+          class="bg-overlay backdrop-blur border border-subtle rounded-lg p-1 flex gap-1"
+        >
+          <UButton
+            size="xs"
+            :color="gizmoMode === 'translate' ? 'primary' : 'neutral'"
+            :variant="gizmoMode === 'translate' ? 'soft' : 'ghost'"
+            icon="i-lucide-move"
+            label="Move"
+            @click="onGizmoMode('translate')"
+          />
+          <UButton
+            size="xs"
+            :color="gizmoMode === 'rotate' ? 'primary' : 'neutral'"
+            :variant="gizmoMode === 'rotate' ? 'soft' : 'ghost'"
+            icon="i-lucide-rotate-3d"
+            label="Rotate"
+            @click="onGizmoMode('rotate')"
+          />
+        </div>
       </div>
 
       <!-- View cube + projection / floor toggles -->

@@ -53,6 +53,14 @@ export class Highlighter {
     this.selectedIds.clear();
   }
 
+  getHovered(): ObjectId[] {
+    return Array.from(this.hoveredIds);
+  }
+
+  getSelected(): ObjectId[] {
+    return Array.from(this.selectedIds);
+  }
+
   setHovered(ids: ObjectId[]): void {
     if (sameSet(this.hoveredIds, ids)) return;
     this.hoveredIds = new Set(ids);

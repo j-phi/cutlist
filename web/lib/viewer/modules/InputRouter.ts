@@ -47,6 +47,12 @@ interface InputRouterDeps {
   raycast: (clientX: number, clientY: number) => PickResult | null;
   /** True while OrbitControls is mid-drag — suppresses hover updates. */
   isCameraMoving: () => boolean;
+  /**
+   * True while a tool (gizmo drag, future annotation placement, etc.) holds
+   * the viewer's interaction lock. Suppresses hover/pick the same way
+   * `isCameraMoving` does, so only the active tool sees pointer events.
+   */
+  isInputLocked?: () => boolean;
 }
 
 interface DownState {
@@ -87,6 +93,11 @@ export class InputRouter {
 
   private onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0) return;
+    // Tools register their own pointerdown listeners earlier and may
+    // synchronously claim the click via the input lock (e.g. TransformControls
+    // engaging a gizmo handle). Skip recording a leftDown so the matching
+    // pointerup doesn't emit a stray `selection-changed`.
+    if (this.deps.isInputLocked?.()) return;
     this.leftDown = {
       x: event.clientX,
       y: event.clientY,
@@ -118,6 +129,7 @@ export class InputRouter {
 
   private onPointerMove = (event: PointerEvent) => {
     if (this.deps.isCameraMoving()) return;
+    if (this.deps.isInputLocked?.()) return;
     if (this.mode === 'pick' && this.pickHandler?.onPointerMove) {
       // Throttle to 1/frame — pick handlers may do their own raycast.
       this.lastPointer = { x: event.clientX, y: event.clientY };

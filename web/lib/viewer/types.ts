@@ -83,7 +83,7 @@ export type ViewPreset =
   | 'iso';
 
 export type InteractionMode = 'select' | 'pick';
-export type GizmoMode = 'translate' | 'rotate' | 'scale';
+export type GizmoMode = 'translate' | 'rotate';
 
 export interface RenderedLeaderSpec {
   start: Vec3;

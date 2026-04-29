@@ -173,4 +173,34 @@ describe('InputRouter', () => {
 
     expect(raycast).not.toHaveBeenCalled();
   });
+
+  it('Should suppress hover and clicks while the input lock is held', async () => {
+    let locked = false;
+    router.dispose();
+    router = new InputRouter({
+      domElement: dom as unknown as HTMLElement,
+      bus,
+      raycast,
+      isCameraMoving,
+      isInputLocked: () => locked,
+    });
+
+    raycast.mockReturnValue(null);
+    const selHandler = vi.fn();
+    bus.on('selection-changed', selHandler);
+
+    locked = true;
+    dom.dispatchEvent(makeEvent('pointermove', { clientX: 1, clientY: 1 }));
+    await flushRaf();
+    expect(raycast).not.toHaveBeenCalled();
+
+    // pointerdown is dropped while locked, so the matching pointerup can't
+    // emit a stray selection-changed even after the lock releases.
+    currentTime = 0;
+    dom.dispatchEvent(makeEvent('pointerdown', { clientX: 5, clientY: 5 }));
+    locked = false;
+    currentTime = 30;
+    dom.dispatchEvent(makeEvent('pointerup', { clientX: 5, clientY: 5 }));
+    expect(selHandler).not.toHaveBeenCalled();
+  });
 });
