@@ -173,11 +173,20 @@ function findPart(partNum: number | null): BoardLayoutLeftover | undefined {
   ].find((p) => p.partNumber === partNum);
 }
 
-const infoPart = computed(
-  () =>
-    findPart(store.selectedPartNumber.value) ??
-    findPart(store.hoveredPartNumber.value),
-);
+const infoPart = computed(() => {
+  const inv = store.partNumberOfGroupId.value;
+  for (const id of store.selectedGroupIds.value) {
+    const pn = inv.get(id);
+    const found = pn != null ? findPart(pn) : undefined;
+    if (found) return found;
+  }
+  for (const id of store.hoveredGroupIds.value) {
+    const pn = inv.get(id);
+    const found = pn != null ? findPart(pn) : undefined;
+    if (found) return found;
+  }
+  return undefined;
+});
 
 const cameraMode = ref<CameraMode>('perspective');
 const floorVisible = ref(true);

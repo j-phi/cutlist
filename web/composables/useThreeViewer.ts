@@ -1,15 +1,14 @@
 /**
  * Thin Vue adapter over ViewerCore. The composable owns lifecycle (mount /
- * unmount, container watching) and bridges the existing
- * `useModelViewerStore` (which keys by partNumber for the BOM linkage) onto
- * the new groupId-based selection in ViewerCore.
+ * unmount, container watching) and bridges `useModelViewerStore` (a single
+ * groupId-axis selection model) to the viewer's per-frame state.
  *
  * Three.js never appears in this file — only types. The day we move to a
  * worker or different framework, only this file changes.
  */
 
 import type { Ref } from 'vue';
-import type { ObjectGraph } from '~/utils/types';
+import type { GroupId, ObjectGraph, PartNumber } from '~/utils/types';
 import type {
   CameraMode,
   CameraPose,
@@ -38,6 +37,16 @@ export default function useThreeViewer(
   const offBus: Array<() => void> = [];
   let offFrame: (() => void) | null = null;
 
+  function syncPartIndex(c: Core): void {
+    const byPart = new Map<PartNumber, GroupId[]>();
+    for (const o of c.getObjects()) {
+      const list = byPart.get(o.partNumber);
+      if (list) list.push(o.groupId);
+      else byPart.set(o.partNumber, [o.groupId]);
+    }
+    store.setPartIndex(byPart);
+  }
+
   async function init(el: HTMLElement) {
     const { ViewerCore } = await import('~/lib/viewer/ViewerCore');
     core = new ViewerCore(el);
@@ -48,9 +57,7 @@ export default function useThreeViewer(
 
     offBus.push(
       core.on('pick', (e) => {
-        if (!core) return;
-        const part = e.result ? core.partNumberOf(e.result.groupId) : null;
-        store.hoveredPartNumber.value = part;
+        store.setHoveredGroupIds(e.result ? [e.result.groupId] : []);
       }),
     );
 
@@ -70,12 +77,6 @@ export default function useThreeViewer(
 
     offBus.push(
       core.on('selection-changed', (e) => {
-        if (!core) return;
-        // Canvas clicks own per-Object selection. Clear the BOM-driven
-        // partNumber selection so the two paths don't double-highlight.
-        if (store.selectedPartNumber.value !== null) {
-          store.selectedPartNumber.value = null;
-        }
         if (e.groupIds.length === 0) {
           if (!e.shiftKey) store.clearGroupSelection();
           return;
@@ -103,34 +104,28 @@ export default function useThreeViewer(
     { immediate: true },
   );
 
-  // Re-apply hover/select on every store change. The viewer takes the union
-  // of partNumber-fanned groupIds (driven by the BOM linkage) and explicit
-  // groupIds (driven by the Objects panel / canvas multi-select).
   watch(
-    () => [
-      store.hoveredPartNumber.value,
-      store.selectedPartNumber.value,
-      store.hoveredGroupId.value,
-      store.selectedGroupIds.value,
-    ],
-    ([hoveredPart, selectedPart, hoveredGroup, selectedGroups]) => {
+    () => [store.hoveredGroupIds.value, store.selectedGroupIds.value],
+    ([hovered, selected]) => {
       if (!core) return;
-      const hoveredIds = new Set<ObjectId>();
-      if (hoveredPart != null)
-        for (const id of core.groupIdsForPart(hoveredPart as number))
-          hoveredIds.add(id);
-      if (hoveredGroup != null) hoveredIds.add(hoveredGroup as ObjectId);
-      core.setHoveredObjects([...hoveredIds]);
-
-      const selectedIds = new Set<ObjectId>();
-      if (selectedPart != null)
-        for (const id of core.groupIdsForPart(selectedPart as number))
-          selectedIds.add(id);
-      for (const id of (selectedGroups as Set<ObjectId>) ?? [])
-        selectedIds.add(id);
-      core.setSelectedObjects([...selectedIds]);
+      core.setHoveredObjects([...(hovered as Set<ObjectId>)]);
+      core.setSelectedObjects([...(selected as Set<ObjectId>)]);
     },
   );
+
+  async function loadModel(
+    graph: ObjectGraph,
+    partNumberOffset?: number,
+  ): Promise<void> {
+    if (!core) return;
+    await core.loadModel(graph, partNumberOffset);
+    syncPartIndex(core);
+  }
+
+  function clearModels(): void {
+    core?.clearModels();
+    store.setPartIndex(new Map());
+  }
 
   onUnmounted(() => {
     for (const off of offBus) off();
@@ -145,9 +140,8 @@ export default function useThreeViewer(
   return {
     ready,
     cameraDirection,
-    loadModel: (graph: ObjectGraph, partNumberOffset?: number) =>
-      core?.loadModel(graph, partNumberOffset),
-    clearModels: () => core?.clearModels(),
+    loadModel,
+    clearModels,
     fit: () => core?.fit(),
     fitCamera: () => core?.fit(), // backward-compat alias
     getCameraMode: () => core?.getCameraMode() ?? ('perspective' as CameraMode),

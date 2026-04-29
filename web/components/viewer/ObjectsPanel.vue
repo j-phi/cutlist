@@ -49,7 +49,6 @@ function isPartActive(part: PartGroup): boolean {
 }
 
 function onPartClick(part: PartGroup, e: MouseEvent) {
-  store.selectedPartNumber.value = null;
   const ids = part.objects.map((o) => o.groupId);
   if (e.shiftKey) {
     const next = new Set(store.selectedGroupIds.value);
@@ -58,7 +57,7 @@ function onPartClick(part: PartGroup, e: MouseEvent) {
       if (allIn) next.delete(id);
       else next.add(id);
     }
-    store.selectedGroupIds.value = next;
+    store.selectGroupIds(next);
   } else {
     if (isPartActive(part)) store.clearGroupSelection();
     else store.selectGroupIds(ids);
@@ -66,19 +65,14 @@ function onPartClick(part: PartGroup, e: MouseEvent) {
 }
 
 function onPartHover(part: PartGroup | null) {
-  store.hoveredGroupId.value = null;
-  store.hoveredPartNumber.value = part ? part.partNumber : null;
+  store.hoverPart(part ? part.partNumber : null);
 }
 
 function onObjectHover(gid: GroupId | null) {
-  store.hoveredPartNumber.value = null;
-  store.hoveredGroupId.value = gid;
+  store.setHoveredGroupIds(gid == null ? [] : [gid]);
 }
 
 function onObjectClick(gid: GroupId, e: MouseEvent) {
-  // The panel owns groupId-level selection; clear the partNumber selection
-  // so the canvas state reflects the panel's intent.
-  store.selectedPartNumber.value = null;
   if (e.shiftKey) {
     store.toggleGroupSelection(gid);
   } else {

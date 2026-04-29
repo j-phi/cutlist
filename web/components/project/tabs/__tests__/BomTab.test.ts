@@ -77,11 +77,22 @@ mockNuxtImport('useToast', () => () => ({ add: toastAdd }));
 const tab = ref<string>('bom');
 mockNuxtImport('useProjectTab', () => () => tab);
 
-const hoveredPartNumber = ref<number | null>(null);
-const selectedPartNumber = ref<number | null>(null);
+const hoveredGroupIds = ref<Set<number>>(new Set());
+const selectedGroupIds = ref<Set<number>>(new Set());
+const partIndex = ref<Map<number, number[]>>(new Map());
+const partNumberOfGroupId = ref<Map<number, number>>(new Map());
 mockNuxtImport('useModelViewerStore', () => () => ({
-  hoveredPartNumber,
-  selectedPartNumber,
+  hoveredGroupIds,
+  selectedGroupIds,
+  partIndex,
+  partNumberOfGroupId,
+  setPartIndex: vi.fn(),
+  selectGroupIds: vi.fn(),
+  toggleGroupSelection: vi.fn(),
+  clearGroupSelection: vi.fn(),
+  setHoveredGroupIds: vi.fn(),
+  selectPart: vi.fn(),
+  hoverPart: vi.fn(),
 }));
 
 // BOM rows / filter — return a row so the table renders the rename pencil.
