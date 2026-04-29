@@ -179,6 +179,16 @@ export default function useThreeViewer(
       local: [number, number, number],
     ): [number, number, number] | null =>
       core?.objectLocalToWorld(groupId, local) ?? null,
+    worldToObjectLocal: (
+      groupId: ObjectId,
+      world: [number, number, number],
+    ): [number, number, number] | null =>
+      core?.worldToObjectLocal(groupId, world) ?? null,
+    worldDirToObjectLocal: (
+      groupId: ObjectId,
+      worldDir: [number, number, number],
+    ): [number, number, number] | null =>
+      core?.worldDirToObjectLocal(groupId, worldDir) ?? null,
     captureThumbnail: (w?: number, h?: number) =>
       core?.captureThumbnail(w, h) ?? null,
     applyObjectOffsets: (offsets: Map<ObjectId, ObjectOffset>) =>

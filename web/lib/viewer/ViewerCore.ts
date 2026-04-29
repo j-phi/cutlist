@@ -10,7 +10,11 @@
  */
 
 import type { ObjectGraph } from '~/utils/types';
-import { transformLocalToWorld } from './transforms';
+import {
+  transformDirWorldToLocal,
+  transformLocalToWorld,
+  transformWorldToLocal,
+} from './transforms';
 import { EventBus } from './modules/EventBus';
 import { Renderer } from './modules/Renderer';
 import { SceneGraph } from './modules/SceneGraph';
@@ -484,6 +488,33 @@ export class ViewerCore {
     if (!r) return null;
     const tmp = new this.modules.THREE.Vector3(local[0], local[1], local[2]);
     transformLocalToWorld(r, tmp, tmp);
+    return [tmp.x, tmp.y, tmp.z];
+  }
+
+  /** Inverse of {@link objectLocalToWorld}. */
+  worldToObjectLocal(groupId: ObjectId, world: Vec3): Vec3 | null {
+    if (!this.registry || !this.modules) return null;
+    const r = this.registry.get(groupId);
+    if (!r) return null;
+    const tmp = new this.modules.THREE.Vector3(world[0], world[1], world[2]);
+    transformWorldToLocal(r, tmp, tmp);
+    return [tmp.x, tmp.y, tmp.z];
+  }
+
+  /**
+   * Transform a world-space direction (e.g. a face normal) into the Object's
+   * local frame. Translation cancels — only rotation applies.
+   */
+  worldDirToObjectLocal(groupId: ObjectId, worldDir: Vec3): Vec3 | null {
+    if (!this.registry || !this.modules) return null;
+    const r = this.registry.get(groupId);
+    if (!r) return null;
+    const tmp = new this.modules.THREE.Vector3(
+      worldDir[0],
+      worldDir[1],
+      worldDir[2],
+    );
+    transformDirWorldToLocal(r, tmp, tmp);
     return [tmp.x, tmp.y, tmp.z];
   }
 

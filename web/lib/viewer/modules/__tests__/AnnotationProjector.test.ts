@@ -56,7 +56,12 @@ function makeViewer(): ProjectorViewer & {
   };
 }
 
-function callout(id: string, groupId: number, anchor: Vec3): IdbCallout {
+function callout(
+  id: string,
+  groupId: number,
+  anchor: Vec3,
+  labelOffset: Vec3 = [0, 0, 0],
+): IdbCallout {
   const now = '2026-04-29T00:00:00.000Z';
   return {
     id,
@@ -65,7 +70,7 @@ function callout(id: string, groupId: number, anchor: Vec3): IdbCallout {
     groupId,
     anchorLocal: anchor,
     anchorNormalLocal: [0, 1, 0],
-    labelOffsetLocal: [0, 0.1, 0],
+    labelOffsetLocal: labelOffset,
     text: '',
     createdAt: now,
     updatedAt: now,
@@ -77,6 +82,7 @@ function dimension(
   groupId: number,
   a1: Vec3,
   a2: Vec3,
+  offset: Vec3 = [0, 0, 0],
 ): IdbDimension {
   const now = '2026-04-29T00:00:00.000Z';
   return {
@@ -86,22 +92,24 @@ function dimension(
     groupId,
     anchor1Local: a1,
     anchor2Local: a2,
-    offsetLocal: [0, 0.1, 0],
+    offsetLocal: offset,
     createdAt: now,
     updatedAt: now,
   };
 }
 
 describe('AnnotationProjector', () => {
-  it('Should project the callout anchor on tick', () => {
+  it('Should project the callout label position (anchor + offset) on tick', () => {
     const v = makeViewer();
-    const annotations: IdbAnnotation[] = [callout('a', 1, [3, 4, 0])];
+    const annotations: IdbAnnotation[] = [
+      callout('a', 1, [3, 4, 0], [0, 0.5, 0]),
+    ];
     const p = new AnnotationProjector(v, () => annotations);
     p.start();
     v.frameTick();
     const pos = p.getScreenPositions().get('a')!;
     expect(pos.x).toBe(3);
-    expect(pos.y).toBe(4);
+    expect(pos.y).toBe(4.5);
     expect(pos.inFront).toBe(true);
   });
 
@@ -167,6 +175,38 @@ describe('AnnotationProjector', () => {
     v.frameTick();
     v.frameTick();
     expect(p.version.value).toBe(before + 2);
+  });
+
+  it('Should publish leader specs to the viewer when a kind registers them', () => {
+    const v = makeViewer();
+    const setRenderedLeaders = vi.fn();
+    (v as ProjectorViewer).setRenderedLeaders = setRenderedLeaders;
+    const annotations: IdbAnnotation[] = [
+      callout('a', 1, [0, 0, 0], [0, 1, 0]),
+    ];
+    const p = new AnnotationProjector(v, () => annotations);
+    p.registerKind('callout', {
+      primaryLocal: (a) => a.anchorLocal,
+      leaderSpec: (a, lookup) => {
+        const start = lookup(a.groupId, a.anchorLocal);
+        const end = lookup(a.groupId, [
+          a.anchorLocal[0] + a.labelOffsetLocal[0],
+          a.anchorLocal[1] + a.labelOffsetLocal[1],
+          a.anchorLocal[2] + a.labelOffsetLocal[2],
+        ]);
+        if (!start || !end) return null;
+        return { start, end };
+      },
+    });
+    p.start();
+    v.frameTick();
+    expect(setRenderedLeaders).toHaveBeenCalledOnce();
+    const map = setRenderedLeaders.mock.calls[0][0] as Map<
+      string,
+      { start: Vec3; end: Vec3 }
+    >;
+    expect(map.get('a')?.start).toEqual([0, 0, 0]);
+    expect(map.get('a')?.end).toEqual([0, 1, 0]);
   });
 
   it('Should stop ticking after dispose', () => {

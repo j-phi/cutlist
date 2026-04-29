@@ -11,8 +11,17 @@ import type {
 import ViewCube from '~/components/viewer/ViewCube.vue';
 import ObjectsPanel from '~/components/viewer/ObjectsPanel.vue';
 import SceneTimeline from '~/components/viewer/SceneTimeline.vue';
+import AnnotationLabels from '~/components/viewer/AnnotationLabels.vue';
+import CalloutLabel from '~/components/viewer/CalloutLabel.vue';
 import { useSceneAuthor } from '~/composables/useSceneAuthor';
 import { useScenes } from '~/composables/useScenes';
+import { useAnnotations } from '~/composables/useAnnotations';
+import { useAnnotationAuthor } from '~/composables/useAnnotationAuthor';
+import { AnnotationProjector } from '~/lib/viewer/modules/AnnotationProjector';
+import {
+  calloutKindHooks,
+  createCalloutHandler,
+} from '~/lib/viewer/annotations/callout';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 
 const props = withDefaults(
@@ -203,6 +212,44 @@ function onGizmoMode(mode: GizmoMode) {
 
 const sceneAuthor = useSceneAuthor(viewer);
 const scenesApi = useScenes();
+const annotationsApi = useAnnotations();
+const annotationAuthor = useAnnotationAuthor(
+  viewer,
+  annotationsApi,
+  sceneAuthor.activeSceneId,
+);
+
+const projector = new AnnotationProjector(
+  viewer,
+  () => annotationsApi.annotations.value,
+);
+projector.registerKind('callout', calloutKindHooks);
+
+watch(
+  () => viewer.ready.value,
+  (isReady) => {
+    if (!isReady) return;
+    projector.start();
+    annotationAuthor.registerHandler(
+      'callout',
+      createCalloutHandler({
+        viewer,
+        annotationsApi,
+        activeSceneId: sceneAuthor.activeSceneId,
+      }),
+    );
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => projector.dispose());
+
+function onAddCallout() {
+  if (!sceneAuthor.activeSceneId.value) return;
+  annotationAuthor.enter('callout');
+}
+
+const calloutKindComponents = { callout: CalloutLabel };
 
 async function onAddScene() {
   if (sceneAuthor.tweening.value) return;
@@ -277,6 +324,28 @@ function onFloorVisible(v: boolean) {
     <div class="relative h-full overflow-hidden">
       <!-- 3D Canvas -->
       <div ref="canvasContainer" class="absolute inset-0 bg-mist-950" />
+
+      <!-- Annotation overlay -->
+      <AnnotationLabels
+        v-if="hasModelData && !hasOnlyManualModels"
+        :annotations="annotationsApi.annotations.value"
+        :active-scene-id="sceneAuthor.activeSceneId.value"
+        :tween-from-scene-id="sceneAuthor.tweenFromSceneId.value"
+        :tween-t="sceneAuthor.tweenT.value"
+        :tweening="sceneAuthor.tweening.value"
+        :projector="projector"
+        :draft-id="annotationAuthor.draftId.value"
+        :kind-components="calloutKindComponents"
+        :on-leader-opacity-scale="(s) => viewer.setLeaderOpacityScale(s)"
+      />
+
+      <!-- Pick-mode hint -->
+      <div
+        v-if="annotationAuthor.mode.value === 'pick'"
+        class="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 text-sm text-body shadow"
+      >
+        {{ annotationAuthor.hint.value }}
+      </div>
 
       <!-- Empty state: no models -->
       <div
@@ -434,8 +503,20 @@ function onFloorVisible(v: boolean) {
         v-if="hasModelData && !hasOnlyManualModels"
         class="absolute left-0 right-0 bottom-0 z-10"
       >
-        <div v-if="canUpdateScene" class="flex justify-end px-3 pb-2">
+        <div class="flex justify-end gap-2 px-3 pb-2">
           <UButton
+            v-if="sceneAuthor.activeSceneId.value"
+            size="xs"
+            :color="
+              annotationAuthor.mode.value === 'pick' ? 'primary' : 'neutral'
+            "
+            :variant="annotationAuthor.mode.value === 'pick' ? 'solid' : 'soft'"
+            icon="i-lucide-message-square-text"
+            label="Callout"
+            @click="onAddCallout"
+          />
+          <UButton
+            v-if="canUpdateScene"
             size="xs"
             color="primary"
             variant="solid"
