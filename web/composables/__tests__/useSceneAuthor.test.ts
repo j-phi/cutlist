@@ -192,6 +192,16 @@ describe('useSceneAuthor — dirty flag', () => {
     a.toggleObjectVisibility(2);
     expect(a.dirty.value).toBe(true);
   });
+
+  it('Should expose markDirty so UI controls can flag scene changes', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.markDirty();
+    expect(a.dirty.value).toBe(false);
+    a.jumpToScene(makeScene());
+    a.markDirty();
+    expect(a.dirty.value).toBe(true);
+  });
 });
 
 describe('useSceneAuthor — capture', () => {

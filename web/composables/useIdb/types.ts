@@ -75,6 +75,10 @@ export type CameraMode = 'perspective' | 'orthographic';
 export interface CameraPose {
   position: [number, number, number];
   target: [number, number, number];
+  /** THREE camera.zoom factor. Defaults to 1 when absent. */
+  zoom?: number;
+  /** Camera up vector. Defaults to [0, 1, 0] when absent. */
+  up?: [number, number, number];
 }
 
 /**

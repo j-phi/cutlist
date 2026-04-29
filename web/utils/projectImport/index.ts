@@ -90,6 +90,8 @@ const SceneSchema = z.object({
   cameraPose: z.object({
     position: Vec3Schema,
     target: Vec3Schema,
+    zoom: z.number().finite().optional(),
+    up: Vec3Schema.optional(),
   }),
   objectOffsets: z.record(z.string(), ObjectOffsetSchema).default({}),
   visibleObjects: z.array(z.number().int()).optional(),

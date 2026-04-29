@@ -215,6 +215,85 @@ describe('interpolateSceneState', () => {
   });
 });
 
+describe('camera zoom and up', () => {
+  it('Should default zoom to 1 and up to [0,1,0] when source pose omits them', () => {
+    const state = captureSceneState({
+      cameraMode: 'perspective',
+      cameraPose: { position: [1, 2, 3], target: [0, 0, 0] },
+      objectOffsets: new Map(),
+      visibleObjects: null,
+      floorVisible: true,
+    });
+    expect(state.cameraPose.zoom).toBe(1);
+    expect(state.cameraPose.up).toEqual([0, 1, 0]);
+  });
+
+  it('Should preserve zoom and up through capture and apply', () => {
+    const state = captureSceneState({
+      cameraMode: 'orthographic',
+      cameraPose: {
+        position: [10, 0, 0],
+        target: [0, 0, 0],
+        zoom: 2.5,
+        up: [0, 0, -1],
+      },
+      objectOffsets: new Map(),
+      visibleObjects: null,
+      floorVisible: true,
+    });
+    expect(state.cameraPose.zoom).toBe(2.5);
+    expect(state.cameraPose.up).toEqual([0, 0, -1]);
+    const applied = applySceneState(state, []);
+    expect(applied.cameraPose.zoom).toBe(2.5);
+    expect(applied.cameraPose.up).toEqual([0, 0, -1]);
+  });
+
+  it('Should round-trip zoom and up through sceneStateToIdb / sceneStateFromIdb', () => {
+    const original = captureSceneState({
+      cameraMode: 'orthographic',
+      cameraPose: {
+        position: [5, 5, 5],
+        target: [0, 0, 0],
+        zoom: 3,
+        up: [1, 0, 0],
+      },
+      objectOffsets: new Map(),
+      visibleObjects: null,
+      floorVisible: true,
+    });
+    const persisted: IdbScene = {
+      id: 's',
+      projectId: 'p',
+      name: 'n',
+      order: 0,
+      createdAt: '',
+      updatedAt: '',
+      ...sceneStateToIdb(original),
+    };
+    expect(persisted.cameraPose.zoom).toBe(3);
+    expect(persisted.cameraPose.up).toEqual([1, 0, 0]);
+    const restored = sceneStateFromIdb(persisted);
+    expect(restored.cameraPose.zoom).toBe(3);
+    expect(restored.cameraPose.up).toEqual([1, 0, 0]);
+  });
+
+  it('Should lerp zoom linearly through interpolateSceneState', () => {
+    const a: SceneState = {
+      cameraMode: 'perspective',
+      cameraPose: { position: [0, 0, 0], target: [0, 0, 0], zoom: 1 },
+      objectOffsets: new Map(),
+      visibleObjects: null,
+      floorVisible: true,
+    };
+    const b: SceneState = {
+      ...a,
+      cameraPose: { position: [0, 0, 0], target: [0, 0, 0], zoom: 3 },
+    };
+    const mid = interpolateSceneState(a, b, 0.5, []);
+    expect(mid.cameraPose.zoom).toBeCloseTo(2);
+  });
+});
+
 describe('round-trip', () => {
   it('Should round-trip capture → apply at t=1', () => {
     const offsets = new Map<number, ObjectOffset>([

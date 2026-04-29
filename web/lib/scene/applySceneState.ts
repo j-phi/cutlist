@@ -41,6 +41,14 @@ export function applySceneState(
         state.cameraPose.target[1],
         state.cameraPose.target[2],
       ],
+      zoom: state.cameraPose.zoom ?? 1,
+      up: state.cameraPose.up
+        ? [
+            state.cameraPose.up[0],
+            state.cameraPose.up[1],
+            state.cameraPose.up[2],
+          ]
+        : [0, 1, 0],
     },
     objectOffsets,
     groupOpacity,

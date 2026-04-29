@@ -356,11 +356,13 @@ function onSnap(preset: ViewPreset) {
 function onCameraMode(mode: CameraMode) {
   cameraMode.value = mode;
   viewer.setCameraMode(mode);
+  sceneAuthor.markDirty();
 }
 
 function onFloorVisible(v: boolean) {
   floorVisible.value = v;
   viewer.setFloorVisible(v);
+  sceneAuthor.markDirty();
 }
 </script>
 

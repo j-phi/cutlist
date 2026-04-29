@@ -32,9 +32,13 @@ export function interpolateSceneState(
   const cameraMode = u >= 0.5 ? to.cameraMode : from.cameraMode;
   const floorVisible = u >= 0.5 ? to.floorVisible : from.floorVisible;
 
+  const fromUp = from.cameraPose.up ?? [0, 1, 0];
+  const toUp = to.cameraPose.up ?? [0, 1, 0];
   const cameraPose: CameraPose = {
     position: lerpVec3(from.cameraPose.position, to.cameraPose.position, u),
     target: lerpVec3(from.cameraPose.target, to.cameraPose.target, u),
+    zoom: lerp(from.cameraPose.zoom ?? 1, to.cameraPose.zoom ?? 1, u),
+    up: normalizeVec3(lerpVec3(fromUp, toUp, u)),
   };
 
   const fromVisible = from.visibleObjects;
@@ -75,6 +79,13 @@ function clamp01(x: number): number {
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
+}
+
+function normalizeVec3(
+  v: readonly [number, number, number],
+): [number, number, number] {
+  const len = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / len, v[1] / len, v[2] / len];
 }
 
 function lerpVec3(

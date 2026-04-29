@@ -74,6 +74,12 @@ export interface SceneAuthor {
   jumpToScene(scene: IdbScene): void;
   tweenToScene(scene: IdbScene, durationMs?: number): Promise<void>;
   markClean(): void;
+  /**
+   * Mark the active scene dirty. Used by UI controls (camera mode, floor
+   * toggle) whose changes don't go through the viewer's user-interaction
+   * bus. No-op when no scene is active or a tween is in flight.
+   */
+  markDirty(): void;
 
   onUserChange(cb: () => void): () => void;
 }
@@ -186,6 +192,8 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
     const pose = viewer.getCameraPose() ?? {
       position: [0, 0, 0],
       target: [0, 0, 0],
+      zoom: 1,
+      up: [0, 1, 0],
     };
     return captureSceneState({
       cameraMode: viewer.getCameraMode(),
@@ -332,6 +340,7 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
     jumpToScene,
     tweenToScene,
     markClean,
+    markDirty,
     onUserChange,
   };
 }

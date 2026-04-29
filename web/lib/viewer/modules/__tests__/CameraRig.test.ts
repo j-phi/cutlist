@@ -100,6 +100,28 @@ describe('CameraRig', () => {
     expect(pose.target[2]).toBeCloseTo(6, 5);
   });
 
+  it('Should round-trip zoom and up via getPose / setPose', () => {
+    rig.setControlsDamping(false);
+    rig.setPose({
+      position: [1, 2, 3],
+      target: [0, 0, 0],
+      zoom: 2.5,
+      up: [0, 0, -1],
+    });
+    const pose = rig.getPose();
+    expect(pose.zoom).toBeCloseTo(2.5, 5);
+    expect(pose.up?.[0]).toBeCloseTo(0, 5);
+    expect(pose.up?.[1]).toBeCloseTo(0, 5);
+    expect(pose.up?.[2]).toBeCloseTo(-1, 5);
+  });
+
+  it('Should default zoom to 1 when setPose omits it', () => {
+    rig.setControlsDamping(false);
+    rig.perspective.zoom = 5;
+    rig.setPose({ position: [1, 2, 3], target: [0, 0, 0] });
+    expect(rig.perspective.zoom).toBe(1);
+  });
+
   it('Should compute getDirection as normalized (target → position)', () => {
     rig.controls.target.set(0, 0, 0);
     rig.perspective.position.set(0, 0, 5);

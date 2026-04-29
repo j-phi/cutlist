@@ -50,6 +50,14 @@ export function captureSceneState(input: CaptureInput): SceneState {
         input.cameraPose.target[1],
         input.cameraPose.target[2],
       ],
+      zoom: input.cameraPose.zoom ?? 1,
+      up: input.cameraPose.up
+        ? [
+            input.cameraPose.up[0],
+            input.cameraPose.up[1],
+            input.cameraPose.up[2],
+          ]
+        : [0, 1, 0],
     },
     objectOffsets: offsets,
     visibleObjects: input.visibleObjects ? new Set(input.visibleObjects) : null,

@@ -144,13 +144,18 @@ export class CameraRig {
     return {
       position: [c.position.x, c.position.y, c.position.z],
       target: [t.x, t.y, t.z],
+      zoom: c.zoom,
+      up: [c.up.x, c.up.y, c.up.z],
     };
   }
 
   setPose(pose: CameraPose): void {
     this.camera.position.set(...pose.position);
     this.controls.target.set(...pose.target);
+    if (pose.up) this.camera.up.set(...pose.up);
+    this.camera.zoom = pose.zoom ?? 1;
     if (this.mode === 'orthographic') this.updateOrthoFrustum();
+    this.camera.updateProjectionMatrix();
     this.controls.update();
     this.deps.requestRender();
   }
