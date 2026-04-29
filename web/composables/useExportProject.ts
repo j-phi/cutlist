@@ -1,4 +1,9 @@
-import type { IdbBuildStep, IdbModel } from '~/composables/useIdb';
+import type {
+  IdbAnnotation,
+  IdbBuildStep,
+  IdbModel,
+  IdbScene,
+} from '~/composables/useIdb';
 import { SCHEMA_VERSION } from '~/utils/versions';
 import { gzipCompress } from '~/utils/compress';
 
@@ -21,6 +26,8 @@ export interface ProjectExport {
   };
   models: IdbModel[];
   buildSteps?: IdbBuildStep[];
+  scenes?: IdbScene[];
+  annotations?: IdbAnnotation[];
 }
 
 export default function useExportProject() {
@@ -41,7 +48,11 @@ export default function useExportProject() {
       })),
     );
 
-    const buildSteps = await idb.getBuildSteps(activeId.value);
+    const [buildSteps, scenes, annotations] = await Promise.all([
+      idb.getBuildSteps(activeId.value),
+      idb.getScenes(activeId.value),
+      idb.getAnnotationsForProject(activeId.value),
+    ]);
 
     const data: ProjectExport = {
       version: SCHEMA_VERSION,
@@ -62,6 +73,8 @@ export default function useExportProject() {
       },
       models: fullModels,
       buildSteps,
+      scenes,
+      annotations,
     };
 
     const blob = await gzipCompress(JSON.stringify(data));

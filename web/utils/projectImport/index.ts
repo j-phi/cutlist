@@ -74,6 +74,57 @@ const BuildStepSchema = z.object({
   createdAt: z.string(),
 });
 
+const Vec3Schema = z.tuple([z.number(), z.number(), z.number()]);
+
+const SceneSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  name: z.string(),
+  order: z.number().int().min(0),
+  cameraMode: z.enum(['perspective', 'orthographic']),
+  cameraPose: z.object({
+    position: Vec3Schema,
+    target: Vec3Schema,
+  }),
+  objectOffsets: z.record(z.string(), Vec3Schema).default({}),
+  visibleObjects: z.array(z.number().int()).optional(),
+  floorVisible: z.boolean(),
+  thumbnailDataUrl: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const CalloutSchema = z.object({
+  id: z.string(),
+  sceneId: z.string(),
+  kind: z.literal('callout'),
+  groupId: z.number().int(),
+  anchorLocal: Vec3Schema,
+  anchorNormalLocal: Vec3Schema,
+  labelOffsetLocal: Vec3Schema,
+  text: z.string().default(''),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const DimensionSchema = z.object({
+  id: z.string(),
+  sceneId: z.string(),
+  kind: z.literal('dimension'),
+  groupId: z.number().int(),
+  anchor1Local: Vec3Schema,
+  anchor2Local: Vec3Schema,
+  offsetLocal: Vec3Schema,
+  text: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const AnnotationSchema = z.discriminatedUnion('kind', [
+  CalloutSchema,
+  DimensionSchema,
+]);
+
 // Packing settings (bladeWidth, margin, optimize, showPartNumbers) now live on
 // the project record, so they travel with the export automatically. A
 // top-level `settings` field left over from the pre-v2 global-settings export
@@ -96,6 +147,8 @@ const ProjectExportSchema = z.object({
   }),
   models: z.array(ModelSchema),
   buildSteps: z.array(BuildStepSchema).optional(),
+  scenes: z.array(SceneSchema).optional(),
+  annotations: z.array(AnnotationSchema).optional(),
 });
 
 // ─── Parsing ────────────────────────────────────────────────────────────────
@@ -130,6 +183,8 @@ export interface ProjectImportDb {
   ) => Promise<unknown>;
   createModel: (model: any) => Promise<void>;
   createBuildStep: (step: any) => Promise<void>;
+  createScene: (scene: any) => Promise<void>;
+  createAnnotation: (annotation: any) => Promise<void>;
 }
 
 /**
@@ -198,6 +253,37 @@ export async function importProjectData(
         projectId: newProject.id,
       }),
     ),
+  );
+
+  // Scenes get fresh IDs; annotations follow via a sceneId remap so the
+  // imported references stay intact under the new IDs.
+  const sceneIdMap = new Map<string, string>();
+  await Promise.all(
+    (data.scenes ?? []).map((scene) => {
+      const newId = crypto.randomUUID();
+      sceneIdMap.set(scene.id, newId);
+      return idb.createScene({
+        ...scene,
+        id: newId,
+        projectId: newProject.id,
+      });
+    }),
+  );
+
+  await Promise.all(
+    (data.annotations ?? []).map((annotation) => {
+      const remappedSceneId = sceneIdMap.get(annotation.sceneId);
+      if (!remappedSceneId) {
+        // Orphaned annotation (no matching scene in payload) — skip silently
+        // rather than reject the whole import.
+        return;
+      }
+      return idb.createAnnotation({
+        ...annotation,
+        id: crypto.randomUUID(),
+        sceneId: remappedSceneId,
+      });
+    }),
   );
 
   return newProject.id;

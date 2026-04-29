@@ -4,7 +4,12 @@
  */
 
 import { DEFAULT_SETTINGS } from '~/utils/settings';
-import type { IdbProject, IdbModelMeta } from './types';
+import type {
+  IdbProject,
+  IdbModelMeta,
+  IdbScene,
+  IdbAnnotation,
+} from './types';
 
 export function applyProjectDefaults(
   p: Partial<IdbProject> & { id: string; name: string },
@@ -33,4 +38,33 @@ export function applyModelDefaults(
     colors: m.colors ?? [],
     nodePartMap: m.nodePartMap ?? [],
   } as IdbModelMeta;
+}
+
+export function applySceneDefaults(
+  s: Partial<IdbScene> & { id: string; projectId: string },
+): IdbScene {
+  return {
+    ...s,
+    cameraMode: s.cameraMode ?? 'perspective',
+    objectOffsets: s.objectOffsets ?? {},
+    floorVisible: s.floorVisible ?? true,
+  } as IdbScene;
+}
+
+export function applyAnnotationDefaults(
+  a: Partial<IdbAnnotation> & {
+    id: string;
+    sceneId: string;
+    kind: IdbAnnotation['kind'];
+  },
+): IdbAnnotation {
+  if (typeof a.groupId !== 'number') {
+    throw new Error(
+      `Annotation ${a.id} is missing required field 'groupId' — corrupt data.`,
+    );
+  }
+  if (a.kind === 'callout') {
+    return { ...a, text: a.text ?? '' } as IdbAnnotation;
+  }
+  return a as IdbAnnotation;
 }

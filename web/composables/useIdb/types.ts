@@ -67,3 +67,72 @@ export interface IdbBuildStep {
   description: string;
   createdAt: string;
 }
+
+// ─── Scenes ─────────────────────────────────────────────────────────────────
+
+export type CameraMode = 'perspective' | 'orthographic';
+
+export interface CameraPose {
+  position: [number, number, number];
+  target: [number, number, number];
+}
+
+/**
+ * A captured viewer state. Per-Object offsets and visibility are keyed by
+ * `groupId` (the source-file node identity), never `batchId`.
+ *
+ * `visibleObjects === undefined` means "all visible" — distinct from `[]`
+ * which means "all hidden".
+ */
+export interface IdbScene {
+  id: string;
+  projectId: string;
+  name: string;
+  /** Contiguous 0..N-1 within a project. */
+  order: number;
+  cameraMode: CameraMode;
+  cameraPose: CameraPose;
+  /** Per-Object positional offsets, keyed by groupId. */
+  objectOffsets: Record<number, [number, number, number]>;
+  /** groupId[] of currently visible Objects. `undefined` ≡ all visible. */
+  visibleObjects?: number[];
+  floorVisible: boolean;
+  /** Data URL for a thumbnail rendered at capture time. */
+  thumbnailDataUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Annotations ────────────────────────────────────────────────────────────
+
+export type AnnotationKind = 'callout' | 'dimension';
+
+interface IdbAnnotationBase {
+  id: string;
+  sceneId: string;
+  kind: AnnotationKind;
+  /** Anchor Object — the groupId this annotation follows. */
+  groupId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IdbCallout extends IdbAnnotationBase {
+  kind: 'callout';
+  anchorLocal: [number, number, number];
+  anchorNormalLocal: [number, number, number];
+  labelOffsetLocal: [number, number, number];
+  text: string;
+}
+
+export interface IdbDimension extends IdbAnnotationBase {
+  kind: 'dimension';
+  anchor1Local: [number, number, number];
+  anchor2Local: [number, number, number];
+  /** Perpendicular to the edge, world-axis snapped at capture time. */
+  offsetLocal: [number, number, number];
+  /** Optional label override; falls back to the auto-formatted distance. */
+  text?: string;
+}
+
+export type IdbAnnotation = IdbCallout | IdbDimension;

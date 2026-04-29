@@ -12,11 +12,21 @@ export {
   useIdbErrors,
   applyProjectDefaults,
   applyModelDefaults,
+  applySceneDefaults,
+  applyAnnotationDefaults,
 } from './useIdb/index';
 export type {
+  AnnotationPatch,
   IdbProject,
   PartOverride,
   IdbModel,
   IdbModelMeta,
   IdbBuildStep,
+  IdbScene,
+  IdbAnnotation,
+  IdbCallout,
+  IdbDimension,
+  AnnotationKind,
+  CameraMode,
+  CameraPose,
 } from './useIdb/index';
