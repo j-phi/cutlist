@@ -49,7 +49,7 @@ export default function useThreeViewer(
     offBus.push(
       core.on('pick', (e) => {
         if (!core) return;
-        const part = e.result ? partNumberFor(core, e.result.groupId) : null;
+        const part = e.result ? core.partNumberOf(e.result.groupId) : null;
         store.hoveredPartNumber.value = part;
       }),
     );
@@ -95,18 +95,6 @@ export default function useThreeViewer(
     );
   }
 
-  function partNumberFor(c: Core, groupId: ObjectId): number | null {
-    return (
-      (
-        c as unknown as {
-          registry: {
-            get: (id: ObjectId) => { partNumber: number } | undefined;
-          };
-        }
-      ).registry?.get(groupId)?.partNumber ?? null
-    );
-  }
-
   watch(
     container,
     async (el) => {
@@ -129,30 +117,20 @@ export default function useThreeViewer(
       if (!core) return;
       const hoveredIds = new Set<ObjectId>();
       if (hoveredPart != null)
-        for (const id of idsForPart(core, hoveredPart as number))
+        for (const id of core.groupIdsForPart(hoveredPart as number))
           hoveredIds.add(id);
       if (hoveredGroup != null) hoveredIds.add(hoveredGroup as ObjectId);
       core.setHoveredObjects([...hoveredIds]);
 
       const selectedIds = new Set<ObjectId>();
       if (selectedPart != null)
-        for (const id of idsForPart(core, selectedPart as number))
+        for (const id of core.groupIdsForPart(selectedPart as number))
           selectedIds.add(id);
       for (const id of (selectedGroups as Set<ObjectId>) ?? [])
         selectedIds.add(id);
       core.setSelectedObjects([...selectedIds]);
     },
   );
-
-  function idsForPart(c: Core, partNumber: number): ObjectId[] {
-    const reg = (
-      c as unknown as {
-        registry: { filterByPart: (n: number) => Array<{ groupId: ObjectId }> };
-      }
-    ).registry;
-    if (!reg) return [];
-    return reg.filterByPart(partNumber).map((r) => r.groupId);
-  }
 
   onUnmounted(() => {
     for (const off of offBus) off();

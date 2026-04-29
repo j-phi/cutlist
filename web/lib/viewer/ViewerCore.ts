@@ -633,6 +633,15 @@ export class ViewerCore {
     return out;
   }
 
+  partNumberOf(groupId: ObjectId): number | null {
+    return this.registry?.get(groupId)?.partNumber ?? null;
+  }
+
+  groupIdsForPart(partNumber: number): ObjectId[] {
+    if (!this.registry) return [];
+    return this.registry.filterByPart(partNumber).map((r) => r.groupId);
+  }
+
   // ── Raycast / snap ───────────────────────────────────────────────
 
   raycastFromClient(clientX: number, clientY: number): PickResult | null {
