@@ -28,7 +28,7 @@ export class Highlighter {
   private batched: BatchedMesh | null = null;
   private material: MeshStandardMaterial | null = null;
   private originalColors = new Map<number, [number, number, number, number]>();
-  private hoveredId: ObjectId | null = null;
+  private hoveredIds = new Set<ObjectId>();
   private selectedIds = new Set<ObjectId>();
   private disposed = false;
 
@@ -49,17 +49,18 @@ export class Highlighter {
     this.batched = null;
     this.material = null;
     this.originalColors = new Map();
-    this.hoveredId = null;
+    this.hoveredIds.clear();
     this.selectedIds.clear();
   }
 
-  setHovered(id: ObjectId | null): void {
-    if (this.hoveredId === id) return;
-    this.hoveredId = id;
+  setHovered(ids: ObjectId[]): void {
+    if (sameSet(this.hoveredIds, ids)) return;
+    this.hoveredIds = new Set(ids);
     this.apply();
   }
 
   setSelected(ids: ObjectId[]): void {
+    if (sameSet(this.selectedIds, ids)) return;
     this.selectedIds = new Set(ids);
     this.apply();
   }
@@ -75,7 +76,7 @@ export class Highlighter {
       if (!r) return;
       for (const b of r.batchIds) targets.add(b);
     };
-    if (this.hoveredId != null) collect(this.hoveredId);
+    for (const hid of this.hoveredIds) collect(hid);
     for (const sid of this.selectedIds) collect(sid);
 
     const anyHighlight = targets.size > 0;
@@ -110,4 +111,10 @@ export class Highlighter {
     this.disposed = true;
     this.detach();
   }
+}
+
+function sameSet(a: Set<ObjectId>, b: ObjectId[]): boolean {
+  if (a.size !== b.length) return false;
+  for (const x of b) if (!a.has(x)) return false;
+  return true;
 }

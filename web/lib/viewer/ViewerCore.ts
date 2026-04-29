@@ -240,14 +240,14 @@ export class ViewerCore {
 
     // Pick events drive the highlighter; selection events too.
     this.bus.on('pick', (e) =>
-      this.highlighter?.setHovered(e.result?.groupId ?? null),
+      this.highlighter?.setHovered(e.result ? [e.result.groupId] : []),
     );
     this.bus.on('selection-changed', (e) =>
       this.highlighter?.setSelected(e.groupIds),
     );
 
     this.cameraRig.controls.addEventListener('end', () => {
-      this.highlighter?.setHovered(null);
+      this.highlighter?.setHovered([]);
     });
 
     this.renderer.start(() => {
@@ -584,8 +584,11 @@ export class ViewerCore {
     this.highlighter?.setSelected(ids);
     this.bus.emit({ type: 'selection-changed', groupIds: ids });
   }
+  setHoveredObjects(ids: ObjectId[]): void {
+    this.highlighter?.setHovered(ids);
+  }
   setHoveredObject(id: ObjectId | null): void {
-    this.highlighter?.setHovered(id);
+    this.highlighter?.setHovered(id == null ? [] : [id]);
   }
 
   // ── Raycast / snap ───────────────────────────────────────────────

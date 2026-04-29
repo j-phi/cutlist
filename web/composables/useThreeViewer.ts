@@ -86,17 +86,15 @@ export default function useThreeViewer(
   );
 
   // Re-apply hover/select when the underlying part number store changes
-  // (driven from BomTab clicks etc.).
+  // (driven from BomTab clicks etc.). A Part can map to many Objects, so we
+  // fan the partNumber out to every groupId in that part-group.
   watch(
-    () => store.hoveredPartNumber.value ?? store.selectedPartNumber.value,
-    (partNumber) => {
+    () => [store.hoveredPartNumber.value, store.selectedPartNumber.value],
+    ([hovered, selected]) => {
       if (!core) return;
-      const ids = partNumber == null ? [] : idsForPart(core, partNumber);
-      core.setHoveredObject(partNumber == null ? null : (ids[0] ?? null));
+      core.setHoveredObjects(hovered == null ? [] : idsForPart(core, hovered));
       core.setSelectedObjects(
-        store.selectedPartNumber.value == null
-          ? []
-          : idsForPart(core, store.selectedPartNumber.value),
+        selected == null ? [] : idsForPart(core, selected),
       );
     },
   );
@@ -133,6 +131,7 @@ export default function useThreeViewer(
     applyViewPreset: (preset: ViewPreset) => core?.applyViewPreset(preset),
     setSelectedObjects: (ids: ObjectId[]) => core?.setSelectedObjects(ids),
     setHoveredObject: (id: ObjectId | null) => core?.setHoveredObject(id),
+    setHoveredObjects: (ids: ObjectId[]) => core?.setHoveredObjects(ids),
     setGizmoMode: (mode: GizmoMode) => core?.setGizmoMode(mode),
     resetSelectedOffsets: (ids: ObjectId[]) => core?.resetSelectedOffsets(ids),
     resetAllOffsets: () => core?.resetAllOffsets(),
