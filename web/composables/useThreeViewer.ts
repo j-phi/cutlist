@@ -27,10 +27,16 @@ export default function useThreeViewer(
 ) {
   const store = useModelViewerStore();
   const ready = ref(false);
+  const cameraDirection = ref<{ x: number; y: number; z: number }>({
+    x: 0,
+    y: 0,
+    z: 1,
+  });
 
   type Core = import('~/lib/viewer/ViewerCore').ViewerCore;
   let core: Core | null = null;
   const offBus: Array<() => void> = [];
+  let offFrame: (() => void) | null = null;
 
   async function init(el: HTMLElement) {
     const { ViewerCore } = await import('~/lib/viewer/ViewerCore');
@@ -47,6 +53,20 @@ export default function useThreeViewer(
         store.hoveredPartNumber.value = part;
       }),
     );
+
+    let lastDirUpdate = 0;
+    offFrame = core.onFrame(() => {
+      if (!core) return;
+      const now =
+        typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (now - lastDirUpdate < 16) return;
+      lastDirUpdate = now;
+      const [x, y, z] = core.getCameraDirection();
+      const cur = cameraDirection.value;
+      if (cur.x !== x || cur.y !== y || cur.z !== z) {
+        cameraDirection.value = { x, y, z };
+      }
+    });
 
     offBus.push(
       core.on('selection-changed', (e) => {
@@ -112,6 +132,8 @@ export default function useThreeViewer(
   onUnmounted(() => {
     for (const off of offBus) off();
     offBus.length = 0;
+    offFrame?.();
+    offFrame = null;
     core?.dispose();
     core = null;
     ready.value = false;
@@ -119,6 +141,7 @@ export default function useThreeViewer(
 
   return {
     ready,
+    cameraDirection,
     loadModel: (graph: ObjectGraph, partNumberOffset?: number) =>
       core?.loadModel(graph, partNumberOffset),
     clearModels: () => core?.clearModels(),
@@ -132,11 +155,18 @@ export default function useThreeViewer(
     setSelectedObjects: (ids: ObjectId[]) => core?.setSelectedObjects(ids),
     setHoveredObject: (id: ObjectId | null) => core?.setHoveredObject(id),
     setHoveredObjects: (ids: ObjectId[]) => core?.setHoveredObjects(ids),
+    setObjectVisible: (id: ObjectId, visible: boolean) =>
+      core?.setObjectVisible(id, visible),
+    setAllObjectsVisible: (visible: boolean) =>
+      core?.setAllObjectsVisible(visible),
+    getObjects: () => core?.getObjects() ?? [],
     setGizmoMode: (mode: GizmoMode) => core?.setGizmoMode(mode),
     resetSelectedOffsets: (ids: ObjectId[]) => core?.resetSelectedOffsets(ids),
     resetAllOffsets: () => core?.resetAllOffsets(),
-    setInteractionMode: (mode: InteractionMode) =>
-      core?.setInteractionMode(mode),
+    setInteractionMode: (
+      mode: InteractionMode,
+      handler?: import('~/lib/viewer/modules/InputRouter').PickHandler,
+    ) => core?.setInteractionMode(mode, handler),
     setFloorVisible: (v: boolean) => core?.setFloorVisible(v),
     getFloorVisible: () => core?.getFloorVisible() ?? true,
     setRenderedLeaders: (specs: Map<string, RenderedLeaderSpec>) =>

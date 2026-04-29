@@ -1,5 +1,16 @@
 <script lang="ts" setup>
 import type { BoardLayoutLeftover } from 'cutlist';
+import type { CameraMode } from '~/composables/useIdb';
+import type { ViewPreset } from '~/lib/viewer/types';
+import type {
+  GroupId,
+  ObjectGraph,
+  ObjectNode,
+  PartNumber,
+} from '~/utils/types';
+import ViewCube from '~/components/viewer/ViewCube.vue';
+import ObjectsPanel from '~/components/viewer/ObjectsPanel.vue';
+import { useSceneAuthor } from '~/composables/useSceneAuthor';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 
 const props = withDefaults(
@@ -86,6 +97,36 @@ watch(
   { immediate: true },
 );
 
+const loadedGraph = ref<ObjectGraph | null>(null);
+
+function shiftGraph(graph: ObjectGraph, offset: number): ObjectGraph {
+  if (offset === 0) return graph;
+  const objects: ObjectNode[] = graph.objects.map((o) => ({
+    ...o,
+    groupId: o.groupId + offset,
+    partNumber: o.partNumber + offset,
+  }));
+  const partIndex = new Map<PartNumber, ObjectNode[]>();
+  for (const o of objects) {
+    const list = partIndex.get(o.partNumber);
+    if (list) list.push(o);
+    else partIndex.set(o.partNumber, [o]);
+  }
+  const objectIndex = new Map<GroupId, ObjectNode>();
+  for (const o of objects) objectIndex.set(o.groupId, o);
+  const parts = graph.parts.map((p) => ({
+    ...p,
+    partNumber: p.partNumber + offset,
+  }));
+  return {
+    ...graph,
+    parts,
+    objects,
+    objectIndex,
+    partIndex,
+  };
+}
+
 async function loadAllModels() {
   const data = allRawData.value;
   if (!data || !viewer.ready.value) return;
@@ -93,6 +134,7 @@ async function loadAllModels() {
   const { resolveModelScene } = await import('~/utils/resolveModelScene');
 
   viewer.clearModels();
+  loadedGraph.value = null;
 
   // Use offsets from ALL enabled models so part numbers stay consistent with BOM
   const allOffsets = computePartNumberOffsets(enabledModels.value);
@@ -107,7 +149,10 @@ async function loadAllModels() {
         source: entry.source,
         rawSource: entry.raw,
       });
-      if (graph) await viewer.loadModel(graph, offset);
+      if (graph) {
+        await viewer.loadModel(graph, offset);
+        loadedGraph.value = shiftGraph(graph, offset);
+      }
     }
   }
 }
@@ -133,6 +178,39 @@ const infoPart = computed(
     findPart(store.selectedPartNumber.value) ??
     findPart(store.hoveredPartNumber.value),
 );
+
+const cameraMode = ref<CameraMode>('perspective');
+const floorVisible = ref(true);
+
+const sceneAuthor = useSceneAuthor({
+  setObjectVisible: (id, visible) => viewer.setObjectVisible(id, visible),
+  setAllObjectsVisible: (visible) => viewer.setAllObjectsVisible(visible),
+  resetAllOffsets: () => viewer.resetAllOffsets(),
+  getObjectIds: () => loadedGraph.value?.objects.map((o) => o.groupId) ?? [],
+});
+
+watch(
+  () => viewer.ready.value,
+  (isReady) => {
+    if (!isReady) return;
+    cameraMode.value = viewer.getCameraMode();
+    floorVisible.value = viewer.getFloorVisible();
+  },
+);
+
+function onSnap(preset: ViewPreset) {
+  viewer.applyViewPreset(preset);
+}
+
+function onCameraMode(mode: CameraMode) {
+  cameraMode.value = mode;
+  viewer.setCameraMode(mode);
+}
+
+function onFloorVisible(v: boolean) {
+  floorVisible.value = v;
+  viewer.setFloorVisible(v);
+}
 </script>
 
 <template>
@@ -204,6 +282,31 @@ const infoPart = computed(
           icon="i-lucide-expand"
           label="Open model view"
           @click="emit('expand')"
+        />
+      </div>
+
+      <!-- Objects panel (left sidebar) -->
+      <div
+        v-if="hasModelData && !hasOnlyManualModels && loadedGraph"
+        class="absolute top-4 left-4 z-10"
+        :class="enabledModels.length > 1 ? 'top-16' : 'top-4'"
+      >
+        <ObjectsPanel :graph="loadedGraph" :author="sceneAuthor" />
+      </div>
+
+      <!-- View cube + projection / floor toggles -->
+      <div
+        v-if="hasModelData && !hasOnlyManualModels"
+        class="absolute top-4 z-10"
+        :class="props.showOpenButton ? 'right-44' : 'right-4'"
+      >
+        <ViewCube
+          :camera-direction="viewer.cameraDirection.value"
+          :camera-mode="cameraMode"
+          :floor-visible="floorVisible"
+          @snap="onSnap"
+          @update:camera-mode="onCameraMode"
+          @update:floor-visible="onFloorVisible"
         />
       </div>
 

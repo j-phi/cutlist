@@ -16,6 +16,7 @@ import { SceneGraph } from './modules/SceneGraph';
 import { ObjectRegistry } from './modules/ObjectRegistry';
 import { CameraRig } from './modules/CameraRig';
 import { InputRouter } from './modules/InputRouter';
+import type { PickHandler } from './modules/InputRouter';
 import { Highlighter } from './modules/Highlighter';
 import { GizmoController } from './modules/GizmoController';
 import { LeaderManager } from './modules/LeaderManager';
@@ -502,6 +503,11 @@ export class ViewerCore {
   applyViewPreset(preset: ViewPreset): void {
     this.cameraRig?.applyViewPreset(preset, this.sceneBounds);
   }
+  getCameraDirection(): Vec3 {
+    if (!this.cameraRig) return [0, 0, 1];
+    const d = this.cameraRig.getDirection();
+    return [d.x, d.y, d.z];
+  }
   fit(): void {
     if (!this.cameraRig || !this.sceneBounds) return;
     this.cameraRig.fit(this.sceneBounds);
@@ -591,6 +597,37 @@ export class ViewerCore {
     this.highlighter?.setHovered(id == null ? [] : [id]);
   }
 
+  // ── Visibility ───────────────────────────────────────────────────
+
+  setObjectVisible(id: ObjectId, visible: boolean): void {
+    if (!this.batched || !this.registry) return;
+    const r = this.registry.get(id);
+    if (!r) return;
+    for (const b of r.batchIds) this.batched.setVisibleAt(b, visible);
+    this.renderer?.requestRender();
+  }
+
+  setAllObjectsVisible(visible: boolean): void {
+    if (!this.batched || !this.registry) return;
+    this.registry.forEach((r) => {
+      for (const b of r.batchIds) this.batched!.setVisibleAt(b, visible);
+    });
+    this.renderer?.requestRender();
+  }
+
+  /** Read-only snapshot of registered Objects (groupId, partNumber, name). */
+  getObjects(): Array<{ groupId: ObjectId; partNumber: number; name: string }> {
+    const out: Array<{
+      groupId: ObjectId;
+      partNumber: number;
+      name: string;
+    }> = [];
+    this.registry?.forEach((r) => {
+      out.push({ groupId: r.groupId, partNumber: r.partNumber, name: r.name });
+    });
+    return out;
+  }
+
   // ── Raycast / snap ───────────────────────────────────────────────
 
   raycastFromClient(clientX: number, clientY: number): PickResult | null {
@@ -670,8 +707,8 @@ export class ViewerCore {
   resetAllOffsets(): void {
     this.gizmo?.resetAllOffsets();
   }
-  setInteractionMode(mode: InteractionMode): void {
-    this.input?.setMode(mode);
+  setInteractionMode(mode: InteractionMode, handler?: PickHandler): void {
+    this.input?.setMode(mode, handler);
   }
 
   // ── Annotations ──────────────────────────────────────────────────
