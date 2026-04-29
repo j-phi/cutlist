@@ -1,7 +1,7 @@
 /**
- * Projects every annotation's label anchor from Object-local space to
- * canvas space, once per frame, and (optionally) collects 3D leader specs
- * for the LeaderManager.
+ * Projects every annotation's label anchor from world space to canvas space,
+ * once per frame, and (optionally) collects 3D leader specs for the
+ * LeaderManager.
  *
  * The Vue overlay watches `version` to know when to re-read positions.
  * Mutating a single in-place Map + bumping a ref is cheaper than allocating
@@ -9,14 +9,19 @@
  * instead of N per-key writes.
  *
  * Each annotation kind contributes a `KindHooks` entry to this projector:
- *   - `primaryLocal(annotation)` returns the Object-local point that the
+ *   - `primaryWorld(annotation, lookup)` returns the world-space point the
  *     LABEL renders at — i.e. the leader's far end, not the face anchor —
  *     so the label DOM lands at the projected world position, not buried
- *     in the geometry.
+ *     in the geometry. Returning `null` drops the annotation for the frame.
+ *   - `auxWorld(annotation, lookup)` (optional) returns extra world-space
+ *     points to project; their `ScreenPos` results land in
+ *     `getAuxScreenPositions().get(id)` in the same order. Used by
+ *     dimensions to pin the label to the screen-space midpoint of the main
+ *     line and rotate to the line angle.
  *   - `leaderSpec(annotation, lookup)` builds the 3D line(s) the
- *     LeaderManager should render. Optional — kinds without leaders just
- *     omit it. The `lookup` is a closure over `objectLocalToWorld` so the
- *     hook stays a pure function of the annotation.
+ *     LeaderManager should render. Optional. May return a single spec or an
+ *     array — arrays are emitted as composite ids `${id}#0`, `${id}#1`, …
+ *     so the LeaderManager doesn't need to know about multi-segment kinds.
  *
  * Built-in defaults exist for callouts and dimensions so the v1 framework
  * keeps working before specific kinds register richer hooks; calling
@@ -46,11 +51,18 @@ export interface ScreenPos {
 export type ObjectLocalToWorld = (groupId: GroupId, local: Vec3) => Vec3 | null;
 
 export interface KindHooks<A extends IdbAnnotation = IdbAnnotation> {
-  primaryLocal(annotation: A): Vec3;
+  /** World-space point the label renders at. Return null to drop for the frame. */
+  primaryWorld(annotation: A, lookup: ObjectLocalToWorld): Vec3 | null;
+  /**
+   * Optional auxiliary world points; their projected positions are stored at
+   * `getAuxScreenPositions().get(id)` in the same order. Returning `null` is
+   * equivalent to omitting the hook (no aux entries for that annotation).
+   */
+  auxWorld?(annotation: A, lookup: ObjectLocalToWorld): Vec3[] | null;
   leaderSpec?(
     annotation: A,
     lookup: ObjectLocalToWorld,
-  ): RenderedLeaderSpec | null;
+  ): RenderedLeaderSpec | RenderedLeaderSpec[] | null;
 }
 
 export interface ProjectorViewer {
@@ -69,6 +81,7 @@ export interface ProjectorViewer {
 export class AnnotationProjector {
   readonly version: Ref<number> = ref(0);
   private positions = new Map<string, ScreenPos>();
+  private auxPositions = new Map<string, ScreenPos[]>();
   private leaderSpecs = new Map<string, RenderedLeaderSpec>();
   private hooks = new Map<AnnotationKind, KindHooks>();
   private off: (() => void) | null = null;
@@ -110,20 +123,26 @@ export class AnnotationProjector {
     return this.positions;
   }
 
+  /** Aux screen positions keyed by annotation id. Empty when no kind opts in. */
+  getAuxScreenPositions(): ReadonlyMap<string, ScreenPos[]> {
+    return this.auxPositions;
+  }
+
   tick(): void {
     if (this.disposed) return;
     const seen = new Set<string>();
+    const seenAux = new Set<string>();
     const seenLeaders = new Set<string>();
     for (const a of this.getAnnotations()) {
       seen.add(a.id);
       const hooks = this.hooks.get(a.kind);
       if (!hooks) {
         this.positions.delete(a.id);
+        this.auxPositions.delete(a.id);
         this.leaderSpecs.delete(a.id);
         continue;
       }
-      const local = hooks.primaryLocal(a);
-      const world = this.viewer.objectLocalToWorld(a.groupId, local);
+      const world = hooks.primaryWorld(a, this.lookup);
       const screen = world ? this.viewer.worldToScreen(world) : null;
       if (!world || !screen) {
         this.positions.delete(a.id);
@@ -145,18 +164,43 @@ export class AnnotationProjector {
           });
         }
       }
+      if (hooks.auxWorld) {
+        const auxList = hooks.auxWorld(a, this.lookup);
+        if (auxList && auxList.length > 0) {
+          seenAux.add(a.id);
+          this.auxPositions.set(
+            a.id,
+            auxList.map((w) => {
+              const s = this.viewer.worldToScreen(w);
+              return {
+                x: s?.x ?? 0,
+                y: s?.y ?? 0,
+                inFront: s?.inFront ?? false,
+                worldAnchor: [w[0], w[1], w[2]],
+              };
+            }),
+          );
+        }
+      }
       if (hooks.leaderSpec) {
         const spec = hooks.leaderSpec(a, this.lookup);
-        if (spec) {
+        if (Array.isArray(spec)) {
+          for (let i = 0; i < spec.length; i++) {
+            const id = `${a.id}#${i}`;
+            seenLeaders.add(id);
+            this.leaderSpecs.set(id, spec[i]);
+          }
+        } else if (spec) {
           seenLeaders.add(a.id);
           this.leaderSpecs.set(a.id, spec);
-        } else {
-          this.leaderSpecs.delete(a.id);
         }
       }
     }
     for (const id of [...this.positions.keys()]) {
       if (!seen.has(id)) this.positions.delete(id);
+    }
+    for (const id of [...this.auxPositions.keys()]) {
+      if (!seenAux.has(id)) this.auxPositions.delete(id);
     }
     for (const id of [...this.leaderSpecs.keys()]) {
       if (!seenLeaders.has(id)) this.leaderSpecs.delete(id);
@@ -171,26 +215,32 @@ export class AnnotationProjector {
     this.off?.();
     this.off = null;
     this.positions.clear();
+    this.auxPositions.clear();
     this.leaderSpecs.clear();
   }
 }
 
 const defaultCalloutHooks: KindHooks<IdbCallout> = {
-  primaryLocal(a) {
-    return [
+  primaryWorld(a, lookup) {
+    return lookup(a.groupId, [
       a.anchorLocal[0] + a.labelOffsetLocal[0],
       a.anchorLocal[1] + a.labelOffsetLocal[1],
       a.anchorLocal[2] + a.labelOffsetLocal[2],
-    ];
+    ]);
   },
 };
 
+/**
+ * Fallback for dimensions before Spec 09's hooks register. Treats both
+ * anchors and the offset as living in `a.groupId`'s frame; the real
+ * dimension hooks handle the cross-Object case.
+ */
 const defaultDimensionHooks: KindHooks<IdbDimension> = {
-  primaryLocal(a) {
-    return [
-      (a.anchor1Local[0] + a.anchor2Local[0]) / 2 + a.offsetLocal[0],
-      (a.anchor1Local[1] + a.anchor2Local[1]) / 2 + a.offsetLocal[1],
-      (a.anchor1Local[2] + a.anchor2Local[2]) / 2 + a.offsetLocal[2],
-    ];
+  primaryWorld(a, lookup) {
+    return lookup(a.groupId, [
+      (a.anchor1.local[0] + a.anchor2.local[0]) / 2 + a.offsetLocal[0],
+      (a.anchor1.local[1] + a.anchor2.local[1]) / 2 + a.offsetLocal[1],
+      (a.anchor1.local[2] + a.anchor2.local[2]) / 2 + a.offsetLocal[2],
+    ]);
   },
 };

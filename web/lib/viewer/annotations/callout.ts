@@ -176,8 +176,8 @@ function placementFromFace(hit: PickResult | null): Placement | null {
 }
 
 export const calloutKindHooks: KindHooks<IdbCallout> = {
-  primaryLocal(a) {
-    return labelLocal(a);
+  primaryWorld(a, lookup) {
+    return lookup(a.groupId, labelLocal(a));
   },
   leaderSpec(a, lookup) {
     const start = lookup(a.groupId, a.anchorLocal);

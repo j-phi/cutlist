@@ -13,6 +13,7 @@ import ObjectsPanel from '~/components/viewer/ObjectsPanel.vue';
 import SceneTimeline from '~/components/viewer/SceneTimeline.vue';
 import AnnotationLabels from '~/components/viewer/AnnotationLabels.vue';
 import CalloutLabel from '~/components/viewer/CalloutLabel.vue';
+import DimensionLabel from '~/components/viewer/DimensionLabel.vue';
 import { useSceneAuthor } from '~/composables/useSceneAuthor';
 import { useScenes } from '~/composables/useScenes';
 import { useAnnotations } from '~/composables/useAnnotations';
@@ -22,6 +23,10 @@ import {
   calloutKindHooks,
   createCalloutHandler,
 } from '~/lib/viewer/annotations/callout';
+import {
+  createDimensionHandler,
+  createDimensionKindHooks,
+} from '~/lib/viewer/annotations/dimension';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 
 const props = withDefaults(
@@ -232,11 +237,21 @@ const visibleAnnotations = computed(() => {
   return annotationsApi.annotations.value.filter((a) => a.sceneId === sid);
 });
 
+const projectableAnnotations = computed(() => {
+  const list = visibleAnnotations.value;
+  const draft = annotationAuthor.preview.value;
+  if (draft && draft.sceneId === renderableSceneId.value) {
+    return [...list, draft];
+  }
+  return list;
+});
+
 const projector = new AnnotationProjector(
   viewer,
-  () => visibleAnnotations.value,
+  () => projectableAnnotations.value,
 );
 projector.registerKind('callout', calloutKindHooks);
+projector.registerKind('dimension', createDimensionKindHooks(viewer));
 
 watch(
   () => viewer.ready.value,
@@ -251,6 +266,15 @@ watch(
         activeSceneId: sceneAuthor.activeSceneId,
       }),
     );
+    annotationAuthor.registerHandler(
+      'dimension',
+      createDimensionHandler({
+        viewer,
+        annotationsApi,
+        activeSceneId: sceneAuthor.activeSceneId,
+        author: annotationAuthor,
+      }),
+    );
   },
   { immediate: true },
 );
@@ -262,7 +286,15 @@ function onAddCallout() {
   annotationAuthor.enter('callout');
 }
 
-const calloutKindComponents = { callout: CalloutLabel };
+function onAddDimension() {
+  if (!sceneAuthor.activeSceneId.value || sceneAuthor.tweening.value) return;
+  annotationAuthor.enter('dimension');
+}
+
+const annotationKindComponents = {
+  callout: CalloutLabel,
+  dimension: DimensionLabel,
+};
 
 async function onAddScene() {
   if (sceneAuthor.tweening.value) return;
@@ -348,14 +380,18 @@ function onFloorVisible(v: boolean) {
         :tweening="sceneAuthor.tweening.value"
         :projector="projector"
         :draft-id="annotationAuthor.draftId.value"
-        :kind-components="calloutKindComponents"
+        :preview="annotationAuthor.preview.value"
+        :kind-components="annotationKindComponents"
         :on-leader-opacity-scale="(s) => viewer.setLeaderOpacityScale(s)"
       />
 
-      <!-- Pick-mode hint -->
+      <!-- Pick-mode hint. `pointer-events: none` so the cursor never lands
+           on this overlay during a multi-step pick — otherwise the canvas
+           below would miss pointermove events between clicks (e.g. the
+           dimension offset preview would freeze). -->
       <div
         v-if="annotationAuthor.mode.value === 'pick'"
-        class="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 text-sm text-body shadow"
+        class="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 text-sm text-body shadow pointer-events-none"
       >
         {{ annotationAuthor.hint.value }}
       </div>
@@ -521,12 +557,39 @@ function onFloorVisible(v: boolean) {
             v-if="sceneAuthor.activeSceneId.value"
             size="xs"
             :color="
-              annotationAuthor.mode.value === 'pick' ? 'primary' : 'neutral'
+              annotationAuthor.mode.value === 'pick' &&
+              annotationAuthor.pickKind.value === 'callout'
+                ? 'primary'
+                : 'neutral'
             "
-            :variant="annotationAuthor.mode.value === 'pick' ? 'solid' : 'soft'"
+            :variant="
+              annotationAuthor.mode.value === 'pick' &&
+              annotationAuthor.pickKind.value === 'callout'
+                ? 'solid'
+                : 'soft'
+            "
             icon="i-lucide-message-square-text"
             label="Callout"
             @click="onAddCallout"
+          />
+          <UButton
+            v-if="sceneAuthor.activeSceneId.value"
+            size="xs"
+            :color="
+              annotationAuthor.mode.value === 'pick' &&
+              annotationAuthor.pickKind.value === 'dimension'
+                ? 'primary'
+                : 'neutral'
+            "
+            :variant="
+              annotationAuthor.mode.value === 'pick' &&
+              annotationAuthor.pickKind.value === 'dimension'
+                ? 'solid'
+                : 'soft'
+            "
+            icon="i-lucide-ruler"
+            label="Dimension"
+            @click="onAddDimension"
           />
           <UButton
             v-if="canUpdateScene"

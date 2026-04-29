@@ -119,6 +119,12 @@ export interface RenderedLeaderSpec {
   start: Vec3;
   end: Vec3;
   color?: number;
+  /**
+   * When true, the segment is drawn with a dashed pattern (witness lines on
+   * dimension annotations). Solid by default. The LeaderManager keeps a
+   * separate dashed material so toggling this flag is per-segment.
+   */
+  dashed?: boolean;
 }
 
 export type { CameraMode, CameraPose };

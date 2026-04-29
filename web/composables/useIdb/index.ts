@@ -76,6 +76,7 @@ export type {
   IdbAnnotation,
   IdbCallout,
   IdbDimension,
+  DimensionAnchor,
   AnnotationKind,
   CameraMode,
   CameraPose,

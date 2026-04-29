@@ -25,6 +25,7 @@ import type { ComputedRef, Ref } from 'vue';
 import type { PickHandler } from '~/lib/viewer/modules/InputRouter';
 import type { SnapTarget } from '~/lib/viewer/types';
 import type { UseAnnotationsApi } from '~/composables/useAnnotations';
+import type { IdbAnnotation } from '~/composables/useIdb';
 
 export type Mode = 'select' | 'pick';
 export type PickKind = 'callout' | 'dimension';
@@ -54,6 +55,14 @@ export interface AnnotationAuthor {
   pickKind: Ref<PickKind | null>;
   draftId: Ref<string | null>;
   hint: ComputedRef<string>;
+  /**
+   * Transient pre-commit annotation rendered alongside persisted ones — used
+   * by the dimension flow to live-preview the offset during step 3 before
+   * the user clicks to commit. Cleared automatically on `exit()`. The id
+   * lives in a private namespace (`__preview__`) so it never collides with a
+   * persisted annotation.
+   */
+  preview: Ref<IdbAnnotation | null>;
 
   enter(kind: PickKind): void;
   exit(): void;
@@ -61,7 +70,11 @@ export interface AnnotationAuthor {
 
   registerHandler(kind: PickKind, handler: PickKindHandler): () => void;
   clearDraft(): void;
+  setPreview(annotation: IdbAnnotation | null): void;
 }
+
+/** Stable id for the in-flight preview annotation. */
+export const PREVIEW_ANNOTATION_ID = '__preview__';
 
 export function useAnnotationAuthor(
   viewer: AnnotationAuthorViewer,
@@ -71,6 +84,7 @@ export function useAnnotationAuthor(
   const mode = ref<Mode>('select');
   const pickKind = ref<PickKind | null>(null);
   const draftId = ref<string | null>(null);
+  const preview = ref<IdbAnnotation | null>(null);
   const handlers = new Map<PickKind, PickKindHandler>();
 
   const hint = computed(() => {
@@ -125,6 +139,7 @@ export function useAnnotationAuthor(
     if (mode.value === 'select' && pickKind.value === null) return;
     mode.value = 'select';
     pickKind.value = null;
+    preview.value = null;
     viewer.setInteractionMode('select');
     viewer.setSnapHover?.(null);
   }
@@ -142,16 +157,22 @@ export function useAnnotationAuthor(
     draftId.value = null;
   }
 
+  function setPreview(annotation: IdbAnnotation | null): void {
+    preview.value = annotation;
+  }
+
   return {
     mode,
     pickKind,
     draftId,
     hint,
+    preview,
     enter,
     exit,
     cancel,
     registerHandler,
     clearDraft,
+    setPreview,
   };
 }
 

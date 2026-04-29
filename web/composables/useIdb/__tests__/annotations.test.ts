@@ -54,8 +54,8 @@ function makeDimension(
     sceneId,
     kind: 'dimension',
     groupId: 12,
-    anchor1Local: [0, 0, 0],
-    anchor2Local: [1, 0, 0],
+    anchor1: { groupId: 12, local: [0, 0, 0] },
+    anchor2: { groupId: 12, local: [1, 0, 0] },
     offsetLocal: [0, 0.5, 0],
     createdAt: now,
     updatedAt: now,
@@ -175,7 +175,7 @@ describe('annotations CRUD', () => {
         expect(row.anchorNormalLocal).toHaveLength(3);
       } else {
         // TS sees IdbDimension in this branch.
-        expect(row.anchor1Local).toHaveLength(3);
+        expect(row.anchor1.local).toHaveLength(3);
         expect(row.offsetLocal).toHaveLength(3);
       }
     }

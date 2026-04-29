@@ -1,7 +1,13 @@
 /**
- * One LineSegments2 per annotation, sharing a single LineMaterial. Spec 07
- * fills in the projector + cross-fade; this module owns the rendering surface
- * (the leaderGroup) and the reconcile API that future specs call.
+ * One LineSegments2 per annotation segment, sharing a small pool of
+ * LineMaterials (solid + dashed). Spec 07 fills in the projector + cross-fade;
+ * this module owns the rendering surface (the leaderGroup) and the reconcile
+ * API that future specs call.
+ *
+ * Dashed segments are required by dimension witness lines (Spec 09) — the
+ * `dashed` flag on `RenderedLeaderSpec` picks the material, and
+ * `computeLineDistances()` is re-run after every position update so the dash
+ * pattern stays consistent as the geometry resizes.
  */
 
 import type { SceneGraph } from './SceneGraph';
@@ -23,21 +29,39 @@ interface LeaderDeps {
 
 const BASE_LEADER_OPACITY = 0.9;
 
+interface ManagedLine {
+  line: LineSegments2;
+  /** Whether the line was last rendered using the dashed material. */
+  dashed: boolean;
+}
+
 export class LeaderManager {
-  private material: LineMaterial;
-  private lines = new Map<string, LineSegments2>();
+  private solid: LineMaterial;
+  private dashed: LineMaterial;
+  private lines = new Map<string, ManagedLine>();
   private opacityScale = 1;
   private disposed = false;
 
   constructor(private deps: LeaderDeps) {
     const { THREE, LineMaterial: LM, resolution } = deps;
-    this.material = new LM({
+    this.solid = new LM({
       color: 0xffffff,
       linewidth: 2,
       transparent: true,
       opacity: BASE_LEADER_OPACITY,
       depthTest: true,
       resolution: new THREE.Vector2(resolution.width, resolution.height),
+    });
+    this.dashed = new LM({
+      color: 0xffffff,
+      linewidth: 1.5,
+      transparent: true,
+      opacity: BASE_LEADER_OPACITY,
+      depthTest: true,
+      resolution: new THREE.Vector2(resolution.width, resolution.height),
+      dashed: true,
+      dashSize: 0.025,
+      gapSize: 0.018,
     });
   }
 
@@ -53,7 +77,8 @@ export class LeaderManager {
     const next = Math.max(0, Math.min(1, scale));
     if (this.opacityScale === next) return;
     this.opacityScale = next;
-    this.material.opacity = BASE_LEADER_OPACITY * next;
+    this.solid.opacity = BASE_LEADER_OPACITY * next;
+    this.dashed.opacity = BASE_LEADER_OPACITY * next;
     this.deps.requestRender();
   }
 
@@ -62,7 +87,7 @@ export class LeaderManager {
     const seen = new Set<string>();
     for (const [id, spec] of specs) {
       seen.add(id);
-      let line = this.lines.get(id);
+      const wantsDashed = spec.dashed === true;
       const positions = new Float32Array([
         spec.start[0],
         spec.start[1],
@@ -71,24 +96,42 @@ export class LeaderManager {
         spec.end[1],
         spec.end[2],
       ]);
-      if (!line) {
+      const existing = this.lines.get(id);
+      // Material can change between frames (e.g. the on-edge dimension
+      // mode swaps tick caps for witness lines mid-drag). When that happens
+      // we recreate the LineSegments2 — `LineMaterial` and `LineMaterial
+      // dashed` share most state but Three.js doesn't hot-swap cleanly.
+      if (existing && existing.dashed !== wantsDashed) {
+        existing.line.geometry.dispose();
+        this.deps.sceneGraph.removeFromGroup('leaderGroup', existing.line);
+        this.lines.delete(id);
+      }
+      let managed = this.lines.get(id);
+      if (!managed) {
         const geom = new this.deps.LineSegmentsGeometry();
         geom.setPositions(positions);
-        line = new this.deps.LineSegments2(geom, this.material);
+        const mat = wantsDashed ? this.dashed : this.solid;
+        const line = new this.deps.LineSegments2(geom, mat);
         line.computeLineDistances();
         line.raycast = () => {};
+        line.frustumCulled = false;
         this.deps.sceneGraph.addToGroup('leaderGroup', line);
-        this.lines.set(id, line);
+        managed = { line, dashed: wantsDashed };
+        this.lines.set(id, managed);
       } else {
-        (
-          line.geometry as InstanceType<typeof this.deps.LineSegmentsGeometry>
-        ).setPositions(positions);
+        const geom = managed.line.geometry as InstanceType<
+          typeof this.deps.LineSegmentsGeometry
+        >;
+        geom.setPositions(positions);
+        // Recompute line distances so the dash pattern stays consistent
+        // when the segment length changes mid-drag.
+        managed.line.computeLineDistances();
       }
     }
-    for (const [id, line] of this.lines) {
+    for (const [id, managed] of this.lines) {
       if (!seen.has(id)) {
-        line.geometry.dispose();
-        this.deps.sceneGraph.removeFromGroup('leaderGroup', line);
+        managed.line.geometry.dispose();
+        this.deps.sceneGraph.removeFromGroup('leaderGroup', managed.line);
         this.lines.delete(id);
       }
     }
@@ -96,17 +139,19 @@ export class LeaderManager {
   }
 
   onResize(width: number, height: number): void {
-    this.material.resolution.set(width, height);
+    this.solid.resolution.set(width, height);
+    this.dashed.resolution.set(width, height);
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const line of this.lines.values()) {
-      line.geometry.dispose();
-      this.deps.sceneGraph.removeFromGroup('leaderGroup', line);
+    for (const managed of this.lines.values()) {
+      managed.line.geometry.dispose();
+      this.deps.sceneGraph.removeFromGroup('leaderGroup', managed.line);
     }
     this.lines.clear();
-    this.material.dispose();
+    this.solid.dispose();
+    this.dashed.dispose();
   }
 }

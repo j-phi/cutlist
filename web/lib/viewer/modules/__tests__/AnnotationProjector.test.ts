@@ -90,8 +90,8 @@ function dimension(
     sceneId: 's',
     kind: 'dimension',
     groupId,
-    anchor1Local: a1,
-    anchor2Local: a2,
+    anchor1: { groupId, local: a1 },
+    anchor2: { groupId, local: a2 },
     offsetLocal: offset,
     createdAt: now,
     updatedAt: now,
@@ -177,13 +177,13 @@ describe('AnnotationProjector', () => {
     expect(p.version.value).toBe(before + 2);
   });
 
-  it('Should let registerKind override the default primaryLocal', () => {
+  it('Should let registerKind override the default primaryWorld', () => {
     const v = makeViewer();
     const annotations: IdbAnnotation[] = [
       callout('a', 1, [3, 4, 0], [10, 10, 10]),
     ];
     const p = new AnnotationProjector(v, () => annotations);
-    p.registerKind('callout', { primaryLocal: () => [99, 99, 99] });
+    p.registerKind('callout', { primaryWorld: () => [99, 99, 99] });
     p.start();
     v.frameTick();
     expect(p.getScreenPositions().get('a')?.x).toBe(99);
@@ -195,7 +195,7 @@ describe('AnnotationProjector', () => {
       callout('a', 1, [3, 4, 0], [0, 0.5, 0]),
     ];
     const p = new AnnotationProjector(v, () => annotations);
-    const off = p.registerKind('callout', { primaryLocal: () => [0, 0, 0] });
+    const off = p.registerKind('callout', { primaryWorld: () => [0, 0, 0] });
     p.start();
     v.frameTick();
     expect(p.getScreenPositions().get('a')?.x).toBe(0);
@@ -214,7 +214,7 @@ describe('AnnotationProjector', () => {
     ];
     const p = new AnnotationProjector(v, () => annotations);
     p.registerKind('callout', {
-      primaryLocal: (a) => a.anchorLocal,
+      primaryWorld: (a, lookup) => lookup(a.groupId, a.anchorLocal),
       leaderSpec: (a, lookup) => {
         const start = lookup(a.groupId, a.anchorLocal);
         const end = lookup(a.groupId, [
@@ -235,6 +235,48 @@ describe('AnnotationProjector', () => {
     >;
     expect(map.get('a')?.start).toEqual([0, 0, 0]);
     expect(map.get('a')?.end).toEqual([0, 1, 0]);
+  });
+
+  it('Should emit composite ids when leaderSpec returns an array', () => {
+    const v = makeViewer();
+    const setRenderedLeaders = vi.fn();
+    (v as ProjectorViewer).setRenderedLeaders = setRenderedLeaders;
+    const annotations: IdbAnnotation[] = [callout('c', 1, [0, 0, 0])];
+    const p = new AnnotationProjector(v, () => annotations);
+    p.registerKind('callout', {
+      primaryWorld: () => [0, 0, 0],
+      leaderSpec: () => [
+        { start: [0, 0, 0], end: [1, 0, 0] },
+        { start: [0, 0, 0], end: [0, 1, 0] },
+      ],
+    });
+    p.start();
+    v.frameTick();
+    const map = setRenderedLeaders.mock.calls[0][0] as Map<
+      string,
+      { start: Vec3; end: Vec3 }
+    >;
+    expect([...map.keys()].sort()).toEqual(['c#0', 'c#1']);
+  });
+
+  it('Should project aux world points to a parallel screen-position map', () => {
+    const v = makeViewer();
+    const annotations: IdbAnnotation[] = [callout('c', 1, [0, 0, 0])];
+    const p = new AnnotationProjector(v, () => annotations);
+    p.registerKind('callout', {
+      primaryWorld: () => [0, 0, 0],
+      auxWorld: () => [
+        [3, 4, 0],
+        [9, 12, 0],
+      ],
+    });
+    p.start();
+    v.frameTick();
+    const aux = p.getAuxScreenPositions().get('c');
+    expect(aux).toHaveLength(2);
+    expect(aux![0].x).toBe(3);
+    expect(aux![0].y).toBe(4);
+    expect(aux![1].x).toBe(9);
   });
 
   it('Should stop ticking after dispose', () => {

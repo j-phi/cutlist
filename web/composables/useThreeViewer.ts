@@ -193,6 +193,13 @@ export default function useThreeViewer(
       worldDir: [number, number, number],
     ): [number, number, number] | null =>
       core?.worldDirToObjectLocal(groupId, worldDir) ?? null,
+    unprojectToPlane: (
+      x: number,
+      y: number,
+      planePoint: [number, number, number],
+      planeNormal: [number, number, number],
+    ): [number, number, number] | null =>
+      core?.unprojectToPlane(x, y, planePoint, planeNormal) ?? null,
     captureThumbnail: (w?: number, h?: number) =>
       core?.captureThumbnail(w, h) ?? null,
     applyObjectOffsets: (offsets: Map<ObjectId, ObjectOffset>) =>

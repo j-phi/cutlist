@@ -112,13 +112,18 @@ const CalloutSchema = z.object({
   updatedAt: z.string(),
 });
 
+const DimensionAnchorSchema = z.object({
+  groupId: z.number().int(),
+  local: Vec3Schema,
+});
+
 const DimensionSchema = z.object({
   id: z.string(),
   sceneId: z.string(),
   kind: z.literal('dimension'),
   groupId: z.number().int(),
-  anchor1Local: Vec3Schema,
-  anchor2Local: Vec3Schema,
+  anchor1: DimensionAnchorSchema,
+  anchor2: DimensionAnchorSchema,
   offsetLocal: Vec3Schema,
   text: z.string().optional(),
   createdAt: z.string(),

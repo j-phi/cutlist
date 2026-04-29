@@ -11,6 +11,13 @@
  * individually; we drive the global scale on the same curve. Specs 08 / 09
  * own the per-kind leader specs themselves.
  *
+ * Per-kind positioning:
+ *   - default: wrapper translate = projected `primaryWorld` (3D anchor).
+ *   - dimension (Spec 09): wrapper translate = screen-space midpoint of the
+ *     rendered main line, with a rotation matching the line's screen angle,
+ *     read from `projector.getAuxScreenPositions().get(id)` (two entries:
+ *     the projected main-line endpoints).
+ *
  * The kindComponents map stays empty in the v1 framework drop. Specs 08
  * and 09 register `CalloutLabel` and `DimensionLabel` against it so the
  * specific kinds can render without touching this file's plumbing.
@@ -27,6 +34,7 @@ const props = defineProps<{
   tweening: boolean;
   projector: AnnotationProjector;
   draftId?: string | null;
+  preview?: IdbAnnotation | null;
   kindComponents?: Partial<Record<AnnotationKind, Component>>;
   onLeaderOpacityScale?: (scale: number) => void;
 }>();
@@ -47,11 +55,15 @@ const renderableSceneId = computed(() => {
   return props.activeSceneId;
 });
 
-const visibleAnnotations = computed(() =>
-  renderableSceneId.value
-    ? props.annotations.filter((a) => a.sceneId === renderableSceneId.value)
-    : [],
-);
+const visibleAnnotations = computed(() => {
+  const sid = renderableSceneId.value;
+  if (!sid) return [];
+  const persisted = props.annotations.filter((a) => a.sceneId === sid);
+  if (props.preview && props.preview.sceneId === sid) {
+    return [...persisted, props.preview];
+  }
+  return persisted;
+});
 
 watch(
   fadeOpacity,
@@ -61,10 +73,26 @@ watch(
   { immediate: true },
 );
 
-function positionStyle(id: string): Record<string, string> {
+function positionStyle(ann: IdbAnnotation): Record<string, string> {
   // Track projector.version for reactivity, then read the latest position.
   void props.projector.version.value;
-  const pos = props.projector.getScreenPositions().get(id);
+  if (ann.kind === 'dimension') {
+    const aux = props.projector.getAuxScreenPositions().get(ann.id);
+    if (aux && aux.length >= 2 && aux[0].inFront && aux[1].inFront) {
+      const mx = (aux[0].x + aux[1].x) / 2;
+      const my = (aux[0].y + aux[1].y) / 2;
+      let angle = Math.atan2(aux[1].y - aux[0].y, aux[1].x - aux[0].x);
+      // Keep text upright — flip when the line points "backward".
+      if (angle > Math.PI / 2) angle -= Math.PI;
+      if (angle < -Math.PI / 2) angle += Math.PI;
+      return {
+        transform: `translate(${mx}px, ${my}px) rotate(${angle}rad) translate(-50%, -50%)`,
+        opacity: String(fadeOpacity.value),
+      };
+    }
+    return { display: 'none' };
+  }
+  const pos = props.projector.getScreenPositions().get(ann.id);
   if (!pos || !pos.inFront) {
     return { display: 'none' };
   }
@@ -91,7 +119,7 @@ function positionStyle(id: string): Record<string, string> {
         position: 'absolute',
         top: '0',
         left: '0',
-        ...positionStyle(ann.id),
+        ...positionStyle(ann),
       }"
     >
       <component

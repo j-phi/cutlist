@@ -40,9 +40,10 @@ export interface CreateCalloutInput {
 export interface CreateDimensionInput {
   kind: 'dimension';
   sceneId: string;
+  /** Owns the offset frame; typically equal to `anchor1.groupId`. */
   groupId: GroupId;
-  anchor1Local: Vec3;
-  anchor2Local: Vec3;
+  anchor1: { groupId: GroupId; local: Vec3 };
+  anchor2: { groupId: GroupId; local: Vec3 };
   offsetLocal: Vec3;
   text?: string;
 }
@@ -128,8 +129,8 @@ export function useAnnotations(): UseAnnotationsApi {
         : {
             ...base,
             kind: 'dimension',
-            anchor1Local: input.anchor1Local,
-            anchor2Local: input.anchor2Local,
+            anchor1: input.anchor1,
+            anchor2: input.anchor2,
             offsetLocal: input.offsetLocal,
             text: input.text,
           };

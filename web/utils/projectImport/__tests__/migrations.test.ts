@@ -35,7 +35,13 @@ describe('migration registry invariants', () => {
   });
 
   it('every migration has a valid store name', () => {
-    const validStores = ['projects', 'models', 'buildSteps'];
+    const validStores = [
+      'projects',
+      'models',
+      'buildSteps',
+      'scenes',
+      'annotations',
+    ];
     for (const m of migrations) {
       expect(validStores).toContain(m.store);
     }

@@ -291,9 +291,10 @@ describe('calloutKindHooks', () => {
     };
   }
 
-  it('Should return the label position (anchor + offset) for the projector', () => {
+  it('Should return the world label position (anchor + offset) for the projector', () => {
     const a = callout([1, 2, 3], [0, 0.5, 0]);
-    expect(calloutKindHooks.primaryLocal(a)).toEqual([1, 2.5, 3]);
+    const identity = (_g: number, l: Vec3): Vec3 => l;
+    expect(calloutKindHooks.primaryWorld(a, identity)).toEqual([1, 2.5, 3]);
   });
 
   it('Should build a leader from anchor → label using the lookup', () => {
@@ -305,6 +306,7 @@ describe('calloutKindHooks', () => {
     ];
     const spec = calloutKindHooks.leaderSpec!(a, lookup);
     expect(spec).not.toBeNull();
+    if (Array.isArray(spec)) throw new Error('expected single spec');
     expect(spec!.start).toEqual([10, 10, 10]);
     expect(spec!.end).toEqual([10, 10.5, 10]);
   });

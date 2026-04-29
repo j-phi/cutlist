@@ -232,6 +232,14 @@ export class ViewerCore {
       batchedMesh: () => this.batched,
       raycaster: () => this.raycaster!,
       screenRect: () => this.renderer!.domElement.getBoundingClientRect(),
+      // Visibility tracks the per-Object edgeLines flag set by
+      // `setObjectVisible`/`setAllObjectsVisible`. Hiding a part removes its
+      // BatchedMesh instance and edge lines, and the snap detector should
+      // follow suit so the user only snaps to what they can see.
+      isObjectVisible: (groupId) => {
+        const r = this.registry?.get(groupId);
+        return r?.edgeLines ? r.edgeLines.visible : true;
+      },
     });
 
     this.snapVisuals = new SnapVisuals({
@@ -481,13 +489,44 @@ export class ViewerCore {
     this.snapVisuals?.setHover(target);
   }
 
+  /**
+   * Cast a ray from the cursor through the camera and intersect it with the
+   * world-space plane defined by `(planePoint, planeNormal)`. Returns the
+   * intersection point in world space, or `null` when the ray is parallel
+   * to the plane or the viewer hasn't booted yet.
+   *
+   * Used by the dimension annotation flow to convert cursor motion into a
+   * world-space offset on a camera-aligned plane through the dimension
+   * line's midpoint.
+   */
   unprojectToPlane(
-    _clientX: number,
-    _clientY: number,
-    _planePoint: Vec3,
-    _planeNormal: Vec3,
+    clientX: number,
+    clientY: number,
+    planePoint: Vec3,
+    planeNormal: Vec3,
   ): Vec3 | null {
-    return null;
+    if (!this.cameraRig || !this.raycaster || !this.modules || !this.mouse)
+      return null;
+    const rect = this.renderer!.domElement.getBoundingClientRect();
+    this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.mouse, this.cameraRig.camera);
+    const ray = this.raycaster.ray;
+    const denom =
+      ray.direction.x * planeNormal[0] +
+      ray.direction.y * planeNormal[1] +
+      ray.direction.z * planeNormal[2];
+    if (Math.abs(denom) < 1e-9) return null;
+    const t =
+      ((planePoint[0] - ray.origin.x) * planeNormal[0] +
+        (planePoint[1] - ray.origin.y) * planeNormal[1] +
+        (planePoint[2] - ray.origin.z) * planeNormal[2]) /
+      denom;
+    return [
+      ray.origin.x + ray.direction.x * t,
+      ray.origin.y + ray.direction.y * t,
+      ray.origin.z + ray.direction.z * t,
+    ];
   }
 
   worldToScreen(

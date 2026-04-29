@@ -130,24 +130,16 @@ export class InputRouter {
   private onPointerMove = (event: PointerEvent) => {
     if (this.deps.isCameraMoving()) return;
     if (this.deps.isInputLocked?.()) return;
-    if (this.mode === 'pick' && this.pickHandler?.onPointerMove) {
-      // Throttle to 1/frame — pick handlers may do their own raycast.
-      this.lastPointer = { x: event.clientX, y: event.clientY };
-      if (this.rafPending) return;
-      this.rafPending = true;
-      requestAnimationFrame(() => {
-        this.rafPending = false;
-        if (this.disposed || !this.lastPointer) return;
-        this.pickHandler?.onPointerMove?.(this.lastPointer);
-      });
-      return;
-    }
     this.lastPointer = { x: event.clientX, y: event.clientY };
     if (this.rafPending) return;
     this.rafPending = true;
     requestAnimationFrame(() => {
       this.rafPending = false;
       if (this.disposed || !this.lastPointer) return;
+      if (this.mode === 'pick') {
+        this.pickHandler?.onPointerMove?.(this.lastPointer);
+        return;
+      }
       const result = this.deps.raycast(this.lastPointer.x, this.lastPointer.y);
       this.deps.bus.emit({ type: 'pick', result });
       this.deps.domElement.style.cursor = result ? 'pointer' : '';

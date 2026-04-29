@@ -159,11 +159,26 @@ export interface IdbCallout extends IdbAnnotationBase {
   text: string;
 }
 
+/**
+ * One end of a dimension. The `groupId` lets each anchor live on its own
+ * Object so the user can dimension *between* parts (e.g. drawer-side to
+ * drawer-front gap). `local` is the point in that Object's local frame.
+ */
+export interface DimensionAnchor {
+  groupId: number;
+  local: [number, number, number];
+}
+
 export interface IdbDimension extends IdbAnnotationBase {
   kind: 'dimension';
-  anchor1Local: [number, number, number];
-  anchor2Local: [number, number, number];
-  /** Perpendicular to the edge, world-axis snapped at capture time. */
+  /**
+   * The base `groupId` (inherited from `IdbAnnotationBase`) owns the offset
+   * frame: `offsetLocal` is expressed in that Object's local space.
+   * Typically equal to `anchor1.groupId`.
+   */
+  anchor1: DimensionAnchor;
+  anchor2: DimensionAnchor;
+  /** Perpendicular to the dimension line, world-axis snapped at capture time. */
   offsetLocal: [number, number, number];
   /** Optional label override; falls back to the auto-formatted distance. */
   text?: string;

@@ -100,6 +100,12 @@ export async function safeWrite<T>(fn: () => Promise<T>): Promise<T> {
       idbError.value =
         'Storage is full. Delete unused projects or clear browser data to free space.';
     }
+    // Surface a useful name + message in the console — Dexie's bundled
+    // error class often logs as the bare constructor name (`DexieError2`),
+    // which makes upstream debugging painful.
+    if (err instanceof Error) {
+      console.error(`[idb] write failed (${err.name}): ${err.message}`, err);
+    }
     throw err;
   }
 }

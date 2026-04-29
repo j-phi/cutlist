@@ -93,8 +93,8 @@ describe('useAnnotations — round-trip', () => {
       kind: 'dimension',
       sceneId,
       groupId: 7,
-      anchor1Local: [0, 0, 0],
-      anchor2Local: [1, 0, 0],
+      anchor1: { groupId: 7, local: [0, 0, 0] },
+      anchor2: { groupId: 7, local: [1, 0, 0] },
       offsetLocal: [0, 0.1, 0],
     });
 
@@ -102,8 +102,8 @@ describe('useAnnotations — round-trip', () => {
     expect(persisted).toHaveLength(1);
     expect(persisted[0].kind).toBe('dimension');
     if (persisted[0].kind === 'dimension') {
-      expect(persisted[0].anchor1Local).toEqual([0, 0, 0]);
-      expect(persisted[0].anchor2Local).toEqual([1, 0, 0]);
+      expect(persisted[0].anchor1).toEqual({ groupId: 7, local: [0, 0, 0] });
+      expect(persisted[0].anchor2).toEqual({ groupId: 7, local: [1, 0, 0] });
     }
   });
 });
