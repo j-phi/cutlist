@@ -1,0 +1,232 @@
+/**
+ * Builds a `BatchedMesh` and per-Object `ObjectRecord` set from an
+ * `ObjectGraph`. Owns the slice/attribute-normalize/instance-add pipeline
+ * and the per-Object edge-line construction. Returns the artifacts
+ * ViewerCore attaches to the scene and registry.
+ *
+ * No scene mutation here — the caller decides where the batched mesh and
+ * edge lines hang in the SceneGraph.
+ */
+
+import type { ObjectGraph, ObjectNode } from '~/utils/types';
+import type { ObjectId, ObjectRecord } from '../types';
+
+type BatchedMesh = import('three').BatchedMesh;
+type Box3 = import('three').Box3;
+type MeshStandardMaterial = import('three').MeshStandardMaterial;
+type LineMaterial = import('three/addons/lines/LineMaterial.js').LineMaterial;
+type LineSegments2 =
+  import('three/addons/lines/LineSegments2.js').LineSegments2;
+
+interface BatchLoaderDeps {
+  THREE: typeof import('three');
+  LineSegmentsGeometry: typeof import('three/addons/lines/LineSegmentsGeometry.js').LineSegmentsGeometry;
+  LineSegments2: typeof import('three/addons/lines/LineSegments2.js').LineSegments2;
+  batchMaterial: MeshStandardMaterial;
+  edgeMaterial: LineMaterial;
+}
+
+export interface BatchLoadResult {
+  batched: BatchedMesh;
+  batchToObjectId: Map<number, ObjectId>;
+  originalColors: Map<number, [number, number, number, number]>;
+  sceneBounds: Box3;
+  records: ObjectRecord[];
+  /** Convenience handle for attaching to the scene's edge group. */
+  edgeLines: LineSegments2[];
+}
+
+interface Slice {
+  object: ObjectNode;
+  geometry: import('three').BufferGeometry;
+  colorHex: string;
+}
+
+export class BatchLoader {
+  constructor(private deps: BatchLoaderDeps) {}
+
+  load(graph: ObjectGraph, partNumberOffset = 0): BatchLoadResult | null {
+    const { THREE, batchMaterial } = this.deps;
+
+    const slices: Slice[] = [];
+    for (const obj of graph.objects) {
+      for (const m of obj.meshes) {
+        slices.push({
+          object: obj,
+          geometry: m.geometry,
+          colorHex: m.colorHex,
+        });
+      }
+    }
+    if (slices.length === 0) return null;
+
+    this.normalizeAttributes(slices);
+
+    let totalVerts = 0;
+    let totalIdx = 0;
+    for (const s of slices) {
+      totalVerts += s.geometry.attributes.position.count;
+      totalIdx += s.geometry.index ? s.geometry.index.count : 0;
+    }
+
+    const batch = new THREE.BatchedMesh(
+      slices.length,
+      totalVerts,
+      totalIdx > 0 ? totalIdx : undefined,
+      batchMaterial,
+    );
+    batch.castShadow = true;
+    batch.receiveShadow = true;
+    batch.sortObjects = false;
+
+    const batchToObjectId = new Map<number, ObjectId>();
+    const originalColors = new Map<number, [number, number, number, number]>();
+    const idsByObject = new Map<ObjectId, number[]>();
+    const sceneBounds = new THREE.Box3();
+    const meshBox = new THREE.Box3();
+    const colorScratch = new THREE.Color();
+    const vec4 = new THREE.Vector4();
+
+    for (const s of slices) {
+      const geometryId = batch.addGeometry(s.geometry);
+      const instanceId = batch.addInstance(geometryId);
+      batch.setMatrixAt(instanceId, s.object.originalMatrix);
+
+      const hex = parseInt(s.colorHex.slice(1), 16);
+      const sr = ((hex >> 16) & 0xff) / 255;
+      const sg = ((hex >> 8) & 0xff) / 255;
+      const sb = (hex & 0xff) / 255;
+      colorScratch.setRGB(sr, sg, sb, THREE.SRGBColorSpace);
+      vec4.set(colorScratch.r, colorScratch.g, colorScratch.b, 1.0);
+      batch.setColorAt(instanceId, vec4);
+      originalColors.set(instanceId, [
+        colorScratch.r,
+        colorScratch.g,
+        colorScratch.b,
+        1.0,
+      ]);
+
+      const groupId = s.object.groupId + partNumberOffset;
+      batchToObjectId.set(instanceId, groupId);
+      const list = idsByObject.get(groupId);
+      if (list) list.push(instanceId);
+      else idsByObject.set(groupId, [instanceId]);
+
+      s.geometry.computeBoundingBox();
+      if (s.geometry.boundingBox) {
+        meshBox
+          .copy(s.geometry.boundingBox)
+          .applyMatrix4(s.object.originalMatrix);
+        sceneBounds.union(meshBox);
+      }
+    }
+
+    const records: ObjectRecord[] = [];
+    const edgeLines: LineSegments2[] = [];
+    for (const obj of graph.objects) {
+      const groupId = obj.groupId + partNumberOffset;
+      const partNumber = obj.partNumber + partNumberOffset;
+
+      const center = new THREE.Vector3();
+      meshBox.makeEmpty();
+      for (const m of obj.meshes) {
+        m.geometry.computeBoundingBox();
+        if (m.geometry.boundingBox) {
+          meshBox.union(
+            meshBox
+              .clone()
+              .copy(m.geometry.boundingBox)
+              .applyMatrix4(obj.originalMatrix),
+          );
+        }
+      }
+      if (!meshBox.isEmpty()) meshBox.getCenter(center);
+
+      const originalMatrixInverse = new THREE.Matrix4()
+        .copy(obj.originalMatrix)
+        .invert();
+
+      const edge = this.buildEdgeLines(obj);
+      if (edge) edgeLines.push(edge);
+
+      records.push({
+        groupId,
+        partNumber,
+        name: obj.name,
+        batchIds: idsByObject.get(groupId) ?? [],
+        originalMatrix: obj.originalMatrix.clone(),
+        originalMatrixInverse,
+        center,
+        offset: {
+          position: new THREE.Vector3(0, 0, 0),
+          quaternion: new THREE.Quaternion(0, 0, 0, 1),
+        },
+        offsetMatrix: new THREE.Matrix4(),
+        offsetMatrixInverse: new THREE.Matrix4(),
+        edgesLocal: obj.edgesLocal,
+        edgeLines: edge,
+      });
+    }
+
+    return {
+      batched: batch,
+      batchToObjectId,
+      originalColors,
+      sceneBounds,
+      records,
+      edgeLines,
+    };
+  }
+
+  private normalizeAttributes(slices: Slice[]): void {
+    const { THREE } = this.deps;
+    const allAttribs = new Set<string>();
+    for (const s of slices) {
+      for (const k of Object.keys(s.geometry.attributes)) allAttribs.add(k);
+    }
+    for (const s of slices) {
+      for (const name of allAttribs) {
+        if (s.geometry.attributes[name]) continue;
+        const ref = slices.find((x) => x.geometry.attributes[name])!;
+        const refAttr = ref.geometry.attributes[name];
+        const count = s.geometry.attributes.position.count;
+        s.geometry.setAttribute(
+          name,
+          new THREE.BufferAttribute(
+            new Float32Array(count * refAttr.itemSize),
+            refAttr.itemSize,
+          ),
+        );
+      }
+    }
+  }
+
+  private buildEdgeLines(obj: ObjectNode): LineSegments2 | null {
+    const { THREE, LineSegmentsGeometry, LineSegments2, edgeMaterial } =
+      this.deps;
+    if (obj.edgesLocal.length === 0) return null;
+    const lsg = new LineSegmentsGeometry();
+    // edgesLocal is in source-mesh local space; bake the originalMatrix into a
+    // world-space copy so the rendered LineSegments2 only needs to hold the
+    // Object's offset (position + quaternion).
+    const baked = new Float32Array(obj.edgesLocal.length);
+    const v = new THREE.Vector3();
+    for (let i = 0; i < obj.edgesLocal.length; i += 3) {
+      v.set(
+        obj.edgesLocal[i],
+        obj.edgesLocal[i + 1],
+        obj.edgesLocal[i + 2],
+      ).applyMatrix4(obj.originalMatrix);
+      baked[i] = v.x;
+      baked[i + 1] = v.y;
+      baked[i + 2] = v.z;
+    }
+    lsg.setPositions(baked);
+    const lines = new LineSegments2(lsg, edgeMaterial);
+    lines.computeLineDistances();
+    lines.raycast = () => {};
+    lines.castShadow = false;
+    lines.renderOrder = 1;
+    return lines;
+  }
+}

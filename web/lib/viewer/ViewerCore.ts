@@ -9,7 +9,7 @@
  * flag.
  */
 
-import type { ObjectGraph, ObjectNode } from '~/utils/types';
+import type { ObjectGraph } from '~/utils/types';
 import { EventBus } from './modules/EventBus';
 import { Renderer } from './modules/Renderer';
 import { SceneGraph } from './modules/SceneGraph';
@@ -20,13 +20,14 @@ import type { PickHandler } from './modules/InputRouter';
 import { Highlighter } from './modules/Highlighter';
 import { GizmoController } from './modules/GizmoController';
 import { LeaderManager } from './modules/LeaderManager';
+import { BatchLoader } from './modules/BatchLoader';
+import { Floor } from './modules/Floor';
 import type {
   CameraMode,
   CameraPose,
   GizmoMode,
   InteractionMode,
   ObjectId,
-  ObjectRecord,
   PickResult,
   RenderedLeaderSpec,
   SnapEdgeResult,
@@ -36,14 +37,9 @@ import type {
 } from './types';
 import type { ObjectOffset } from '~/composables/useIdb';
 
-type Mesh = import('three').Mesh;
 type BatchedMesh = import('three').BatchedMesh;
 type MeshStandardMaterial = import('three').MeshStandardMaterial;
 type LineMaterial = import('three/addons/lines/LineMaterial.js').LineMaterial;
-type LineSegmentsGeometry =
-  import('three/addons/lines/LineSegmentsGeometry.js').LineSegmentsGeometry;
-type LineSegments2Type =
-  import('three/addons/lines/LineSegments2.js').LineSegments2;
 
 interface Modules {
   THREE: typeof import('three');
@@ -83,48 +79,6 @@ async function loadModules(): Promise<Modules> {
   return _modules;
 }
 
-const GRID_VERTEX_SHADER = `
-  varying vec2 vUv;
-  varying vec2 vWorldPos;
-  void main() {
-    vUv = uv;
-    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-    vWorldPos = worldPos.xz;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const GRID_FRAGMENT_SHADER = `
-  uniform vec3 uColor1;
-  uniform vec3 uColor2;
-  uniform float uGridSize;
-  uniform float uLineWidth;
-  varying vec2 vUv;
-  varying vec2 vWorldPos;
-
-  void main() {
-    float distUV = length(vUv - 0.5) * 2.0;
-
-    vec2 grid = abs(fract(vWorldPos / uGridSize - 0.5) - 0.5);
-    float line = min(grid.x, grid.y);
-    float gridMask = 1.0 - smoothstep(0.0, uLineWidth / uGridSize, line);
-
-    float gridFade = 1.0 - smoothstep(0.15, 0.85, distUV);
-    gridFade *= gridFade;
-
-    float spotAlpha = 1.0 - smoothstep(0.0, 1.0, distUV);
-    spotAlpha *= spotAlpha;
-    float spotGlow = spotAlpha * 0.15;
-
-    float gridAlpha = gridMask * gridFade * 0.45;
-
-    vec3 color = mix(uColor2, uColor1, gridMask * gridFade);
-    float alpha = max(spotGlow, gridAlpha);
-
-    gl_FragColor = vec4(color, alpha);
-  }
-`;
-
 export class ViewerCore {
   readonly bus = new EventBus<ViewerEvent>();
   ready = false;
@@ -138,6 +92,8 @@ export class ViewerCore {
   private highlighter: Highlighter | null = null;
   private gizmo: GizmoController | null = null;
   private leaders: LeaderManager | null = null;
+  private batchLoader: BatchLoader | null = null;
+  private floor: Floor | null = null;
 
   private batched: BatchedMesh | null = null;
   private batchMaterial: MeshStandardMaterial | null = null;
@@ -145,7 +101,6 @@ export class ViewerCore {
   private originalColors = new Map<number, [number, number, number, number]>();
   private batchToObjectId = new Map<number, ObjectId>();
   private sceneBounds: import('three').Box3 | null = null;
-  private floorMesh: Mesh | null = null;
   private raycaster: import('three').Raycaster | null = null;
   private mouse: import('three').Vector2 | null = null;
   private loadGeneration = 0;
@@ -225,6 +180,20 @@ export class ViewerCore {
       resolution: new THREE.Vector2(rect.width, rect.height),
     });
 
+    this.batchLoader = new BatchLoader({
+      THREE,
+      LineSegmentsGeometry: modules.LineSegmentsGeometry,
+      LineSegments2: modules.LineSegments2,
+      batchMaterial: this.batchMaterial,
+      edgeMaterial: this.edgeMaterial,
+    });
+
+    this.floor = new Floor({
+      THREE,
+      sceneGraph: this.sceneGraph,
+      requestRender: () => this.renderer?.requestRender(),
+    });
+
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
 
@@ -280,193 +249,32 @@ export class ViewerCore {
   async loadModel(graph: ObjectGraph, partNumberOffset = 0): Promise<void> {
     if (!this.ready) await this.waitForReady();
     if (this.disposed) return;
-    const modules = this.modules!;
-    const { THREE } = modules;
     const sceneGraph = this.sceneGraph!;
     const registry = this.registry!;
     const renderer = this.renderer!;
-    const cameraRig = this.cameraRig!;
     const batchMaterial = this.batchMaterial!;
-    const edgeMaterial = this.edgeMaterial!;
 
     const gen = ++this.loadGeneration;
-
-    // Build flat list of mesh slices with originating Object reference.
-    interface Slice {
-      object: ObjectNode;
-      geometry: import('three').BufferGeometry;
-      colorHex: string;
-    }
-    const slices: Slice[] = [];
-    for (const obj of graph.objects) {
-      for (const m of obj.meshes) {
-        slices.push({
-          object: obj,
-          geometry: m.geometry,
-          colorHex: m.colorHex,
-        });
-      }
-    }
-    if (slices.length === 0) return;
-
-    // Normalize attributes — BatchedMesh requires consistent attribute sets.
-    const allAttribs = new Set<string>();
-    for (const s of slices) {
-      for (const k of Object.keys(s.geometry.attributes)) allAttribs.add(k);
-    }
-    for (const s of slices) {
-      for (const name of allAttribs) {
-        if (s.geometry.attributes[name]) continue;
-        const ref = slices.find((x) => x.geometry.attributes[name])!;
-        const refAttr = ref.geometry.attributes[name];
-        const count = s.geometry.attributes.position.count;
-        s.geometry.setAttribute(
-          name,
-          new THREE.BufferAttribute(
-            new Float32Array(count * refAttr.itemSize),
-            refAttr.itemSize,
-          ),
-        );
-      }
-    }
-
-    let totalVerts = 0;
-    let totalIdx = 0;
-    for (const s of slices) {
-      totalVerts += s.geometry.attributes.position.count;
-      totalIdx += s.geometry.index ? s.geometry.index.count : 0;
-    }
-
-    const batch = new THREE.BatchedMesh(
-      slices.length,
-      totalVerts,
-      totalIdx > 0 ? totalIdx : undefined,
-      batchMaterial,
-    );
-    batch.castShadow = true;
-    batch.receiveShadow = true;
-    batch.sortObjects = false;
-
-    const colorScratch = new THREE.Color();
-    const vec4 = new THREE.Vector4();
-    const bounds = new THREE.Box3();
-    const meshBox = new THREE.Box3();
-
-    // Per-Object batchId aggregation.
-    const idsByObject = new Map<ObjectId, number[]>();
-
-    for (const s of slices) {
-      const geometryId = batch.addGeometry(s.geometry);
-      const instanceId = batch.addInstance(geometryId);
-      batch.setMatrixAt(instanceId, s.object.originalMatrix);
-
-      const hex = parseInt(s.colorHex.slice(1), 16);
-      const sr = ((hex >> 16) & 0xff) / 255;
-      const sg = ((hex >> 8) & 0xff) / 255;
-      const sb = (hex & 0xff) / 255;
-      colorScratch.setRGB(sr, sg, sb, THREE.SRGBColorSpace);
-      vec4.set(colorScratch.r, colorScratch.g, colorScratch.b, 1.0);
-      batch.setColorAt(instanceId, vec4);
-      this.originalColors.set(instanceId, [
-        colorScratch.r,
-        colorScratch.g,
-        colorScratch.b,
-        1.0,
-      ]);
-
-      const groupId = s.object.groupId + partNumberOffset;
-      this.batchToObjectId.set(instanceId, groupId);
-      const list = idsByObject.get(groupId);
-      if (list) list.push(instanceId);
-      else idsByObject.set(groupId, [instanceId]);
-
-      s.geometry.computeBoundingBox();
-      if (s.geometry.boundingBox) {
-        meshBox
-          .copy(s.geometry.boundingBox)
-          .applyMatrix4(s.object.originalMatrix);
-        bounds.union(meshBox);
-      }
-    }
-
+    const result = this.batchLoader!.load(graph, partNumberOffset);
+    if (!result) return;
     if (gen !== this.loadGeneration || this.disposed) return;
 
-    // Register ObjectRecords + build per-Object edge lines.
-    for (const obj of graph.objects) {
-      const groupId = obj.groupId + partNumberOffset;
-      const partNumber = obj.partNumber + partNumberOffset;
+    for (const [batchId, groupId] of result.batchToObjectId)
+      this.batchToObjectId.set(batchId, groupId);
+    for (const [batchId, rgba] of result.originalColors)
+      this.originalColors.set(batchId, rgba);
+    for (const r of result.records) registry.register(r);
+    for (const e of result.edgeLines) sceneGraph.addToGroup('edgeGroup', e);
 
-      const center = new THREE.Vector3();
-      meshBox.makeEmpty();
-      for (const m of obj.meshes) {
-        m.geometry.computeBoundingBox();
-        if (m.geometry.boundingBox) {
-          meshBox.union(
-            meshBox
-              .clone()
-              .copy(m.geometry.boundingBox)
-              .applyMatrix4(obj.originalMatrix),
-          );
-        }
-      }
-      if (!meshBox.isEmpty()) meshBox.getCenter(center);
+    this.batched = result.batched;
+    this.sceneBounds = result.sceneBounds;
+    sceneGraph.addToGroup('modelGroup', result.batched);
 
-      const originalMatrixInverse = new THREE.Matrix4()
-        .copy(obj.originalMatrix)
-        .invert();
-
-      let edgeLines: LineSegments2Type | null = null;
-      if (obj.edgesLocal.length > 0) {
-        const lsg = new modules.LineSegmentsGeometry();
-        // edgesLocal is in source-mesh local space; bake the originalMatrix
-        // into a world-space copy so the rendered LineSegments2 only needs to
-        // be translated by the Object's offset.
-        const baked = new Float32Array(obj.edgesLocal.length);
-        const v = new THREE.Vector3();
-        for (let i = 0; i < obj.edgesLocal.length; i += 3) {
-          v.set(
-            obj.edgesLocal[i],
-            obj.edgesLocal[i + 1],
-            obj.edgesLocal[i + 2],
-          ).applyMatrix4(obj.originalMatrix);
-          baked[i] = v.x;
-          baked[i + 1] = v.y;
-          baked[i + 2] = v.z;
-        }
-        lsg.setPositions(baked);
-        edgeLines = new modules.LineSegments2(lsg, edgeMaterial);
-        edgeLines.computeLineDistances();
-        edgeLines.raycast = () => {};
-        edgeLines.castShadow = false;
-        edgeLines.renderOrder = 1;
-        sceneGraph.addToGroup('edgeGroup', edgeLines);
-      }
-
-      const record: ObjectRecord = {
-        groupId,
-        partNumber,
-        name: obj.name,
-        batchIds: idsByObject.get(groupId) ?? [],
-        originalMatrix: obj.originalMatrix.clone(),
-        originalMatrixInverse,
-        center,
-        offset: {
-          position: new THREE.Vector3(0, 0, 0),
-          quaternion: new THREE.Quaternion(0, 0, 0, 1),
-        },
-        offsetMatrix: new THREE.Matrix4(),
-        offsetMatrixInverse: new THREE.Matrix4(),
-        edgesLocal: obj.edgesLocal,
-        edgeLines,
-      };
-      registry.register(record);
-    }
-
-    this.batched = batch;
-    this.sceneBounds = bounds;
-    sceneGraph.addToGroup('modelGroup', batch);
-
-    this.highlighter!.attach(batch, batchMaterial, this.originalColors);
+    this.highlighter!.attach(
+      result.batched,
+      batchMaterial,
+      this.originalColors,
+    );
     this.fit();
     renderer.requestRender();
   }
@@ -518,77 +326,16 @@ export class ViewerCore {
   fit(): void {
     if (!this.cameraRig || !this.sceneBounds) return;
     this.cameraRig.fit(this.sceneBounds);
-    this.updateFloor();
+    this.floor?.update(this.sceneBounds);
   }
 
   // ── Floor ────────────────────────────────────────────────────────
 
   setFloorVisible(visible: boolean): void {
-    if (this.floorMesh) this.floorMesh.visible = visible;
-    this.renderer?.requestRender();
+    this.floor?.setVisible(visible);
   }
   getFloorVisible(): boolean {
-    return this.floorMesh?.visible ?? true;
-  }
-
-  private updateFloor(): void {
-    if (!this.modules || !this.sceneGraph || !this.sceneBounds) return;
-    const { THREE } = this.modules;
-    const box = this.sceneBounds;
-    if (box.isEmpty()) return;
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const floorY = box.min.y - maxDim * 0.001;
-    const floorSize = maxDim * 5;
-
-    if (!this.floorMesh) {
-      const gridMat = new THREE.ShaderMaterial({
-        uniforms: {
-          uColor1: { value: new THREE.Color(0x2dd4bf) },
-          uColor2: { value: new THREE.Color(0x14b8a6) },
-          uGridSize: { value: 0.1 },
-          uLineWidth: { value: 0.004 },
-        },
-        vertexShader: GRID_VERTEX_SHADER,
-        fragmentShader: GRID_FRAGMENT_SHADER,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.FrontSide,
-      });
-      this.floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), gridMat);
-      this.floorMesh.rotation.x = -Math.PI / 2;
-      this.sceneGraph.addToGroup('floorGroup', this.floorMesh);
-
-      const shadowPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(1, 1),
-        new THREE.ShadowMaterial({ opacity: 0.5 }),
-      );
-      shadowPlane.receiveShadow = true;
-      shadowPlane.renderOrder = 1;
-      this.floorMesh.add(shadowPlane);
-    }
-
-    this.floorMesh.position.set(center.x, floorY, center.z);
-    this.floorMesh.scale.set(floorSize, floorSize, 1);
-
-    const pad = maxDim * 1.2;
-    const sl = this.sceneGraph.shadowLight;
-    sl.position.set(
-      center.x + maxDim * 1.5,
-      center.y + maxDim * 3,
-      center.z + maxDim * 1.5,
-    );
-    sl.target.position.copy(center);
-    sl.target.updateWorldMatrix(false, false);
-    const sc = sl.shadow.camera as import('three').OrthographicCamera;
-    sc.left = -pad;
-    sc.right = pad;
-    sc.top = pad;
-    sc.bottom = -pad;
-    sc.near = maxDim * 0.1;
-    sc.far = maxDim * 8;
-    sc.updateProjectionMatrix();
+    return this.floor?.isVisible() ?? true;
   }
 
   // ── Selection / hover ────────────────────────────────────────────
@@ -789,21 +536,7 @@ export class ViewerCore {
       this.batched = null;
     }
     this.registry?.clear();
-
-    if (this.floorMesh) {
-      this.floorMesh.geometry.dispose();
-      (this.floorMesh.material as import('three').Material).dispose();
-      for (const child of [...this.floorMesh.children]) {
-        const m = child as Mesh;
-        if (m.isMesh) {
-          m.geometry.dispose();
-          const mats = Array.isArray(m.material) ? m.material : [m.material];
-          for (const mat of mats) mat?.dispose();
-        }
-      }
-      this.sceneGraph?.removeFromGroup('floorGroup', this.floorMesh);
-      this.floorMesh = null;
-    }
+    this.floor?.dispose();
 
     this.cameraRig?.dispose();
     this.sceneGraph?.dispose();
