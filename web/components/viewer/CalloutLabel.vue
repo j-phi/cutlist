@@ -1,16 +1,19 @@
 <script lang="ts" setup>
 /**
- * Inline-editable callout pill. Renders inside `AnnotationLabels` so the
+ * Inline-editable callout label. Renders inside `AnnotationLabels` so the
  * parent positions it at the projected label point.
  *
- * Authoring loop is single-step: drop the callout, the input takes focus,
- * type a label, blur or Enter commits, Esc removes the draft. The draft
- * row was created by `createCalloutHandler` with `text: ''` so an inline
- * edit just patches it.
+ * Authoring loop is single-step: drop the callout, the textarea takes
+ * focus, type a label (newlines allowed), blur or Cmd/Ctrl+Enter commits,
+ * Esc removes the draft. The draft row was created by
+ * `createCalloutHandler` with `text: ''` so an inline edit just patches it.
  *
  * The wrapper overlay disables pointer events globally so right-button
- * orbit still falls through to the canvas. The input opts back in via
+ * orbit still falls through to the canvas. The textarea opts back in via
  * `pointer-events: auto` while it's draft.
+ *
+ * Auto-grow: relies on CSS `field-sizing: content` (Chrome 123+, Safari 18)
+ * with a `scrollHeight` fallback applied on input for older engines.
  */
 import type { IdbCallout } from '~/composables/useIdb';
 import { useAnnotations } from '~/composables/useAnnotations';
@@ -23,10 +26,10 @@ const props = defineProps<{
 const annotationsApi = useAnnotations();
 
 const text = ref(props.annotation.text);
-const inputEl = ref<HTMLInputElement | null>(null);
-// Enter doesn't blur by default, so a user who hits Enter then later clicks
-// elsewhere would fire commit twice. The flag collapses that to one write
-// per draft session; resets when a fresh draft cycle begins.
+const inputEl = ref<HTMLTextAreaElement | null>(null);
+// Esc / Enter / blur all want to settle the draft once. Without this, an
+// Enter-then-blur sequence would write twice and an Esc would be undone by
+// a trailing blur.
 let committed = false;
 
 watch(
@@ -45,6 +48,7 @@ watch(
     await nextTick();
     inputEl.value?.focus();
     inputEl.value?.select();
+    autoResize();
   },
   { immediate: true },
 );
@@ -61,25 +65,42 @@ async function cancel(): Promise<void> {
   committed = true;
   await annotationsApi.remove(props.annotation.id);
 }
+
+function autoResize(): void {
+  const el = inputEl.value;
+  if (!el) return;
+  // Modern engines (`field-sizing: content`) auto-size from CSS — this
+  // path is the fallback for browsers that ignore it. Setting height to
+  // 'auto' first forces a shrink-to-fit before reading scrollHeight.
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
 </script>
 
 <template>
   <div
-    class="callout-label bg-elevated text-hi rounded-full px-3 py-1 text-sm shadow border border-subtle"
+    class="callout-label bg-elevated text-hi rounded-2xl px-3 py-1.5 text-sm shadow border border-subtle max-w-[280px]"
     :class="{ 'callout-draft': draft }"
-    :style="{ pointerEvents: draft ? 'auto' : 'none', whiteSpace: 'nowrap' }"
+    :style="{
+      pointerEvents: draft ? 'auto' : 'none',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+    }"
   >
-    <input
+    <textarea
       v-if="draft"
       ref="inputEl"
       v-model="text"
-      class="bg-transparent outline-none w-32 text-hi placeholder:text-dim"
+      rows="1"
+      class="bg-transparent outline-none w-full resize-none text-hi placeholder:text-dim block"
+      style="field-sizing: content"
       placeholder="Untitled"
-      type="text"
+      @input="autoResize"
       @blur="commit"
-      @keydown.enter.prevent="commit"
-      @keydown.esc.prevent="cancel"
+      @keydown.escape.prevent="cancel"
+      @keydown.meta.enter.prevent="commit"
+      @keydown.ctrl.enter.prevent="commit"
     />
-    <span v-else>{{ annotation.text || 'Untitled' }}</span>
+    <span v-else class="block">{{ annotation.text || 'Untitled' }}</span>
   </div>
 </template>

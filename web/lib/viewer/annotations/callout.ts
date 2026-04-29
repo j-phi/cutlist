@@ -2,16 +2,20 @@
  * Callout annotation kind. Three pieces:
  *
  * 1. `createCalloutHandler` — `PickKindHandler` for the annotation author.
- *    Single-click placement: raycast → translate the hit + face normal into
- *    Object-local space → push an empty-text callout into IDB → surface the
- *    new id as `draftId` so `CalloutLabel` can take focus and accept text.
+ *    Single-click placement with a snap-first / face-fallback flow:
+ *      - On pointer move, ask the viewer for a SnapTarget (vertex/edge
+ *        midpoint/edge) under the cursor and forward it to `setSnapHover`
+ *        so the user sees a yellow indicator before they click.
+ *      - On click, prefer the snap target's world point + a
+ *        per-kind normal; if no snap, fall back to a face raycast (the
+ *        original Spec 08 behaviour) so empty face clicks still work.
  *
  * 2. `calloutKindHooks` — `KindHooks` plug for the `AnnotationProjector`.
  *    Drives where the label DOM lands (anchor + offset along the normal) and
- *    builds the 3D leader segment from face anchor to label position.
+ *    builds the 3D leader segment from anchor to label position.
  *
- * 3. `DEFAULT_LABEL_OFFSET_M` — 6cm along the local normal at create-time.
- *    Models live in metres in this app; 6cm reads at furniture scale and
+ * 3. `DEFAULT_LABEL_OFFSET_M` — 6 cm along the local normal at create time.
+ *    Models live in metres in this app; 6 cm reads at furniture scale and
  *    keeps the label off the geometry without floating into space.
  *
  * Anchors live in Object-local space (Spec 07). The Object's load-time
@@ -27,7 +31,11 @@ import type {
   KindHooks,
   ObjectLocalToWorld,
 } from '~/lib/viewer/modules/AnnotationProjector';
-import type { PickResult, RenderedLeaderSpec } from '~/lib/viewer/types';
+import type {
+  PickResult,
+  RenderedLeaderSpec,
+  SnapTarget,
+} from '~/lib/viewer/types';
 import type { GroupId } from '~/utils/types';
 import type { IdbCallout } from '~/composables/useIdb';
 
@@ -38,8 +46,16 @@ const LEADER_COLOR = 0x6ee7b7;
 
 export interface CalloutViewer {
   raycastFromClient(x: number, y: number): PickResult | null;
+  findSnapTarget(x: number, y: number): SnapTarget | null;
+  setSnapHover(target: SnapTarget | null): void;
   worldToObjectLocal(groupId: GroupId, world: Vec3): Vec3 | null;
   worldDirToObjectLocal(groupId: GroupId, worldDir: Vec3): Vec3 | null;
+  /**
+   * Camera pose — used to build a sensible callout normal from snapped
+   * clicks. Returns `undefined` only before the viewer has finished init;
+   * the caller should bail in that case.
+   */
+  getCameraPose(): { position: Vec3; target: Vec3 } | undefined;
 }
 
 export function createCalloutHandler(deps: {
@@ -49,29 +65,38 @@ export function createCalloutHandler(deps: {
 }): PickKindHandler {
   const { viewer, annotationsApi, activeSceneId } = deps;
   return {
-    hint: () => 'Click a face to drop a callout · Esc to cancel',
-    onPointerMove() {},
+    hint: () =>
+      'Click an edge, vertex, or face to drop a callout · Esc to cancel',
+    onPointerMove(client) {
+      const snap = viewer.findSnapTarget(client.x, client.y);
+      viewer.setSnapHover(snap);
+    },
     async onClick(client) {
       const sceneId = activeSceneId.value;
-      if (!sceneId) return { done: true };
-      const hit = viewer.raycastFromClient(client.x, client.y);
-      if (!hit) return { done: false };
-      const worldPoint: Vec3 = [
-        hit.worldPoint.x,
-        hit.worldPoint.y,
-        hit.worldPoint.z,
-      ];
-      const worldNormal: Vec3 = [
-        hit.worldNormal.x,
-        hit.worldNormal.y,
-        hit.worldNormal.z,
-      ];
-      const anchorLocal = viewer.worldToObjectLocal(hit.groupId, worldPoint);
+      if (!sceneId) {
+        viewer.setSnapHover(null);
+        return { done: true };
+      }
+
+      const snap = viewer.findSnapTarget(client.x, client.y);
+      const placement = snap
+        ? placementFromSnap(snap, viewer)
+        : placementFromFace(viewer.raycastFromClient(client.x, client.y));
+      // Snap path needs the camera pose to build the normal; if it isn't
+      // available yet (viewer still booting), back out cleanly.
+
+      if (!placement) return { done: false };
+
+      const anchorLocal = viewer.worldToObjectLocal(
+        placement.groupId,
+        placement.worldPoint,
+      );
       const normalLocal = viewer.worldDirToObjectLocal(
-        hit.groupId,
-        worldNormal,
+        placement.groupId,
+        placement.worldNormal,
       );
       if (!anchorLocal || !normalLocal) return { done: false };
+
       const normalised = normalize3(normalLocal);
       const labelOffsetLocal: Vec3 = [
         normalised[0] * DEFAULT_LABEL_OFFSET_M,
@@ -81,15 +106,72 @@ export function createCalloutHandler(deps: {
       const id = await annotationsApi.add({
         kind: 'callout',
         sceneId,
-        groupId: hit.groupId,
+        groupId: placement.groupId,
         anchorLocal,
         anchorNormalLocal: normalised,
         labelOffsetLocal,
         text: '',
       });
+      viewer.setSnapHover(null);
       return { done: true, draftId: id ?? null };
     },
-    onEsc() {},
+    onEsc() {
+      viewer.setSnapHover(null);
+    },
+  };
+}
+
+interface Placement {
+  groupId: GroupId;
+  worldPoint: Vec3;
+  worldNormal: Vec3;
+}
+
+function placementFromSnap(
+  snap: SnapTarget,
+  viewer: CalloutViewer,
+): Placement | null {
+  // World-axis-aligned label offset: prefer +Y (label sits above the
+  // anchor, matching how furniture plans publish labels). For edges
+  // running along ±Y the +Y direction is parallel to the edge, so we fall
+  // back to whichever horizontal axis (±X / ±Z) faces the camera most.
+  // The result is always one of six world-axis unit vectors — no oblique
+  // leaders.
+  let normal: Vec3 = [0, 1, 0];
+  if (snap.kind !== 'vertex') {
+    const edgeDir = normalize3([
+      snap.edgeB[0] - snap.edgeA[0],
+      snap.edgeB[1] - snap.edgeA[1],
+      snap.edgeB[2] - snap.edgeA[2],
+    ]);
+    if (Math.abs(edgeDir[1]) > 0.95) {
+      const pose = viewer.getCameraPose();
+      if (!pose) return null;
+      normal = pickHorizontalAxisToward(pose.position, snap.worldPoint);
+    }
+  }
+  return {
+    groupId: snap.groupId,
+    worldPoint: snap.worldPoint,
+    worldNormal: normal,
+  };
+}
+
+function pickHorizontalAxisToward(camera: Vec3, anchor: Vec3): Vec3 {
+  const dx = camera[0] - anchor[0];
+  const dz = camera[2] - anchor[2];
+  if (Math.abs(dx) >= Math.abs(dz)) {
+    return [dx >= 0 ? 1 : -1, 0, 0];
+  }
+  return [0, 0, dz >= 0 ? 1 : -1];
+}
+
+function placementFromFace(hit: PickResult | null): Placement | null {
+  if (!hit) return null;
+  return {
+    groupId: hit.groupId,
+    worldPoint: [hit.worldPoint.x, hit.worldPoint.y, hit.worldPoint.z],
+    worldNormal: [hit.worldNormal.x, hit.worldNormal.y, hit.worldNormal.z],
   };
 }
 

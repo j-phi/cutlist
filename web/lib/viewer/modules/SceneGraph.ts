@@ -15,6 +15,7 @@ const GROUPS = [
   'gizmoGroup',
   'highlightGroup',
   'leaderGroup',
+  'snapGroup',
 ] as const;
 export type GroupName = (typeof GROUPS)[number];
 

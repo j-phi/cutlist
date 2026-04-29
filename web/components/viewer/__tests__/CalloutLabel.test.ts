@@ -1,6 +1,6 @@
 // @vitest-environment nuxt
 /**
- * CalloutLabel — inline-edit pill. The component talks to useAnnotations
+ * CalloutLabel — inline-edit surface. The component talks to useAnnotations
  * directly (it's the only thing it needs), so we mock that module-level
  * composable and verify the draft commit/cancel surface.
  */
@@ -47,7 +47,7 @@ describe('CalloutLabel — non-draft', () => {
       props: { annotation: callout('Top edge'), draft: false },
     });
     expect(wrapper.text()).toBe('Top edge');
-    expect(wrapper.find('input').exists()).toBe(false);
+    expect(wrapper.find('textarea').exists()).toBe(false);
   });
 
   it('Should fall back to "Untitled" for an empty label', async () => {
@@ -55,6 +55,14 @@ describe('CalloutLabel — non-draft', () => {
       props: { annotation: callout(''), draft: false },
     });
     expect(wrapper.text()).toBe('Untitled');
+  });
+
+  it('Should preserve newlines in the static display', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout('line one\nline two'), draft: false },
+    });
+    expect(wrapper.text()).toContain('line one');
+    expect(wrapper.text()).toContain('line two');
   });
 });
 
@@ -64,51 +72,72 @@ describe('CalloutLabel — draft', () => {
     remove.mockClear();
   });
 
-  it('Should render the editable input', async () => {
+  it('Should render the editable textarea', async () => {
     const wrapper = await mountSuspended(CalloutLabel, {
       props: { annotation: callout(''), draft: true },
     });
-    expect(wrapper.find('input').exists()).toBe(true);
+    expect(wrapper.find('textarea').exists()).toBe(true);
   });
 
   it('Should commit on blur with trimmed text', async () => {
     const wrapper = await mountSuspended(CalloutLabel, {
       props: { annotation: callout(''), draft: true },
     });
-    const input = wrapper.find('input');
-    await input.setValue('  Top edge  ');
-    await input.trigger('blur');
+    const ta = wrapper.find('textarea');
+    await ta.setValue('  Top edge  ');
+    await ta.trigger('blur');
     expect(update).toHaveBeenCalledWith('a-1', { text: 'Top edge' });
   });
 
-  it('Should commit on Enter', async () => {
+  it('Should commit on Cmd+Enter', async () => {
     const wrapper = await mountSuspended(CalloutLabel, {
       props: { annotation: callout(''), draft: true },
     });
-    const input = wrapper.find('input');
-    await input.setValue('Hello');
-    await input.trigger('keydown', { key: 'Enter' });
+    const ta = wrapper.find('textarea');
+    await ta.setValue('Hello');
+    await ta.trigger('keydown', { key: 'Enter', metaKey: true });
     expect(update).toHaveBeenCalledWith('a-1', { text: 'Hello' });
+  });
+
+  it('Should commit on Ctrl+Enter', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout(''), draft: true },
+    });
+    const ta = wrapper.find('textarea');
+    await ta.setValue('Hello');
+    await ta.trigger('keydown', { key: 'Enter', ctrlKey: true });
+    expect(update).toHaveBeenCalledWith('a-1', { text: 'Hello' });
+  });
+
+  it('Should leave plain Enter alone (textarea inserts a newline)', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout(''), draft: true },
+    });
+    const ta = wrapper.find('textarea');
+    await ta.setValue('Hello');
+    await ta.trigger('keydown', { key: 'Enter' });
+    // No commit — plain Enter is the textarea's default newline behavior.
+    expect(update).not.toHaveBeenCalled();
   });
 
   it('Should remove the annotation on Esc', async () => {
     const wrapper = await mountSuspended(CalloutLabel, {
       props: { annotation: callout(''), draft: true },
     });
-    const input = wrapper.find('input');
-    await input.trigger('keydown', { key: 'Escape' });
+    const ta = wrapper.find('textarea');
+    await ta.trigger('keydown', { key: 'Escape' });
     expect(remove).toHaveBeenCalledWith('a-1');
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('Should not double-commit when Enter is followed by a later blur', async () => {
+  it('Should not double-commit when Cmd+Enter is followed by a later blur', async () => {
     const wrapper = await mountSuspended(CalloutLabel, {
       props: { annotation: callout(''), draft: true },
     });
-    const input = wrapper.find('input');
-    await input.setValue('Hello');
-    await input.trigger('keydown', { key: 'Enter' });
-    await input.trigger('blur');
+    const ta = wrapper.find('textarea');
+    await ta.setValue('Hello');
+    await ta.trigger('keydown', { key: 'Enter', metaKey: true });
+    await ta.trigger('blur');
     expect(update).toHaveBeenCalledTimes(1);
   });
 
@@ -116,10 +145,20 @@ describe('CalloutLabel — draft', () => {
     const wrapper = await mountSuspended(CalloutLabel, {
       props: { annotation: callout(''), draft: true },
     });
-    const input = wrapper.find('input');
-    await input.trigger('keydown', { key: 'Escape' });
-    await input.trigger('blur');
+    const ta = wrapper.find('textarea');
+    await ta.trigger('keydown', { key: 'Escape' });
+    await ta.trigger('blur');
     expect(remove).toHaveBeenCalledTimes(1);
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('Should commit text containing newlines verbatim', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout(''), draft: true },
+    });
+    const ta = wrapper.find('textarea');
+    await ta.setValue('first\nsecond');
+    await ta.trigger('keydown', { key: 'Enter', metaKey: true });
+    expect(update).toHaveBeenCalledWith('a-1', { text: 'first\nsecond' });
   });
 });

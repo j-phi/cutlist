@@ -27,6 +27,8 @@ import { GizmoController } from './modules/GizmoController';
 import { LeaderManager } from './modules/LeaderManager';
 import { BatchLoader } from './modules/BatchLoader';
 import { Floor } from './modules/Floor';
+import { SnapDetector } from './modules/SnapDetector';
+import { SnapVisuals } from './modules/SnapVisuals';
 import type {
   CameraMode,
   CameraPose,
@@ -35,7 +37,7 @@ import type {
   ObjectId,
   PickResult,
   RenderedLeaderSpec,
-  SnapEdgeResult,
+  SnapTarget,
   Vec3,
   ViewerEvent,
   ViewPreset,
@@ -103,6 +105,8 @@ export class ViewerCore {
   private leaders: LeaderManager | null = null;
   private batchLoader: BatchLoader | null = null;
   private floor: Floor | null = null;
+  private snapDetector: SnapDetector | null = null;
+  private snapVisuals: SnapVisuals | null = null;
 
   private batched: BatchedMesh | null = null;
   private batchMaterial: MeshStandardMaterial | null = null;
@@ -221,6 +225,25 @@ export class ViewerCore {
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
 
+    this.snapDetector = new SnapDetector({
+      THREE,
+      registry: this.registry,
+      camera: () => this.cameraRig!.camera,
+      batchedMesh: () => this.batched,
+      raycaster: () => this.raycaster!,
+      screenRect: () => this.renderer!.domElement.getBoundingClientRect(),
+    });
+
+    this.snapVisuals = new SnapVisuals({
+      THREE,
+      LineSegmentsGeometry: modules.LineSegmentsGeometry,
+      LineSegments2: modules.LineSegments2,
+      LineMaterial: modules.LineMaterial,
+      sceneGraph: this.sceneGraph,
+      resolution: { width: rect.width, height: rect.height },
+      requestRender: () => this.renderer?.requestRender(),
+    });
+
     this.input = new InputRouter({
       domElement: this.renderer.domElement,
       bus: this.bus,
@@ -233,6 +256,7 @@ export class ViewerCore {
       this.cameraRig?.onResize(w, h);
       this.edgeMaterial?.resolution.set(w, h);
       this.leaders?.onResize(w, h);
+      this.snapVisuals?.onResize(w, h);
     });
 
     // Pick events drive the highlighter; selection events too.
@@ -449,9 +473,12 @@ export class ViewerCore {
     };
   }
 
-  findSnapEdge(_clientX: number, _clientY: number): SnapEdgeResult | null {
-    // Filled in by Spec 09.
-    return null;
+  findSnapTarget(clientX: number, clientY: number): SnapTarget | null {
+    return this.snapDetector?.findSnapTarget(clientX, clientY) ?? null;
+  }
+
+  setSnapHover(target: SnapTarget | null): void {
+    this.snapVisuals?.setHover(target);
   }
 
   unprojectToPlane(
@@ -642,6 +669,7 @@ export class ViewerCore {
     this.gizmo?.dispose();
     this.highlighter?.dispose();
     this.leaders?.dispose();
+    this.snapVisuals?.dispose();
 
     if (this.batched) {
       this.batched.geometry.dispose();

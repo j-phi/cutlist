@@ -149,6 +149,9 @@ export class BatchLoader {
       const edge = this.buildEdgeLines(obj);
       if (edge) edgeLines.push(edge);
 
+      const { center: boundsLocalCenter, radius: boundsLocalRadius } =
+        computeLocalBoundingSphere(THREE, obj.edgesLocal);
+
       records.push({
         groupId,
         partNumber,
@@ -164,6 +167,8 @@ export class BatchLoader {
         offsetMatrix: new THREE.Matrix4(),
         offsetMatrixInverse: new THREE.Matrix4(),
         edgesLocal: obj.edgesLocal,
+        boundsLocalCenter,
+        boundsLocalRadius,
         edgeLines: edge,
       });
     }
@@ -229,4 +234,40 @@ export class BatchLoader {
     lines.renderOrder = 1;
     return lines;
   }
+}
+
+/**
+ * Local-space bounding sphere over an edge buffer. Centre = mean of
+ * endpoints (cheap, good enough — edges sample the silhouette densely);
+ * radius = max distance from centre to any endpoint. Used by SnapDetector
+ * for the screen-margin cull, so over-estimating slightly is fine.
+ */
+function computeLocalBoundingSphere(
+  THREE: typeof import('three'),
+  edgesLocal: Float32Array,
+): { center: import('three').Vector3; radius: number } {
+  const center = new THREE.Vector3();
+  if (edgesLocal.length === 0) return { center, radius: 0 };
+  const n = edgesLocal.length / 3;
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  for (let i = 0; i < edgesLocal.length; i += 3) {
+    cx += edgesLocal[i];
+    cy += edgesLocal[i + 1];
+    cz += edgesLocal[i + 2];
+  }
+  cx /= n;
+  cy /= n;
+  cz /= n;
+  center.set(cx, cy, cz);
+  let r2 = 0;
+  for (let i = 0; i < edgesLocal.length; i += 3) {
+    const dx = edgesLocal[i] - cx;
+    const dy = edgesLocal[i + 1] - cy;
+    const dz = edgesLocal[i + 2] - cz;
+    const d = dx * dx + dy * dy + dz * dz;
+    if (d > r2) r2 = d;
+  }
+  return { center, radius: Math.sqrt(r2) };
 }

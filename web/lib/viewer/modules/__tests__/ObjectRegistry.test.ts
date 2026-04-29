@@ -36,6 +36,8 @@ function makeRecord(groupId: number, edgeLines?: FakeEdgeLines): ObjectRecord {
     offsetMatrix: new THREE.Matrix4(),
     offsetMatrixInverse: new THREE.Matrix4(),
     edgesLocal: new Float32Array(0),
+    boundsLocalCenter: new THREE.Vector3(),
+    boundsLocalRadius: 0,
     edgeLines: edgeLines as ObjectRecord['edgeLines'],
   };
 }

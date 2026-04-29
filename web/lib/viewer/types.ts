@@ -44,6 +44,15 @@ export interface ObjectRecord {
   offsetMatrixInverse: Matrix4;
   /** Local-space edge vertex pairs from the loader (frozen). */
   edgesLocal: Float32Array;
+  /**
+   * Local-space bounding-sphere centre. The world-space centre is
+   * `transformLocalToWorld(record, boundsLocalCenter)`; the sphere radius is
+   * invariant under rigid offsets so it's a single number. Used by
+   * `SnapDetector` to cull Objects that fall outside the cursor's screen
+   * margin without walking their edge buffer.
+   */
+  boundsLocalCenter: Vector3;
+  boundsLocalRadius: number;
   /** World-space rendered edges; transform = offset. */
   edgeLines: LineSegments2 | null;
 }
@@ -54,11 +63,33 @@ export interface PickResult {
   worldNormal: Vector3;
 }
 
-export interface SnapEdgeResult {
-  groupId: ObjectId;
-  endpointA: Vector3;
-  endpointB: Vector3;
-}
+/**
+ * Snap target produced by `SnapDetector` and consumed by callouts (single
+ * pick, Spec 08b) and dimensions (two-step pick, Spec 09). Three kinds in
+ * priority order: a vertex anchor is a corner; an edge midpoint anchor
+ * reads as "centre of this edge"; an edge anchor is the closest point
+ * along the edge segment to the cursor ray.
+ */
+export type SnapTarget =
+  | {
+      kind: 'vertex';
+      groupId: ObjectId;
+      worldPoint: Vec3;
+    }
+  | {
+      kind: 'edgeMidpoint';
+      groupId: ObjectId;
+      worldPoint: Vec3;
+      edgeA: Vec3;
+      edgeB: Vec3;
+    }
+  | {
+      kind: 'edge';
+      groupId: ObjectId;
+      worldPoint: Vec3;
+      edgeA: Vec3;
+      edgeB: Vec3;
+    };
 
 export type ViewerEvent =
   | { type: 'user-interaction' }
@@ -70,8 +101,7 @@ export type ViewerEvent =
       shiftKey?: boolean;
     }
   | { type: 'render-requested' }
-  | { type: 'pick'; result: PickResult | null }
-  | { type: 'snap-edge'; result: SnapEdgeResult | null };
+  | { type: 'pick'; result: PickResult | null };
 
 export type ViewPreset =
   | 'front'

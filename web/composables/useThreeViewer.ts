@@ -18,6 +18,7 @@ import type {
   ObjectId,
   PickResult,
   RenderedLeaderSpec,
+  SnapTarget,
   ViewPreset,
 } from '~/lib/viewer/types';
 
@@ -172,6 +173,9 @@ export default function useThreeViewer(
       core?.setLeaderOpacityScale(scale),
     raycastFromClient: (x: number, y: number): PickResult | null =>
       core?.raycastFromClient(x, y) ?? null,
+    findSnapTarget: (x: number, y: number): SnapTarget | null =>
+      core?.findSnapTarget(x, y) ?? null,
+    setSnapHover: (target: SnapTarget | null) => core?.setSnapHover(target),
     worldToScreen: (world: [number, number, number]) =>
       core?.worldToScreen(world) ?? null,
     objectLocalToWorld: (

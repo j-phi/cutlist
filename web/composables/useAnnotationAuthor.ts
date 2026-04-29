@@ -23,6 +23,7 @@
 
 import type { ComputedRef, Ref } from 'vue';
 import type { PickHandler } from '~/lib/viewer/modules/InputRouter';
+import type { SnapTarget } from '~/lib/viewer/types';
 import type { UseAnnotationsApi } from '~/composables/useAnnotations';
 
 export type Mode = 'select' | 'pick';
@@ -40,6 +41,12 @@ export interface PickKindHandler {
 
 export interface AnnotationAuthorViewer {
   setInteractionMode(mode: Mode, handler?: PickHandler | null): void;
+  /**
+   * Optional snap-hover surface. The author clears it on `exit()` so kind
+   * handlers don't need to remember to wipe a stale yellow indicator when
+   * the user backs out of pick mode.
+   */
+  setSnapHover?(target: SnapTarget | null): void;
 }
 
 export interface AnnotationAuthor {
@@ -119,6 +126,7 @@ export function useAnnotationAuthor(
     mode.value = 'select';
     pickKind.value = null;
     viewer.setInteractionMode('select');
+    viewer.setSnapHover?.(null);
   }
 
   function cancel(): void {

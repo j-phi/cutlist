@@ -13,7 +13,7 @@ import {
 } from '../callout';
 import type { UseAnnotationsApi } from '~/composables/useAnnotations';
 import type { IdbCallout, IdbAnnotation } from '~/composables/useIdb';
-import type { PickResult } from '~/lib/viewer/types';
+import type { PickResult, SnapTarget } from '~/lib/viewer/types';
 
 type Vec3 = [number, number, number];
 
@@ -24,10 +24,19 @@ type Vec3 = [number, number, number];
  */
 function makeViewer(translate: Vec3 = [0, 0, 0]): CalloutViewer & {
   setHit(r: PickResult | null): void;
+  setSnap(s: SnapTarget | null): void;
+  hoverLog: Array<SnapTarget | null>;
 } {
   let nextHit: PickResult | null = null;
+  let nextSnap: SnapTarget | null = null;
+  const hoverLog: Array<SnapTarget | null> = [];
   return {
     raycastFromClient: () => nextHit,
+    findSnapTarget: () => nextSnap,
+    setSnapHover: (t) => {
+      hoverLog.push(t);
+    },
+    getCameraPose: () => ({ position: [0, 0, 10], target: [0, 0, 0] }),
     worldToObjectLocal: (_g, w) => [
       w[0] - translate[0],
       w[1] - translate[1],
@@ -37,6 +46,10 @@ function makeViewer(translate: Vec3 = [0, 0, 0]): CalloutViewer & {
     setHit: (r) => {
       nextHit = r;
     },
+    setSnap: (s) => {
+      nextSnap = s;
+    },
+    hoverLog,
   };
 }
 
@@ -155,6 +168,106 @@ describe('createCalloutHandler — onClick', () => {
     expect(a.anchorNormalLocal[1]).toBeCloseTo(0.8, 9);
     expect(a.labelOffsetLocal[0]).toBeCloseTo(0.6 * DEFAULT_LABEL_OFFSET_M, 9);
     expect(a.labelOffsetLocal[1]).toBeCloseTo(0.8 * DEFAULT_LABEL_OFFSET_M, 9);
+  });
+
+  it('Should commit at the vertex snap point with a world-vertical offset', async () => {
+    const v = makeViewer();
+    v.setSnap({ kind: 'vertex', groupId: 5, worldPoint: [1, 2, 3] });
+    // Even with a face hit available, snap takes priority.
+    v.setHit(makeHit([99, 99, 99], [1, 0, 0], 999));
+    const api = makeApi();
+    const sceneId = ref<string | null>('s1');
+    const handler = createCalloutHandler({
+      viewer: v,
+      annotationsApi: api,
+      activeSceneId: sceneId,
+    });
+    const r = await handler.onClick({ x: 0, y: 0 });
+    expect(r.done).toBe(true);
+    const a = api.added[0] as IdbCallout;
+    expect(a.groupId).toBe(5);
+    expect(a.anchorLocal).toEqual([1, 2, 3]);
+    // Vertices always offset along world +Y so the label sits directly above.
+    expect(a.anchorNormalLocal).toEqual([0, 1, 0]);
+  });
+
+  it('Should snap a non-vertical edge with a world +Y offset', async () => {
+    const v = makeViewer();
+    // Edge along world X — +Y is perpendicular to it, so the label goes up.
+    v.setSnap({
+      kind: 'edge',
+      groupId: 5,
+      worldPoint: [0, 0, 0],
+      edgeA: [-1, 0, 0],
+      edgeB: [1, 0, 0],
+    });
+    const api = makeApi();
+    const sceneId = ref<string | null>('s1');
+    const handler = createCalloutHandler({
+      viewer: v,
+      annotationsApi: api,
+      activeSceneId: sceneId,
+    });
+    await handler.onClick({ x: 0, y: 0 });
+    const a = api.added[0] as IdbCallout;
+    expect(a.anchorNormalLocal).toEqual([0, 1, 0]);
+  });
+
+  it('Should fall back to a horizontal world axis when the edge runs vertically', async () => {
+    const v = makeViewer();
+    // Edge runs along +Y → +Y would be parallel to the edge, so the
+    // callout must pick the camera-facing horizontal axis. Camera default
+    // is at +Z, so we expect +Z.
+    v.setSnap({
+      kind: 'edge',
+      groupId: 5,
+      worldPoint: [0, 0, 0],
+      edgeA: [0, -1, 0],
+      edgeB: [0, 1, 0],
+    });
+    const api = makeApi();
+    const sceneId = ref<string | null>('s1');
+    const handler = createCalloutHandler({
+      viewer: v,
+      annotationsApi: api,
+      activeSceneId: sceneId,
+    });
+    await handler.onClick({ x: 0, y: 0 });
+    const a = api.added[0] as IdbCallout;
+    expect(a.anchorNormalLocal).toEqual([0, 0, 1]);
+  });
+
+  it('Should clear the snap hover after a successful commit', async () => {
+    const v = makeViewer();
+    v.setSnap({ kind: 'vertex', groupId: 5, worldPoint: [0, 0, 0] });
+    const api = makeApi();
+    const sceneId = ref<string | null>('s1');
+    const handler = createCalloutHandler({
+      viewer: v,
+      annotationsApi: api,
+      activeSceneId: sceneId,
+    });
+    await handler.onClick({ x: 0, y: 0 });
+    expect(v.hoverLog).toContain(null);
+  });
+
+  it('Should drive the hover indicator on every pointer move', () => {
+    const v = makeViewer();
+    const target: SnapTarget = {
+      kind: 'vertex',
+      groupId: 5,
+      worldPoint: [0, 0, 0],
+    };
+    v.setSnap(target);
+    const api = makeApi();
+    const sceneId = ref<string | null>('s1');
+    const handler = createCalloutHandler({
+      viewer: v,
+      annotationsApi: api,
+      activeSceneId: sceneId,
+    });
+    handler.onPointerMove({ x: 5, y: 5 });
+    expect(v.hoverLog).toContain(target);
   });
 });
 
