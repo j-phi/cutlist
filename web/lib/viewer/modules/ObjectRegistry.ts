@@ -117,8 +117,24 @@ export class ObjectRegistry {
     if (!r) return;
     const pos = input.position ?? null;
     const quat = input.quaternion ?? null;
-    if (pos) r.offset.position.set(pos[0], pos[1], pos[2]);
-    if (quat) r.offset.quaternion.set(quat[0], quat[1], quat[2], quat[3]);
+    // Skip the recompose + BatchedMesh write when nothing actually changed —
+    // the tween loop calls setOffset every frame for every Object, and most
+    // frames most Objects sit at identity.
+    const posChanged =
+      pos !== null &&
+      (pos[0] !== r.offset.position.x ||
+        pos[1] !== r.offset.position.y ||
+        pos[2] !== r.offset.position.z);
+    const quatChanged =
+      quat !== null &&
+      (quat[0] !== r.offset.quaternion.x ||
+        quat[1] !== r.offset.quaternion.y ||
+        quat[2] !== r.offset.quaternion.z ||
+        quat[3] !== r.offset.quaternion.w);
+    if (!posChanged && !quatChanged) return;
+    if (posChanged) r.offset.position.set(pos![0], pos![1], pos![2]);
+    if (quatChanged)
+      r.offset.quaternion.set(quat![0], quat![1], quat![2], quat![3]);
 
     r.offsetMatrix.compose(
       r.offset.position,

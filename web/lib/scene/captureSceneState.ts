@@ -6,6 +6,7 @@
  * so two scenes with no Object moves capture-equal regardless of read order.
  */
 
+import { isIdentityObjectOffset } from '~/composables/useIdb';
 import type {
   CameraMode,
   CameraPose,
@@ -25,7 +26,7 @@ export interface CaptureInput {
 export function captureSceneState(input: CaptureInput): SceneState {
   const offsets = new Map<GroupId, ObjectOffset>();
   for (const [groupId, off] of input.objectOffsets) {
-    if (isIdentityOffset(off)) continue;
+    if (isIdentityObjectOffset(off)) continue;
     offsets.set(groupId, {
       position: [off.position[0], off.position[1], off.position[2]],
       quaternion: [
@@ -54,16 +55,4 @@ export function captureSceneState(input: CaptureInput): SceneState {
     visibleObjects: input.visibleObjects ? new Set(input.visibleObjects) : null,
     floorVisible: input.floorVisible,
   };
-}
-
-function isIdentityOffset(o: ObjectOffset): boolean {
-  return (
-    o.position[0] === 0 &&
-    o.position[1] === 0 &&
-    o.position[2] === 0 &&
-    o.quaternion[0] === 0 &&
-    o.quaternion[1] === 0 &&
-    o.quaternion[2] === 0 &&
-    o.quaternion[3] === 1
-  );
 }

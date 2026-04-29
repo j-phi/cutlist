@@ -3,10 +3,15 @@ import {
   applySceneState,
   captureSceneState,
   interpolateSceneState,
+  sceneStateFromIdb,
+  sceneStateToIdb,
   type SceneState,
 } from '../index';
-import { IDENTITY_OBJECT_OFFSET } from '~/composables/useIdb';
-import type { ObjectOffset } from '~/composables/useIdb';
+import {
+  IDENTITY_OBJECT_OFFSET,
+  isIdentityObjectOffset,
+} from '~/composables/useIdb';
+import type { IdbScene, ObjectOffset } from '~/composables/useIdb';
 
 const identityPose = {
   position: [0, 0, 0] as [number, number, number],
@@ -235,5 +240,38 @@ describe('round-trip', () => {
     expect(applied.groupOpacity.get(2)).toBe(0);
     const off = applied.objectOffsets.get(1)!;
     expect(off.position).toEqual([1, 2, 3]);
+  });
+
+  it('Should round-trip capture → sceneStateToIdb → sceneStateFromIdb → apply', () => {
+    const original = captureSceneState({
+      cameraMode: 'perspective',
+      cameraPose: { position: [4, 5, 6], target: [1, 0, 0] },
+      objectOffsets: new Map<number, ObjectOffset>([
+        [7, { position: [2, 0, 0], quaternion: quat(0, 0, 0.5, 1) }],
+        [8, IDENTITY_OBJECT_OFFSET],
+      ]),
+      visibleObjects: new Set([7, 8]),
+      floorVisible: true,
+    });
+
+    const persisted: IdbScene = {
+      id: 's',
+      projectId: 'p',
+      name: 'n',
+      order: 0,
+      createdAt: '',
+      updatedAt: '',
+      ...sceneStateToIdb(original),
+    };
+    // Identity offset for groupId 8 should be dropped on the way down.
+    expect(Object.keys(persisted.objectOffsets).map(Number)).toEqual([7]);
+
+    const restored = sceneStateFromIdb(persisted);
+    const applied = applySceneState(restored, [7, 8]);
+    // groupId 8 (dropped on persist) reappears as identity from apply's defaults.
+    expect(isIdentityObjectOffset(applied.objectOffsets.get(8)!)).toBe(true);
+    // groupId 7 survives.
+    const off = applied.objectOffsets.get(7)!;
+    expect(off.position).toEqual([2, 0, 0]);
   });
 });

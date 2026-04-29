@@ -99,6 +99,18 @@ export const IDENTITY_OBJECT_OFFSET: ObjectOffset = {
   quaternion: [0, 0, 0, 1],
 };
 
+export function isIdentityObjectOffset(o: ObjectOffset): boolean {
+  return (
+    o.position[0] === 0 &&
+    o.position[1] === 0 &&
+    o.position[2] === 0 &&
+    o.quaternion[0] === 0 &&
+    o.quaternion[1] === 0 &&
+    o.quaternion[2] === 0 &&
+    o.quaternion[3] === 1
+  );
+}
+
 /**
  * A captured viewer state. Per-Object offsets and visibility are keyed by
  * `groupId` (the source-file node identity), never `batchId`.

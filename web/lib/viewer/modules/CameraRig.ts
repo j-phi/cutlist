@@ -7,6 +7,7 @@
  * selection / gizmo and never engages the camera.
  */
 
+import { easeInOut } from '~/lib/scene/easing';
 import type { EventBus } from './EventBus';
 import type { CameraMode, CameraPose, ViewerEvent, ViewPreset } from '../types';
 
@@ -39,10 +40,6 @@ const PRESET_DIRECTIONS: Record<
   right: { dir: [1, 0, 0], up: [0, 1, 0] },
   iso: { dir: [1, 1, 1], up: [0, 1, 0] },
 };
-
-function easeInOut(t: number): number {
-  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-}
 
 export class CameraRig {
   private mode: CameraMode = 'perspective';

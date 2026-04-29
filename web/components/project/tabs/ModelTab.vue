@@ -233,6 +233,21 @@ async function onUpdateActiveScene() {
   sceneAuthor.markClean();
 }
 
+async function onRemoveScene(id: string) {
+  if (sceneAuthor.activeSceneId.value === id) {
+    sceneAuthor.activeSceneId.value = null;
+    sceneAuthor.dirty.value = false;
+  }
+  await scenesApi.removeScene(id);
+}
+
+const canUpdateScene = computed(
+  () =>
+    sceneAuthor.dirty.value &&
+    sceneAuthor.activeSceneId.value !== null &&
+    !sceneAuthor.tweening.value,
+);
+
 watch(
   () => viewer.ready.value,
   (isReady) => {
@@ -419,10 +434,7 @@ function onFloorVisible(v: boolean) {
         v-if="hasModelData && !hasOnlyManualModels"
         class="absolute left-0 right-0 bottom-0 z-10"
       >
-        <div
-          v-if="sceneAuthor.dirty.value && sceneAuthor.activeSceneId.value"
-          class="flex justify-end px-3 pb-2"
-        >
+        <div v-if="canUpdateScene" class="flex justify-end px-3 pb-2">
           <UButton
             size="xs"
             color="primary"
@@ -438,7 +450,7 @@ function onFloorVisible(v: boolean) {
           @select="onSelectScene"
           @reorder="(id, idx) => scenesApi.moveScene(id, idx)"
           @rename="(id, name) => scenesApi.updateScene(id, { name })"
-          @remove="(id) => scenesApi.removeScene(id)"
+          @remove="onRemoveScene"
           @add="onAddScene"
         />
       </div>

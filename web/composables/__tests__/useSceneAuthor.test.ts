@@ -4,7 +4,7 @@
  * behaviour. The tween path is intentionally tested via direct apply paths —
  * the onFrame loop is exercised in viewer integration, not here.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, ref, type EffectScope } from 'vue';
 import type {
   CameraMode,
@@ -18,6 +18,8 @@ import { useSceneAuthor, type SceneAuthorViewer } from '../useSceneAuthor';
 interface FakeViewer extends SceneAuthorViewer {
   emitUserInteraction(): void;
   emitObjectMoved(): void;
+  /** Invoke every onFrame subscriber once. */
+  tickFrame(): void;
   appliedOffsets: Array<Map<GroupId, ObjectOffset>>;
   visibleCalls: Array<[GroupId, boolean]>;
   cameraMode: CameraMode;
@@ -25,9 +27,10 @@ interface FakeViewer extends SceneAuthorViewer {
   floorVisible: boolean;
 }
 
-function makeFakeViewer(): FakeViewer {
+function makeFakeViewer(opts: { ready?: boolean } = {}): FakeViewer {
   const userListeners: Array<() => void> = [];
   const movedListeners: Array<() => void> = [];
+  const frameListeners: Array<(dt: number) => void> = [];
   const objects = [
     { groupId: 1, partNumber: 1, name: 'A' },
     { groupId: 2, partNumber: 1, name: 'B' },
@@ -36,7 +39,7 @@ function makeFakeViewer(): FakeViewer {
   const offsets = new Map<GroupId, ObjectOffset>();
 
   const v: FakeViewer = {
-    ready: ref(true),
+    ready: ref(opts.ready ?? true),
     cameraMode: 'perspective',
     cameraPose: { position: [0, 0, 0], target: [0, 0, 0] },
     floorVisible: true,
@@ -71,7 +74,13 @@ function makeFakeViewer(): FakeViewer {
     },
     getObjects: () => objects,
     captureThumbnail: vi.fn().mockReturnValue('data:image/png;base64,XX'),
-    onFrame: () => () => {},
+    onFrame: (cb) => {
+      frameListeners.push(cb);
+      return () => {
+        const i = frameListeners.indexOf(cb);
+        if (i >= 0) frameListeners.splice(i, 1);
+      };
+    },
     on: (type, cb) => {
       if (type === 'user-interaction') userListeners.push(cb);
       else if (type === 'object-moved') movedListeners.push(cb);
@@ -82,6 +91,9 @@ function makeFakeViewer(): FakeViewer {
     },
     emitObjectMoved: () => {
       for (const cb of movedListeners) cb();
+    },
+    tickFrame: () => {
+      for (const cb of [...frameListeners]) cb(16);
     },
   };
   return v;
@@ -225,5 +237,102 @@ describe('useSceneAuthor — jumpToScene', () => {
     const lastApplied = v.appliedOffsets.at(-1)!;
     expect(lastApplied.get(1)?.position).toEqual([3, 0, 0]);
     expect(lastApplied.get(2)?.position).toEqual([0, 0, 0]);
+  });
+});
+
+describe('useSceneAuthor — tweenToScene', () => {
+  function fastForward(ms: number) {
+    vi.setSystemTime(Date.now() + ms);
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockImplementation(() => Date.now());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('Should resolve after duration, applying mid-cut at 0.5 and ending tween', async () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    const scene = makeScene();
+
+    const promise = a.tweenToScene(scene, 100);
+    expect(a.tweening.value).toBe(true);
+    expect(a.activeSceneId.value).toBe('s1');
+
+    // Frame at t=0 — neither mid-cut (camera mode/floor) nor terminal apply.
+    v.tickFrame();
+    expect(v.cameraMode).toBe('perspective');
+    expect(v.floorVisible).toBe(true);
+
+    // Past midpoint → mid-cut fires.
+    fastForward(60);
+    v.tickFrame();
+    expect(v.cameraMode).toBe('orthographic');
+    expect(v.floorVisible).toBe(false);
+
+    // Past end → tween resolves and stops.
+    fastForward(60);
+    v.tickFrame();
+    await promise;
+    expect(a.tweening.value).toBe(false);
+  });
+
+  it('Should suppress dirty during tween-driven object-moved bursts', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    expect(a.dirty.value).toBe(false);
+    a.tweenToScene(makeScene({ id: 's2' }), 100);
+    // While tweening, simulated bus events from the apply path should not
+    // re-flip dirty (markDirty short-circuits when tweening.value).
+    v.emitObjectMoved();
+    v.emitUserInteraction();
+    expect(a.dirty.value).toBe(false);
+  });
+
+  it('Should jumpToScene when viewer is not ready', () => {
+    const v = makeFakeViewer({ ready: false });
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.tweenToScene(makeScene(), 100);
+    expect(a.activeSceneId.value).toBe('s1');
+    expect(a.tweening.value).toBe(false);
+  });
+});
+
+describe('useSceneAuthor — markClean', () => {
+  it('Should clear dirty without affecting activeSceneId', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    v.emitObjectMoved();
+    expect(a.dirty.value).toBe(true);
+    a.markClean();
+    expect(a.dirty.value).toBe(false);
+    expect(a.activeSceneId.value).toBe('s1');
+  });
+});
+
+describe('useSceneAuthor — deferred listener attachment', () => {
+  it('Should attach listeners only after viewer.ready flips true', () => {
+    const v = makeFakeViewer({ ready: false });
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+
+    // Before ready: emit fires but no listener registered yet.
+    v.emitObjectMoved();
+    expect(a.dirty.value).toBe(false);
+
+    // Flip ready, now listeners attach (via watch).
+    v.ready.value = true;
+    // Allow the watcher to flush.
+    return Promise.resolve().then(() => {
+      v.emitObjectMoved();
+      expect(a.dirty.value).toBe(true);
+    });
   });
 });

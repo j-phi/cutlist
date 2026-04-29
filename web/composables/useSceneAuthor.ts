@@ -22,6 +22,7 @@ import type {
 } from '~/composables/useIdb';
 import {
   captureSceneState,
+  easeInOut,
   interpolateSceneState,
   sceneStateFromIdb,
   type SceneState,
@@ -82,9 +83,14 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
   let stopFrame: (() => void) | null = null;
   const userChangeCallbacks = new Set<() => void>();
 
+  function markDirty(): void {
+    if (!activeSceneId.value || tweening.value || dirty.value) return;
+    dirty.value = true;
+  }
+
   function notifyUserChange(): void {
     for (const cb of userChangeCallbacks) cb();
-    if (activeSceneId.value && !tweening.value) dirty.value = true;
+    markDirty();
   }
 
   function onUserChange(cb: () => void): () => void {
@@ -92,17 +98,12 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
     return () => userChangeCallbacks.delete(cb);
   }
 
-  // Subscriptions must wait until ViewerCore.init() has resolved — before
-  // that, viewer.on() is a no-op stub and the listener is silently dropped.
-  let unsubUser: (() => void) | null = null;
-  let unsubMoved: (() => void) | null = null;
+  // viewer.on() is a no-op stub before ViewerCore.init() resolves — wait
+  // for ready before subscribing or the listeners get silently dropped.
+  const unsubs: Array<() => void> = [];
   function attachListeners() {
-    unsubUser = viewer.on('user-interaction', () => {
-      if (activeSceneId.value && !tweening.value) dirty.value = true;
-    });
-    unsubMoved = viewer.on('object-moved', () => {
-      if (activeSceneId.value && !tweening.value) dirty.value = true;
-    });
+    unsubs.push(viewer.on('user-interaction', markDirty));
+    unsubs.push(viewer.on('object-moved', markDirty));
   }
   if (viewer.ready.value) {
     attachListeners();
@@ -114,8 +115,8 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
     });
   }
   onScopeDispose(() => {
-    unsubUser?.();
-    unsubMoved?.();
+    for (const off of unsubs) off();
+    unsubs.length = 0;
   });
 
   // ── Visibility ────────────────────────────────────────────────────
@@ -290,11 +291,6 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
         }
 
         if (raw >= 1) {
-          if (!midCutDone) {
-            viewer.setCameraMode(toState.cameraMode);
-            viewer.setFloorVisible(toState.floorVisible);
-            applyVisibility(toState.visibleObjects);
-          }
           stopTween();
           dirty.value = false;
           resolve();
@@ -325,8 +321,4 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
     markClean,
     onUserChange,
   };
-}
-
-function easeInOut(t: number): number {
-  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 }

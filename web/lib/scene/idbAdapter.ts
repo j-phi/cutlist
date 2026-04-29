@@ -4,6 +4,7 @@
  * Map/Set ↔ Record/array translation lives in one place.
  */
 
+import { isIdentityObjectOffset } from '~/composables/useIdb';
 import type { IdbScene, ObjectOffset } from '~/composables/useIdb';
 import type { GroupId } from '~/utils/types';
 import type { SceneState } from './types';
@@ -20,7 +21,7 @@ export function sceneStateToIdb(
 > {
   const offsets: Record<number, ObjectOffset> = {};
   for (const [groupId, off] of state.objectOffsets) {
-    if (isIdentity(off)) continue;
+    if (isIdentityObjectOffset(off)) continue;
     offsets[groupId] = off;
   }
   return {
@@ -33,18 +34,6 @@ export function sceneStateToIdb(
         : [...state.visibleObjects].sort((a, b) => a - b),
     floorVisible: state.floorVisible,
   };
-}
-
-function isIdentity(o: ObjectOffset): boolean {
-  return (
-    o.position[0] === 0 &&
-    o.position[1] === 0 &&
-    o.position[2] === 0 &&
-    o.quaternion[0] === 0 &&
-    o.quaternion[1] === 0 &&
-    o.quaternion[2] === 0 &&
-    o.quaternion[3] === 1
-  );
 }
 
 export function sceneStateFromIdb(scene: IdbScene): SceneState {

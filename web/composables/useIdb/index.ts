@@ -81,7 +81,7 @@ export type {
   CameraPose,
   ObjectOffset,
 } from './types';
-export { IDENTITY_OBJECT_OFFSET } from './types';
+export { IDENTITY_OBJECT_OFFSET, isIdentityObjectOffset } from './types';
 
 export function useIdb() {
   return {

@@ -15,6 +15,7 @@ export {
   applySceneDefaults,
   applyAnnotationDefaults,
   IDENTITY_OBJECT_OFFSET,
+  isIdentityObjectOffset,
 } from './useIdb/index';
 export type {
   AnnotationPatch,
