@@ -51,6 +51,7 @@ function makeRegistry(): {
     bus,
     requestRender,
     oneScale: new THREE.Vector3(1, 1, 1),
+    scratchMatrix: new THREE.Matrix4(),
   });
   return { reg, bus, requestRender };
 }
@@ -154,6 +155,30 @@ describe('ObjectRegistry', () => {
     const r = reg.get(11)!;
     expect(r.offset.position.toArray()).toEqual([0, 0, 0]);
     expect(r.offset.quaternion.toArray()).toEqual([0, 0, 0, 1]);
+  });
+
+  it('Should rewrite BatchedMesh per-instance matrices when an offset moves', () => {
+    const { reg } = makeRegistry();
+    const r = makeRecord(4);
+    r.batchIds = [10, 11];
+    r.originalMatrix.makeTranslation(1, 0, 0);
+    reg.register(r);
+
+    const setMatrixAt = vi.fn();
+    reg.attachBatched({
+      setMatrixAt,
+    } as unknown as import('three').BatchedMesh);
+
+    reg.setOffset(4, { position: [0, 5, 0] });
+
+    expect(setMatrixAt).toHaveBeenCalledTimes(2);
+    const [batchId0, mat0] = setMatrixAt.mock.calls[0];
+    expect(batchId0).toBe(10);
+    // Composed = T(0,5,0) · T(1,0,0) → translation (1,5,0).
+    const v = new THREE.Vector3().setFromMatrixPosition(mat0);
+    expect(v.x).toBeCloseTo(1);
+    expect(v.y).toBeCloseTo(5);
+    expect(v.z).toBeCloseTo(0);
   });
 
   it('Should request a render after setOffset', () => {

@@ -19,12 +19,16 @@ import type {
 } from '../types';
 
 type Vector3 = import('three').Vector3;
+type Matrix4 = import('three').Matrix4;
+type BatchedMesh = import('three').BatchedMesh;
 
 interface RegistryDeps {
   bus: EventBus<ViewerEvent>;
   requestRender: () => void;
   /** Pre-allocated unit-scale vector for Matrix4.compose. */
   oneScale: Vector3;
+  /** Pre-allocated scratch matrix for composing offsetMatrix · originalMatrix. */
+  scratchMatrix: Matrix4;
 }
 
 export interface ObjectOffsetInput {
@@ -37,8 +41,18 @@ const ZERO_VEC: Vec3 = [0, 0, 0];
 
 export class ObjectRegistry {
   private records = new Map<ObjectId, ObjectRecord>();
+  private batched: BatchedMesh | null = null;
 
   constructor(private deps: RegistryDeps) {}
+
+  /**
+   * Attach the live `BatchedMesh` so `setOffset` can rewrite per-instance
+   * matrices when an Object's offset changes. Called by `ViewerCore.loadModel`
+   * after the batch is built; `clear()` detaches.
+   */
+  attachBatched(batched: BatchedMesh): void {
+    this.batched = batched;
+  }
 
   register(record: ObjectRecord): void {
     this.records.set(record.groupId, record);
@@ -70,6 +84,7 @@ export class ObjectRegistry {
       }
     }
     this.records.clear();
+    this.batched = null;
   }
 
   forEach(cb: (record: ObjectRecord) => void): void {
@@ -116,6 +131,15 @@ export class ObjectRegistry {
       r.edgeLines.position.copy(r.offset.position);
       r.edgeLines.quaternion.copy(r.offset.quaternion);
     }
+
+    if (this.batched && r.batchIds.length > 0) {
+      const composed = this.deps.scratchMatrix.multiplyMatrices(
+        r.offsetMatrix,
+        r.originalMatrix,
+      );
+      for (const b of r.batchIds) this.batched.setMatrixAt(b, composed);
+    }
+
     this.deps.bus.emit({ type: 'object-moved', groupId: id });
     this.deps.requestRender();
   }

@@ -141,6 +141,7 @@ export class ViewerCore {
       bus: this.bus,
       requestRender: () => this.renderer?.requestRender(),
       oneScale: new THREE.Vector3(1, 1, 1),
+      scratchMatrix: new THREE.Matrix4(),
     });
 
     this.highlighter = new Highlighter({
@@ -269,6 +270,7 @@ export class ViewerCore {
     this.batched = result.batched;
     this.sceneBounds = result.sceneBounds;
     sceneGraph.addToGroup('modelGroup', result.batched);
+    registry.attachBatched(result.batched);
 
     this.highlighter!.attach(
       result.batched,
@@ -500,10 +502,15 @@ export class ViewerCore {
     if (!this.renderer || !this.cameraRig || !this.sceneGraph) return null;
     const r = this.renderer.renderer;
     const prevSize = r.getSize(new this.modules!.THREE.Vector2());
+    // Resize the camera frustum too — `setSize` alone leaves camera.aspect
+    // pointing at the live canvas, which would render wide content squashed
+    // into the 4:3 thumbnail.
     r.setSize(width, height, false);
+    this.cameraRig.onResize(width, height);
     r.render(this.sceneGraph.scene, this.cameraRig.camera);
     const url = r.domElement.toDataURL('image/png');
     r.setSize(prevSize.x, prevSize.y, false);
+    this.cameraRig.onResize(prevSize.x, prevSize.y);
     this.renderer.requestRender();
     return url;
   }

@@ -10,7 +10,9 @@ import type {
 } from '~/utils/types';
 import ViewCube from '~/components/viewer/ViewCube.vue';
 import ObjectsPanel from '~/components/viewer/ObjectsPanel.vue';
+import SceneTimeline from '~/components/viewer/SceneTimeline.vue';
 import { useSceneAuthor } from '~/composables/useSceneAuthor';
+import { useScenes } from '~/composables/useScenes';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 
 const props = withDefaults(
@@ -191,12 +193,37 @@ const infoPart = computed(() => {
 const cameraMode = ref<CameraMode>('perspective');
 const floorVisible = ref(true);
 
-const sceneAuthor = useSceneAuthor({
-  setObjectVisible: (id, visible) => viewer.setObjectVisible(id, visible),
-  setAllObjectsVisible: (visible) => viewer.setAllObjectsVisible(visible),
-  resetAllOffsets: () => viewer.resetAllOffsets(),
-  getObjectIds: () => loadedGraph.value?.objects.map((o) => o.groupId) ?? [],
-});
+const sceneAuthor = useSceneAuthor(viewer);
+const scenesApi = useScenes();
+
+async function onAddScene() {
+  if (sceneAuthor.tweening.value) return;
+  const state = sceneAuthor.captureCurrentSceneState();
+  const thumbnail = sceneAuthor.captureThumbnail() ?? undefined;
+  const id = await scenesApi.addScene({ state, thumbnail });
+  if (id) sceneAuthor.activeSceneId.value = id;
+  sceneAuthor.dirty.value = false;
+}
+
+async function onSelectScene(id: string) {
+  if (sceneAuthor.tweening.value) return;
+  const scene = scenesApi.scenes.value.find((s) => s.id === id);
+  if (!scene) return;
+  await sceneAuthor.tweenToScene(scene);
+}
+
+async function onUpdateActiveScene() {
+  const id = sceneAuthor.activeSceneId.value;
+  if (!id) return;
+  const state = sceneAuthor.captureCurrentSceneState();
+  const thumbnail = sceneAuthor.captureThumbnail() ?? undefined;
+  const { sceneStateToIdb } = await import('~/lib/scene');
+  await scenesApi.updateScene(id, {
+    ...sceneStateToIdb(state),
+    thumbnailDataUrl: thumbnail,
+  });
+  sceneAuthor.markClean();
+}
 
 watch(
   () => viewer.ready.value,
@@ -349,6 +376,35 @@ function onFloorVisible(v: boolean) {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Scene timeline (bottom strip) -->
+      <div
+        v-if="hasModelData && !hasOnlyManualModels"
+        class="absolute left-0 right-0 bottom-0 z-10"
+      >
+        <div
+          v-if="sceneAuthor.dirty.value && sceneAuthor.activeSceneId.value"
+          class="flex justify-end px-3 pb-2"
+        >
+          <UButton
+            size="xs"
+            color="primary"
+            variant="solid"
+            label="Update scene"
+            @click="onUpdateActiveScene"
+          />
+        </div>
+        <SceneTimeline
+          :scenes="scenesApi.scenes.value"
+          :active-scene-id="sceneAuthor.activeSceneId.value"
+          :busy="sceneAuthor.tweening.value"
+          @select="onSelectScene"
+          @reorder="(id, idx) => scenesApi.moveScene(id, idx)"
+          @rename="(id, name) => scenesApi.updateScene(id, { name })"
+          @remove="(id) => scenesApi.removeScene(id)"
+          @add="onAddScene"
+        />
       </div>
 
       <!-- Bottom-right controls — desktop mouse legend (OnShape-style mapping) -->

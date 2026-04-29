@@ -1,0 +1,5 @@
+export { captureSceneState, type CaptureInput } from './captureSceneState';
+export { applySceneState } from './applySceneState';
+export { interpolateSceneState } from './interpolateSceneState';
+export { sceneStateToIdb, sceneStateFromIdb } from './idbAdapter';
+export type { AppliedSceneState, SceneState } from './types';

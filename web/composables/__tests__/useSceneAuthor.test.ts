@@ -1,0 +1,229 @@
+// @vitest-environment nuxt
+/**
+ * Tests for useSceneAuthor's visibility, dirty-flag, capture, and jump
+ * behaviour. The tween path is intentionally tested via direct apply paths —
+ * the onFrame loop is exercised in viewer integration, not here.
+ */
+import { describe, expect, it, vi } from 'vitest';
+import { effectScope, ref, type EffectScope } from 'vue';
+import type {
+  CameraMode,
+  CameraPose,
+  IdbScene,
+  ObjectOffset,
+} from '~/composables/useIdb';
+import type { GroupId } from '~/utils/types';
+import { useSceneAuthor, type SceneAuthorViewer } from '../useSceneAuthor';
+
+interface FakeViewer extends SceneAuthorViewer {
+  emitUserInteraction(): void;
+  emitObjectMoved(): void;
+  appliedOffsets: Array<Map<GroupId, ObjectOffset>>;
+  visibleCalls: Array<[GroupId, boolean]>;
+  cameraMode: CameraMode;
+  cameraPose: CameraPose;
+  floorVisible: boolean;
+}
+
+function makeFakeViewer(): FakeViewer {
+  const userListeners: Array<() => void> = [];
+  const movedListeners: Array<() => void> = [];
+  const objects = [
+    { groupId: 1, partNumber: 1, name: 'A' },
+    { groupId: 2, partNumber: 1, name: 'B' },
+    { groupId: 3, partNumber: 2, name: 'C' },
+  ];
+  const offsets = new Map<GroupId, ObjectOffset>();
+
+  const v: FakeViewer = {
+    ready: ref(true),
+    cameraMode: 'perspective',
+    cameraPose: { position: [0, 0, 0], target: [0, 0, 0] },
+    floorVisible: true,
+    appliedOffsets: [],
+    visibleCalls: [],
+    getCameraMode: () => v.cameraMode,
+    setCameraMode: (m) => {
+      v.cameraMode = m;
+    },
+    getCameraPose: () => v.cameraPose,
+    setCameraPose: (p) => {
+      v.cameraPose = p;
+    },
+    getFloorVisible: () => v.floorVisible,
+    setFloorVisible: (b) => {
+      v.floorVisible = b;
+    },
+    setObjectVisible: (id, visible) => {
+      v.visibleCalls.push([id, visible]);
+    },
+    setAllObjectsVisible: (visible) => {
+      for (const o of objects) v.visibleCalls.push([o.groupId, visible]);
+    },
+    resetAllOffsets: () => {
+      offsets.clear();
+    },
+    resetSelectedOffsets: () => {},
+    getObjectOffsets: () => new Map(offsets),
+    applyObjectOffsets: (m) => {
+      v.appliedOffsets.push(new Map(m));
+      for (const [k, val] of m) offsets.set(k, val);
+    },
+    getObjects: () => objects,
+    captureThumbnail: vi.fn().mockReturnValue('data:image/png;base64,XX'),
+    onFrame: () => () => {},
+    on: (type, cb) => {
+      if (type === 'user-interaction') userListeners.push(cb);
+      else if (type === 'object-moved') movedListeners.push(cb);
+      return () => {};
+    },
+    emitUserInteraction: () => {
+      for (const cb of userListeners) cb();
+    },
+    emitObjectMoved: () => {
+      for (const cb of movedListeners) cb();
+    },
+  };
+  return v;
+}
+
+function makeScene(overrides: Partial<IdbScene> = {}): IdbScene {
+  const now = new Date().toISOString();
+  return {
+    id: 's1',
+    projectId: 'p',
+    name: 'Scene',
+    order: 0,
+    cameraMode: 'orthographic',
+    cameraPose: { position: [10, 5, 0], target: [0, 0, 0] },
+    objectOffsets: { 1: { position: [3, 0, 0], quaternion: [0, 0, 0, 1] } },
+    visibleObjects: [1, 3],
+    floorVisible: false,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function withScope<T>(fn: () => T): { result: T; scope: EffectScope } {
+  const scope = effectScope();
+  const result = scope.run(fn)!;
+  return { result, scope };
+}
+
+describe('useSceneAuthor — visibility', () => {
+  it('Should keep null (all visible) the canonical default', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    expect(a.visibleObjects.value).toBeNull();
+  });
+
+  it('Should fold to null when every Object is visible after a toggle', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.setObjectsVisibility([2], false);
+    expect(a.visibleObjects.value).toBeInstanceOf(Set);
+    a.setObjectsVisibility([2], true);
+    expect(a.visibleObjects.value).toBeNull();
+  });
+
+  it('Should hide all into an empty Set, not null', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.hideAllObjects();
+    expect(a.visibleObjects.value).toBeInstanceOf(Set);
+    expect(a.visibleObjects.value?.size).toBe(0);
+  });
+});
+
+describe('useSceneAuthor — dirty flag', () => {
+  it('Should not flip dirty until a scene is active', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    v.emitUserInteraction();
+    v.emitObjectMoved();
+    expect(a.dirty.value).toBe(false);
+  });
+
+  it('Should set dirty on user-interaction once a scene is active', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    expect(a.dirty.value).toBe(false);
+    v.emitUserInteraction();
+    expect(a.dirty.value).toBe(true);
+  });
+
+  it('Should set dirty on object-moved once a scene is active', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    v.emitObjectMoved();
+    expect(a.dirty.value).toBe(true);
+  });
+
+  it('Should reset dirty when jumpToScene runs', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    v.emitUserInteraction();
+    expect(a.dirty.value).toBe(true);
+    a.jumpToScene(makeScene({ id: 's2' }));
+    expect(a.dirty.value).toBe(false);
+  });
+
+  it('Should flip dirty on visibility toggle when a scene is active', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    expect(a.dirty.value).toBe(false);
+    a.toggleObjectVisibility(2);
+    expect(a.dirty.value).toBe(true);
+  });
+});
+
+describe('useSceneAuthor — capture', () => {
+  it('Should capture the live viewer state into a SceneState', () => {
+    const v = makeFakeViewer();
+    v.cameraMode = 'orthographic';
+    v.cameraPose = { position: [4, 5, 6], target: [0, 0, 0] };
+    v.floorVisible = false;
+    const { result: a } = withScope(() => useSceneAuthor(v));
+
+    a.setObjectsVisibility([2], false);
+    const state = a.captureCurrentSceneState();
+
+    expect(state.cameraMode).toBe('orthographic');
+    expect(state.cameraPose.position).toEqual([4, 5, 6]);
+    expect(state.floorVisible).toBe(false);
+    expect(state.visibleObjects).not.toBeNull();
+    expect((state.visibleObjects as Set<number>).has(2)).toBe(false);
+  });
+
+  it('Should capture a thumbnail at 320×240', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    expect(a.captureThumbnail()).toBe('data:image/png;base64,XX');
+    expect(v.captureThumbnail).toHaveBeenCalledWith(320, 240);
+  });
+});
+
+describe('useSceneAuthor — jumpToScene', () => {
+  it('Should apply camera, floor, visibility, and offsets', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+
+    expect(v.cameraMode).toBe('orthographic');
+    expect(v.cameraPose.position).toEqual([10, 5, 0]);
+    expect(v.floorVisible).toBe(false);
+    expect(a.activeSceneId.value).toBe('s1');
+    expect(a.visibleObjects.value).toBeInstanceOf(Set);
+    expect((a.visibleObjects.value as Set<number>).has(1)).toBe(true);
+    expect((a.visibleObjects.value as Set<number>).has(2)).toBe(false);
+
+    const lastApplied = v.appliedOffsets.at(-1)!;
+    expect(lastApplied.get(1)?.position).toEqual([3, 0, 0]);
+    expect(lastApplied.get(2)?.position).toEqual([0, 0, 0]);
+  });
+});
