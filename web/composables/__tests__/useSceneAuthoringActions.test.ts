@@ -48,10 +48,14 @@ function makeScenes(scenes: IdbScene[] = []): UseScenesApi {
   const list = ref<IdbScene[]>(scenes);
   return {
     scenes: list,
+    pinnedSceneIds: ref([]),
+    defaultSceneId: ref(null),
     addScene: vi.fn(async () => 'new-id'),
+    ensureDefaultScene: vi.fn(async () => undefined),
     updateScene: vi.fn(async () => {}),
     moveScene: vi.fn(async () => {}),
     removeScene: vi.fn(async () => {}),
+    isDefaultScene: vi.fn(() => false),
     reload: vi.fn(async () => {}),
   } as unknown as UseScenesApi;
 }
@@ -140,6 +144,21 @@ describe('useSceneAuthoringActions', () => {
     expect(author.activeSceneId.value).toBeNull();
     expect(author.dirty.value).toBe(false);
     expect(scenes.removeScene).toHaveBeenCalledWith('s1');
+    scope.stop();
+  });
+
+  it('Should not remove the default scene', async () => {
+    const author = makeAuthor();
+    author.activeSceneId.value = 'default:m1';
+    const scenes = makeScenes();
+    vi.mocked(scenes.isDefaultScene).mockReturnValue(true);
+    const scope = effectScope();
+    const actions = scope.run(() => useSceneAuthoringActions(author, scenes))!;
+
+    await actions.removeScene('default:m1');
+
+    expect(author.activeSceneId.value).toBe('default:m1');
+    expect(scenes.removeScene).not.toHaveBeenCalled();
     scope.stop();
   });
 

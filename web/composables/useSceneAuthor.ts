@@ -119,6 +119,7 @@ export interface SceneAuthor {
 export function useSceneAuthor(
   viewer: SceneAuthorViewer,
   focusedModelIdRef?: Ref<string | null>,
+  opts: { readOnly?: Ref<boolean> | boolean } = {},
 ): SceneAuthor {
   const visibleObjects = ref<Set<GroupId> | null>(null);
   const activeSceneId = ref<string | null>(null);
@@ -149,6 +150,11 @@ export function useSceneAuthor(
   // is treated as completion of the old.
   let pendingResolve: (() => void) | null = null;
   const userChangeCallbacks = new Set<() => void>();
+
+  function isReadOnly(): boolean {
+    const value = opts.readOnly;
+    return typeof value === 'object' && value !== null ? value.value : !!value;
+  }
 
   // Per-model active-scene memory. We keep two side-effects in sync:
   //   1. `activeSceneId` change → write `(currentModelId → newSceneId)` so
@@ -195,6 +201,7 @@ export function useSceneAuthor(
   }
 
   function markDirty(): void {
+    if (isReadOnly()) return;
     if (!activeSceneId.value || tween.value !== null) return;
     dirty.value = true;
   }

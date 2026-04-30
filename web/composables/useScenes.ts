@@ -17,7 +17,7 @@
  * optimistic state right after a mutation.
  */
 
-import { effectScope, type Ref } from 'vue';
+import { effectScope, type ComputedRef, type Ref } from 'vue';
 import type { IdbScene } from '~/composables/useIdb';
 import { sceneStateToIdb } from '~/lib/scene';
 import type { SceneState } from '~/lib/scene';
@@ -25,8 +25,14 @@ import {
   moveSceneToIndex,
   nextSceneOrder,
   removeScene as removeSceneOrdered,
+  renumberScenes,
 } from '~/utils/sceneOrder';
 import { useAnnotations } from '~/composables/useAnnotations';
+import {
+  DEFAULT_SCENE_NAME,
+  defaultSceneIdForModel,
+  isDefaultScene,
+} from '~/utils/defaultScene';
 
 const scenes = ref<IdbScene[]>([]);
 let loadedForId: string | null = null;
@@ -42,15 +48,25 @@ export interface AddSceneInput {
 
 export interface UseScenesApi {
   scenes: Ref<IdbScene[]>;
+  pinnedSceneIds: ComputedRef<string[]>;
+  defaultSceneId: ComputedRef<string | null>;
   addScene(input: AddSceneInput): Promise<string | undefined>;
+  ensureDefaultScene(input: AddSceneInput): Promise<string | undefined>;
   updateScene(id: string, patch: Partial<IdbScene>): Promise<void>;
   removeScene(id: string): Promise<void>;
   moveScene(id: string, toIndex: number): Promise<void>;
+  isDefaultScene(id: string): boolean;
   reload(modelId: string): Promise<void>;
 }
 
 export function useScenes(modelIdRef: Ref<string | null>): UseScenesApi {
   const idb = useIdb();
+  const defaultSceneId = computed(() =>
+    modelIdRef.value ? defaultSceneIdForModel(modelIdRef.value) : null,
+  );
+  const pinnedSceneIds = computed(() =>
+    defaultSceneId.value ? [defaultSceneId.value] : [],
+  );
   // Latest binding wins: the most recent caller dictates which ref drives
   // the watcher. In practice there's one consumer (ModelTab) at a time.
   activeModelIdRef = modelIdRef;
@@ -72,7 +88,7 @@ export function useScenes(modelIdRef: Ref<string | null>): UseScenesApi {
           if (id === loadedForId) return;
           const loaded = await idb.getScenesForModel(id);
           if (gen !== loadGen) return;
-          scenes.value = loaded;
+          scenes.value = sortScenesWithDefault(loaded);
           loadedForId = id;
         },
         { immediate: true },
@@ -84,10 +100,12 @@ export function useScenes(modelIdRef: Ref<string | null>): UseScenesApi {
     const modelId = modelIdRef.value;
     if (!modelId) return;
     const now = new Date().toISOString();
+    const sceneNumber =
+      scenes.value.filter((scene) => !isDefaultScene(scene)).length + 1;
     const scene: IdbScene = {
       id: crypto.randomUUID(),
       modelId,
-      name: input.name ?? `Scene ${scenes.value.length + 1}`,
+      name: input.name ?? `Scene ${sceneNumber}`,
       order: nextSceneOrder(scenes.value),
       ...sceneStateToIdb(input.state),
       thumbnailDataUrl: input.thumbnail,
@@ -99,6 +117,64 @@ export function useScenes(modelIdRef: Ref<string | null>): UseScenesApi {
     loadedForId = modelId;
     await idb.createScene(scene);
     return scene.id;
+  }
+
+  async function ensureDefaultScene(
+    input: AddSceneInput,
+  ): Promise<string | undefined> {
+    const modelId = modelIdRef.value;
+    if (!modelId) return;
+    const id = defaultSceneIdForModel(modelId);
+    const existing = scenes.value.find((scene) => scene.id === id);
+
+    if (existing) {
+      const normalized = sortScenesWithDefault(scenes.value);
+      const changed =
+        normalized.some((scene, index) => scene.order !== index) ||
+        existing.name !== DEFAULT_SCENE_NAME;
+
+      if (changed) {
+        loadGen++;
+        scenes.value = normalized.map((scene, index) =>
+          scene.id === id
+            ? { ...scene, name: DEFAULT_SCENE_NAME, order: index }
+            : { ...scene, order: index },
+        );
+        loadedForId = modelId;
+        await Promise.all(
+          scenes.value.map((scene) =>
+            idb.updateScene(scene.id, {
+              name: scene.name,
+              order: scene.order,
+            }),
+          ),
+        );
+      }
+      return id;
+    }
+
+    const now = new Date().toISOString();
+    const scene: IdbScene = {
+      id,
+      modelId,
+      name: DEFAULT_SCENE_NAME,
+      order: 0,
+      ...sceneStateToIdb(input.state),
+      thumbnailDataUrl: input.thumbnail,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const renumbered = renumberScenes([scene, ...scenes.value]);
+    loadGen++;
+    scenes.value = renumbered;
+    loadedForId = modelId;
+    await idb.createScene(scene);
+    await Promise.all(
+      renumbered
+        .filter((s) => s.id !== id)
+        .map((s) => idb.updateScene(s.id, { order: s.order })),
+    );
+    return id;
   }
 
   async function updateScene(
@@ -113,6 +189,7 @@ export function useScenes(modelIdRef: Ref<string | null>): UseScenesApi {
   }
 
   async function removeScene(id: string): Promise<void> {
+    if (isDefaultSceneIdForCurrentModel(id)) return;
     if (!scenes.value.find((s) => s.id === id)) return;
     loadGen++;
     const remaining = removeSceneOrdered(scenes.value, id);
@@ -125,7 +202,15 @@ export function useScenes(modelIdRef: Ref<string | null>): UseScenesApi {
   }
 
   async function moveScene(id: string, toIndex: number): Promise<void> {
-    const renumbered = moveSceneToIndex(scenes.value, id, toIndex);
+    if (isDefaultSceneIdForCurrentModel(id)) return;
+    const minIndex = scenes.value.some((scene) => isDefaultScene(scene))
+      ? 1
+      : 0;
+    const renumbered = moveSceneToIndex(
+      scenes.value,
+      id,
+      Math.max(minIndex, toIndex),
+    );
     if (renumbered === scenes.value) return;
     loadGen++;
     scenes.value = renumbered;
@@ -138,11 +223,35 @@ export function useScenes(modelIdRef: Ref<string | null>): UseScenesApi {
     const gen = ++loadGen;
     const loaded = await idb.getScenesForModel(modelId);
     if (gen !== loadGen) return;
-    scenes.value = loaded;
+    scenes.value = sortScenesWithDefault(loaded);
     loadedForId = modelId;
   }
 
-  return { scenes, addScene, updateScene, removeScene, moveScene, reload };
+  function isDefaultSceneIdForCurrentModel(id: string): boolean {
+    return defaultSceneId.value === id;
+  }
+
+  function sortScenesWithDefault(list: IdbScene[]): IdbScene[] {
+    const sorted = [...list].sort((a, b) => a.order - b.order);
+    const defaultIndex = sorted.findIndex((scene) => isDefaultScene(scene));
+    if (defaultIndex === -1) return sorted;
+    if (defaultIndex === 0) return renumberScenes(sorted);
+    const [defaultScene] = sorted.splice(defaultIndex, 1);
+    return renumberScenes([defaultScene, ...sorted]);
+  }
+
+  return {
+    scenes,
+    pinnedSceneIds,
+    defaultSceneId,
+    addScene,
+    ensureDefaultScene,
+    updateScene,
+    removeScene,
+    moveScene,
+    isDefaultScene: isDefaultSceneIdForCurrentModel,
+    reload,
+  };
 }
 
 export default useScenes;

@@ -12,6 +12,7 @@ import { effectScope, nextTick, ref, type EffectScope } from 'vue';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import type { SceneState } from '~/lib/scene';
 import type { IdbModel } from '~/composables/useIdb';
+import { defaultSceneIdForModel } from '~/utils/defaultScene';
 
 // useScenes no longer reads activeId, but useAnnotations (used via the
 // removeScene cascade) still does, so we mock it to keep the tests stable.
@@ -127,6 +128,54 @@ describe('useScenes', () => {
     expect(persisted[0].name).toBe('Front');
     expect(persisted[0].thumbnailDataUrl).toBe('data:image/png;base64,thumb');
     expect(persisted[0].cameraPose.position).toEqual([1, 2, 3]);
+  });
+
+  it('Should create a pinned default scene at order 0', async () => {
+    const { projectId, modelId } = await makeProjectAndModel();
+    const modelIdRef = ref<string | null>(modelId);
+    const api = scope.run(() => useScenes(modelIdRef))!;
+    activeId.value = projectId;
+    await flush();
+    await api.reload(modelId);
+
+    const id = await api.ensureDefaultScene({
+      state: makeState({
+        cameraPose: { position: [1, 2, 3], target: [0, 0, 0] },
+      }),
+      thumbnail: 'data:image/png;base64,default',
+    });
+
+    expect(id).toBe(defaultSceneIdForModel(modelId));
+    expect(api.defaultSceneId.value).toBe(id);
+    expect(api.pinnedSceneIds.value).toEqual([id]);
+    expect(api.scenes.value.map((s) => [s.id, s.name, s.order])).toEqual([
+      [id, 'Default', 0],
+    ]);
+
+    const persisted = await idb.getScenesForModel(modelId);
+    expect(persisted[0].id).toBe(id);
+    expect(persisted[0].cameraPose.position).toEqual([1, 2, 3]);
+    expect(persisted[0].thumbnailDataUrl).toBe('data:image/png;base64,default');
+  });
+
+  it('Should keep the default scene when removing and reordering scenes', async () => {
+    const { projectId, modelId } = await makeProjectAndModel();
+    const modelIdRef = ref<string | null>(modelId);
+    const api = scope.run(() => useScenes(modelIdRef))!;
+    activeId.value = projectId;
+    await flush();
+    await api.reload(modelId);
+
+    const defaultId = await api.ensureDefaultScene({ state: makeState() });
+    await api.addScene({ name: 'A', state: makeState() });
+    await api.addScene({ name: 'B', state: makeState() });
+
+    await api.removeScene(defaultId!);
+    expect(api.scenes.value.map((s) => s.name)).toEqual(['Default', 'A', 'B']);
+
+    await api.moveScene(api.scenes.value[2].id, 0);
+    expect(api.scenes.value.map((s) => s.name)).toEqual(['Default', 'B', 'A']);
+    expect(api.scenes.value.map((s) => s.order)).toEqual([0, 1, 2]);
   });
 
   it('Should drop identity object offsets in persisted scene state', async () => {

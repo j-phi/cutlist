@@ -217,6 +217,7 @@ export default function useThreeViewer(
       core?.setAllObjectsVisible(visible),
     getObjects: () => core?.getObjects() ?? [],
     setGizmoMode: (mode: GizmoMode) => core?.setGizmoMode(mode),
+    setGizmoEnabled: (enabled: boolean) => core?.setGizmoEnabled(enabled),
     resetSelectedOffsets: (ids: GroupId[]) => core?.resetSelectedOffsets(ids),
     resetAllOffsets: () => core?.resetAllOffsets(),
     setInteractionMode: (

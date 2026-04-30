@@ -26,8 +26,10 @@ export function useFocusedModelLoader(opts: {
   focusedModelId: Ref<string | null>;
   sceneAuthor: SceneAuthor;
   scenesApi: UseScenesApi;
+  targetSceneId?: Ref<string | null>;
 }) {
-  const { viewer, focusedModelId, sceneAuthor, scenesApi } = opts;
+  const { viewer, focusedModelId, sceneAuthor, scenesApi, targetSceneId } =
+    opts;
   const models = useModels();
   const store = useModelViewerStore();
   const loadedGraph = ref<ObjectGraph | null>(null);
@@ -67,16 +69,26 @@ export function useFocusedModelLoader(opts: {
     if (generation !== loadGeneration || focusedModelId.value !== id) return;
     loadedGraph.value = graph;
     loadState.value = 'loaded';
-    // Replay the remembered active scene (if any) so the camera/visibility
-    // /offsets match the marker the timeline is showing. `useSceneAuthor`
-    // has already populated `activeSceneId` from the per-model memory map;
-    // we just need to wait until both the model and its scenes are in
-    // memory before applying. `jumpToScene` is a one-shot apply (no tween).
-    const sid = sceneAuthor.activeSceneId.value;
-    if (sid) {
-      const scene = scenesApi.scenes.value.find((s) => s.id === sid);
-      if (scene) sceneAuthor.jumpToScene(scene);
-    }
+    await scenesApi.reload(id);
+    if (generation !== loadGeneration || focusedModelId.value !== id) return;
+    const defaultSceneId = await scenesApi.ensureDefaultScene({
+      state: sceneAuthor.captureCurrentSceneState(),
+      thumbnail: sceneAuthor.captureThumbnail() ?? undefined,
+    });
+    if (generation !== loadGeneration || focusedModelId.value !== id) return;
+
+    // Replay an explicitly requested preview scene first, then the per-model
+    // remembered scene, and finally the always-present default scene.
+    const requestedSceneId = targetSceneId?.value ?? null;
+    const candidateIds = [
+      requestedSceneId,
+      sceneAuthor.activeSceneId.value,
+      defaultSceneId,
+    ].filter((sid): sid is string => !!sid);
+    const scene = candidateIds
+      .map((sid) => scenesApi.scenes.value.find((s) => s.id === sid))
+      .find((s): s is NonNullable<typeof s> => !!s);
+    if (scene) sceneAuthor.jumpToScene(scene);
   }
 
   // Single watch on the combined predicate avoids a double-fire on initial

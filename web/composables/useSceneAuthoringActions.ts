@@ -61,6 +61,7 @@ export function useSceneAuthoringActions(
   }
 
   async function removeScene(id: string): Promise<void> {
+    if (scenesApi.isDefaultScene(id)) return;
     if (sceneAuthor.activeSceneId.value === id) {
       sceneAuthor.activeSceneId.value = null;
       sceneAuthor.dirty.value = false;

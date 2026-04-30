@@ -20,18 +20,22 @@ import { useAnnotationAuthor } from '~/composables/useAnnotationAuthor';
 import { useAnnotationProjector } from '~/composables/useAnnotationProjector';
 import { useSceneAuthoringActions } from '~/composables/useSceneAuthoringActions';
 import { useFocusedModelLoader } from '~/composables/useFocusedModelLoader';
+import { defaultSceneIdForModel } from '~/utils/defaultScene';
 
 const props = withDefaults(
   defineProps<{
-    showOpenButton?: boolean;
+    readOnly?: boolean;
+    defaultScenePreview?: boolean;
+    previewModelId?: string | null;
+    previewSceneId?: string | null;
   }>(),
   {
-    showOpenButton: false,
+    readOnly: false,
+    defaultScenePreview: false,
+    previewModelId: null,
+    previewSceneId: null,
   },
 );
-const emit = defineEmits<{
-  expand: [];
-}>();
 
 const { activeId, enabledModels: allEnabledModels } = useProjects();
 const enabledModels = computed(() =>
@@ -42,6 +46,10 @@ const store = useModelViewerStore();
 
 const canvasContainer = ref<HTMLElement>();
 const viewer = useThreeViewer(canvasContainer);
+watchEffect(() => {
+  void viewer.ready.value;
+  viewer.setGizmoEnabled(!props.readOnly);
+});
 
 // Model switcher — always show exactly one model
 const focusedModelIdx = ref(0);
@@ -55,6 +63,11 @@ watch(activeId, () => {
 });
 
 const focusedModel = computed(() => {
+  if (props.previewModelId) {
+    return (
+      enabledModels.value.find((m) => m.id === props.previewModelId) ?? null
+    );
+  }
   const idx = Math.min(focusedModelIdx.value, enabledModels.value.length - 1);
   return enabledModels.value[idx] ?? null;
 });
@@ -116,13 +129,22 @@ function onGizmoMode(mode: GizmoMode) {
 
 // Scenes are model-scoped. The focused model id drives both the timeline
 // (`useScenes`) and the per-model active-scene memory inside `useSceneAuthor`.
-const sceneAuthor = useSceneAuthor(viewer, focusedModelId);
+const readOnly = computed(() => props.readOnly);
+const sceneAuthor = useSceneAuthor(viewer, focusedModelId, { readOnly });
 const scenesApi = useScenes(focusedModelId);
+const targetSceneId = computed(() => {
+  if (props.previewSceneId) return props.previewSceneId;
+  if (props.defaultScenePreview && focusedModelId.value) {
+    return defaultSceneIdForModel(focusedModelId.value);
+  }
+  return null;
+});
 const { loadedGraph, loadState } = useFocusedModelLoader({
   viewer,
   focusedModelId,
   sceneAuthor,
   scenesApi,
+  targetSceneId,
 });
 const canShowViewerControls = computed(
   () =>
@@ -168,6 +190,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 useEventListener('keydown', (event: KeyboardEvent) => {
+  if (props.readOnly) return;
   if (event.key !== 'Delete' && event.key !== 'Backspace') return;
   if (event.repeat) return;
   if (store.selectedGroupIds.value.size === 0) return;
@@ -209,6 +232,17 @@ const sceneActions = useSceneAuthoringActions(sceneAuthor, scenesApi);
 function onSnap(preset: ViewPreset) {
   viewer.applyViewPreset(preset);
 }
+
+watch(
+  [targetSceneId, () => scenesApi.scenes.value, loadState],
+  ([sid]) => {
+    if (!sid || loadState.value !== 'loaded') return;
+    if (sceneAuthor.activeSceneId.value === sid) return;
+    const scene = scenesApi.scenes.value.find((s) => s.id === sid);
+    if (scene) sceneAuthor.jumpToScene(scene);
+  },
+  { flush: 'post' },
+);
 </script>
 
 <template>
@@ -265,7 +299,12 @@ function onSnap(preset: ViewPreset) {
       <ModelEmptyState v-if="emptyStateType" :type="emptyStateType" />
 
       <!-- Model switcher (only when multiple enabled models) -->
-      <div v-if="enabledModels.length > 1" class="absolute top-4 left-4 z-10">
+      <div
+        v-if="
+          !props.readOnly && !props.previewModelId && enabledModels.length > 1
+        "
+        class="absolute top-4 left-4 z-10"
+      >
         <ModelSwitcher
           :models="enabledModels"
           :focused-idx="focusedModelIdx"
@@ -273,23 +312,9 @@ function onSnap(preset: ViewPreset) {
         />
       </div>
 
-      <div
-        v-if="props.showOpenButton"
-        class="absolute top-4 right-4 z-10 bg-overlay backdrop-blur border border-subtle rounded-lg p-1"
-      >
-        <UButton
-          size="xs"
-          color="primary"
-          variant="soft"
-          icon="i-lucide-expand"
-          label="Open model view"
-          @click="emit('expand')"
-        />
-      </div>
-
       <!-- Objects panel (left sidebar) -->
       <div
-        v-if="canShowViewerControls && loadedGraph"
+        v-if="!props.readOnly && canShowViewerControls && loadedGraph"
         class="absolute top-4 left-4 z-10"
         :class="enabledModels.length > 1 ? 'top-16' : 'top-4'"
       >
@@ -298,9 +323,9 @@ function onSnap(preset: ViewPreset) {
 
       <!-- Gizmo mode toolbar (only when something is selected) -->
       <div
-        v-if="canShowViewerControls && hasSelection"
+        v-if="!props.readOnly && canShowViewerControls && hasSelection"
         class="absolute top-4 z-10"
-        :class="props.showOpenButton ? 'right-[16.5rem]' : 'right-32'"
+        :class="'right-32'"
       >
         <GizmoModeToggle :mode="gizmoMode" @update:mode="onGizmoMode" />
       </div>
@@ -309,7 +334,7 @@ function onSnap(preset: ViewPreset) {
       <div
         v-if="canShowViewerControls"
         class="absolute top-4 z-10"
-        :class="props.showOpenButton ? 'right-44' : 'right-4'"
+        :class="'right-4'"
       >
         <ViewCube
           :camera-direction="viewer.cameraDirection.value"
@@ -328,7 +353,7 @@ function onSnap(preset: ViewPreset) {
 
       <!-- Scene timeline (bottom strip) -->
       <div
-        v-if="canShowViewerControls"
+        v-if="!props.readOnly && canShowViewerControls"
         class="absolute left-0 right-0 bottom-0 z-10"
       >
         <AnnotationToolbar
@@ -344,6 +369,7 @@ function onSnap(preset: ViewPreset) {
           :scenes="scenesApi.scenes.value"
           :active-scene-id="sceneAuthor.activeSceneId.value"
           :busy="sceneAuthor.tween.value !== null"
+          :pinned-ids="scenesApi.pinnedSceneIds.value"
           @select="sceneActions.selectScene"
           @reorder="(id, idx) => scenesApi.moveScene(id, idx)"
           @rename="(id, name) => scenesApi.updateScene(id, { name })"

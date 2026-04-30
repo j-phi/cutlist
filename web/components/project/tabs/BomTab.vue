@@ -25,7 +25,6 @@ const { requestGrainLockChange } = useGrainLockConfirm();
 const { distanceUnit, stock } = useProjectSettings();
 const formatDistance = useFormatDistance();
 const toast = useToast();
-const tab = useProjectTab();
 const modelViewer = useModelViewerStore();
 
 // ── BOM rows & filter (extracted composables) ────────────────────────────────
@@ -208,10 +207,6 @@ function onRowLeave(row: BomRow) {
 
 function clearBomHover() {
   modelViewer.hoverPart(null);
-}
-
-function openModelTab() {
-  tab.value = 'model';
 }
 
 // ── Manual part actions ──────────────────────────────────────────────────────
@@ -964,7 +959,7 @@ onUnmounted(() => {
           "
           @mouseleave="clearBomHover"
         >
-          <ModelTab show-open-button @expand="openModelTab" />
+          <ModelTab read-only default-scene-preview />
         </aside>
       </template>
     </div>

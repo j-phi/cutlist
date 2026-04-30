@@ -15,6 +15,7 @@ import type { ProjectExport } from '~/composables/useExportProject';
 import { gzipDecompress } from '~/utils/compress';
 import { migrateExport } from './migrations';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
+import { defaultSceneIdForModel, isDefaultSceneId } from '~/utils/defaultScene';
 import { z } from 'zod';
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
@@ -283,7 +284,9 @@ export async function importProjectData(
         // Orphaned scene (no matching model in payload) — skip silently.
         return;
       }
-      const newId = crypto.randomUUID();
+      const newId = isDefaultSceneId(scene.id)
+        ? defaultSceneIdForModel(remappedModelId)
+        : crypto.randomUUID();
       sceneIdMap.set(scene.id, newId);
       return idb.createScene({
         ...scene,

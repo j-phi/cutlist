@@ -111,6 +111,7 @@ export class ViewerCore {
   private snapDetector: SnapDetector | null = null;
   private snapVisuals: SnapVisuals | null = null;
   private marquee: MarqueeSelector | null = null;
+  private gizmoEnabled = true;
 
   private batched: BatchedMesh | null = null;
   private selectedOverlay: BatchedMesh | null = null;
@@ -445,7 +446,7 @@ export class ViewerCore {
 
   setSelectedObjects(ids: GroupId[]): void {
     this.highlighter?.setSelected(ids);
-    this.gizmo?.setSelection(ids);
+    this.gizmo?.setSelection(this.gizmoEnabled ? ids : []);
     // Intentionally no `selection-changed` bus emit: the bus event is the
     // canvas-input signal (InputRouter is the sole emitter). Programmatic
     // setters update the highlighter directly; observers should watch the
@@ -666,6 +667,11 @@ export class ViewerCore {
 
   setGizmoMode(mode: GizmoMode): void {
     this.gizmo?.setMode(mode);
+  }
+  setGizmoEnabled(enabled: boolean): void {
+    if (this.gizmoEnabled === enabled) return;
+    this.gizmoEnabled = enabled;
+    if (!enabled) this.gizmo?.setSelection([]);
   }
   resetSelectedOffsets(ids: GroupId[]): void {
     this.gizmo?.resetSelectedOffsets(ids);

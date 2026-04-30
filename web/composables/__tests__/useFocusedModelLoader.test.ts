@@ -67,8 +67,20 @@ describe('useFocusedModelLoader', () => {
     const sceneAuthor = {
       activeSceneId: ref<string | null>(null),
       jumpToScene: vi.fn(),
+      captureCurrentSceneState: vi.fn(() => ({
+        cameraMode: 'perspective',
+        cameraPose: { position: [0, 0, 0], target: [0, 0, 0] },
+        objectOffsets: new Map(),
+        visibleObjects: null,
+        floorVisible: true,
+      })),
+      captureThumbnail: vi.fn(() => null),
     } as unknown as SceneAuthor;
-    const scenesApi = { scenes: ref([]) } as unknown as UseScenesApi;
+    const scenesApi = {
+      scenes: ref([]),
+      reload: vi.fn(async () => {}),
+      ensureDefaultScene: vi.fn(async () => undefined),
+    } as unknown as UseScenesApi;
 
     const loader = scope.run(() =>
       useFocusedModelLoader({
@@ -106,8 +118,14 @@ describe('useFocusedModelLoader', () => {
         sceneAuthor: {
           activeSceneId: ref<string | null>(null),
           jumpToScene: vi.fn(),
+          captureCurrentSceneState: vi.fn(),
+          captureThumbnail: vi.fn(),
         } as unknown as SceneAuthor,
-        scenesApi: { scenes: ref([]) } as unknown as UseScenesApi,
+        scenesApi: {
+          scenes: ref([]),
+          reload: vi.fn(async () => {}),
+          ensureDefaultScene: vi.fn(async () => undefined),
+        } as unknown as UseScenesApi,
       }),
     )!;
 
