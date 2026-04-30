@@ -286,4 +286,32 @@ describe('AnnotationLabels — rendering', () => {
     });
     expect(wrapper.find('.cl').text()).toBe('hi');
   });
+
+  it('Should bubble a child label `committed` event as `draftCommitted` with the annotation id', async () => {
+    const projector = makeProjector();
+    (projector.getScreenPositions() as Map<string, unknown>).set('a1', {
+      x: 10,
+      y: 20,
+      inFront: true,
+      worldAnchor: [0, 0, 0],
+    });
+    const calloutComp = {
+      props: ['annotation', 'draft'],
+      emits: ['committed'],
+      template:
+        '<button class="cl" @click="$emit(\'committed\')">{{ annotation.text }}</button>',
+    };
+    const wrapper = mount(AnnotationLabels, {
+      props: {
+        annotations: [callout('a1', 's1')],
+        activeSceneId: 's1',
+        tween: null,
+        projector,
+        kindComponents: { callout: calloutComp },
+      },
+    });
+    await wrapper.find('.cl').trigger('click');
+    expect(wrapper.emitted('draftCommitted')).toBeTruthy();
+    expect(wrapper.emitted('draftCommitted')![0]).toEqual(['a1']);
+  });
 });

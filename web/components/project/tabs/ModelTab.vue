@@ -282,6 +282,15 @@ function onAddCallout() {
   annotationAuthor.enter('callout');
 }
 
+function onDraftCommitted(id: string) {
+  // The chip just settled its inline-edit — drop the draft pointer so the
+  // next render renders it as a persisted annotation (read-only span)
+  // rather than a textarea. Without this, the textarea stays visible
+  // across scene switches and on remount no longer reflects the persisted
+  // text correctly.
+  if (annotationAuthor.draftId.value === id) annotationAuthor.clearDraft();
+}
+
 function onAddDimension() {
   if (!sceneAuthor.activeSceneId.value || sceneAuthor.tween.value !== null)
     return;
@@ -399,6 +408,7 @@ function onFloorVisible(v: boolean) {
         :preview="annotationAuthor.preview.value"
         :kind-components="annotationKindComponents"
         :on-leader-opacity-scale="(s) => viewer.setLeaderOpacityScale(s)"
+        @draft-committed="onDraftCommitted"
       />
 
       <!-- Pick-mode hint. `pointer-events: none` so the cursor never lands

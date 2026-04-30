@@ -38,6 +38,15 @@ const props = defineProps<{
   onLeaderOpacityScale?: (scale: number) => void;
 }>();
 
+const emit = defineEmits<{
+  /**
+   * Bubbled from a draft kind label (e.g. CalloutLabel) when the user
+   * settles its inline-edit. The parent uses this to clear the author's
+   * `draftId` so the chip stops rendering as a draft.
+   */
+  draftCommitted: [id: string];
+}>();
+
 const activePhase = computed<'outgoing' | 'incoming' | 'idle'>(() => {
   if (!props.tween) return 'idle';
   return props.tween.t < 0.5 ? 'outgoing' : 'incoming';
@@ -174,6 +183,7 @@ function positionStyle(ann: IdbAnnotation): Record<string, string> {
         :annotation="ann"
         :draft="ann.id === props.draftId"
         :measured-meters="measuredMetersFor(ann.id)"
+        @committed="emit('draftCommitted', ann.id)"
       />
     </div>
   </div>

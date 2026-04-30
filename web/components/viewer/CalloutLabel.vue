@@ -20,6 +20,20 @@ const props = defineProps<{
   draft: boolean;
 }>();
 
+const emit = defineEmits<{
+  /**
+   * Fired after a successful inline-edit commit on a draft callout. The
+   * parent (`useAnnotationAuthor`) clears its `draftId` so the chip flips
+   * to the read-only span. Without this, `draftId` lingers indefinitely
+   * after creation and the textarea stays visible across scene switches —
+   * and on remount the textarea ends up empty whenever the
+   * focused-textarea blur didn't fire (e.g. when the scene-switch click
+   * landed on a non-focusable element, so commit never ran and the
+   * persisted text is the initial empty string).
+   */
+  committed: [];
+}>();
+
 const annotationsApi = useAnnotations();
 
 const editing = ref(false);
@@ -57,8 +71,14 @@ async function commit(): Promise<void> {
   if (committed) return;
   committed = true;
   const trimmed = text.value.trim();
+  const wasDraft = props.draft;
   editing.value = false;
   await annotationsApi.update(props.annotation.id, { text: trimmed });
+  // Drafts only become persisted annotations once the user settles them.
+  // Tell the parent to drop its `draftId` reference so this chip stops
+  // rendering as a draft on the next render — otherwise the textarea
+  // lingers across scene switches and shows up empty on remount.
+  if (wasDraft) emit('committed');
 }
 
 async function cancel(): Promise<void> {
