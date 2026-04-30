@@ -36,8 +36,14 @@ import type { KindHooks } from '~/lib/viewer/modules/AnnotationProjector';
 import type { RenderedLeaderSpec, SnapTarget } from '~/lib/viewer/types';
 import type { IdbAnnotation, IdbDimension } from '~/composables/useIdb';
 import type { GroupId } from '~/utils/types';
-
-type Vec3 = [number, number, number];
+import {
+  cameraForward,
+  cross3,
+  normalize3,
+  plainVec3,
+  worldOffsetToLocal,
+  type Vec3,
+} from './shared';
 
 const DIM_LEADER_COLOR = 0xfca5a5;
 const Z_OFFSET = 0.0008;
@@ -366,68 +372,6 @@ export function createDimensionHandler(deps: {
   };
 }
 
-/**
- * Copy a Vec3 into a fresh primitive tuple, escaping any Vue reactive proxy
- * the source may have been wrapped in. Cheap (3 reads) and load-bearing for
- * IndexedDB writes — structured clone of a reactive proxy can blow up
- * inside Dexie's transaction queue.
- */
-function plainVec3(v: Vec3): Vec3 {
-  return [v[0], v[1], v[2]];
-}
-
-/**
- * Convert a *world-space offset vector* into the Object's local frame while
- * preserving magnitude.
- *
- * `viewer.worldDirToObjectLocal` is the wrong tool here: under the hood it
- * uses Three.js `transformDirection`, which normalises the result and
- * silently throws away the magnitude. We instead route the offset through
- * a point transform — the local origin is `[0, 0, 0]` exactly, so the
- * world tip's local coords ARE the local offset.
- */
-function worldOffsetToLocal(
-  viewer: {
-    objectLocalToWorld(g: GroupId, local: Vec3): Vec3 | null;
-    worldToObjectLocal(g: GroupId, world: Vec3): Vec3 | null;
-  },
-  groupId: GroupId,
-  worldOffset: Vec3,
-): Vec3 | null {
-  const originWorld = viewer.objectLocalToWorld(groupId, [0, 0, 0]);
-  if (!originWorld) return null;
-  return viewer.worldToObjectLocal(groupId, [
-    originWorld[0] + worldOffset[0],
-    originWorld[1] + worldOffset[1],
-    originWorld[2] + worldOffset[2],
-  ]);
-}
-
-function cameraForward(viewer: {
-  getCameraPose(): { position: Vec3; target: Vec3 } | undefined;
-}): Vec3 {
-  const pose = viewer.getCameraPose();
-  if (!pose) return [0, 0, -1];
-  return normalize([
-    pose.target[0] - pose.position[0],
-    pose.target[1] - pose.position[1],
-    pose.target[2] - pose.position[2],
-  ]);
-}
-
-function normalize(v: Vec3): Vec3 {
-  const l = Math.hypot(v[0], v[1], v[2]) || 1;
-  return [v[0] / l, v[1] / l, v[2] / l];
-}
-
-function cross(a: Vec3, b: Vec3): Vec3 {
-  return [
-    a[1] * b[2] - a[2] * b[1],
-    a[2] * b[0] - a[0] * b[2],
-    a[0] * b[1] - a[1] * b[0],
-  ];
-}
-
 // ─── Projector hooks ───────────────────────────────────────────────────────
 
 /** Subset of viewer needed by the dimension's projector hooks. */
@@ -580,8 +524,8 @@ function offset(p: Vec3, dir: Vec3, amount: number): Vec3 {
  * camera. Used for tick caps on on-edge dimensions.
  */
 function perpInScreenPlane(edgeDir: Vec3, camFwd: Vec3): Vec3 {
-  const a = cross(edgeDir, camFwd);
+  const a = cross3(edgeDir, camFwd);
   if (Math.hypot(a[0], a[1], a[2]) < 1e-6) return [0, 1, 0];
-  const an = normalize(a);
-  return normalize(cross(an, edgeDir));
+  const an = normalize3(a);
+  return normalize3(cross3(an, edgeDir));
 }

@@ -10,7 +10,7 @@ import { mount, shallowMount } from '@vue/test-utils';
 import { ref } from 'vue';
 import AnnotationLabels from '../AnnotationLabels.vue';
 import { AnnotationProjector } from '~/lib/viewer/modules/AnnotationProjector';
-import type { IdbCallout } from '~/composables/useIdb';
+import type { IdbCallout, IdbDimension } from '~/composables/useIdb';
 
 function callout(id: string, sceneId: string): IdbCallout {
   const now = '2026-04-29T00:00:00.000Z';
@@ -26,6 +26,27 @@ function callout(id: string, sceneId: string): IdbCallout {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function dimension(id: string, sceneId: string): IdbDimension {
+  const now = '2026-04-29T00:00:00.000Z';
+  return {
+    id,
+    sceneId,
+    kind: 'dimension',
+    groupId: 1,
+    anchor1: { groupId: 1, local: [0, 0, 0] },
+    anchor2: { groupId: 1, local: [0.1, 0, 0] },
+    offsetLocal: [0, 0.05, 0],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function parseRotateRad(style: string): number {
+  const m = style.match(/rotate\(([-0-9.]+)rad\)/);
+  if (!m) throw new Error(`No rotate() in style: ${style}`);
+  return Number(m[1]);
 }
 
 function makeProjector(): AnnotationProjector {
@@ -172,6 +193,69 @@ describe('AnnotationLabels — rendering', () => {
     const style =
       wrapper.find('[data-annotation-id="a1"]').attributes('style') ?? '';
     expect(style).toContain('display: none');
+  });
+
+  it('Should anchor a dimension chip with translate(-50%, -100%) so it sits on the line', () => {
+    const projector = makeProjector();
+    (projector.getAuxScreenPositions() as Map<string, unknown>).set('d1', [
+      { x: 100, y: 200, inFront: true, worldAnchor: [0, 0, 0] },
+      { x: 200, y: 200, inFront: true, worldAnchor: [0.1, 0, 0] },
+    ]);
+    const wrapper = shallowMount(AnnotationLabels, {
+      props: {
+        annotations: [dimension('d1', 's1')],
+        activeSceneId: 's1',
+        tweenFromSceneId: null,
+        tweenT: 0,
+        tweening: false,
+        projector,
+      },
+    });
+    const style =
+      wrapper.find('[data-annotation-id="d1"]').attributes('style') ?? '';
+    expect(style).toContain('translate(-50%, -100%)');
+    expect(style).toContain('translate(150px, 200px)');
+  });
+
+  it('Should keep the dimension chip rotation continuous across a vertical-line crossing', async () => {
+    // Camera-orbit scenario: the projected line passes from "just before
+    // vertical, going down" to "just after vertical, now going up". Without
+    // continuity tracking the angle would snap by ~π between frames and the
+    // chip would appear to flip onto the opposite side of the line.
+    const projector = makeProjector();
+    const aux = projector.getAuxScreenPositions() as Map<string, unknown>;
+    aux.set('d1', [
+      { x: 100, y: 100, inFront: true, worldAnchor: [0, 0, 0] },
+      { x: 101, y: 200, inFront: true, worldAnchor: [0.1, 0, 0] },
+    ]);
+    const wrapper = shallowMount(AnnotationLabels, {
+      props: {
+        annotations: [dimension('d1', 's1')],
+        activeSceneId: 's1',
+        tweenFromSceneId: null,
+        tweenT: 0,
+        tweening: false,
+        projector,
+      },
+    });
+    const styleBefore =
+      wrapper.find('[data-annotation-id="d1"]').attributes('style') ?? '';
+    const before = parseRotateRad(styleBefore);
+
+    aux.set('d1', [
+      { x: 100, y: 100, inFront: true, worldAnchor: [0, 0, 0] },
+      { x: 99, y: 200, inFront: true, worldAnchor: [0.1, 0, 0] },
+    ]);
+    projector.version.value++;
+    await wrapper.vm.$nextTick();
+
+    const styleAfter =
+      wrapper.find('[data-annotation-id="d1"]').attributes('style') ?? '';
+    const after = parseRotateRad(styleAfter);
+
+    // A π-snap would push the delta close to π (≈ 3.14). Continuity should
+    // keep them within a small fraction of a radian.
+    expect(Math.abs(after - before)).toBeLessThan(0.1);
   });
 
   it('Should render kindComponents when provided', () => {

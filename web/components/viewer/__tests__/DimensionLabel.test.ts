@@ -6,7 +6,7 @@
  * we mock that composable per test. Static rotation/positioning is owned by
  * AnnotationLabels and is not tested here.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountSuspended, mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { ref } from 'vue';
 import type { IdbDimension } from '~/composables/useIdb';
@@ -25,6 +25,18 @@ mockNuxtImport('useProjectSettings', () => () => ({
   setExcludedColor: vi.fn(),
   archive: vi.fn(),
   unarchive: vi.fn(),
+}));
+
+const remove = vi.fn().mockResolvedValue(undefined);
+
+mockNuxtImport('useAnnotations', () => () => ({
+  annotations: ref([]),
+  visibleForScene: () => ref([]),
+  add: vi.fn(),
+  update: vi.fn(),
+  remove,
+  purgeForScene: vi.fn(),
+  reload: vi.fn(),
 }));
 
 import DimensionLabel from '../DimensionLabel.vue';
@@ -55,7 +67,7 @@ describe('DimensionLabel — auto-format', () => {
     const w = await mountSuspended(DimensionLabel, {
       props: { annotation: dim([0, 0, 0], [0.123, 0, 0]), draft: false },
     });
-    expect(w.text()).toBe('123mm');
+    expect(w.text()).toContain('123mm');
   });
 
   it('Renders the imperial distance with two decimals', async () => {
@@ -63,7 +75,7 @@ describe('DimensionLabel — auto-format', () => {
     const w = await mountSuspended(DimensionLabel, {
       props: { annotation: dim([0, 0, 0], [0.0254, 0, 0]), draft: false },
     });
-    expect(w.text()).toBe('1.00in');
+    expect(w.text()).toContain('1.00in');
   });
 
   it('Prefers an explicit text override over the auto-formatted distance', async () => {
@@ -74,7 +86,7 @@ describe('DimensionLabel — auto-format', () => {
         draft: false,
       },
     });
-    expect(w.text()).toBe('notch: 1¼ in');
+    expect(w.text()).toContain('notch: 1¼ in');
   });
 
   it('Falls back to mm when no project distance unit is set yet', async () => {
@@ -82,6 +94,21 @@ describe('DimensionLabel — auto-format', () => {
     const w = await mountSuspended(DimensionLabel, {
       props: { annotation: dim([0, 0, 0], [0.05, 0, 0]), draft: false },
     });
-    expect(w.text()).toBe('50mm');
+    expect(w.text()).toContain('50mm');
+  });
+});
+
+describe('DimensionLabel — delete', () => {
+  beforeEach(() => {
+    remove.mockClear();
+    distanceUnit.value = 'mm';
+  });
+
+  it('Should call useAnnotations().remove when the delete button is clicked', async () => {
+    const w = await mountSuspended(DimensionLabel, {
+      props: { annotation: dim([0, 0, 0], [0.1, 0, 0]), draft: false },
+    });
+    await w.find('[data-testid="annotation-delete"]').trigger('click');
+    expect(remove).toHaveBeenCalledWith('d-1');
   });
 });

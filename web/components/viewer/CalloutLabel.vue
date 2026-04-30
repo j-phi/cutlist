@@ -3,14 +3,11 @@
  * Inline-editable callout label. Renders inside `AnnotationLabels` so the
  * parent positions it at the projected label point.
  *
- * Authoring loop is single-step: drop the callout, the textarea takes
- * focus, type a label (newlines allowed), blur or Cmd/Ctrl+Enter commits,
- * Esc removes the draft. The draft row was created by
- * `createCalloutHandler` with `text: ''` so an inline edit just patches it.
- *
- * The wrapper overlay disables pointer events globally so right-button
- * orbit still falls through to the canvas. The textarea opts back in via
- * `pointer-events: auto` while it's draft.
+ * Two paths drive the textarea:
+ *   - `draft` prop is true for a brand-new annotation that the author flow
+ *     just created with empty text. Esc removes the row.
+ *   - Internal `editing` ref toggles when the user clicks an existing label.
+ *     Esc just exits edit mode — the persisted text is kept.
  *
  * Auto-grow: relies on CSS `field-sizing: content` (Chrome 123+, Safari 18)
  * with a `scrollHeight` fallback applied on input for older engines.
@@ -25,6 +22,7 @@ const props = defineProps<{
 
 const annotationsApi = useAnnotations();
 
+const editing = ref(false);
 const text = ref(props.annotation.text);
 const inputEl = ref<HTMLTextAreaElement | null>(null);
 // Esc / Enter / blur all want to settle the draft once. Without this, an
@@ -32,17 +30,19 @@ const inputEl = ref<HTMLTextAreaElement | null>(null);
 // a trailing blur.
 let committed = false;
 
+const isEditable = computed(() => props.draft || editing.value);
+
 watch(
   () => props.annotation.text,
   (t) => {
-    if (!props.draft) text.value = t;
+    if (!isEditable.value) text.value = t;
   },
 );
 
 watch(
-  () => props.draft,
-  async (isDraft) => {
-    if (!isDraft) return;
+  isEditable,
+  async (active) => {
+    if (!active) return;
     text.value = props.annotation.text;
     committed = false;
     await nextTick();
@@ -57,12 +57,29 @@ async function commit(): Promise<void> {
   if (committed) return;
   committed = true;
   const trimmed = text.value.trim();
+  editing.value = false;
   await annotationsApi.update(props.annotation.id, { text: trimmed });
 }
 
 async function cancel(): Promise<void> {
   if (committed) return;
   committed = true;
+  if (editing.value) {
+    // Existing annotation — bail out of edit mode without touching IDB.
+    editing.value = false;
+    return;
+  }
+  // Brand-new draft never settled — discard the row.
+  await annotationsApi.remove(props.annotation.id);
+}
+
+function startEditing(): void {
+  if (isEditable.value) return;
+  editing.value = true;
+}
+
+async function onDelete(event: MouseEvent): Promise<void> {
+  event.stopPropagation();
   await annotationsApi.remove(props.annotation.id);
 }
 
@@ -79,16 +96,18 @@ function autoResize(): void {
 
 <template>
   <div
-    class="callout-label bg-elevated text-hi rounded-2xl px-3 py-1.5 text-sm shadow border border-subtle max-w-[280px]"
-    :class="{ 'callout-draft': draft }"
+    class="callout-label group relative bg-elevated text-hi rounded-2xl px-3 py-1.5 text-sm shadow border border-subtle max-w-[280px]"
+    :class="{ 'callout-draft': isEditable }"
     :style="{
-      pointerEvents: draft ? 'auto' : 'none',
+      pointerEvents: 'auto',
       whiteSpace: 'pre-wrap',
       wordBreak: 'break-word',
+      cursor: isEditable ? 'text' : 'pointer',
     }"
+    @click="startEditing"
   >
     <textarea
-      v-if="draft"
+      v-if="isEditable"
       ref="inputEl"
       v-model="text"
       rows="1"
@@ -102,5 +121,15 @@ function autoResize(): void {
       @keydown.ctrl.enter.prevent="commit"
     />
     <span v-else class="block">{{ annotation.text || 'Untitled' }}</span>
+    <button
+      v-if="!isEditable"
+      type="button"
+      data-testid="annotation-delete"
+      aria-label="Delete annotation"
+      class="absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center w-5 h-5 rounded-full bg-elevated border border-subtle text-muted hover:text-hi shadow"
+      @click="onDelete"
+    >
+      <UIcon name="i-lucide-x" class="size-3" />
+    </button>
   </div>
 </template>

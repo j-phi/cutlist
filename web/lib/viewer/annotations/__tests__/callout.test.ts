@@ -1,7 +1,10 @@
 /**
  * callout — pick handler + projector hooks. Pure: the viewer surface is
  * faked with a known transform so we can round-trip world→local→world and
- * assert exact equality on the anchor + normal + default label offset.
+ * assert exact equality on the anchor + normal + cursor-derived label
+ * offset. The handler now mirrors the dimension flow — anchor pick on the
+ * first click, cursor-driven offset on the second — so tests cover both
+ * stages and the mid-flow preview channel.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
@@ -9,6 +12,7 @@ import {
   DEFAULT_LABEL_OFFSET_M,
   calloutKindHooks,
   createCalloutHandler,
+  snapToWorldAxis,
   type CalloutViewer,
 } from '../callout';
 import type { UseAnnotationsApi } from '~/composables/useAnnotations';
@@ -19,16 +23,18 @@ type Vec3 = [number, number, number];
 
 /**
  * Fake viewer with a known rigid transform: world = local + translate.
- * So `worldToObjectLocal(world) = world - translate` and dirs are identity.
- * That's enough to exercise the round-trip semantics without booting Three.
+ * `worldToObjectLocal(world) = world - translate`, dirs are identity.
+ * Enough to exercise the round-trip semantics without booting Three.
  */
 function makeViewer(translate: Vec3 = [0, 0, 0]): CalloutViewer & {
   setHit(r: PickResult | null): void;
   setSnap(s: SnapTarget | null): void;
+  setUnproject(world: Vec3 | null): void;
   hoverLog: Array<SnapTarget | null>;
 } {
   let nextHit: PickResult | null = null;
   let nextSnap: SnapTarget | null = null;
+  let nextUnproject: Vec3 | null = null;
   const hoverLog: Array<SnapTarget | null> = [];
   return {
     raycastFromClient: () => nextHit,
@@ -42,12 +48,21 @@ function makeViewer(translate: Vec3 = [0, 0, 0]): CalloutViewer & {
       w[1] - translate[1],
       w[2] - translate[2],
     ],
+    objectLocalToWorld: (_g, l) => [
+      l[0] + translate[0],
+      l[1] + translate[1],
+      l[2] + translate[2],
+    ],
     worldDirToObjectLocal: (_g, d) => [d[0], d[1], d[2]],
+    unprojectToPlane: () => (nextUnproject ? [...nextUnproject] : null),
     setHit: (r) => {
       nextHit = r;
     },
     setSnap: (s) => {
       nextSnap = s;
+    },
+    setUnproject: (w) => {
+      nextUnproject = w;
     },
     hoverLog,
   };
@@ -90,6 +105,16 @@ function makeApi(): UseAnnotationsApi & { added: IdbAnnotation[] } {
   };
 }
 
+function makeAuthor() {
+  const preview = ref<IdbAnnotation | null>(null);
+  return {
+    preview,
+    setPreview: (a: IdbAnnotation | null) => {
+      preview.value = a;
+    },
+  };
+}
+
 function makeHit(world: Vec3, normal: Vec3, groupId = 7): PickResult {
   return {
     groupId,
@@ -98,102 +123,131 @@ function makeHit(world: Vec3, normal: Vec3, groupId = 7): PickResult {
   };
 }
 
-describe('createCalloutHandler — onClick', () => {
+describe('createCalloutHandler — stage 1 (anchor pick)', () => {
   it('Should be a no-op when there is no active scene', async () => {
     const v = makeViewer();
     const api = makeApi();
+    const author = makeAuthor();
     const sceneId = ref<string | null>(null);
     const handler = createCalloutHandler({
       viewer: v,
       annotationsApi: api,
       activeSceneId: sceneId,
+      author,
     });
     const r = await handler.onClick({ x: 0, y: 0 });
     expect(r.done).toBe(true);
     expect(api.add).not.toHaveBeenCalled();
   });
 
-  it('Should keep pick mode open when no face is hit', async () => {
+  it('Should keep pick mode open when no anchor is hit', async () => {
     const v = makeViewer();
     v.setHit(null);
     const api = makeApi();
+    const author = makeAuthor();
     const sceneId = ref<string | null>('s1');
     const handler = createCalloutHandler({
       viewer: v,
       annotationsApi: api,
       activeSceneId: sceneId,
+      author,
     });
     const r = await handler.onClick({ x: 0, y: 0 });
     expect(r.done).toBe(false);
     expect(api.add).not.toHaveBeenCalled();
+    expect(author.preview.value).toBeNull();
   });
 
-  it('Should commit a callout in Object-local space at default offset', async () => {
-    const translate: Vec3 = [10, 0, 0];
-    const v = makeViewer(translate);
+  it('Should stage the anchor on the first click without committing', async () => {
+    const v = makeViewer([10, 0, 0]);
     v.setHit(makeHit([10.5, 1, 2], [0, 1, 0]));
+    v.setUnproject([10.5, 1, 2]); // cursor still on anchor → ~zero offset
     const api = makeApi();
+    const author = makeAuthor();
     const sceneId = ref<string | null>('s1');
     const handler = createCalloutHandler({
       viewer: v,
       annotationsApi: api,
       activeSceneId: sceneId,
+      author,
     });
-
     const r = await handler.onClick({ x: 0, y: 0 });
-    expect(r.done).toBe(true);
-    expect(r.draftId).toBe('id-1');
-    expect(api.added).toHaveLength(1);
-    const a = api.added[0] as IdbCallout;
-    expect(a.anchorLocal).toEqual([0.5, 1, 2]);
-    expect(a.anchorNormalLocal).toEqual([0, 1, 0]);
-    expect(a.labelOffsetLocal).toEqual([0, DEFAULT_LABEL_OFFSET_M, 0]);
-    expect(a.text).toBe('');
+    expect(r.done).toBe(false);
+    expect(api.add).not.toHaveBeenCalled();
+    // A preview should have been seeded so the chip appears immediately.
+    expect(author.preview.value).not.toBeNull();
+    expect(author.preview.value?.kind).toBe('callout');
   });
 
-  it('Should normalize the face normal before scaling the offset', async () => {
+  it('Should clear snap-hover after staging a snap-anchored callout', async () => {
     const v = makeViewer();
-    // Non-unit normal — handler normalises before applying the offset.
-    v.setHit(makeHit([0, 0, 0], [3, 4, 0]));
+    v.setSnap({ kind: 'vertex', groupId: 5, worldPoint: [0, 0, 0] });
+    v.setUnproject([0, 0, 0]);
     const api = makeApi();
+    const author = makeAuthor();
     const sceneId = ref<string | null>('s1');
     const handler = createCalloutHandler({
       viewer: v,
       annotationsApi: api,
       activeSceneId: sceneId,
+      author,
     });
     await handler.onClick({ x: 0, y: 0 });
-    const a = api.added[0] as IdbCallout;
-    expect(a.anchorNormalLocal[0]).toBeCloseTo(0.6, 9);
-    expect(a.anchorNormalLocal[1]).toBeCloseTo(0.8, 9);
-    expect(a.labelOffsetLocal[0]).toBeCloseTo(0.6 * DEFAULT_LABEL_OFFSET_M, 9);
-    expect(a.labelOffsetLocal[1]).toBeCloseTo(0.8 * DEFAULT_LABEL_OFFSET_M, 9);
+    expect(v.hoverLog).toContain(null);
   });
+});
 
-  it('Should commit at the vertex snap point with a world-vertical offset', async () => {
+describe('createCalloutHandler — stage 2 (cursor offset & commit)', () => {
+  it('Should commit at the cursor-derived offset, snapped to a world axis', async () => {
     const v = makeViewer();
-    v.setSnap({ kind: 'vertex', groupId: 5, worldPoint: [1, 2, 3] });
-    // Even with a face hit available, snap takes priority.
-    v.setHit(makeHit([99, 99, 99], [1, 0, 0], 999));
+    v.setHit(makeHit([0, 0, 0], [0, 1, 0]));
     const api = makeApi();
+    const author = makeAuthor();
     const sceneId = ref<string | null>('s1');
     const handler = createCalloutHandler({
       viewer: v,
       annotationsApi: api,
       activeSceneId: sceneId,
+      author,
     });
-    const r = await handler.onClick({ x: 0, y: 0 });
+
+    // Stage 1: anchor at world origin.
+    v.setUnproject([0, 0, 0]);
+    await handler.onClick({ x: 0, y: 0 });
+
+    // Stage 2: cursor at (+0.05 along Y, with a tiny X drift).
+    v.setUnproject([0.005, 0.05, 0]);
+    const r = await handler.onClick({ x: 100, y: 100 });
     expect(r.done).toBe(true);
+    expect(api.added).toHaveLength(1);
     const a = api.added[0] as IdbCallout;
-    expect(a.groupId).toBe(5);
-    expect(a.anchorLocal).toEqual([1, 2, 3]);
-    // Vertices always offset along world +Y so the label sits directly above.
-    expect(a.anchorNormalLocal).toEqual([0, 1, 0]);
+    // Y dominates → snapped to +Y, X component zeroed.
+    expect(a.labelOffsetLocal).toEqual([0, 0.05, 0]);
   });
 
-  it('Should snap a non-vertical edge with a world +Y offset', async () => {
+  it('Should fall back to the anchor normal × default offset when committing without moving', async () => {
     const v = makeViewer();
-    // Edge along world X — +Y is perpendicular to it, so the label goes up.
+    v.setHit(makeHit([0, 0, 0], [0, 1, 0]));
+    const api = makeApi();
+    const author = makeAuthor();
+    const sceneId = ref<string | null>('s1');
+    const handler = createCalloutHandler({
+      viewer: v,
+      annotationsApi: api,
+      activeSceneId: sceneId,
+      author,
+    });
+
+    v.setUnproject([0, 0, 0]);
+    await handler.onClick({ x: 0, y: 0 });
+    // Cursor still on the anchor → offset below threshold → fallback.
+    await handler.onClick({ x: 0, y: 0 });
+    const a = api.added[0] as IdbCallout;
+    expect(a.labelOffsetLocal).toEqual([0, DEFAULT_LABEL_OFFSET_M, 0]);
+  });
+
+  it('Should snap a non-vertical edge anchor with a fallback +Y normal', async () => {
+    const v = makeViewer();
     v.setSnap({
       kind: 'edge',
       groupId: 5,
@@ -202,22 +256,24 @@ describe('createCalloutHandler — onClick', () => {
       edgeB: [1, 0, 0],
     });
     const api = makeApi();
+    const author = makeAuthor();
     const sceneId = ref<string | null>('s1');
     const handler = createCalloutHandler({
       viewer: v,
       annotationsApi: api,
       activeSceneId: sceneId,
+      author,
     });
+    v.setUnproject([0, 0, 0]);
     await handler.onClick({ x: 0, y: 0 });
+    await handler.onClick({ x: 0, y: 0 }); // commit without moving
     const a = api.added[0] as IdbCallout;
     expect(a.anchorNormalLocal).toEqual([0, 1, 0]);
+    expect(a.labelOffsetLocal).toEqual([0, DEFAULT_LABEL_OFFSET_M, 0]);
   });
 
-  it('Should fall back to a horizontal world axis when the edge runs vertically', async () => {
+  it('Should fall back to a horizontal world axis normal when the edge runs vertically', async () => {
     const v = makeViewer();
-    // Edge runs along +Y → +Y would be parallel to the edge, so the
-    // callout must pick the camera-facing horizontal axis. Camera default
-    // is at +Z, so we expect +Z.
     v.setSnap({
       kind: 'edge',
       groupId: 5,
@@ -226,32 +282,65 @@ describe('createCalloutHandler — onClick', () => {
       edgeB: [0, 1, 0],
     });
     const api = makeApi();
+    const author = makeAuthor();
     const sceneId = ref<string | null>('s1');
     const handler = createCalloutHandler({
       viewer: v,
       annotationsApi: api,
       activeSceneId: sceneId,
+      author,
     });
+    v.setUnproject([0, 0, 0]);
+    await handler.onClick({ x: 0, y: 0 });
     await handler.onClick({ x: 0, y: 0 });
     const a = api.added[0] as IdbCallout;
+    // Camera default at +Z → fallback normal is +Z.
     expect(a.anchorNormalLocal).toEqual([0, 0, 1]);
+    expect(a.labelOffsetLocal).toEqual([0, 0, DEFAULT_LABEL_OFFSET_M]);
   });
 
-  it('Should clear the snap hover after a successful commit', async () => {
+  it('Should clear the preview after a successful commit', async () => {
     const v = makeViewer();
-    v.setSnap({ kind: 'vertex', groupId: 5, worldPoint: [0, 0, 0] });
+    v.setHit(makeHit([0, 0, 0], [0, 1, 0]));
     const api = makeApi();
+    const author = makeAuthor();
     const sceneId = ref<string | null>('s1');
     const handler = createCalloutHandler({
       viewer: v,
       annotationsApi: api,
       activeSceneId: sceneId,
+      author,
     });
+    v.setUnproject([0, 0, 0]);
     await handler.onClick({ x: 0, y: 0 });
-    expect(v.hoverLog).toContain(null);
+    v.setUnproject([0, 0.05, 0]);
+    await handler.onClick({ x: 0, y: 0 });
+    expect(author.preview.value).toBeNull();
   });
 
-  it('Should drive the hover indicator on every pointer move', () => {
+  it('Should drive the live preview on every pointer move during the offset stage', async () => {
+    const v = makeViewer();
+    v.setHit(makeHit([0, 0, 0], [0, 1, 0]));
+    const api = makeApi();
+    const author = makeAuthor();
+    const sceneId = ref<string | null>('s1');
+    const handler = createCalloutHandler({
+      viewer: v,
+      annotationsApi: api,
+      activeSceneId: sceneId,
+      author,
+    });
+    v.setUnproject([0, 0, 0]);
+    await handler.onClick({ x: 0, y: 0 });
+
+    v.setUnproject([0.04, 0, 0]);
+    handler.onPointerMove({ x: 0, y: 0 });
+    expect(author.preview.value).not.toBeNull();
+    const p = author.preview.value as IdbCallout;
+    expect(p.labelOffsetLocal).toEqual([0.04, 0, 0]);
+  });
+
+  it('Should drive the snap hover on every pointer move during the anchor stage', () => {
     const v = makeViewer();
     const target: SnapTarget = {
       kind: 'vertex',
@@ -260,14 +349,50 @@ describe('createCalloutHandler — onClick', () => {
     };
     v.setSnap(target);
     const api = makeApi();
+    const author = makeAuthor();
     const sceneId = ref<string | null>('s1');
     const handler = createCalloutHandler({
       viewer: v,
       annotationsApi: api,
       activeSceneId: sceneId,
+      author,
     });
     handler.onPointerMove({ x: 5, y: 5 });
     expect(v.hoverLog).toContain(target);
+  });
+});
+
+describe('createCalloutHandler — Esc', () => {
+  it('Should clear stage state and preview on Esc', async () => {
+    const v = makeViewer();
+    v.setHit(makeHit([0, 0, 0], [0, 1, 0]));
+    const api = makeApi();
+    const author = makeAuthor();
+    const sceneId = ref<string | null>('s1');
+    const handler = createCalloutHandler({
+      viewer: v,
+      annotationsApi: api,
+      activeSceneId: sceneId,
+      author,
+    });
+    v.setUnproject([0, 0, 0]);
+    await handler.onClick({ x: 0, y: 0 });
+    expect(author.preview.value).not.toBeNull();
+    handler.onEsc();
+    expect(author.preview.value).toBeNull();
+  });
+});
+
+describe('snapToWorldAxis', () => {
+  it('Picks the dominant axis and zeros the others', () => {
+    expect(snapToWorldAxis([0.005, 0.05, 0])).toEqual([0, 0.05, 0]);
+    expect(snapToWorldAxis([0.05, 0.005, 0])).toEqual([0.05, 0, 0]);
+    expect(snapToWorldAxis([0, 0.005, 0.05])).toEqual([0, 0, 0.05]);
+  });
+
+  it('Preserves the sign of the dominant axis', () => {
+    expect(snapToWorldAxis([0, -0.05, 0])).toEqual([0, -0.05, 0]);
+    expect(snapToWorldAxis([-0.05, 0, 0])).toEqual([-0.05, 0, 0]);
   });
 });
 

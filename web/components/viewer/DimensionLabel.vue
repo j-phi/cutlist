@@ -7,10 +7,12 @@
  *
  * The displayed length is `annotation.text` when set (user override), or
  * the geometric distance auto-formatted per project distance unit. Inline
- * editing is post-v1 polish.
+ * editing of the text override is post-v1 polish; the chip currently only
+ * exposes a hover-revealed delete affordance.
  */
 import type { IdbDimension } from '~/composables/useIdb';
 import { formatLength } from '~/lib/viewer/annotations/dimension';
+import { useAnnotations } from '~/composables/useAnnotations';
 
 const props = defineProps<{
   annotation: IdbDimension;
@@ -18,6 +20,7 @@ const props = defineProps<{
 }>();
 
 const { distanceUnit } = useProjectSettings();
+const annotationsApi = useAnnotations();
 
 const measuredM = computed(() => {
   const a = props.annotation.anchor1.local;
@@ -35,14 +38,28 @@ const display = computed(() => {
   const unit = distanceUnit.value ?? 'mm';
   return formatLength(measuredM.value, unit);
 });
+
+async function onDelete(event: MouseEvent): Promise<void> {
+  event.stopPropagation();
+  await annotationsApi.remove(props.annotation.id);
+}
 </script>
 
 <template>
   <div
-    class="dimension-label bg-elevated text-hi rounded-md px-2 py-0.5 text-xs font-mono shadow border border-subtle whitespace-nowrap"
+    class="dimension-label group relative bg-elevated text-hi rounded-md px-2 py-0.5 text-xs font-mono shadow border border-subtle whitespace-nowrap"
     :class="{ 'dimension-label-draft': draft }"
-    :style="{ pointerEvents: 'none' }"
+    :style="{ pointerEvents: 'auto' }"
   >
     {{ display }}
+    <button
+      type="button"
+      data-testid="annotation-delete"
+      aria-label="Delete annotation"
+      class="absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center w-5 h-5 rounded-full bg-elevated border border-subtle text-muted hover:text-hi shadow"
+      @click="onDelete"
+    >
+      <UIcon name="i-lucide-x" class="size-3" />
+    </button>
   </div>
 </template>

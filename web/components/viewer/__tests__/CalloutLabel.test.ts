@@ -42,11 +42,16 @@ function callout(text = ''): IdbCallout {
 }
 
 describe('CalloutLabel — non-draft', () => {
+  beforeEach(() => {
+    update.mockClear();
+    remove.mockClear();
+  });
+
   it('Should render the annotation text', async () => {
     const wrapper = await mountSuspended(CalloutLabel, {
       props: { annotation: callout('Top edge'), draft: false },
     });
-    expect(wrapper.text()).toBe('Top edge');
+    expect(wrapper.text()).toContain('Top edge');
     expect(wrapper.find('textarea').exists()).toBe(false);
   });
 
@@ -54,7 +59,7 @@ describe('CalloutLabel — non-draft', () => {
     const wrapper = await mountSuspended(CalloutLabel, {
       props: { annotation: callout(''), draft: false },
     });
-    expect(wrapper.text()).toBe('Untitled');
+    expect(wrapper.text()).toContain('Untitled');
   });
 
   it('Should preserve newlines in the static display', async () => {
@@ -63,6 +68,50 @@ describe('CalloutLabel — non-draft', () => {
     });
     expect(wrapper.text()).toContain('line one');
     expect(wrapper.text()).toContain('line two');
+  });
+
+  it('Should enter edit mode when the user clicks an existing label', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout('Top edge'), draft: false },
+    });
+    expect(wrapper.find('textarea').exists()).toBe(false);
+    await wrapper.find('.callout-label').trigger('click');
+    expect(wrapper.find('textarea').exists()).toBe(true);
+  });
+
+  it('Should remove the annotation when the delete button is clicked', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout('Top edge'), draft: false },
+    });
+    await wrapper.find('[data-testid="annotation-delete"]').trigger('click');
+    expect(remove).toHaveBeenCalledWith('a-1');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('Should revert (not remove) when Esc is pressed while editing an existing label', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout('Top edge'), draft: false },
+    });
+    await wrapper.find('.callout-label').trigger('click');
+    const ta = wrapper.find('textarea');
+    await ta.setValue('changed');
+    await ta.trigger('keydown', { key: 'Escape' });
+    expect(remove).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    // Textarea is gone — back to display mode.
+    expect(wrapper.find('textarea').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Top edge');
+  });
+
+  it('Should commit an edit on blur with trimmed text', async () => {
+    const wrapper = await mountSuspended(CalloutLabel, {
+      props: { annotation: callout('Top edge'), draft: false },
+    });
+    await wrapper.find('.callout-label').trigger('click');
+    const ta = wrapper.find('textarea');
+    await ta.setValue('  Bottom edge  ');
+    await ta.trigger('blur');
+    expect(update).toHaveBeenCalledWith('a-1', { text: 'Bottom edge' });
   });
 });
 
