@@ -22,7 +22,7 @@ const stubs = {
 function makeScene(overrides: Partial<IdbScene> = {}): IdbScene {
   return {
     id: 's1',
-    projectId: 'p',
+    modelId: 'm',
     name: 'Front',
     order: 0,
     cameraMode: 'perspective',

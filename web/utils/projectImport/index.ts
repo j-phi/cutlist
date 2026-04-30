@@ -83,7 +83,7 @@ const ObjectOffsetSchema = z.object({
 
 const SceneSchema = z.object({
   id: z.string(),
-  projectId: z.string(),
+  modelId: z.string(),
   name: z.string(),
   order: z.number().int().min(0),
   cameraMode: z.enum(['perspective', 'orthographic']),
@@ -247,14 +247,19 @@ export async function importProjectData(
     excludedColors: data.project.excludedColors,
   });
 
+  // Models get fresh IDs; scenes carry the new model id via a remap so each
+  // scene stays attached to the same model it was captured against.
+  const modelIdMap = new Map<string, string>();
   await Promise.all(
-    data.models.map((model) =>
-      idb.createModel({
+    data.models.map((model) => {
+      const newId = crypto.randomUUID();
+      modelIdMap.set(model.id, newId);
+      return idb.createModel({
         ...model,
-        id: crypto.randomUUID(),
+        id: newId,
         projectId: newProject.id,
-      }),
-    ),
+      });
+    }),
   );
 
   await Promise.all(
@@ -268,16 +273,22 @@ export async function importProjectData(
   );
 
   // Scenes get fresh IDs; annotations follow via a sceneId remap so the
-  // imported references stay intact under the new IDs.
+  // imported references stay intact under the new IDs. Scenes also need
+  // their `modelId` remapped to whichever fresh model id we just assigned.
   const sceneIdMap = new Map<string, string>();
   await Promise.all(
     (data.scenes ?? []).map((scene) => {
+      const remappedModelId = modelIdMap.get(scene.modelId);
+      if (!remappedModelId) {
+        // Orphaned scene (no matching model in payload) — skip silently.
+        return;
+      }
       const newId = crypto.randomUUID();
       sceneIdMap.set(scene.id, newId);
       return idb.createScene({
         ...scene,
         id: newId,
-        projectId: newProject.id,
+        modelId: remappedModelId,
       });
     }),
   );

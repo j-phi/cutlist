@@ -14,6 +14,7 @@ mockNuxtImport('useProjects', () => () => ({ activeId }));
 import { useAnnotations } from '../useAnnotations';
 import { useScenes } from '../useScenes';
 import { useIdb } from '../useIdb';
+import type { IdbModel } from '~/composables/useIdb';
 
 let scope: EffectScope;
 const idb = useIdb();
@@ -27,14 +28,29 @@ async function flush() {
 
 async function makeProjectWithScene(): Promise<{
   projectId: string;
+  modelId: string;
   sceneId: string;
 }> {
   const project = await idb.createProject('P');
   const now = new Date().toISOString();
+  const model: IdbModel = {
+    id: crypto.randomUUID(),
+    projectId: project.id,
+    filename: 'm.gltf',
+    source: 'gltf',
+    parts: [],
+    colors: [],
+    nodePartMap: [],
+    enabled: true,
+    rawSource: null,
+    partOverrides: {},
+    createdAt: now,
+  };
+  await idb.createModel(model);
   const sceneId = 'scene-' + crypto.randomUUID();
   await idb.createScene({
     id: sceneId,
-    projectId: project.id,
+    modelId: model.id,
     name: 'S',
     order: 0,
     cameraMode: 'perspective',
@@ -44,7 +60,7 @@ async function makeProjectWithScene(): Promise<{
     createdAt: now,
     updatedAt: now,
   });
-  return { projectId: project.id, sceneId };
+  return { projectId: project.id, modelId: model.id, sceneId };
 }
 
 beforeEach(async () => {
@@ -110,14 +126,12 @@ describe('useAnnotations — round-trip', () => {
 
 describe('useAnnotations — visibleForScene', () => {
   it('Should return only annotations bound to the given scene', async () => {
-    const { projectId, sceneId } = await makeProjectWithScene();
-    const project = await idb.getProjectList();
-    const proj = project.find((p) => p.id === projectId)!;
+    const { projectId, modelId, sceneId } = await makeProjectWithScene();
     const otherSceneId = 'other';
     const now = new Date().toISOString();
     await idb.createScene({
       id: otherSceneId,
-      projectId: proj.id,
+      modelId,
       name: 'B',
       order: 1,
       cameraMode: 'perspective',
@@ -158,13 +172,14 @@ describe('useAnnotations — visibleForScene', () => {
 
 describe('useAnnotations — cascade purge via useScenes', () => {
   it('Should drop in-memory annotations when their scene is removed', async () => {
-    const { projectId, sceneId } = await makeProjectWithScene();
+    const { projectId, modelId, sceneId } = await makeProjectWithScene();
     const annApi = scope.run(() => useAnnotations())!;
-    const sceneApi = scope.run(() => useScenes())!;
+    const modelIdRef = ref<string | null>(modelId);
+    const sceneApi = scope.run(() => useScenes(modelIdRef))!;
     activeId.value = projectId;
     await flush();
     await annApi.reload(projectId);
-    await sceneApi.reload(projectId);
+    await sceneApi.reload(modelId);
 
     await annApi.add({
       kind: 'callout',

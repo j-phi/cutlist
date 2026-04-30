@@ -20,6 +20,36 @@ export default createGlobalState(() => {
   const partIndex = ref<Map<PartNumber, GroupId[]>>(new Map());
   const partNumberOfGroupId = ref<Map<GroupId, PartNumber>>(new Map());
 
+  /**
+   * Per-model "last viewed scene" memory. Keyed by `modelId`; each value is
+   * the scene id active when the user last left that model (or null if no
+   * scene was active). Used by `useSceneAuthor` to restore the timeline
+   * position when the dropdown switches between models in the same project.
+   *
+   * Cleared on project switch by ModelTab — the map's keys are model ids,
+   * which are stable per project. We don't persist this across reloads:
+   * the user just gets a fresh start, same as the rest of viewer state.
+   */
+  const activeSceneByModel = ref<Map<string, string | null>>(new Map());
+
+  function getActiveSceneForModel(modelId: string): string | null {
+    return activeSceneByModel.value.get(modelId) ?? null;
+  }
+
+  function setActiveSceneForModel(
+    modelId: string,
+    sceneId: string | null,
+  ): void {
+    const next = new Map(activeSceneByModel.value);
+    next.set(modelId, sceneId);
+    activeSceneByModel.value = next;
+  }
+
+  function clearActiveSceneMemory(): void {
+    if (activeSceneByModel.value.size === 0) return;
+    activeSceneByModel.value = new Map();
+  }
+
   function setPartIndex(byPart: Map<PartNumber, GroupId[]>): void {
     partIndex.value = byPart;
     const inv = new Map<GroupId, PartNumber>();
@@ -64,6 +94,7 @@ export default createGlobalState(() => {
     selectedGroupIds,
     partIndex,
     partNumberOfGroupId,
+    activeSceneByModel,
     setPartIndex,
     selectGroupIds,
     toggleGroupSelection,
@@ -71,5 +102,8 @@ export default createGlobalState(() => {
     setHoveredGroupIds,
     selectPart,
     hoverPart,
+    getActiveSceneForModel,
+    setActiveSceneForModel,
+    clearActiveSceneMemory,
   };
 });

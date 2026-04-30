@@ -182,12 +182,9 @@ export default function useThreeViewer(
     },
   );
 
-  async function loadModel(
-    graph: ObjectGraph,
-    partNumberOffset?: number,
-  ): Promise<void> {
+  async function loadModel(graph: ObjectGraph): Promise<void> {
     if (!core) return;
-    await core.loadModel(graph, partNumberOffset);
+    await core.loadModel(graph);
     syncPartIndex(core);
   }
 

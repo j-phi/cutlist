@@ -16,7 +16,7 @@
  * Schema version for record shapes. Must equal the highest Dexie
  * `.version(N)` declared on `CutlistDB`. Never decrement.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * Thrown when data (a stored DB or an imported export file) was created by

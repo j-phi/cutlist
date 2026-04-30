@@ -317,7 +317,7 @@ export class ViewerCore {
     return this.renderer?.onFrame(cb) ?? (() => {});
   }
 
-  async loadModel(graph: ObjectGraph, partNumberOffset = 0): Promise<void> {
+  async loadModel(graph: ObjectGraph): Promise<void> {
     if (!this.ready) await this.waitForReady();
     if (this.disposed) return;
     const sceneGraph = this.sceneGraph!;
@@ -326,7 +326,7 @@ export class ViewerCore {
     const batchMaterial = this.batchMaterial!;
 
     const gen = ++this.loadGeneration;
-    const result = this.batchLoader!.load(graph, partNumberOffset);
+    const result = this.batchLoader!.load(graph);
     if (!result) return;
     if (gen !== this.loadGeneration || this.disposed) return;
 

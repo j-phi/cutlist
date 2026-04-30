@@ -1,5 +1,5 @@
 /**
- * Scene CRUD. Scenes are stored per-project, sorted by `order` on read.
+ * Scene CRUD. Scenes are stored per-model, sorted by `order` on read.
  *
  * `deleteScene` cascades to annotations in a single Dexie transaction so a
  * mid-delete failure can't leave orphaned annotations.
@@ -8,15 +8,15 @@
 import { getDb, safeWrite } from './db';
 import type { IdbScene } from './types';
 
-export async function getScenes(projectId: string): Promise<IdbScene[]> {
+export async function getScenesForModel(modelId: string): Promise<IdbScene[]> {
   const db = await getDb();
-  const scenes = await db.scenes.where('projectId').equals(projectId).toArray();
+  const scenes = await db.scenes.where('modelId').equals(modelId).toArray();
   return scenes.sort((a, b) => a.order - b.order);
 }
 
-export async function nextSceneOrder(projectId: string): Promise<number> {
+export async function nextSceneOrder(modelId: string): Promise<number> {
   const db = await getDb();
-  const count = await db.scenes.where('projectId').equals(projectId).count();
+  const count = await db.scenes.where('modelId').equals(modelId).count();
   return count;
 }
 

@@ -5,7 +5,7 @@
  * the onFrame loop is exercised in viewer integration, not here.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { effectScope, ref, type EffectScope } from 'vue';
+import { effectScope, nextTick, ref, type EffectScope } from 'vue';
 import type {
   CameraMode,
   CameraPose,
@@ -14,6 +14,7 @@ import type {
 } from '~/composables/useIdb';
 import type { GroupId } from '~/utils/types';
 import { useSceneAuthor, type SceneAuthorViewer } from '../useSceneAuthor';
+import useModelViewerStore from '../useModelViewerStore';
 
 interface FakeViewer extends SceneAuthorViewer {
   emitUserInteraction(): void;
@@ -103,7 +104,7 @@ function makeScene(overrides: Partial<IdbScene> = {}): IdbScene {
   const now = new Date().toISOString();
   return {
     id: 's1',
-    projectId: 'p',
+    modelId: 'm',
     name: 'Scene',
     order: 0,
     cameraMode: 'orthographic',
@@ -360,6 +361,94 @@ describe('useSceneAuthor — markClean', () => {
     a.markClean();
     expect(a.dirty.value).toBe(false);
     expect(a.activeSceneId.value).toBe('s1');
+  });
+});
+
+describe('useSceneAuthor — per-model active-scene memory', () => {
+  beforeEach(() => {
+    // The store is a global singleton (createGlobalState); clear the map so
+    // tests don't leak ids between runs.
+    useModelViewerStore().clearActiveSceneMemory();
+  });
+
+  it('Should write the active scene id back to the store keyed by model', async () => {
+    const v = makeFakeViewer();
+    const focusedModelId = ref<string | null>('m-A');
+    const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
+    const store = useModelViewerStore();
+
+    a.jumpToScene(makeScene({ id: 's-A1' }));
+    // Allow the watch on activeSceneId to flush.
+    await nextTick();
+    expect(store.getActiveSceneForModel('m-A')).toBe('s-A1');
+  });
+
+  it('Should restore the remembered scene id when the focused model changes', async () => {
+    const v = makeFakeViewer();
+    const focusedModelId = ref<string | null>('m-A');
+    const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
+    const store = useModelViewerStore();
+
+    // Author a scene under model A.
+    a.jumpToScene(makeScene({ id: 's-A1' }));
+    await nextTick();
+    expect(a.activeSceneId.value).toBe('s-A1');
+
+    // Switch to model B — no scene remembered, so activeSceneId clears.
+    focusedModelId.value = 'm-B';
+    await nextTick();
+    expect(a.activeSceneId.value).toBeNull();
+
+    // Pretend the user authored a scene under B.
+    a.jumpToScene(makeScene({ id: 's-B1' }));
+    await nextTick();
+    expect(store.getActiveSceneForModel('m-B')).toBe('s-B1');
+
+    // Switch back to A — restores its previous active scene id from memory.
+    focusedModelId.value = 'm-A';
+    await nextTick();
+    expect(a.activeSceneId.value).toBe('s-A1');
+  });
+
+  it('Should not write back during model-switch restoration', async () => {
+    const v = makeFakeViewer();
+    const focusedModelId = ref<string | null>('m-A');
+    const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
+    const store = useModelViewerStore();
+
+    // Seed B in the store directly so the switch has something to restore.
+    store.setActiveSceneForModel('m-B', 's-B-pre');
+    a.jumpToScene(makeScene({ id: 's-A1' }));
+    await nextTick();
+    expect(store.getActiveSceneForModel('m-A')).toBe('s-A1');
+
+    focusedModelId.value = 'm-B';
+    await nextTick();
+    // Restoration adopted s-B-pre — and crucially didn't overwrite A's
+    // memory with B's id (the suppress flag prevents the write echo).
+    expect(a.activeSceneId.value).toBe('s-B-pre');
+    expect(store.getActiveSceneForModel('m-A')).toBe('s-A1');
+  });
+
+  it('Should clear in-memory dirty/visibility on model switch', async () => {
+    const v = makeFakeViewer();
+    const focusedModelId = ref<string | null>('m-A');
+    const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
+
+    a.jumpToScene(makeScene({ id: 's-A1' }));
+    await nextTick();
+    a.setObjectsVisibility([2], false);
+    await nextTick();
+    expect(a.visibleObjects.value).toBeInstanceOf(Set);
+    expect(a.dirty.value).toBe(true);
+
+    focusedModelId.value = 'm-B';
+    await nextTick();
+    await nextTick();
+
+    expect(a.visibleObjects.value).toBeNull();
+    expect(a.dirty.value).toBe(false);
+    expect(a.activeSceneId.value).toBeNull();
   });
 });
 

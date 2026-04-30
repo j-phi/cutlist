@@ -45,7 +45,7 @@ import {
   deleteBuildStep,
 } from './buildSteps';
 import {
-  getScenes,
+  getScenesForModel,
   nextSceneOrder,
   createScene,
   updateScene,
@@ -54,6 +54,7 @@ import {
 import {
   getAnnotationsForScene,
   getAnnotationsForProject,
+  getAnnotationsForModel,
   createAnnotation,
   updateAnnotation,
   deleteAnnotation,
@@ -103,13 +104,14 @@ export function useIdb() {
     updateBuildStep,
     deleteBuildStep,
     flushPendingModelWrites,
-    getScenes,
+    getScenesForModel,
     nextSceneOrder,
     createScene,
     updateScene,
     deleteScene,
     getAnnotationsForScene,
     getAnnotationsForProject,
+    getAnnotationsForModel,
     createAnnotation,
     updateAnnotation,
     deleteAnnotation,

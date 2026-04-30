@@ -141,10 +141,28 @@ export async function updateProject(
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDb();
   await safeWrite(() =>
-    db.transaction('rw', [db.projects, db.models, db.buildSteps], async () => {
-      await db.models.where('projectId').equals(id).delete();
-      await db.buildSteps.where('projectId').equals(id).delete();
-      await db.projects.delete(id);
-    }),
+    db.transaction(
+      'rw',
+      [db.projects, db.models, db.buildSteps, db.scenes, db.annotations],
+      async () => {
+        // Cascade through models → scenes → annotations. Scenes are now
+        // model-scoped, so we can't query them by projectId directly.
+        const modelIds = (
+          await db.models.where('projectId').equals(id).toArray()
+        ).map((m) => m.id);
+        if (modelIds.length > 0) {
+          const sceneIds = (
+            await db.scenes.where('modelId').anyOf(modelIds).toArray()
+          ).map((s) => s.id);
+          if (sceneIds.length > 0) {
+            await db.annotations.where('sceneId').anyOf(sceneIds).delete();
+            await db.scenes.where('modelId').anyOf(modelIds).delete();
+          }
+          await db.models.where('projectId').equals(id).delete();
+        }
+        await db.buildSteps.where('projectId').equals(id).delete();
+        await db.projects.delete(id);
+      },
+    ),
   );
 }

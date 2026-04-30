@@ -3,9 +3,9 @@
  * Part → Object tree, manages collapse state, and forwards visibility /
  * reset actions to a `SceneAuthor`.
  *
- * The graph passed in must already have any per-model `partNumberOffset`
- * applied to its `groupId` and `partNumber` values, so panel actions stay
- * aligned with the IDs the viewer's `ObjectRegistry` uses.
+ * The viewer renders one model at a time, so the graph's `groupId` and
+ * `partNumber` values are used as-is — panel actions stay aligned with the
+ * IDs the viewer's `ObjectRegistry` uses.
  */
 
 import type { ComputedRef, Ref } from 'vue';

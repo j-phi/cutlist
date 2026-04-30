@@ -63,12 +63,26 @@ function makePayload(): ProjectExport {
       createdAt: now,
       updatedAt: now,
     },
-    models: [],
+    models: [
+      {
+        id: 'model-1',
+        projectId: 'proj-1',
+        filename: 'a.gltf',
+        source: 'gltf',
+        parts: [],
+        colors: [],
+        nodePartMap: [],
+        enabled: true,
+        rawSource: null,
+        partOverrides: {},
+        createdAt: now,
+      },
+    ],
     buildSteps: [],
     scenes: [
       {
         id: 'scene-1',
-        projectId: 'proj-1',
+        modelId: 'model-1',
         name: 'Front',
         order: 0,
         cameraMode: 'perspective',
@@ -82,7 +96,7 @@ function makePayload(): ProjectExport {
       },
       {
         id: 'scene-2',
-        projectId: 'proj-1',
+        modelId: 'model-1',
         name: 'Top',
         order: 1,
         cameraMode: 'orthographic',
@@ -159,12 +173,17 @@ describe('Spec 00 — scenes & annotations round-trip', () => {
     const { db, calls } = makeIdbMock();
     await importProjectData(parsed, db as any);
 
-    // Two scenes were imported, with new IDs and projectId remapped.
+    // Two scenes were imported with new IDs. modelId is remapped to the
+    // freshly-assigned model id (every imported model gets a new UUID).
     expect(calls.createScene).toHaveLength(2);
     const sceneIds = calls.createScene.map((s: any) => s.id);
     expect(new Set(sceneIds).size).toBe(2);
+    expect(calls.createModel).toHaveLength(1);
+    const newModelId = calls.createModel[0].id;
+    expect(newModelId).not.toBe('model-1');
     for (const s of calls.createScene) {
-      expect(s.projectId).toBe('new-proj');
+      expect(s.modelId).toBe(newModelId);
+      expect((s as any).projectId).toBeUndefined();
       expect(s.id).not.toBe('scene-1');
       expect(s.id).not.toBe('scene-2');
     }

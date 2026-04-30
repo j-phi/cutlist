@@ -263,7 +263,7 @@ describe('camera zoom and up', () => {
     });
     const persisted: IdbScene = {
       id: 's',
-      projectId: 'p',
+      modelId: 'm',
       name: 'n',
       order: 0,
       createdAt: '',
@@ -335,7 +335,7 @@ describe('round-trip', () => {
 
     const persisted: IdbScene = {
       id: 's',
-      projectId: 'p',
+      modelId: 'm',
       name: 'n',
       order: 0,
       createdAt: '',

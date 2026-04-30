@@ -2,12 +2,7 @@
 import type { BoardLayoutLeftover } from 'cutlist';
 import type { CameraMode } from '~/composables/useIdb';
 import type { GizmoMode, ViewPreset } from '~/lib/viewer/types';
-import type {
-  GroupId,
-  ObjectGraph,
-  ObjectNode,
-  PartNumber,
-} from '~/utils/types';
+import type { ObjectGraph } from '~/utils/types';
 import ViewCube from '~/components/viewer/ViewCube.vue';
 import ObjectsPanel from '~/components/viewer/ObjectsPanel.vue';
 import SceneTimeline from '~/components/viewer/SceneTimeline.vue';
@@ -27,7 +22,6 @@ import {
   createDimensionHandler,
   createDimensionKindHooks,
 } from '~/lib/viewer/annotations/dimension';
-import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 
 const props = withDefaults(
   defineProps<{
@@ -59,13 +53,20 @@ const focusedModelIdx = ref(0);
 watch(activeId, () => {
   focusedModelIdx.value = 0;
   rawSourceCache.clear();
+  // The active-scene memory is keyed by modelId (stable per project), so a
+  // project switch invalidates every entry — purge to keep the map bounded
+  // and avoid stale ids surviving a project delete + re-create.
+  store.clearActiveSceneMemory();
 });
 
-const displayModels = computed(() => {
+const focusedModel = computed(() => {
   const idx = Math.min(focusedModelIdx.value, enabledModels.value.length - 1);
-  const m = enabledModels.value[idx];
-  return m ? [m] : [];
+  return enabledModels.value[idx] ?? null;
 });
+
+const focusedModelId = computed<string | null>(
+  () => focusedModel.value?.id ?? null,
+);
 
 const hasModelData = computed(() => enabledModels.value.length > 0);
 
@@ -77,74 +78,41 @@ const hasOnlyManualModels = computed(
 
 // In-memory cache to avoid redundant IDB reads when switching models.
 const rawSourceCache = new Map<string, object | string>();
-const allRawData = ref<Map<
-  string,
-  { raw: object | string; source: 'gltf' | 'collada' }
-> | null>(null);
+const focusedRawData = ref<{
+  modelId: string;
+  raw: object | string;
+  source: 'gltf' | 'collada';
+} | null>(null);
 
 async function loadRawData() {
-  if (!activeId.value || displayModels.value.length === 0) {
-    allRawData.value = null;
+  const model = focusedModel.value;
+  if (!activeId.value || !model) {
+    focusedRawData.value = null;
     return;
   }
-  const entries = await Promise.all(
-    displayModels.value.map(async (m) => {
-      let raw = rawSourceCache.get(m.id);
-      if (raw == null) {
-        const fetched = await idb.getModelRawSource(m.id);
-        if (fetched != null) {
-          raw = fetched;
-          rawSourceCache.set(m.id, raw);
-        }
-      }
-      return raw != null
-        ? ([m.id, { raw, source: m.source as 'gltf' | 'collada' }] as const)
-        : null;
-    }),
-  );
-  allRawData.value = new Map(
-    entries.filter((e): e is NonNullable<typeof e> => e != null),
-  );
-}
-
-watch(
-  [activeId, () => displayModels.value.map((m) => m.id).join(',')],
-  loadRawData,
-  { immediate: true },
-);
-
-const loadedGraph = ref<ObjectGraph | null>(null);
-
-function shiftGraph(graph: ObjectGraph, offset: number): ObjectGraph {
-  if (offset === 0) return graph;
-  const objects: ObjectNode[] = graph.objects.map((o) => ({
-    ...o,
-    groupId: o.groupId + offset,
-    partNumber: o.partNumber + offset,
-  }));
-  const partIndex = new Map<PartNumber, ObjectNode[]>();
-  for (const o of objects) {
-    const list = partIndex.get(o.partNumber);
-    if (list) list.push(o);
-    else partIndex.set(o.partNumber, [o]);
+  let raw = rawSourceCache.get(model.id);
+  if (raw == null) {
+    const fetched = await idb.getModelRawSource(model.id);
+    if (fetched == null) {
+      focusedRawData.value = null;
+      return;
+    }
+    raw = fetched;
+    rawSourceCache.set(model.id, raw);
   }
-  const objectIndex = new Map<GroupId, ObjectNode>();
-  for (const o of objects) objectIndex.set(o.groupId, o);
-  const parts = graph.parts.map((p) => ({
-    ...p,
-    partNumber: p.partNumber + offset,
-  }));
-  return {
-    ...graph,
-    parts,
-    objects,
-    objectIndex,
-    partIndex,
+  focusedRawData.value = {
+    modelId: model.id,
+    raw,
+    source: model.source as 'gltf' | 'collada',
   };
 }
 
-async function loadAllModels() {
-  const data = allRawData.value;
+watch([activeId, focusedModelId], loadRawData, { immediate: true });
+
+const loadedGraph = ref<ObjectGraph | null>(null);
+
+async function loadFocusedModel() {
+  const data = focusedRawData.value;
   if (!data || !viewer.ready.value) return;
 
   const { resolveModelScene } = await import('~/utils/resolveModelScene');
@@ -152,32 +120,39 @@ async function loadAllModels() {
   viewer.clearModels();
   loadedGraph.value = null;
 
-  // Use offsets from ALL enabled models so part numbers stay consistent with BOM
-  const allOffsets = computePartNumberOffsets(enabledModels.value);
-  const models = displayModels.value;
-
-  for (const model of models) {
-    const modelIdx = enabledModels.value.findIndex((m) => m.id === model.id);
-    const offset = modelIdx >= 0 ? allOffsets[modelIdx] : 0;
-    const entry = data.get(model.id);
-    if (entry) {
-      const graph = await resolveModelScene({
-        source: entry.source,
-        rawSource: entry.raw,
-      });
-      if (graph) {
-        await viewer.loadModel(graph, offset);
-        loadedGraph.value = shiftGraph(graph, offset);
-      }
+  const graph = await resolveModelScene({
+    source: data.source,
+    rawSource: data.raw,
+  });
+  if (graph) {
+    await viewer.loadModel(graph);
+    loadedGraph.value = graph;
+    // After the viewer has the new model loaded, replay the remembered
+    // active scene (if any) so the camera/visibility/offsets match the
+    // marker the timeline is showing. `useSceneAuthor` has already
+    // populated `activeSceneId` from the per-model memory map; we just
+    // need to wait until both the model and its scenes are in memory
+    // before applying. `jumpToScene` is a one-shot apply (no tween).
+    const sid = sceneAuthor.activeSceneId.value;
+    if (sid) {
+      const scene = scenesApi.scenes.value.find((s) => s.id === sid);
+      if (scene) sceneAuthor.jumpToScene(scene);
     }
   }
 }
 
-watch(allRawData, loadAllModels);
+// Single watch on the combined predicate avoids a double-fire on initial
+// mount (once when raw data lands, once when viewer becomes ready). The
+// downstream `loadFocusedModel` is idempotent enough that an extra call
+// would be harmless, but it would also re-clear the loaded graph and
+// momentarily blank the panel UI — so we gate on both upstream signals.
 watch(
-  () => viewer.ready.value,
-  (isReady) => {
-    if (isReady) loadAllModels();
+  () => ({
+    data: focusedRawData.value,
+    ready: viewer.ready.value,
+  }),
+  ({ data, ready }) => {
+    if (data && ready) void loadFocusedModel();
   },
 );
 
@@ -215,8 +190,10 @@ function onGizmoMode(mode: GizmoMode) {
   viewer.setGizmoMode(mode);
 }
 
-const sceneAuthor = useSceneAuthor(viewer);
-const scenesApi = useScenes();
+// Scenes are model-scoped. The focused model id drives both the timeline
+// (`useScenes`) and the per-model active-scene memory inside `useSceneAuthor`.
+const sceneAuthor = useSceneAuthor(viewer, focusedModelId);
+const scenesApi = useScenes(focusedModelId);
 const annotationsApi = useAnnotations();
 const annotationAuthor = useAnnotationAuthor(
   viewer,

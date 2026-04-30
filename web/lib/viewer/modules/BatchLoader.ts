@@ -45,7 +45,7 @@ interface Slice {
 export class BatchLoader {
   constructor(private deps: BatchLoaderDeps) {}
 
-  load(graph: ObjectGraph, partNumberOffset = 0): BatchLoadResult | null {
+  load(graph: ObjectGraph): BatchLoadResult | null {
     const { THREE, batchMaterial } = this.deps;
 
     const slices: Slice[] = [];
@@ -106,7 +106,7 @@ export class BatchLoader {
         1.0,
       ]);
 
-      const groupId = s.object.groupId + partNumberOffset;
+      const groupId = s.object.groupId;
       batchToGroupId.set(instanceId, groupId);
       const list = idsByObject.get(groupId);
       if (list) list.push(instanceId);
@@ -124,8 +124,8 @@ export class BatchLoader {
     const records: ObjectRecord[] = [];
     const edgeLines: LineSegments2[] = [];
     for (const obj of graph.objects) {
-      const groupId = obj.groupId + partNumberOffset;
-      const partNumber = obj.partNumber + partNumberOffset;
+      const groupId = obj.groupId;
+      const partNumber = obj.partNumber;
 
       const center = new THREE.Vector3();
       meshBox.makeEmpty();

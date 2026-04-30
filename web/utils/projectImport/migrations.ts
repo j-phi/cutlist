@@ -42,7 +42,23 @@ export interface RecordMigration {
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
   // v1 baseline: nothing to migrate.
-  // Future: { version: 2, store: 'projects', migrate: (r) => ({ ...r, tags: r.tags ?? [] }) },
+  // v2: scenes are now scoped to a model, not a project. Pre-v2 scenes carry
+  // `projectId` instead of `modelId` — there's no meaningful mapping (a
+  // project can have several models), so on import we drop the field. The
+  // payload-level scrub in `migrateExport` then strips scenes + annotations
+  // entirely for fromVersion < 2. The per-record entry below exists to keep
+  // the migrations list traceable and to satisfy the "twice-expressed"
+  // contract documented at the top of this file.
+  {
+    version: 2,
+    store: 'scenes',
+    migrate: (r) => {
+      // Drop the obsolete projectId; modelId can't be inferred safely.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { projectId: _drop, ...rest } = r;
+      return rest;
+    },
+  },
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */
@@ -99,13 +115,20 @@ export function migrateExport(raw: RawExport): RawExport {
     migrateRecord('buildSteps', s, fromVersion),
   );
 
-  const scenes = (raw.scenes ?? []).map((s) =>
-    migrateRecord('scenes', s, fromVersion),
-  );
+  // Flat-flush of scenes/annotations on prior-schema (v1) imports —
+  // no meaningful mapping exists from project-scoped scenes to model-scoped
+  // ones, so they're dropped rather than silently misattached.
+  const scenes =
+    fromVersion < 2
+      ? []
+      : (raw.scenes ?? []).map((s) => migrateRecord('scenes', s, fromVersion));
 
-  const annotations = (raw.annotations ?? []).map((a) =>
-    migrateRecord('annotations', a, fromVersion),
-  );
+  const annotations =
+    fromVersion < 2
+      ? []
+      : (raw.annotations ?? []).map((a) =>
+          migrateRecord('annotations', a, fromVersion),
+        );
 
   return {
     ...raw,

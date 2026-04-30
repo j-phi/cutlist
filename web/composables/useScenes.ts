@@ -1,15 +1,20 @@
 /**
- * Reactive scene list per active project.
+ * Reactive scene list per active model.
+ *
+ * Scenes are model-scoped: each model in a project has its own scene
+ * timeline. The composable takes a reactive `modelId` ref — when it flips,
+ * the in-memory list is rehydrated for the new model. When the ref is
+ * `null`, the list is empty and mutations no-op.
  *
  * Mirrors the shape of `useBuildSteps`: a module-level reactive array shared
  * across every caller, kept in sync with IDB. The composable exposes CRUD
  * plus reorder helpers; the viewer/UI never touches the IDB layer directly.
  *
- * Concurrency: a single `activeId` watcher is installed lazily on first call.
+ * Concurrency: a single `modelId` watcher is installed lazily on first call.
  * Every IDB mutation bumps a generation counter so any in-flight load
- * triggered by a recent project switch is discarded if a write has landed
- * since — prevents an outdated `getScenes` result from clobbering optimistic
- * state right after a mutation.
+ * triggered by a recent model switch is discarded if a write has landed
+ * since — prevents an outdated `getScenesForModel` result from clobbering
+ * optimistic state right after a mutation.
  */
 
 import { effectScope, type Ref } from 'vue';
@@ -27,6 +32,7 @@ const scenes = ref<IdbScene[]>([]);
 let loadedForId: string | null = null;
 let loadGen = 0;
 let watcherInstalled = false;
+let activeModelIdRef: Ref<string | null> | null = null;
 
 export interface AddSceneInput {
   name?: string;
@@ -40,12 +46,14 @@ export interface UseScenesApi {
   updateScene(id: string, patch: Partial<IdbScene>): Promise<void>;
   removeScene(id: string): Promise<void>;
   moveScene(id: string, toIndex: number): Promise<void>;
-  reload(projectId: string): Promise<void>;
+  reload(modelId: string): Promise<void>;
 }
 
-export function useScenes(): UseScenesApi {
+export function useScenes(modelIdRef: Ref<string | null>): UseScenesApi {
   const idb = useIdb();
-  const { activeId } = useProjects();
+  // Latest binding wins: the most recent caller dictates which ref drives
+  // the watcher. In practice there's one consumer (ModelTab) at a time.
+  activeModelIdRef = modelIdRef;
 
   if (!watcherInstalled) {
     watcherInstalled = true;
@@ -53,7 +61,7 @@ export function useScenes(): UseScenesApi {
     // first caller's scope (a unit test scope can otherwise dispose it).
     effectScope(true).run(() => {
       watch(
-        activeId,
+        () => activeModelIdRef?.value ?? null,
         async (id) => {
           const gen = ++loadGen;
           if (!id) {
@@ -62,7 +70,7 @@ export function useScenes(): UseScenesApi {
             return;
           }
           if (id === loadedForId) return;
-          const loaded = await idb.getScenes(id);
+          const loaded = await idb.getScenesForModel(id);
           if (gen !== loadGen) return;
           scenes.value = loaded;
           loadedForId = id;
@@ -73,12 +81,12 @@ export function useScenes(): UseScenesApi {
   }
 
   async function addScene(input: AddSceneInput): Promise<string | undefined> {
-    const projectId = activeId.value;
-    if (!projectId) return;
+    const modelId = modelIdRef.value;
+    if (!modelId) return;
     const now = new Date().toISOString();
     const scene: IdbScene = {
       id: crypto.randomUUID(),
-      projectId,
+      modelId,
       name: input.name ?? `Scene ${scenes.value.length + 1}`,
       order: nextSceneOrder(scenes.value),
       ...sceneStateToIdb(input.state),
@@ -88,7 +96,7 @@ export function useScenes(): UseScenesApi {
     };
     loadGen++;
     scenes.value = [...scenes.value, scene];
-    loadedForId = projectId;
+    loadedForId = modelId;
     await idb.createScene(scene);
     return scene.id;
   }
@@ -126,12 +134,12 @@ export function useScenes(): UseScenesApi {
     );
   }
 
-  async function reload(projectId: string): Promise<void> {
+  async function reload(modelId: string): Promise<void> {
     const gen = ++loadGen;
-    const loaded = await idb.getScenes(projectId);
+    const loaded = await idb.getScenesForModel(modelId);
     if (gen !== loadGen) return;
     scenes.value = loaded;
-    loadedForId = projectId;
+    loadedForId = modelId;
   }
 
   return { scenes, addScene, updateScene, removeScene, moveScene, reload };

@@ -29,8 +29,26 @@ export async function getAnnotationsForProject(
   projectId: string,
 ): Promise<IdbAnnotation[]> {
   const db = await getDb();
+  // Scenes are now model-scoped, so we hop project → models → scenes →
+  // annotations to gather everything for a project.
+  const modelIds = (
+    await db.models.where('projectId').equals(projectId).toArray()
+  ).map((m) => m.id);
+  if (modelIds.length === 0) return [];
   const sceneIds = (
-    await db.scenes.where('projectId').equals(projectId).toArray()
+    await db.scenes.where('modelId').anyOf(modelIds).toArray()
+  ).map((s) => s.id);
+  if (sceneIds.length === 0) return [];
+  const rows = await db.annotations.where('sceneId').anyOf(sceneIds).toArray();
+  return rows.map((r) => applyAnnotationDefaults(r));
+}
+
+export async function getAnnotationsForModel(
+  modelId: string,
+): Promise<IdbAnnotation[]> {
+  const db = await getDb();
+  const sceneIds = (
+    await db.scenes.where('modelId').equals(modelId).toArray()
   ).map((s) => s.id);
   if (sceneIds.length === 0) return [];
   const rows = await db.annotations.where('sceneId').anyOf(sceneIds).toArray();

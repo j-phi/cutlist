@@ -77,14 +77,19 @@ export interface IdbBuildStep {
  * A captured viewer state. Per-Object offsets and visibility are keyed by
  * `groupId` (the source-file node identity), never `batchId`.
  *
+ * Scenes are scoped to the **model** they were captured against — each model
+ * in a project has its own independent scene timeline. Switching models in
+ * the UI swaps which timeline is shown.
+ *
  * `visibleObjects === undefined` means "all visible" — distinct from `[]`
  * which means "all hidden".
  */
 export interface IdbScene {
   id: string;
-  projectId: string;
+  /** The model this scene belongs to. Scenes are model-scoped, not project-scoped. */
+  modelId: string;
   name: string;
-  /** Contiguous 0..N-1 within a project. */
+  /** Contiguous 0..N-1 within a model. */
   order: number;
   cameraMode: CameraMode;
   cameraPose: CameraPose;

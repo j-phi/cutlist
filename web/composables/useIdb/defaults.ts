@@ -41,8 +41,13 @@ export function applyModelDefaults(
 }
 
 export function applySceneDefaults(
-  s: Partial<IdbScene> & { id: string; projectId: string },
+  s: Partial<IdbScene> & { id: string; modelId: string },
 ): IdbScene {
+  if (typeof s.modelId !== 'string' || s.modelId === '') {
+    throw new Error(
+      `Scene ${s.id} is missing required field 'modelId' — corrupt data.`,
+    );
+  }
   return {
     ...s,
     cameraMode: s.cameraMode ?? 'perspective',

@@ -48,11 +48,13 @@ export default function useExportProject() {
       })),
     );
 
-    const [buildSteps, scenes, annotations] = await Promise.all([
+    const [buildSteps, sceneLists, annotations] = await Promise.all([
       idb.getBuildSteps(activeId.value),
-      idb.getScenes(activeId.value),
+      // Scenes are now model-scoped — gather across every model in the project.
+      Promise.all(idbProject.models.map((m) => idb.getScenesForModel(m.id))),
       idb.getAnnotationsForProject(activeId.value),
     ]);
+    const scenes = sceneLists.flat();
 
     const data: ProjectExport = {
       version: SCHEMA_VERSION,

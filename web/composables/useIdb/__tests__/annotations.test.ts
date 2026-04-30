@@ -1,17 +1,43 @@
 import { describe, expect, it } from 'vitest';
 import { useIdb, applyAnnotationDefaults } from '../../useIdb';
-import type { IdbScene, IdbCallout, IdbDimension } from '../../useIdb';
+import type {
+  IdbModel,
+  IdbScene,
+  IdbCallout,
+  IdbDimension,
+} from '../../useIdb';
 
 const idb = useIdb();
 
-function makeScene(
+function makeModel(
   projectId: string,
+  overrides: Partial<IdbModel> = {},
+): IdbModel {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    projectId,
+    filename: 'model.gltf',
+    source: 'gltf',
+    parts: [],
+    colors: [],
+    nodePartMap: [],
+    enabled: true,
+    rawSource: null,
+    partOverrides: {},
+    createdAt: now,
+    ...overrides,
+  };
+}
+
+function makeScene(
+  modelId: string,
   overrides: Partial<IdbScene> = {},
 ): IdbScene {
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
-    projectId,
+    modelId,
     name: 'Scene',
     order: 0,
     cameraMode: 'perspective',
@@ -65,9 +91,11 @@ function makeDimension(
 
 async function makeProjectAndScene() {
   const project = await idb.createProject('Annotations');
-  const scene = makeScene(project.id);
+  const model = makeModel(project.id);
+  await idb.createModel(model);
+  const scene = makeScene(model.id);
   await idb.createScene(scene);
-  return { project, scene };
+  return { project, model, scene };
 }
 
 describe('annotations CRUD', () => {
@@ -93,8 +121,10 @@ describe('annotations CRUD', () => {
 
   it('getAnnotationsForScene only returns matching scene', async () => {
     const project = await idb.createProject('Iso');
-    const a = makeScene(project.id, { name: 'A' });
-    const b = makeScene(project.id, { name: 'B', order: 1 });
+    const model = makeModel(project.id);
+    await idb.createModel(model);
+    const a = makeScene(model.id, { name: 'A' });
+    const b = makeScene(model.id, { name: 'B', order: 1 });
     await idb.createScene(a);
     await idb.createScene(b);
     await idb.createAnnotation(makeCallout(a.id, { text: 'in A' }));
@@ -109,10 +139,12 @@ describe('annotations CRUD', () => {
     expect(bRows[0].kind).toBe('dimension');
   });
 
-  it('getAnnotationsForProject joins through scenes', async () => {
+  it('getAnnotationsForProject joins through models and scenes', async () => {
     const project = await idb.createProject('Project');
-    const a = makeScene(project.id);
-    const b = makeScene(project.id, { order: 1 });
+    const model = makeModel(project.id);
+    await idb.createModel(model);
+    const a = makeScene(model.id);
+    const b = makeScene(model.id, { order: 1 });
     await idb.createScene(a);
     await idb.createScene(b);
     await idb.createAnnotation(makeCallout(a.id));
@@ -125,6 +157,26 @@ describe('annotations CRUD', () => {
     const all = await idb.getAnnotationsForProject(project.id);
     expect(all).toHaveLength(2);
     expect(all.map((a) => a.kind).sort()).toEqual(['callout', 'dimension']);
+  });
+
+  it('getAnnotationsForModel returns annotations across the model scenes', async () => {
+    const project = await idb.createProject('PerModel');
+    const m1 = makeModel(project.id);
+    const m2 = makeModel(project.id);
+    await idb.createModel(m1);
+    await idb.createModel(m2);
+    const a = makeScene(m1.id);
+    const b = makeScene(m2.id);
+    await idb.createScene(a);
+    await idb.createScene(b);
+    await idb.createAnnotation(makeCallout(a.id, { text: 'm1' }));
+    await idb.createAnnotation(makeCallout(b.id, { text: 'm2' }));
+
+    const m1Rows = await idb.getAnnotationsForModel(m1.id);
+    expect(m1Rows).toHaveLength(1);
+    if (m1Rows[0].kind === 'callout') {
+      expect(m1Rows[0].text).toBe('m1');
+    }
   });
 
   it('updateAnnotation patches text and bumps updatedAt', async () => {

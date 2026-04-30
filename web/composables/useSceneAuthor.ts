@@ -89,7 +89,10 @@ export interface SceneAuthor {
   onUserChange(cb: () => void): () => void;
 }
 
-export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
+export function useSceneAuthor(
+  viewer: SceneAuthorViewer,
+  focusedModelIdRef?: Ref<string | null>,
+): SceneAuthor {
   const visibleObjects = ref<Set<GroupId> | null>(null);
   const activeSceneId = ref<string | null>(null);
   const tweenFromSceneId = ref<string | null>(null);
@@ -99,6 +102,49 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
 
   let stopFrame: (() => void) | null = null;
   const userChangeCallbacks = new Set<() => void>();
+
+  // Per-model active-scene memory. We keep two side-effects in sync:
+  //   1. `activeSceneId` change → write `(currentModelId → newSceneId)` so
+  //      the next time the user comes back to this model the timeline lands
+  //      where they left it.
+  //   2. `focusedModelIdRef` change → read the remembered scene id for the
+  //      new model and adopt it. We don't tween on switch; the consumer
+  //      (ModelTab) decides whether to call `tweenToScene` after re-hydrate.
+  // The store owns the map so it survives across composable re-runs (e.g.
+  // ModelTab unmount/remount in the same project).
+  if (focusedModelIdRef) {
+    const store = useModelViewerStore();
+    let suppressActiveWrite = false;
+
+    watch(activeSceneId, (sid) => {
+      if (suppressActiveWrite) return;
+      const mid = focusedModelIdRef.value;
+      if (!mid) return;
+      store.setActiveSceneForModel(mid, sid);
+    });
+
+    watch(
+      () => focusedModelIdRef.value,
+      (mid) => {
+        // Adopt the remembered scene for the new model. Wrap the assignment
+        // so the activeSceneId watcher above doesn't re-write it back —
+        // restoration is a read, not a user action.
+        suppressActiveWrite = true;
+        try {
+          activeSceneId.value = mid ? store.getActiveSceneForModel(mid) : null;
+        } finally {
+          suppressActiveWrite = false;
+        }
+        // Switching models invalidates the in-memory dirty/visibility/tween
+        // state — they belong to the previous model's viewer load. The tween
+        // is stopped explicitly so a mid-flight onFrame callback doesn't keep
+        // poking the new model's offsets.
+        stopTween();
+        dirty.value = false;
+        visibleObjects.value = null;
+      },
+    );
+  }
 
   function markDirty(): void {
     if (!activeSceneId.value || tweening.value || dirty.value) return;
