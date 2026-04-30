@@ -13,6 +13,7 @@ import type { ObjectGraph } from '~/utils/types';
 import type { SceneAuthor } from '~/composables/useSceneAuthor';
 import type { UseScenesApi } from '~/composables/useScenes';
 import useModels from '~/composables/useModels';
+import useModelViewerStore from '~/composables/useModelViewerStore';
 
 interface FocusedModelLoaderViewer {
   ready: Ref<boolean>;
@@ -28,24 +29,44 @@ export function useFocusedModelLoader(opts: {
 }) {
   const { viewer, focusedModelId, sceneAuthor, scenesApi } = opts;
   const models = useModels();
+  const store = useModelViewerStore();
   const loadedGraph = ref<ObjectGraph | null>(null);
+  const loadState = ref<'idle' | 'loading' | 'loaded' | 'missing-source'>(
+    'idle',
+  );
+  let loadGeneration = 0;
+
+  function clearLoadedModel(): void {
+    viewer.clearModels();
+    store.clearGroupSelection();
+    store.setHoveredGroupIds([]);
+    loadedGraph.value = null;
+  }
 
   async function loadFocusedModel(): Promise<void> {
     if (!viewer.ready.value) return;
+    const generation = ++loadGeneration;
     const id = focusedModelId.value;
     if (!id) {
-      viewer.clearModels();
-      loadedGraph.value = null;
+      clearLoadedModel();
+      loadState.value = 'idle';
       return;
     }
+
+    clearLoadedModel();
+    loadState.value = 'loading';
+
     const graph = await models.getModelGraph(id);
+    if (generation !== loadGeneration || focusedModelId.value !== id) return;
 
-    viewer.clearModels();
-    loadedGraph.value = null;
-
-    if (!graph) return;
+    if (!graph) {
+      loadState.value = 'missing-source';
+      return;
+    }
     await viewer.loadModel(graph);
+    if (generation !== loadGeneration || focusedModelId.value !== id) return;
     loadedGraph.value = graph;
+    loadState.value = 'loaded';
     // Replay the remembered active scene (if any) so the camera/visibility
     // /offsets match the marker the timeline is showing. `useSceneAuthor`
     // has already populated `activeSceneId` from the per-model memory map;
@@ -74,7 +95,7 @@ export function useFocusedModelLoader(opts: {
     { immediate: true },
   );
 
-  return { loadedGraph };
+  return { loadedGraph, loadState };
 }
 
 export default useFocusedModelLoader;

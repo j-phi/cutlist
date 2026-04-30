@@ -461,6 +461,19 @@ describe('useSceneAuthor — per-model active-scene memory', () => {
     expect(a.activeSceneId.value).toBe('s-A1');
   });
 
+  it('Should restore the remembered scene id on first mount', () => {
+    const v = makeFakeViewer();
+    const focusedModelId = ref<string | null>('m-A');
+    const store = useModelViewerStore();
+    store.setActiveSceneForModel('m-A', 's-A-pre');
+
+    const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
+
+    expect(a.activeSceneId.value).toBe('s-A-pre');
+    expect(a.dirty.value).toBe(false);
+    expect(a.visibleObjects.value).toBeNull();
+  });
+
   it('Should not write back during model-switch restoration', async () => {
     const v = makeFakeViewer();
     const focusedModelId = ref<string | null>('m-A');

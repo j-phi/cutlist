@@ -190,6 +190,7 @@ export function useSceneAuthor(
         dirty.value = false;
         visibleObjects.value = null;
       },
+      { immediate: true },
     );
   }
 

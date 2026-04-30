@@ -74,9 +74,11 @@ const hasOnlyManualModels = computed(
 const emptyStateType = computed<
   'no-models' | 'manual-only' | 'no-source' | null
 >(() => {
-  if (enabledModels.value.length === 0) return 'no-models';
   if (hasOnlyManualModels.value) return 'manual-only';
-  if (!hasModelData.value) return 'no-source';
+  if (allEnabledModels.value.length === 0) return 'no-models';
+  if (enabledModels.value.length === 0) return 'no-models';
+  if (focusedModelId.value && loadState.value === 'missing-source')
+    return 'no-source';
   return null;
 });
 
@@ -116,12 +118,16 @@ function onGizmoMode(mode: GizmoMode) {
 // (`useScenes`) and the per-model active-scene memory inside `useSceneAuthor`.
 const sceneAuthor = useSceneAuthor(viewer, focusedModelId);
 const scenesApi = useScenes(focusedModelId);
-const { loadedGraph } = useFocusedModelLoader({
+const { loadedGraph, loadState } = useFocusedModelLoader({
   viewer,
   focusedModelId,
   sceneAuthor,
   scenesApi,
 });
+const canShowViewerControls = computed(
+  () =>
+    hasModelData.value && !hasOnlyManualModels.value && !emptyStateType.value,
+);
 const annotationsApi = useAnnotations();
 const annotationAuthor = useAnnotationAuthor(
   viewer,
@@ -232,7 +238,7 @@ function onSnap(preset: ViewPreset) {
 
       <!-- Annotation overlay -->
       <AnnotationLabels
-        v-if="hasModelData && !hasOnlyManualModels"
+        v-if="canShowViewerControls"
         :annotations="annotationsApi.annotations.value"
         :active-scene-id="sceneAuthor.activeSceneId.value"
         :tween="sceneAuthor.tween.value"
@@ -283,7 +289,7 @@ function onSnap(preset: ViewPreset) {
 
       <!-- Objects panel (left sidebar) -->
       <div
-        v-if="hasModelData && !hasOnlyManualModels && loadedGraph"
+        v-if="canShowViewerControls && loadedGraph"
         class="absolute top-4 left-4 z-10"
         :class="enabledModels.length > 1 ? 'top-16' : 'top-4'"
       >
@@ -292,7 +298,7 @@ function onSnap(preset: ViewPreset) {
 
       <!-- Gizmo mode toolbar (only when something is selected) -->
       <div
-        v-if="hasModelData && !hasOnlyManualModels && hasSelection"
+        v-if="canShowViewerControls && hasSelection"
         class="absolute top-4 z-10"
         :class="props.showOpenButton ? 'right-[16.5rem]' : 'right-32'"
       >
@@ -301,7 +307,7 @@ function onSnap(preset: ViewPreset) {
 
       <!-- View cube + projection / floor toggles -->
       <div
-        v-if="hasModelData && !hasOnlyManualModels"
+        v-if="canShowViewerControls"
         class="absolute top-4 z-10"
         :class="props.showOpenButton ? 'right-44' : 'right-4'"
       >
@@ -322,7 +328,7 @@ function onSnap(preset: ViewPreset) {
 
       <!-- Scene timeline (bottom strip) -->
       <div
-        v-if="hasModelData && !hasOnlyManualModels"
+        v-if="canShowViewerControls"
         class="absolute left-0 right-0 bottom-0 z-10"
       >
         <AnnotationToolbar
