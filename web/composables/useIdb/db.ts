@@ -47,22 +47,9 @@ export class CutlistDB extends Dexie {
       projects: 'id, updatedAt',
       models: 'id, projectId',
       buildSteps: 'id, projectId',
-      scenes: 'id, projectId',
+      scenes: 'id, modelId, order',
       annotations: 'id, sceneId',
     });
-
-    // v2 — re-scope scenes from project to model.
-    // Annotations chain through `sceneId` so they come along automatically.
-    this.version(2)
-      .stores({
-        scenes: 'id, modelId, order',
-      })
-      .upgrade(async (tx) => {
-        // Flat-flush: scenes are now scoped to a model, not a project.
-        // Existing scenes can't be remapped meaningfully — users start fresh.
-        await tx.table('scenes').clear();
-        await tx.table('annotations').clear();
-      });
   }
 }
 
