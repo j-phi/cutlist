@@ -29,6 +29,7 @@ import { BatchLoader } from './modules/BatchLoader';
 import { Floor } from './modules/Floor';
 import { SnapDetector } from './modules/SnapDetector';
 import { SnapVisuals } from './modules/SnapVisuals';
+import { MarqueeSelector } from './modules/MarqueeSelector';
 import type {
   CameraMode,
   CameraPose,
@@ -107,6 +108,7 @@ export class ViewerCore {
   private floor: Floor | null = null;
   private snapDetector: SnapDetector | null = null;
   private snapVisuals: SnapVisuals | null = null;
+  private marquee: MarqueeSelector | null = null;
 
   private batched: BatchedMesh | null = null;
   private batchMaterial: MeshStandardMaterial | null = null;
@@ -236,10 +238,7 @@ export class ViewerCore {
       // `setObjectVisible`/`setAllObjectsVisible`. Hiding a part removes its
       // BatchedMesh instance and edge lines, and the snap detector should
       // follow suit so the user only snaps to what they can see.
-      isObjectVisible: (groupId) => {
-        const r = this.registry?.get(groupId);
-        return r?.edgeLines ? r.edgeLines.visible : true;
-      },
+      isObjectVisible: (groupId) => this.isObjectVisible(groupId),
     });
 
     this.snapVisuals = new SnapVisuals({
@@ -252,12 +251,24 @@ export class ViewerCore {
       requestRender: () => this.renderer?.requestRender(),
     });
 
+    this.marquee = new MarqueeSelector({
+      THREE,
+      bus: this.bus,
+      registry: this.registry,
+      camera: () => this.cameraRig!.camera,
+      screenRect: () => this.renderer!.domElement.getBoundingClientRect(),
+      isObjectVisible: (groupId) => this.isObjectVisible(groupId),
+    });
+
     this.input = new InputRouter({
       domElement: this.renderer.domElement,
       bus: this.bus,
       raycast: (x, y) => this.raycastFromClient(x, y),
       isCameraMoving: () => !!this.cameraRig?.isMoving(),
       isInputLocked: () => this.interactionLockCount > 0,
+      marquee: this.marquee,
+      acquireInteractionLock: () => this.acquireInteractionLock(),
+      getSelectionSnapshot: () => this.highlighter?.getSelected() ?? [],
     });
 
     this.renderer.onResize((w, h) => {
@@ -415,6 +426,17 @@ export class ViewerCore {
   }
 
   // ── Visibility ───────────────────────────────────────────────────
+
+  /**
+   * Live per-Object visibility, shared by `SnapDetector` and
+   * `MarqueeSelector`. The source of truth is the rendered edge lines'
+   * `visible` flag, toggled by `setObjectVisible`/`setAllObjectsVisible`.
+   * Records without rendered edges (degenerate geometry) default to visible.
+   */
+  private isObjectVisible(groupId: ObjectId): boolean {
+    const r = this.registry?.get(groupId);
+    return r?.edgeLines ? r.edgeLines.visible : true;
+  }
 
   setObjectVisible(id: ObjectId, visible: boolean): void {
     if (!this.batched || !this.registry) return;

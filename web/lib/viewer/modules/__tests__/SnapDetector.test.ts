@@ -102,6 +102,8 @@ function makeRegistryWithCube(
     edgesLocal: unitCubeEdges(),
     boundsLocalCenter: new THREE.Vector3(0, 0, 0),
     boundsLocalRadius: Math.sqrt(3),
+    boundsLocalMin: new THREE.Vector3(-1, -1, -1),
+    boundsLocalMax: new THREE.Vector3(1, 1, 1),
     edgeLines: null,
   };
   registry.register(record);

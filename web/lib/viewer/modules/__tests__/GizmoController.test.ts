@@ -43,6 +43,8 @@ function makeRecord(
     edgesLocal: new Float32Array(0),
     boundsLocalCenter: new THREE.Vector3(),
     boundsLocalRadius: 0,
+    boundsLocalMin: new THREE.Vector3(),
+    boundsLocalMax: new THREE.Vector3(),
     edgeLines: null,
   };
 }

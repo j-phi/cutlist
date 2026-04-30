@@ -53,6 +53,14 @@ export interface ObjectRecord {
    */
   boundsLocalCenter: Vector3;
   boundsLocalRadius: number;
+  /**
+   * Local-space axis-aligned bounding box over the Object's edge buffer.
+   * Used by `MarqueeSelector`'s screen-AABB hit test — the bounding sphere
+   * is way too loose for elongated parts (table legs, long boards) and
+   * makes the marquee select objects the cursor isn't visibly over.
+   */
+  boundsLocalMin: Vector3;
+  boundsLocalMax: Vector3;
   /** World-space rendered edges; transform = offset. */
   edgeLines: LineSegments2 | null;
 }
@@ -91,6 +99,20 @@ export type SnapTarget =
       edgeB: Vec3;
     };
 
+/**
+ * Screen-space marquee rectangle in CSS pixels relative to the canvas
+ * `getBoundingClientRect()` origin. `mode` reflects the AutoCAD/OnShape
+ * convention: drag left→right is "window" (Object's projected bounds must
+ * be fully contained), drag right→left is "crossing" (any overlap counts).
+ */
+export interface MarqueeRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  mode: 'window' | 'crossing';
+}
+
 export type ViewerEvent =
   | { type: 'user-interaction' }
   | { type: 'object-moved'; groupId: ObjectId }
@@ -101,7 +123,22 @@ export type ViewerEvent =
       shiftKey?: boolean;
     }
   | { type: 'render-requested' }
-  | { type: 'pick'; result: PickResult | null };
+  | { type: 'pick'; result: PickResult | null }
+  | { type: 'marquee-start'; shiftKey: boolean; baseline: ObjectId[] }
+  | {
+      type: 'marquee-update';
+      rect: MarqueeRect;
+      candidates: ObjectId[];
+      shiftKey: boolean;
+      baseline: ObjectId[];
+    }
+  | {
+      type: 'marquee-end';
+      committed: boolean;
+      candidates: ObjectId[];
+      shiftKey: boolean;
+      baseline: ObjectId[];
+    };
 
 export type ViewPreset =
   | 'front'

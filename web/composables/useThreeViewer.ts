@@ -10,11 +10,13 @@
 import type { Ref } from 'vue';
 import type { GroupId, ObjectGraph, PartNumber } from '~/utils/types';
 import type { ObjectOffset } from '~/composables/useIdb';
+import { composeMarqueeSelection } from '~/lib/viewer/modules/MarqueeSelector';
 import type {
   CameraMode,
   CameraPose,
   GizmoMode,
   InteractionMode,
+  MarqueeRect,
   ObjectId,
   PickResult,
   RenderedLeaderSpec,
@@ -32,6 +34,7 @@ export default function useThreeViewer(
     y: 0,
     z: 1,
   });
+  const marqueeRect = ref<MarqueeRect | null>(null);
 
   type Core = import('~/lib/viewer/ViewerCore').ViewerCore;
   let core: Core | null = null;
@@ -95,6 +98,36 @@ export default function useThreeViewer(
         }
       }),
     );
+
+    // Marquee multi-select. Live preview on every update; restore baseline
+    // on cancel; the start event itself is just a hook for future UI.
+    offBus.push(
+      core.on('marquee-update', (e) => {
+        marqueeRect.value = e.rect;
+        const next = composeMarqueeSelection(
+          e.baseline,
+          e.candidates,
+          e.shiftKey,
+        );
+        store.selectGroupIds(next);
+      }),
+    );
+    offBus.push(
+      core.on('marquee-end', (e) => {
+        marqueeRect.value = null;
+        if (e.committed) {
+          const next = composeMarqueeSelection(
+            e.baseline,
+            e.candidates,
+            e.shiftKey,
+          );
+          store.selectGroupIds(next);
+        } else {
+          // Escape mid-drag — restore the snapshot taken at marquee-start.
+          store.selectGroupIds(e.baseline);
+        }
+      }),
+    );
   }
 
   watch(
@@ -141,6 +174,7 @@ export default function useThreeViewer(
   return {
     ready,
     cameraDirection,
+    marqueeRect,
     loadModel,
     clearModels,
     fit: () => core?.fit(),

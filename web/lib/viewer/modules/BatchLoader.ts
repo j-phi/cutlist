@@ -151,6 +151,8 @@ export class BatchLoader {
 
       const { center: boundsLocalCenter, radius: boundsLocalRadius } =
         computeLocalBoundingSphere(THREE, obj.edgesLocal);
+      const { min: boundsLocalMin, max: boundsLocalMax } =
+        computeLocalBoundingBox(THREE, obj.edgesLocal);
 
       records.push({
         groupId,
@@ -169,6 +171,8 @@ export class BatchLoader {
         edgesLocal: obj.edgesLocal,
         boundsLocalCenter,
         boundsLocalRadius,
+        boundsLocalMin,
+        boundsLocalMax,
         edgeLines: edge,
       });
     }
@@ -270,4 +274,36 @@ function computeLocalBoundingSphere(
     if (d > r2) r2 = d;
   }
   return { center, radius: Math.sqrt(r2) };
+}
+
+/**
+ * Local-space axis-aligned bounding box over an edge buffer. Used by
+ * `MarqueeSelector` for a tight screen-AABB hit test. Tighter than the
+ * bounding sphere for elongated parts (legs, rails) — projecting the eight
+ * corners to screen still over-approximates the silhouette but does so by
+ * the diagonal of the box, not the diameter of the enclosing sphere.
+ */
+function computeLocalBoundingBox(
+  THREE: typeof import('three'),
+  edgesLocal: Float32Array,
+): { min: import('three').Vector3; max: import('three').Vector3 } {
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity);
+  const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  if (edgesLocal.length === 0) {
+    min.set(0, 0, 0);
+    max.set(0, 0, 0);
+    return { min, max };
+  }
+  for (let i = 0; i < edgesLocal.length; i += 3) {
+    const x = edgesLocal[i];
+    const y = edgesLocal[i + 1];
+    const z = edgesLocal[i + 2];
+    if (x < min.x) min.x = x;
+    if (y < min.y) min.y = y;
+    if (z < min.z) min.z = z;
+    if (x > max.x) max.x = x;
+    if (y > max.y) max.y = y;
+    if (z > max.z) max.z = z;
+  }
+  return { min, max };
 }

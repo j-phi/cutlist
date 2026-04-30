@@ -372,6 +372,25 @@ function onFloorVisible(v: boolean) {
       <!-- 3D Canvas -->
       <div ref="canvasContainer" class="absolute inset-0 bg-mist-950" />
 
+      <!-- Marquee multi-select rect. AutoCAD/OnShape convention:
+           solid border = window (drag L→R, must fully contain) and
+           dashed border = crossing (drag R→L, any overlap counts). -->
+      <div
+        v-if="viewer.marqueeRect.value"
+        class="pointer-events-none absolute z-10 border-teal-400/70 bg-teal-400/10"
+        :class="
+          viewer.marqueeRect.value.mode === 'window'
+            ? 'border border-solid'
+            : 'border border-dashed bg-teal-400/15'
+        "
+        :style="{
+          left: viewer.marqueeRect.value.x + 'px',
+          top: viewer.marqueeRect.value.y + 'px',
+          width: viewer.marqueeRect.value.w + 'px',
+          height: viewer.marqueeRect.value.h + 'px',
+        }"
+      />
+
       <!-- Annotation overlay -->
       <AnnotationLabels
         v-if="hasModelData && !hasOnlyManualModels"
