@@ -119,39 +119,19 @@ export function useScenes(modelIdRef: Ref<string | null>): UseScenesApi {
     return scene.id;
   }
 
+  /**
+   * Create the model's deterministic "Default" scene if it doesn't already
+   * exist. The IDB order field for the default isn't enforced after creation
+   * — `sortScenesWithDefault` is the single source of truth for in-memory
+   * ordering on every read, and nobody else reads IDB directly.
+   */
   async function ensureDefaultScene(
     input: AddSceneInput,
   ): Promise<string | undefined> {
     const modelId = modelIdRef.value;
     if (!modelId) return;
     const id = defaultSceneIdForModel(modelId);
-    const existing = scenes.value.find((scene) => scene.id === id);
-
-    if (existing) {
-      const normalized = sortScenesWithDefault(scenes.value);
-      const changed =
-        normalized.some((scene, index) => scene.order !== index) ||
-        existing.name !== DEFAULT_SCENE_NAME;
-
-      if (changed) {
-        loadGen++;
-        scenes.value = normalized.map((scene, index) =>
-          scene.id === id
-            ? { ...scene, name: DEFAULT_SCENE_NAME, order: index }
-            : { ...scene, order: index },
-        );
-        loadedForId = modelId;
-        await Promise.all(
-          scenes.value.map((scene) =>
-            idb.updateScene(scene.id, {
-              name: scene.name,
-              order: scene.order,
-            }),
-          ),
-        );
-      }
-      return id;
-    }
+    if (scenes.value.some((scene) => scene.id === id)) return id;
 
     const now = new Date().toISOString();
     const scene: IdbScene = {

@@ -51,6 +51,13 @@ type BatchedMesh = import('three').BatchedMesh;
 type MeshStandardMaterial = import('three').MeshStandardMaterial;
 type LineMaterial = import('three/addons/lines/LineMaterial.js').LineMaterial;
 
+/**
+ * Render order for the depth-test-free selection overlay. Higher than the
+ * default modelGroup (0) so it draws on top of ghosted geometry, lower than
+ * the edge-line group so wireframes still occlude where they should.
+ */
+const SELECTED_OVERLAY_RENDER_ORDER = 0.5;
+
 interface Modules {
   THREE: typeof import('three');
   OrbitControls: (typeof import('three/addons/controls/OrbitControls.js'))['OrbitControls'];
@@ -350,7 +357,7 @@ export class ViewerCore {
     this.selectedOverlay.material = this.selectedOverlayMaterial;
     this.selectedOverlay.castShadow = false;
     this.selectedOverlay.receiveShadow = false;
-    this.selectedOverlay.renderOrder = 0.5;
+    this.selectedOverlay.renderOrder = SELECTED_OVERLAY_RENDER_ORDER;
     this.selectedOverlay.visible = false;
     for (const batchId of result.originalColors.keys()) {
       this.selectedOverlay.setVisibleAt(batchId, false);

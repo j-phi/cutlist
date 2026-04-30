@@ -116,6 +116,11 @@ describe('Highlighter get/set round-trip', () => {
       batched: overlay,
       material: overlayMaterial,
     });
+    // Overlay material flags are constants set once at attach time.
+    expect(overlayMaterial.transparent).toBe(true);
+    expect(overlayMaterial.depthTest).toBe(false);
+    expect(overlayMaterial.depthWrite).toBe(false);
+    expect(overlay.sortObjects).toBe(false);
     expect(material.transparent).toBe(false);
     expect(material.depthWrite).toBe(true);
     expect(batched.sortObjects).toBe(false);
@@ -125,10 +130,7 @@ describe('Highlighter get/set round-trip', () => {
     expect(material.transparent).toBe(true);
     expect(material.depthWrite).toBe(true);
     expect(batched.sortObjects).toBe(true);
-    expect(overlayMaterial.depthTest).toBe(false);
-    expect(overlayMaterial.depthWrite).toBe(false);
     expect(overlay.visible).toBe(true);
-    expect(overlay.sortObjects).toBe(false);
     expect(overlay.setVisibleAt).toHaveBeenCalledWith(10, true);
     expect(overlay.setVisibleAt).toHaveBeenCalledWith(20, false);
 

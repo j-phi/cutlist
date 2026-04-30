@@ -13,7 +13,7 @@
  * scene" commit. We don't deep-diff because user intent is binary.
  */
 
-import type { Ref } from 'vue';
+import { isRef, type Ref } from 'vue';
 import type { IdbScene } from '~/composables/useIdb';
 import {
   captureSceneState,
@@ -153,7 +153,7 @@ export function useSceneAuthor(
 
   function isReadOnly(): boolean {
     const value = opts.readOnly;
-    return typeof value === 'object' && value !== null ? value.value : !!value;
+    return isRef(value) ? value.value : !!value;
   }
 
   // Per-model active-scene memory. We keep two side-effects in sync:

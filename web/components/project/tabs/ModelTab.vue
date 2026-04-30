@@ -26,14 +26,10 @@ const props = withDefaults(
   defineProps<{
     readOnly?: boolean;
     defaultScenePreview?: boolean;
-    previewModelId?: string | null;
-    previewSceneId?: string | null;
   }>(),
   {
     readOnly: false,
     defaultScenePreview: false,
-    previewModelId: null,
-    previewSceneId: null,
   },
 );
 
@@ -63,11 +59,6 @@ watch(activeId, () => {
 });
 
 const focusedModel = computed(() => {
-  if (props.previewModelId) {
-    return (
-      enabledModels.value.find((m) => m.id === props.previewModelId) ?? null
-    );
-  }
   const idx = Math.min(focusedModelIdx.value, enabledModels.value.length - 1);
   return enabledModels.value[idx] ?? null;
 });
@@ -133,7 +124,6 @@ const readOnly = computed(() => props.readOnly);
 const sceneAuthor = useSceneAuthor(viewer, focusedModelId, { readOnly });
 const scenesApi = useScenes(focusedModelId);
 const targetSceneId = computed(() => {
-  if (props.previewSceneId) return props.previewSceneId;
   if (props.defaultScenePreview && focusedModelId.value) {
     return defaultSceneIdForModel(focusedModelId.value);
   }
@@ -233,6 +223,10 @@ function onSnap(preset: ViewPreset) {
   viewer.applyViewPreset(preset);
 }
 
+// Initial targetSceneId application is handled inside `useFocusedModelLoader`
+// as part of the candidate-id chain. This watch covers the after-load case:
+// the focused model changes (so targetSceneId recomputes) without re-firing
+// the loader, or scenes finish hydrating after the initial jump.
 watch(
   [targetSceneId, () => scenesApi.scenes.value, loadState],
   ([sid]) => {
@@ -300,9 +294,7 @@ watch(
 
       <!-- Model switcher (only when multiple enabled models) -->
       <div
-        v-if="
-          !props.readOnly && !props.previewModelId && enabledModels.length > 1
-        "
+        v-if="!props.readOnly && enabledModels.length > 1"
         class="absolute top-4 left-4 z-10"
       >
         <ModelSwitcher
@@ -324,18 +316,13 @@ watch(
       <!-- Gizmo mode toolbar (only when something is selected) -->
       <div
         v-if="!props.readOnly && canShowViewerControls && hasSelection"
-        class="absolute top-4 z-10"
-        :class="'right-32'"
+        class="absolute top-4 right-32 z-10"
       >
         <GizmoModeToggle :mode="gizmoMode" @update:mode="onGizmoMode" />
       </div>
 
       <!-- View cube + projection / floor toggles -->
-      <div
-        v-if="canShowViewerControls"
-        class="absolute top-4 z-10"
-        :class="'right-4'"
-      >
+      <div v-if="canShowViewerControls" class="absolute top-4 right-4 z-10">
         <ViewCube
           :camera-direction="viewer.cameraDirection.value"
           :camera-mode="sceneAuthor.cameraMode.value"

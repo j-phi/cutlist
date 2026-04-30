@@ -52,6 +52,16 @@ export class Highlighter {
     this.material = material;
     this.selectedOverlay = selectedOverlay ?? null;
     this.originalColors = originalColors;
+    if (selectedOverlay) {
+      // Overlay material flags are constant for its lifetime; set once at
+      // attach time rather than per-apply. The overlay always renders late,
+      // ignores depth, and never sorts.
+      selectedOverlay.material.transparent = true;
+      selectedOverlay.material.depthTest = false;
+      selectedOverlay.material.depthWrite = false;
+      selectedOverlay.material.needsUpdate = true;
+      selectedOverlay.batched.sortObjects = false;
+    }
     this.apply();
   }
 
@@ -150,17 +160,11 @@ export class Highlighter {
   ): void {
     const overlay = this.selectedOverlay;
     if (!overlay || !this.batched) return;
-    overlay.material.transparent = true;
-    overlay.material.depthTest = false;
-    overlay.material.depthWrite = false;
-    overlay.material.needsUpdate = true;
     overlay.batched.visible = true;
-    overlay.batched.sortObjects = false;
     for (const id of this.originalColors.keys()) {
-      const visible =
-        targets.has(id) && typeof this.batched.getVisibleAt === 'function'
-          ? this.batched.getVisibleAt(id)
-          : targets.has(id);
+      // A selected instance only shows in the overlay if the primary batch
+      // hasn't hidden it (e.g. user toggled visibility via Delete shortcut).
+      const visible = targets.has(id) && this.batched.getVisibleAt(id);
       overlay.batched.setVisibleAt(id, visible);
       if (visible) {
         vec4.set(tint.r, tint.g, tint.b, 1.0);
