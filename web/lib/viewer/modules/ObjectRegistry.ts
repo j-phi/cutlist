@@ -36,17 +36,18 @@ const ZERO_VEC: Vec3 = [0, 0, 0];
 
 export class ObjectRegistry {
   private records = new Map<GroupId, ObjectRecord>();
-  private batched: BatchedMesh | null = null;
+  private batchedMeshes = new Set<BatchedMesh>();
 
   constructor(private deps: RegistryDeps) {}
 
   /**
    * Attach the live `BatchedMesh` so `setOffset` can rewrite per-instance
    * matrices when an Object's offset changes. Called by `ViewerCore.loadModel`
-   * after the batch is built; `clear()` detaches.
+   * after the batch is built; `clear()` detaches. More than one batch can be
+   * attached when the viewer has extra render passes that mirror the model.
    */
   attachBatched(batched: BatchedMesh): void {
-    this.batched = batched;
+    this.batchedMeshes.add(batched);
   }
 
   register(record: ObjectRecord): void {
@@ -79,7 +80,7 @@ export class ObjectRegistry {
       }
     }
     this.records.clear();
-    this.batched = null;
+    this.batchedMeshes.clear();
   }
 
   forEach(cb: (record: ObjectRecord) => void): void {
@@ -143,12 +144,14 @@ export class ObjectRegistry {
       r.edgeLines.quaternion.copy(r.offset.quaternion);
     }
 
-    if (this.batched && r.batchIds.length > 0) {
+    if (this.batchedMeshes.size > 0 && r.batchIds.length > 0) {
       const composed = this.deps.scratchMatrix.multiplyMatrices(
         r.offsetMatrix,
         r.originalMatrix,
       );
-      for (const b of r.batchIds) this.batched.setMatrixAt(b, composed);
+      for (const batched of this.batchedMeshes) {
+        for (const b of r.batchIds) batched.setMatrixAt(b, composed);
+      }
     }
 
     this.deps.bus.emit({ type: 'object-moved', groupId: id });

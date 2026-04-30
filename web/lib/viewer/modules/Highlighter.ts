@@ -7,6 +7,8 @@
  *   selection empty + no hover → original color, fully opaque, material opaque
  *   any selection or hover     → target instances tinted teal, others ghosted
  *                                at 0.15 alpha, material switched to transparent
+ *                                while a selected-face overlay draws late
+ *                                without depth testing
  */
 
 import type { ObjectRegistry } from './ObjectRegistry';
@@ -24,9 +26,15 @@ interface HighlighterDeps {
   requestRender: () => void;
 }
 
+interface SelectedOverlay {
+  batched: BatchedMesh;
+  material: MeshStandardMaterial;
+}
+
 export class Highlighter {
   private batched: BatchedMesh | null = null;
   private material: MeshStandardMaterial | null = null;
+  private selectedOverlay: SelectedOverlay | null = null;
   private originalColors = new Map<number, [number, number, number, number]>();
   private hoveredIds = new Set<GroupId>();
   private selectedIds = new Set<GroupId>();
@@ -38,9 +46,11 @@ export class Highlighter {
     batched: BatchedMesh,
     material: MeshStandardMaterial,
     originalColors: Map<number, [number, number, number, number]>,
+    selectedOverlay?: SelectedOverlay,
   ): void {
     this.batched = batched;
     this.material = material;
+    this.selectedOverlay = selectedOverlay ?? null;
     this.originalColors = originalColors;
     this.apply();
   }
@@ -48,6 +58,8 @@ export class Highlighter {
   detach(): void {
     this.batched = null;
     this.material = null;
+    if (this.selectedOverlay) this.selectedOverlay.batched.visible = false;
+    this.selectedOverlay = null;
     this.originalColors = new Map();
     this.hoveredIds.clear();
     this.selectedIds.clear();
@@ -73,6 +85,10 @@ export class Highlighter {
     this.apply();
   }
 
+  refresh(): void {
+    this.apply();
+  }
+
   private apply(): void {
     if (this.disposed || !this.batched || !this.material) return;
     const { THREE } = this.deps;
@@ -90,14 +106,17 @@ export class Highlighter {
     const anyHighlight = targets.size > 0;
     if (!anyHighlight) {
       this.material.transparent = false;
+      this.material.depthWrite = true;
       this.material.needsUpdate = true;
       this.batched.sortObjects = false;
+      this.hideSelectedOverlay();
       for (const [id, rgba] of this.originalColors) {
         vec4.set(rgba[0], rgba[1], rgba[2], 1.0);
         this.batched.setColorAt(id, vec4);
       }
     } else {
       this.material.transparent = true;
+      this.material.depthWrite = true;
       this.material.needsUpdate = true;
       this.batched.sortObjects = true;
       const tint = new THREE.Color(HIGHLIGHT_COLOR);
@@ -109,9 +128,45 @@ export class Highlighter {
         }
         this.batched.setColorAt(id, vec4);
       }
+      this.showSelectedOverlay(targets, tint, vec4);
     }
 
     this.deps.requestRender();
+  }
+
+  private hideSelectedOverlay(): void {
+    const overlay = this.selectedOverlay;
+    if (!overlay) return;
+    overlay.batched.visible = false;
+    for (const id of this.originalColors.keys()) {
+      overlay.batched.setVisibleAt(id, false);
+    }
+  }
+
+  private showSelectedOverlay(
+    targets: Set<number>,
+    tint: import('three').Color,
+    vec4: import('three').Vector4,
+  ): void {
+    const overlay = this.selectedOverlay;
+    if (!overlay || !this.batched) return;
+    overlay.material.transparent = true;
+    overlay.material.depthTest = false;
+    overlay.material.depthWrite = false;
+    overlay.material.needsUpdate = true;
+    overlay.batched.visible = true;
+    overlay.batched.sortObjects = false;
+    for (const id of this.originalColors.keys()) {
+      const visible =
+        targets.has(id) && typeof this.batched.getVisibleAt === 'function'
+          ? this.batched.getVisibleAt(id)
+          : targets.has(id);
+      overlay.batched.setVisibleAt(id, visible);
+      if (visible) {
+        vec4.set(tint.r, tint.g, tint.b, 1.0);
+        overlay.batched.setColorAt(id, vec4);
+      }
+    }
   }
 
   dispose(): void {

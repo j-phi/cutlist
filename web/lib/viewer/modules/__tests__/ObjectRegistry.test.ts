@@ -185,6 +185,25 @@ describe('ObjectRegistry', () => {
     expect(v.z).toBeCloseTo(0);
   });
 
+  it('Should rewrite every attached BatchedMesh when an offset moves', () => {
+    const { reg } = makeRegistry();
+    const r = makeRecord(4);
+    r.batchIds = [10];
+    reg.register(r);
+
+    const primary = { setMatrixAt: vi.fn() };
+    const overlay = { setMatrixAt: vi.fn() };
+    reg.attachBatched(primary as unknown as import('three').BatchedMesh);
+    reg.attachBatched(overlay as unknown as import('three').BatchedMesh);
+
+    reg.setOffset(4, { position: [0, 5, 0] });
+
+    expect(primary.setMatrixAt).toHaveBeenCalledTimes(1);
+    expect(overlay.setMatrixAt).toHaveBeenCalledTimes(1);
+    expect(primary.setMatrixAt.mock.calls[0][0]).toBe(10);
+    expect(overlay.setMatrixAt.mock.calls[0][0]).toBe(10);
+  });
+
   it('Should request a render after setOffset', () => {
     const { reg, requestRender } = makeRegistry();
     reg.register(makeRecord(3));

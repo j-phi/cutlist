@@ -113,7 +113,9 @@ export class ViewerCore {
   private marquee: MarqueeSelector | null = null;
 
   private batched: BatchedMesh | null = null;
+  private selectedOverlay: BatchedMesh | null = null;
   private batchMaterial: MeshStandardMaterial | null = null;
+  private selectedOverlayMaterial: MeshStandardMaterial | null = null;
   private edgeMaterial: LineMaterial | null = null;
   private originalColors = new Map<number, [number, number, number, number]>();
   private batchToGroupId = new Map<number, GroupId>();
@@ -338,14 +340,35 @@ export class ViewerCore {
     for (const e of result.edgeLines) sceneGraph.addToGroup('edgeGroup', e);
 
     this.batched = result.batched;
+    this.selectedOverlayMaterial = batchMaterial.clone();
+    this.selectedOverlayMaterial.transparent = true;
+    this.selectedOverlayMaterial.depthTest = false;
+    this.selectedOverlayMaterial.depthWrite = false;
+
+    this.selectedOverlay = result.batched.clone();
+    this.selectedOverlay.material = this.selectedOverlayMaterial;
+    this.selectedOverlay.castShadow = false;
+    this.selectedOverlay.receiveShadow = false;
+    this.selectedOverlay.renderOrder = 0.5;
+    this.selectedOverlay.visible = false;
+    for (const batchId of result.originalColors.keys()) {
+      this.selectedOverlay.setVisibleAt(batchId, false);
+    }
+
     this.sceneBounds = result.sceneBounds;
     sceneGraph.addToGroup('modelGroup', result.batched);
+    sceneGraph.addToGroup('highlightGroup', this.selectedOverlay);
     registry.attachBatched(result.batched);
+    registry.attachBatched(this.selectedOverlay);
 
     this.highlighter!.attach(
       result.batched,
       batchMaterial,
       this.originalColors,
+      {
+        batched: this.selectedOverlay,
+        material: this.selectedOverlayMaterial,
+      },
     );
     this.fit();
     renderer.requestRender();
@@ -360,6 +383,13 @@ export class ViewerCore {
       this.sceneGraph?.removeFromGroup('modelGroup', this.batched);
       this.batched = null;
     }
+    if (this.selectedOverlay) {
+      this.selectedOverlay.geometry.dispose();
+      this.sceneGraph?.removeFromGroup('highlightGroup', this.selectedOverlay);
+      this.selectedOverlay = null;
+    }
+    this.selectedOverlayMaterial?.dispose();
+    this.selectedOverlayMaterial = null;
     this.registry?.clear();
     this.batchToGroupId.clear();
     this.originalColors.clear();
@@ -444,6 +474,7 @@ export class ViewerCore {
     if (!r) return;
     for (const b of r.batchIds) this.batched.setVisibleAt(b, visible);
     if (r.edgeLines) r.edgeLines.visible = visible;
+    this.highlighter?.refresh();
     this.renderer?.requestRender();
   }
 
@@ -453,6 +484,7 @@ export class ViewerCore {
       for (const b of r.batchIds) this.batched!.setVisibleAt(b, visible);
       if (r.edgeLines) r.edgeLines.visible = visible;
     });
+    this.highlighter?.refresh();
     this.renderer?.requestRender();
   }
 
@@ -742,12 +774,18 @@ export class ViewerCore {
       this.sceneGraph?.removeFromGroup('modelGroup', this.batched);
       this.batched = null;
     }
+    if (this.selectedOverlay) {
+      this.selectedOverlay.geometry.dispose();
+      this.sceneGraph?.removeFromGroup('highlightGroup', this.selectedOverlay);
+      this.selectedOverlay = null;
+    }
     this.registry?.clear();
     this.floor?.dispose();
 
     this.cameraRig?.dispose();
     this.sceneGraph?.dispose();
     this.batchMaterial?.dispose();
+    this.selectedOverlayMaterial?.dispose();
     this.edgeMaterial?.dispose();
     this.renderer?.dispose();
     this.bus.dispose();
