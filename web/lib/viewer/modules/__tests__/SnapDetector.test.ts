@@ -9,7 +9,7 @@
  * positions.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { EventBus } from '../EventBus';
 import { ObjectRegistry } from '../ObjectRegistry';
@@ -79,7 +79,7 @@ function makeRegistryWithCube(
   const bus = new EventBus<ViewerEvent>();
   const registry = new ObjectRegistry({
     bus,
-    requestRender: vi.fn(),
+    requestRender: () => {},
     oneScale: new THREE.Vector3(1, 1, 1),
     scratchMatrix: new THREE.Matrix4(),
   });
