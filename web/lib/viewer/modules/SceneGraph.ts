@@ -7,6 +7,7 @@
 type Scene = import('three').Scene;
 type Group = import('three').Group;
 type Texture = import('three').Texture;
+type Box3 = import('three').Box3;
 
 const GROUPS = [
   'modelGroup',
@@ -28,7 +29,7 @@ interface SceneGraphDeps {
 export class SceneGraph {
   readonly scene: Scene;
   readonly groups: Record<GroupName, Group>;
-  readonly shadowLight: import('three').DirectionalLight;
+  private readonly shadowLight: import('three').DirectionalLight;
   private envTexture: Texture | null = null;
   private disposed = false;
 
@@ -75,6 +76,36 @@ export class SceneGraph {
 
   addToGroup(name: GroupName, obj: import('three').Object3D): void {
     this.groups[name].add(obj);
+  }
+
+  /**
+   * Position the shadow-casting directional light and tune its orthographic
+   * shadow-camera frustum to match the given scene bounds. Called by Floor
+   * after the scene is fit so shadows scale with the model.
+   */
+  updateShadowLight(bounds: Box3): void {
+    const { THREE } = this.deps;
+    const center = bounds.getCenter(new THREE.Vector3());
+    const size = bounds.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const pad = maxDim * 1.2;
+
+    const sl = this.shadowLight;
+    sl.position.set(
+      center.x + maxDim * 1.5,
+      center.y + maxDim * 3,
+      center.z + maxDim * 1.5,
+    );
+    sl.target.position.copy(center);
+    sl.target.updateWorldMatrix(false, false);
+    const sc = sl.shadow.camera as import('three').OrthographicCamera;
+    sc.left = -pad;
+    sc.right = pad;
+    sc.top = pad;
+    sc.bottom = -pad;
+    sc.near = maxDim * 0.1;
+    sc.far = maxDim * 8;
+    sc.updateProjectionMatrix();
   }
 
   removeFromGroup(name: GroupName, obj: import('three').Object3D): void {

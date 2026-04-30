@@ -8,16 +8,19 @@
  */
 
 import type { Ref } from 'vue';
-import type { GroupId, ObjectGraph, PartNumber } from '~/utils/types';
-import type { ObjectOffset } from '~/composables/useIdb';
-import { composeMarqueeSelection } from '~/lib/viewer/modules/MarqueeSelector';
 import type {
   CameraMode,
   CameraPose,
+  GroupId,
+  ObjectGraph,
+  ObjectOffset,
+  PartNumber,
+} from '~/utils/types';
+import { composeMarqueeSelection } from '~/lib/viewer/modules/MarqueeSelector';
+import type {
   GizmoMode,
   InteractionMode,
   MarqueeRect,
-  ObjectId,
   PickResult,
   RenderedLeaderSpec,
   SnapTarget,
@@ -53,10 +56,26 @@ export default function useThreeViewer(
 
   async function init(el: HTMLElement) {
     const { ViewerCore } = await import('~/lib/viewer/ViewerCore');
-    core = new ViewerCore(el);
+    const c = new ViewerCore(el);
+    core = c;
 
-    // Wait until ViewerCore's modules finish loading.
-    while (!core.ready) await new Promise((r) => setTimeout(r, 16));
+    // Wait until ViewerCore's modules finish loading. Resolve immediately
+    // if `ready` is already set; otherwise listen once for the bus event.
+    // The listener is detached on either resolution or container unmount
+    // (via `teardown`) so we don't leak.
+    await new Promise<void>((resolve) => {
+      if (c.ready) {
+        resolve();
+        return;
+      }
+      const off = c.on('ready', () => {
+        off();
+        resolve();
+      });
+      offBus.push(off);
+    });
+    // Bail if the component (or this core) was torn down while we waited.
+    if (core !== c) return;
     ready.value = true;
 
     offBus.push(
@@ -130,10 +149,26 @@ export default function useThreeViewer(
     );
   }
 
+  function teardown(): void {
+    for (const off of offBus) off();
+    offBus.length = 0;
+    offFrame?.();
+    offFrame = null;
+    core?.dispose();
+    core = null;
+    ready.value = false;
+  }
+
   watch(
     container,
     async (el) => {
-      if (el && !core) await init(el);
+      if (el && !core) {
+        await init(el);
+      } else if (!el && core) {
+        // Container unmounted (e.g. parent v-if toggle). Drop the viewer
+        // so the next mount gets a fresh core attached to the new node.
+        teardown();
+      }
     },
     { immediate: true },
   );
@@ -142,8 +177,8 @@ export default function useThreeViewer(
     () => [store.hoveredGroupIds.value, store.selectedGroupIds.value],
     ([hovered, selected]) => {
       if (!core) return;
-      core.setHoveredObjects([...(hovered as Set<ObjectId>)]);
-      core.setSelectedObjects([...(selected as Set<ObjectId>)]);
+      core.setHoveredObjects([...(hovered as Set<GroupId>)]);
+      core.setSelectedObjects([...(selected as Set<GroupId>)]);
     },
   );
 
@@ -162,13 +197,7 @@ export default function useThreeViewer(
   }
 
   onUnmounted(() => {
-    for (const off of offBus) off();
-    offBus.length = 0;
-    offFrame?.();
-    offFrame = null;
-    core?.dispose();
-    core = null;
-    ready.value = false;
+    teardown();
   });
 
   return {
@@ -178,22 +207,21 @@ export default function useThreeViewer(
     loadModel,
     clearModels,
     fit: () => core?.fit(),
-    fitCamera: () => core?.fit(), // backward-compat alias
     getCameraMode: () => core?.getCameraMode() ?? ('perspective' as CameraMode),
     setCameraMode: (mode: CameraMode) => core?.setCameraMode(mode),
     getCameraPose: () => core?.getCameraPose(),
     setCameraPose: (pose: CameraPose) => core?.setCameraPose(pose),
     applyViewPreset: (preset: ViewPreset) => core?.applyViewPreset(preset),
-    setSelectedObjects: (ids: ObjectId[]) => core?.setSelectedObjects(ids),
-    setHoveredObject: (id: ObjectId | null) => core?.setHoveredObject(id),
-    setHoveredObjects: (ids: ObjectId[]) => core?.setHoveredObjects(ids),
-    setObjectVisible: (id: ObjectId, visible: boolean) =>
+    setSelectedObjects: (ids: GroupId[]) => core?.setSelectedObjects(ids),
+    setHoveredObject: (id: GroupId | null) => core?.setHoveredObject(id),
+    setHoveredObjects: (ids: GroupId[]) => core?.setHoveredObjects(ids),
+    setObjectVisible: (id: GroupId, visible: boolean) =>
       core?.setObjectVisible(id, visible),
     setAllObjectsVisible: (visible: boolean) =>
       core?.setAllObjectsVisible(visible),
     getObjects: () => core?.getObjects() ?? [],
     setGizmoMode: (mode: GizmoMode) => core?.setGizmoMode(mode),
-    resetSelectedOffsets: (ids: ObjectId[]) => core?.resetSelectedOffsets(ids),
+    resetSelectedOffsets: (ids: GroupId[]) => core?.resetSelectedOffsets(ids),
     resetAllOffsets: () => core?.resetAllOffsets(),
     setInteractionMode: (
       mode: InteractionMode,
@@ -213,17 +241,17 @@ export default function useThreeViewer(
     worldToScreen: (world: [number, number, number]) =>
       core?.worldToScreen(world) ?? null,
     objectLocalToWorld: (
-      groupId: ObjectId,
+      groupId: GroupId,
       local: [number, number, number],
     ): [number, number, number] | null =>
       core?.objectLocalToWorld(groupId, local) ?? null,
     worldToObjectLocal: (
-      groupId: ObjectId,
+      groupId: GroupId,
       world: [number, number, number],
     ): [number, number, number] | null =>
       core?.worldToObjectLocal(groupId, world) ?? null,
     worldDirToObjectLocal: (
-      groupId: ObjectId,
+      groupId: GroupId,
       worldDir: [number, number, number],
     ): [number, number, number] | null =>
       core?.worldDirToObjectLocal(groupId, worldDir) ?? null,
@@ -236,9 +264,9 @@ export default function useThreeViewer(
       core?.unprojectToPlane(x, y, planePoint, planeNormal) ?? null,
     captureThumbnail: (w?: number, h?: number) =>
       core?.captureThumbnail(w, h) ?? null,
-    applyObjectOffsets: (offsets: Map<ObjectId, ObjectOffset>) =>
+    applyObjectOffsets: (offsets: Map<GroupId, ObjectOffset>) =>
       core?.applyObjectOffsets(offsets),
-    getObjectOffsets: (): Map<ObjectId, ObjectOffset> =>
+    getObjectOffsets: (): Map<GroupId, ObjectOffset> =>
       core?.getObjectOffsets() ?? new Map(),
     onFrame: (cb: (dt: number) => void) => core?.onFrame(cb) ?? (() => {}),
     on: <T extends import('~/lib/viewer/types').ViewerEvent['type']>(

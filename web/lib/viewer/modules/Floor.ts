@@ -118,23 +118,7 @@ export class Floor {
     this.mesh.position.set(center.x, floorY, center.z);
     this.mesh.scale.set(floorSize, floorSize, 1);
 
-    const pad = maxDim * 1.2;
-    const sl = sceneGraph.shadowLight;
-    sl.position.set(
-      center.x + maxDim * 1.5,
-      center.y + maxDim * 3,
-      center.z + maxDim * 1.5,
-    );
-    sl.target.position.copy(center);
-    sl.target.updateWorldMatrix(false, false);
-    const sc = sl.shadow.camera as import('three').OrthographicCamera;
-    sc.left = -pad;
-    sc.right = pad;
-    sc.top = pad;
-    sc.bottom = -pad;
-    sc.near = maxDim * 0.1;
-    sc.far = maxDim * 8;
-    sc.updateProjectionMatrix();
+    sceneGraph.updateShadowLight(bounds);
   }
 
   dispose(): void {

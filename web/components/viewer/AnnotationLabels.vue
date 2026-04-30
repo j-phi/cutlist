@@ -8,18 +8,18 @@
  *   - t ∈ [0.5, 1]: incoming scene's labels at opacity = 2(t - 0.5)
  *
  * Leaders share a single material in the viewer so we can't fade them
- * individually; we drive the global scale on the same curve. Specs 08 / 09
- * own the per-kind leader specs themselves.
+ * individually; we drive the global scale on the same curve. Per-kind
+ * annotation modules own the per-kind leader specs themselves.
  *
  * Per-kind positioning:
  *   - default: wrapper translate = projected `primaryWorld` (3D anchor).
- *   - dimension (Spec 09): wrapper translate = screen-space midpoint of the
+ *   - dimension: wrapper translate = screen-space midpoint of the
  *     rendered main line, with a rotation matching the line's screen angle,
  *     read from `projector.getAuxScreenPositions().get(id)` (two entries:
  *     the projected main-line endpoints).
  *
- * The kindComponents map stays empty in the v1 framework drop. Specs 08
- * and 09 register `CalloutLabel` and `DimensionLabel` against it so the
+ * The kindComponents map stays empty in the framework itself. Per-kind
+ * modules register `CalloutLabel` and `DimensionLabel` against it so the
  * specific kinds can render without touching this file's plumbing.
  */
 import type { Component } from 'vue';

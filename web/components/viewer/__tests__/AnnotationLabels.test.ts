@@ -1,9 +1,8 @@
 // @vitest-environment nuxt
 /**
  * AnnotationLabels — purely presentation. We assert label rendering, the
- * pointer-events lockout (per Spec 07: clicks belong to InputRouter, not to
- * the overlay), and that the leader opacity hook is driven by the tween
- * cross-fade curve.
+ * pointer-events lockout (clicks belong to InputRouter, not to the overlay),
+ * and that the leader opacity hook is driven by the tween cross-fade curve.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { mount, shallowMount } from '@vue/test-utils';

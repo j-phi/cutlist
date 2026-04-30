@@ -10,7 +10,7 @@
  */
 
 import type { ObjectRegistry } from './ObjectRegistry';
-import type { ObjectId } from '../types';
+import type { GroupId } from '~/utils/types';
 
 type BatchedMesh = import('three').BatchedMesh;
 type MeshStandardMaterial = import('three').MeshStandardMaterial;
@@ -28,8 +28,8 @@ export class Highlighter {
   private batched: BatchedMesh | null = null;
   private material: MeshStandardMaterial | null = null;
   private originalColors = new Map<number, [number, number, number, number]>();
-  private hoveredIds = new Set<ObjectId>();
-  private selectedIds = new Set<ObjectId>();
+  private hoveredIds = new Set<GroupId>();
+  private selectedIds = new Set<GroupId>();
   private disposed = false;
 
   constructor(private deps: HighlighterDeps) {}
@@ -53,21 +53,21 @@ export class Highlighter {
     this.selectedIds.clear();
   }
 
-  getHovered(): ObjectId[] {
+  getHovered(): GroupId[] {
     return Array.from(this.hoveredIds);
   }
 
-  getSelected(): ObjectId[] {
+  getSelected(): GroupId[] {
     return Array.from(this.selectedIds);
   }
 
-  setHovered(ids: ObjectId[]): void {
+  setHovered(ids: GroupId[]): void {
     if (sameSet(this.hoveredIds, ids)) return;
     this.hoveredIds = new Set(ids);
     this.apply();
   }
 
-  setSelected(ids: ObjectId[]): void {
+  setSelected(ids: GroupId[]): void {
     if (sameSet(this.selectedIds, ids)) return;
     this.selectedIds = new Set(ids);
     this.apply();
@@ -79,7 +79,7 @@ export class Highlighter {
     const vec4 = new THREE.Vector4();
 
     const targets = new Set<number>();
-    const collect = (id: ObjectId) => {
+    const collect = (id: GroupId) => {
       const r = this.deps.registry.get(id);
       if (!r) return;
       for (const b of r.batchIds) targets.add(b);
@@ -121,7 +121,7 @@ export class Highlighter {
   }
 }
 
-function sameSet(a: Set<ObjectId>, b: ObjectId[]): boolean {
+function sameSet(a: Set<GroupId>, b: GroupId[]): boolean {
   if (a.size !== b.length) return false;
   for (const x of b) if (!a.has(x)) return false;
   return true;

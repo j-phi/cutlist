@@ -3,7 +3,7 @@
  * presets, mode swap (preserving framing within ±5%), and fit-to-bounds.
  *
  * OrbitControls is configured with right-mouse=ROTATE, middle=PAN,
- * left-mouse=null (Spec 03's OnShape mapping). Left-button is reserved for
+ * left-mouse=null (OnShape mapping). Left-button is reserved for
  * selection / gizmo and never engages the camera.
  */
 

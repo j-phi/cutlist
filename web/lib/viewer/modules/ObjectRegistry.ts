@@ -10,13 +10,8 @@
  */
 
 import type { EventBus } from './EventBus';
-import type {
-  ObjectId,
-  ObjectRecord,
-  Quat4,
-  Vec3,
-  ViewerEvent,
-} from '../types';
+import type { GroupId } from '~/utils/types';
+import type { ObjectRecord, Quat4, Vec3, ViewerEvent } from '../types';
 
 type Vector3 = import('three').Vector3;
 type Matrix4 = import('three').Matrix4;
@@ -40,7 +35,7 @@ const IDENTITY_QUAT: Quat4 = [0, 0, 0, 1];
 const ZERO_VEC: Vec3 = [0, 0, 0];
 
 export class ObjectRegistry {
-  private records = new Map<ObjectId, ObjectRecord>();
+  private records = new Map<GroupId, ObjectRecord>();
   private batched: BatchedMesh | null = null;
 
   constructor(private deps: RegistryDeps) {}
@@ -58,15 +53,15 @@ export class ObjectRegistry {
     this.records.set(record.groupId, record);
   }
 
-  get(id: ObjectId): ObjectRecord | undefined {
+  get(id: GroupId): ObjectRecord | undefined {
     return this.records.get(id);
   }
 
-  has(id: ObjectId): boolean {
+  has(id: GroupId): boolean {
     return this.records.has(id);
   }
 
-  delete(id: ObjectId): void {
+  delete(id: GroupId): void {
     const r = this.records.get(id);
     if (!r) return;
     if (r.edgeLines) {
@@ -99,7 +94,7 @@ export class ObjectRegistry {
     return out;
   }
 
-  getAllIds(): ObjectId[] {
+  getAllIds(): GroupId[] {
     return [...this.records.keys()];
   }
 
@@ -112,7 +107,7 @@ export class ObjectRegistry {
    * omitted = "leave that component unchanged"; pass an identity tuple to
    * reset just one component.
    */
-  setOffset(id: ObjectId, input: ObjectOffsetInput): void {
+  setOffset(id: GroupId, input: ObjectOffsetInput): void {
     const r = this.records.get(id);
     if (!r) return;
     const pos = input.position ?? null;
@@ -160,7 +155,7 @@ export class ObjectRegistry {
     this.deps.requestRender();
   }
 
-  resetOffset(id: ObjectId): void {
+  resetOffset(id: GroupId): void {
     this.setOffset(id, { position: ZERO_VEC, quaternion: IDENTITY_QUAT });
   }
 }

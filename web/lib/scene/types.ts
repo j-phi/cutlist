@@ -16,9 +16,9 @@
 import type {
   CameraMode,
   CameraPose,
+  GroupId,
   ObjectOffset,
-} from '~/composables/useIdb';
-import type { GroupId } from '~/utils/types';
+} from '~/utils/types';
 
 export interface SceneState {
   cameraMode: CameraMode;

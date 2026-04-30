@@ -231,7 +231,7 @@ const defaultCalloutHooks: KindHooks<IdbCallout> = {
 };
 
 /**
- * Fallback for dimensions before Spec 09's hooks register. Treats both
+ * Fallback for dimensions before the dimension hooks register. Treats both
  * anchors and the offset as living in `a.groupId`'s frame; the real
  * dimension hooks handle the cross-Object case.
  */

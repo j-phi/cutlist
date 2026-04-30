@@ -31,11 +31,8 @@ import { SnapDetector } from './modules/SnapDetector';
 import { SnapVisuals } from './modules/SnapVisuals';
 import { MarqueeSelector } from './modules/MarqueeSelector';
 import type {
-  CameraMode,
-  CameraPose,
   GizmoMode,
   InteractionMode,
-  ObjectId,
   PickResult,
   RenderedLeaderSpec,
   SnapTarget,
@@ -43,7 +40,12 @@ import type {
   ViewerEvent,
   ViewPreset,
 } from './types';
-import type { ObjectOffset } from '~/composables/useIdb';
+import type {
+  CameraMode,
+  CameraPose,
+  GroupId,
+  ObjectOffset,
+} from '~/utils/types';
 
 type BatchedMesh = import('three').BatchedMesh;
 type MeshStandardMaterial = import('three').MeshStandardMaterial;
@@ -114,7 +116,7 @@ export class ViewerCore {
   private batchMaterial: MeshStandardMaterial | null = null;
   private edgeMaterial: LineMaterial | null = null;
   private originalColors = new Map<number, [number, number, number, number]>();
-  private batchToObjectId = new Map<number, ObjectId>();
+  private batchToGroupId = new Map<number, GroupId>();
   private sceneBounds: import('three').Box3 | null = null;
   private raycaster: import('three').Raycaster | null = null;
   private mouse: import('three').Vector2 | null = null;
@@ -299,6 +301,7 @@ export class ViewerCore {
     });
 
     this.ready = true;
+    this.bus.emit({ type: 'ready' });
   }
 
   // ── Public API ───────────────────────────────────────────────────
@@ -327,8 +330,8 @@ export class ViewerCore {
     if (!result) return;
     if (gen !== this.loadGeneration || this.disposed) return;
 
-    for (const [batchId, groupId] of result.batchToObjectId)
-      this.batchToObjectId.set(batchId, groupId);
+    for (const [batchId, groupId] of result.batchToGroupId)
+      this.batchToGroupId.set(batchId, groupId);
     for (const [batchId, rgba] of result.originalColors)
       this.originalColors.set(batchId, rgba);
     for (const r of result.records) registry.register(r);
@@ -358,7 +361,7 @@ export class ViewerCore {
       this.batched = null;
     }
     this.registry?.clear();
-    this.batchToObjectId.clear();
+    this.batchToGroupId.clear();
     this.originalColors.clear();
     this.sceneBounds = null;
     this.highlighter?.detach();
@@ -410,7 +413,7 @@ export class ViewerCore {
 
   // ── Selection / hover ────────────────────────────────────────────
 
-  setSelectedObjects(ids: ObjectId[]): void {
+  setSelectedObjects(ids: GroupId[]): void {
     this.highlighter?.setSelected(ids);
     this.gizmo?.setSelection(ids);
     // Intentionally no `selection-changed` bus emit: the bus event is the
@@ -418,10 +421,10 @@ export class ViewerCore {
     // setters update the highlighter directly; observers should watch the
     // store, not re-listen to the bus, to avoid loop-backs.
   }
-  setHoveredObjects(ids: ObjectId[]): void {
+  setHoveredObjects(ids: GroupId[]): void {
     this.highlighter?.setHovered(ids);
   }
-  setHoveredObject(id: ObjectId | null): void {
+  setHoveredObject(id: GroupId | null): void {
     this.highlighter?.setHovered(id == null ? [] : [id]);
   }
 
@@ -433,12 +436,12 @@ export class ViewerCore {
    * `visible` flag, toggled by `setObjectVisible`/`setAllObjectsVisible`.
    * Records without rendered edges (degenerate geometry) default to visible.
    */
-  private isObjectVisible(groupId: ObjectId): boolean {
+  private isObjectVisible(groupId: GroupId): boolean {
     const r = this.registry?.get(groupId);
     return r?.edgeLines ? r.edgeLines.visible : true;
   }
 
-  setObjectVisible(id: ObjectId, visible: boolean): void {
+  setObjectVisible(id: GroupId, visible: boolean): void {
     if (!this.batched || !this.registry) return;
     const r = this.registry.get(id);
     if (!r) return;
@@ -457,9 +460,9 @@ export class ViewerCore {
   }
 
   /** Read-only snapshot of registered Objects (groupId, partNumber, name). */
-  getObjects(): Array<{ groupId: ObjectId; partNumber: number; name: string }> {
+  getObjects(): Array<{ groupId: GroupId; partNumber: number; name: string }> {
     const out: Array<{
-      groupId: ObjectId;
+      groupId: GroupId;
       partNumber: number;
       name: string;
     }> = [];
@@ -469,11 +472,11 @@ export class ViewerCore {
     return out;
   }
 
-  partNumberOf(groupId: ObjectId): number | null {
+  partNumberOf(groupId: GroupId): number | null {
     return this.registry?.get(groupId)?.partNumber ?? null;
   }
 
-  groupIdsForPart(partNumber: number): ObjectId[] {
+  groupIdsForPart(partNumber: number): GroupId[] {
     if (!this.registry) return [];
     return this.registry.filterByPart(partNumber).map((r) => r.groupId);
   }
@@ -493,7 +496,7 @@ export class ViewerCore {
       batchId?: number;
     };
     if (hit.batchId == null) return null;
-    const groupId = this.batchToObjectId.get(hit.batchId);
+    const groupId = this.batchToGroupId.get(hit.batchId);
     if (groupId == null) return null;
     return {
       groupId,
@@ -570,7 +573,7 @@ export class ViewerCore {
    * its load-time `originalMatrix` with its current `offsetMatrix`. Returns
    * `null` if the Object isn't loaded.
    */
-  objectLocalToWorld(groupId: ObjectId, local: Vec3): Vec3 | null {
+  objectLocalToWorld(groupId: GroupId, local: Vec3): Vec3 | null {
     if (!this.registry || !this.modules) return null;
     const r = this.registry.get(groupId);
     if (!r) return null;
@@ -580,7 +583,7 @@ export class ViewerCore {
   }
 
   /** Inverse of {@link objectLocalToWorld}. */
-  worldToObjectLocal(groupId: ObjectId, world: Vec3): Vec3 | null {
+  worldToObjectLocal(groupId: GroupId, world: Vec3): Vec3 | null {
     if (!this.registry || !this.modules) return null;
     const r = this.registry.get(groupId);
     if (!r) return null;
@@ -593,7 +596,7 @@ export class ViewerCore {
    * Transform a world-space direction (e.g. a face normal) into the Object's
    * local frame. Translation cancels — only rotation applies.
    */
-  worldDirToObjectLocal(groupId: ObjectId, worldDir: Vec3): Vec3 | null {
+  worldDirToObjectLocal(groupId: GroupId, worldDir: Vec3): Vec3 | null {
     if (!this.registry || !this.modules) return null;
     const r = this.registry.get(groupId);
     if (!r) return null;
@@ -608,7 +611,7 @@ export class ViewerCore {
 
   // ── Object offsets / scene state ────────────────────────────────
 
-  applyObjectOffsets(offsets: Map<ObjectId, ObjectOffset>): void {
+  applyObjectOffsets(offsets: Map<GroupId, ObjectOffset>): void {
     if (!this.registry) return;
     for (const [id, off] of offsets)
       this.registry.setOffset(id, {
@@ -617,8 +620,8 @@ export class ViewerCore {
       });
   }
 
-  getObjectOffsets(): Map<ObjectId, ObjectOffset> {
-    const out = new Map<ObjectId, ObjectOffset>();
+  getObjectOffsets(): Map<GroupId, ObjectOffset> {
+    const out = new Map<GroupId, ObjectOffset>();
     this.registry?.forEach((r) => {
       const p = r.offset.position;
       const q = r.offset.quaternion;
@@ -635,7 +638,7 @@ export class ViewerCore {
   setGizmoMode(mode: GizmoMode): void {
     this.gizmo?.setMode(mode);
   }
-  resetSelectedOffsets(ids: ObjectId[]): void {
+  resetSelectedOffsets(ids: GroupId[]): void {
     this.gizmo?.resetSelectedOffsets(ids);
   }
   resetAllOffsets(): void {
@@ -712,13 +715,18 @@ export class ViewerCore {
   // ── Lifecycle ────────────────────────────────────────────────────
 
   private async waitForReady(): Promise<void> {
-    if (this.ready) return;
+    if (this.ready || this.disposed) return;
     await new Promise<void>((resolve) => {
-      const check = () => {
-        if (this.ready || this.disposed) resolve();
-        else setTimeout(check, 16);
-      };
-      check();
+      const off = this.bus.on('ready', () => {
+        off();
+        resolve();
+      });
+      // Race: ready may have flipped between the guard above and the
+      // listener registration. Re-check so we don't hang.
+      if (this.ready || this.disposed) {
+        off();
+        resolve();
+      }
     });
   }
 

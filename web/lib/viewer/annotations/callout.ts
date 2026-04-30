@@ -22,7 +22,7 @@
  *    space; only used when the cursor offset is below
  *    `MIN_OFFSET_THRESHOLD_M`.
  *
- * Anchors live in Object-local space (Spec 07). The Object's load-time
+ * Anchors live in Object-local space. The Object's load-time
  * `originalMatrix` and live `offsetMatrix` are composed by
  * `objectLocalToWorld` so callouts ride explode tweens and gizmo drags
  * automatically.

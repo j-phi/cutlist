@@ -15,7 +15,8 @@
 
 import type { ObjectRegistry } from './ObjectRegistry';
 import type { SceneGraph } from './SceneGraph';
-import type { GizmoMode, ObjectId } from '../types';
+import type { GroupId } from '~/utils/types';
+import type { GizmoMode } from '../types';
 
 type Camera = import('three').Camera;
 type Object3D = import('three').Object3D;
@@ -69,7 +70,7 @@ interface DragStartState {
 export class GizmoController {
   private mode: GizmoMode = 'translate';
   private disposed = false;
-  private selectedIds: ObjectId[] = [];
+  private selectedIds: GroupId[] = [];
 
   private proxy: Object3D;
   private controls: TransformControlsLike;
@@ -80,7 +81,7 @@ export class GizmoController {
   private proxyStartPos: Vector3;
   private proxyStartQuat: Quaternion;
   private centroidAtDragStart: Vector3;
-  private startStates = new Map<ObjectId, DragStartState>();
+  private startStates = new Map<GroupId, DragStartState>();
 
   private scratchPos: Vector3;
   private scratchQuat: Quaternion;
@@ -128,7 +129,7 @@ export class GizmoController {
     this.invStartQuat = new THREE.Quaternion();
   }
 
-  setSelection(ids: ObjectId[]): void {
+  setSelection(ids: GroupId[]): void {
     if (this.disposed) return;
     this.selectedIds = ids.slice();
     if (this.selectedIds.length === 0) {
@@ -156,7 +157,7 @@ export class GizmoController {
     this.controls.camera = camera;
   }
 
-  resetSelectedOffsets(ids: ObjectId[]): void {
+  resetSelectedOffsets(ids: GroupId[]): void {
     for (const id of ids) this.deps.registry.resetOffset(id);
     if (this.selectedIds.length > 0) this.syncProxyToCentroid();
   }

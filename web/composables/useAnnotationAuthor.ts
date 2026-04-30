@@ -2,10 +2,10 @@
  * Annotation authoring state machine.
  *
  * Owns the transient `'select' | 'pick'` mode that the AnnotationLabels
- * overlay reflects in its hint banner. Per-kind handlers (callout — Spec 08;
- * linear dimension — Spec 09) register against this composable; the author
- * is the only thing that knows about the FSM and the InputRouter wiring, so
- * each kind only writes its placement logic.
+ * overlay reflects in its hint banner. Per-kind handlers (callout, linear
+ * dimension) register against this composable; the author is the only
+ * thing that knows about the FSM and the InputRouter wiring, so each kind
+ * only writes its placement logic.
  *
  * Handler contract:
  * - `onPointerMove(client)` — runs at most once per frame (the InputRouter

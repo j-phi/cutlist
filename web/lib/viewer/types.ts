@@ -1,8 +1,9 @@
 import type {
   CameraMode,
   CameraPose,
+  GroupId,
   ObjectOffset,
-} from '~/composables/useIdb';
+} from '~/utils/types';
 
 type Vector3 = import('three').Vector3;
 type Quaternion = import('three').Quaternion;
@@ -10,7 +11,6 @@ type Matrix4 = import('three').Matrix4;
 type LineSegments2 =
   import('three/addons/lines/LineSegments2.js').LineSegments2;
 
-export type ObjectId = number;
 export type Vec3 = [number, number, number];
 export type Quat4 = [number, number, number, number];
 
@@ -26,7 +26,7 @@ export interface ObjectOffsetLive {
 }
 
 export interface ObjectRecord {
-  groupId: ObjectId;
+  groupId: GroupId;
   partNumber: number;
   name: string;
   /** All BatchedMesh instance ids that compose this Object. */
@@ -66,7 +66,7 @@ export interface ObjectRecord {
 }
 
 export interface PickResult {
-  groupId: ObjectId;
+  groupId: GroupId;
   worldPoint: Vector3;
   worldNormal: Vector3;
 }
@@ -81,19 +81,19 @@ export interface PickResult {
 export type SnapTarget =
   | {
       kind: 'vertex';
-      groupId: ObjectId;
+      groupId: GroupId;
       worldPoint: Vec3;
     }
   | {
       kind: 'edgeMidpoint';
-      groupId: ObjectId;
+      groupId: GroupId;
       worldPoint: Vec3;
       edgeA: Vec3;
       edgeB: Vec3;
     }
   | {
       kind: 'edge';
-      groupId: ObjectId;
+      groupId: GroupId;
       worldPoint: Vec3;
       edgeA: Vec3;
       edgeB: Vec3;
@@ -114,30 +114,31 @@ export interface MarqueeRect {
 }
 
 export type ViewerEvent =
+  | { type: 'ready' }
   | { type: 'user-interaction' }
-  | { type: 'object-moved'; groupId: ObjectId }
+  | { type: 'object-moved'; groupId: GroupId }
   | {
       type: 'selection-changed';
-      groupIds: ObjectId[];
+      groupIds: GroupId[];
       /** True when the originating input event had Shift held. */
       shiftKey?: boolean;
     }
   | { type: 'render-requested' }
   | { type: 'pick'; result: PickResult | null }
-  | { type: 'marquee-start'; shiftKey: boolean; baseline: ObjectId[] }
+  | { type: 'marquee-start'; shiftKey: boolean; baseline: GroupId[] }
   | {
       type: 'marquee-update';
       rect: MarqueeRect;
-      candidates: ObjectId[];
+      candidates: GroupId[];
       shiftKey: boolean;
-      baseline: ObjectId[];
+      baseline: GroupId[];
     }
   | {
       type: 'marquee-end';
       committed: boolean;
-      candidates: ObjectId[];
+      candidates: GroupId[];
       shiftKey: boolean;
-      baseline: ObjectId[];
+      baseline: GroupId[];
     };
 
 export type ViewPreset =

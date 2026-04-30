@@ -35,7 +35,8 @@
 
 import type { EventBus } from './EventBus';
 import type { ObjectRegistry } from './ObjectRegistry';
-import type { MarqueeRect, ObjectId, ViewerEvent } from '../types';
+import type { GroupId } from '~/utils/types';
+import type { MarqueeRect, ViewerEvent } from '../types';
 
 type Camera = import('three').Camera;
 type Vector3 = import('three').Vector3;
@@ -48,14 +49,14 @@ interface MarqueeDeps {
   /** Live canvas client rect for converting client coords to canvas-local. */
   screenRect: () => DOMRect;
   /** Returns true if the Object's batch instance is currently visible. */
-  isObjectVisible: (id: ObjectId) => boolean;
+  isObjectVisible: (id: GroupId) => boolean;
 }
 
 interface DragState {
   startCanvas: { x: number; y: number };
   currentCanvas: { x: number; y: number };
   shiftKey: boolean;
-  baseline: ObjectId[];
+  baseline: GroupId[];
 }
 
 /**
@@ -107,7 +108,7 @@ export class MarqueeSelector {
     clientX: number,
     clientY: number,
     shiftKey: boolean,
-    baseline: ObjectId[],
+    baseline: GroupId[],
   ): void {
     const rect = this.deps.screenRect();
     const start = { x: clientX - rect.left, y: clientY - rect.top };
@@ -165,8 +166,8 @@ export class MarqueeSelector {
     return { x, y, w, h, mode };
   }
 
-  private computeCandidates(marquee: MarqueeRect): ObjectId[] {
-    const out: ObjectId[] = [];
+  private computeCandidates(marquee: MarqueeRect): GroupId[] {
+    const out: GroupId[] = [];
     const camera = this.deps.camera();
     const screenRect = this.deps.screenRect();
     if (screenRect.width === 0 || screenRect.height === 0) return out;
@@ -323,10 +324,10 @@ function silhouetteOverlapsRect(
  *   items get added). Items outside the marquee are untouched.
  */
 export function composeMarqueeSelection(
-  baseline: Iterable<ObjectId>,
-  candidates: Iterable<ObjectId>,
+  baseline: Iterable<GroupId>,
+  candidates: Iterable<GroupId>,
   shiftKey: boolean,
-): Set<ObjectId> {
+): Set<GroupId> {
   const candSet = new Set(candidates);
   if (!shiftKey) return candSet;
   const out = new Set(baseline);

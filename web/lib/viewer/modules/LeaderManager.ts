@@ -1,10 +1,10 @@
 /**
  * One LineSegments2 per annotation segment, sharing a small pool of
- * LineMaterials (solid + dashed). Spec 07 fills in the projector + cross-fade;
+ * LineMaterials (solid + dashed). The projector + cross-fade live elsewhere;
  * this module owns the rendering surface (the leaderGroup) and the reconcile
- * API that future specs call.
+ * API that per-kind annotation modules call.
  *
- * Dashed segments are required by dimension witness lines (Spec 09) — the
+ * Dashed segments are required by dimension witness lines — the
  * `dashed` flag on `RenderedLeaderSpec` picks the material, and
  * `computeLineDistances()` is re-run after every position update so the dash
  * pattern stays consistent as the geometry resizes.

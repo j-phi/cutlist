@@ -26,7 +26,8 @@
 
 import { transformLocalToWorld } from '../transforms';
 import type { ObjectRegistry } from './ObjectRegistry';
-import type { ObjectId, ObjectRecord, SnapTarget, Vec3 } from '../types';
+import type { GroupId } from '~/utils/types';
+import type { ObjectRecord, SnapTarget, Vec3 } from '../types';
 
 type Vector3 = import('three').Vector3;
 type Camera = import('three').Camera;
@@ -53,14 +54,14 @@ interface SnapDetectorDeps {
   screenRect: () => DOMRect;
   /**
    * Optional visibility filter — Objects for which this returns `false` are
-   * skipped entirely (matches Spec 06's per-Object visibility). Defaults to
+   * skipped entirely (matches the scene's per-Object visibility). Defaults to
    * "all visible".
    */
-  isObjectVisible?: (groupId: ObjectId) => boolean;
+  isObjectVisible?: (groupId: GroupId) => boolean;
 }
 
 interface CandidateBase {
-  groupId: ObjectId;
+  groupId: GroupId;
   /** Squared screen distance from the cursor — sort key. */
   screenDistSq: number;
   world: Vector3;

@@ -8,8 +8,8 @@
  * edge lines hang in the SceneGraph.
  */
 
-import type { ObjectGraph, ObjectNode } from '~/utils/types';
-import type { ObjectId, ObjectRecord } from '../types';
+import type { GroupId, ObjectGraph, ObjectNode } from '~/utils/types';
+import type { ObjectRecord } from '../types';
 
 type BatchedMesh = import('three').BatchedMesh;
 type Box3 = import('three').Box3;
@@ -28,7 +28,7 @@ interface BatchLoaderDeps {
 
 export interface BatchLoadResult {
   batched: BatchedMesh;
-  batchToObjectId: Map<number, ObjectId>;
+  batchToGroupId: Map<number, GroupId>;
   originalColors: Map<number, [number, number, number, number]>;
   sceneBounds: Box3;
   records: ObjectRecord[];
@@ -79,9 +79,9 @@ export class BatchLoader {
     batch.receiveShadow = true;
     batch.sortObjects = false;
 
-    const batchToObjectId = new Map<number, ObjectId>();
+    const batchToGroupId = new Map<number, GroupId>();
     const originalColors = new Map<number, [number, number, number, number]>();
-    const idsByObject = new Map<ObjectId, number[]>();
+    const idsByObject = new Map<GroupId, number[]>();
     const sceneBounds = new THREE.Box3();
     const meshBox = new THREE.Box3();
     const colorScratch = new THREE.Color();
@@ -107,7 +107,7 @@ export class BatchLoader {
       ]);
 
       const groupId = s.object.groupId + partNumberOffset;
-      batchToObjectId.set(instanceId, groupId);
+      batchToGroupId.set(instanceId, groupId);
       const list = idsByObject.get(groupId);
       if (list) list.push(instanceId);
       else idsByObject.set(groupId, [instanceId]);
@@ -179,7 +179,7 @@ export class BatchLoader {
 
     return {
       batched: batch,
-      batchToObjectId,
+      batchToGroupId,
       originalColors,
       sceneBounds,
       records,

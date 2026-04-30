@@ -18,12 +18,8 @@
 
 import type { EventBus } from './EventBus';
 import type { MarqueeSelector } from './MarqueeSelector';
-import type {
-  InteractionMode,
-  ObjectId,
-  PickResult,
-  ViewerEvent,
-} from '../types';
+import type { GroupId } from '~/utils/types';
+import type { InteractionMode, PickResult, ViewerEvent } from '../types';
 
 export const CLICK_PIXEL_THRESHOLD = 5;
 export const CLICK_TIME_THRESHOLD_MS = 250;
@@ -74,7 +70,7 @@ interface InputRouterDeps {
    * Snapshot of the currently selected groupIds at marquee-start, used as
    * the baseline for shift-XOR composition.
    */
-  getSelectionSnapshot?: () => ObjectId[];
+  getSelectionSnapshot?: () => GroupId[];
 }
 
 interface DownState {
