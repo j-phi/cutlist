@@ -109,6 +109,14 @@ function stabilizeAngle(raw: number, id: string): number {
   return result;
 }
 
+function measuredMetersFor(id: string): number | undefined {
+  // Track projector.version so the prop refreshes on every tick — the chip
+  // text needs to update if the cross-Object distance changes (e.g. an
+  // Object's offsetMatrix is animated).
+  void props.projector.version.value;
+  return props.projector.getMeasurements().get(id);
+}
+
 function positionStyle(ann: IdbAnnotation): Record<string, string> {
   // Track projector.version for reactivity, then read the latest position.
   void props.projector.version.value;
@@ -165,6 +173,7 @@ function positionStyle(ann: IdbAnnotation): Record<string, string> {
         v-if="props.kindComponents?.[ann.kind]"
         :annotation="ann"
         :draft="ann.id === props.draftId"
+        :measured-meters="measuredMetersFor(ann.id)"
       />
     </div>
   </div>

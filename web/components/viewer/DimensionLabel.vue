@@ -17,18 +17,28 @@ import { useAnnotations } from '~/composables/useAnnotations';
 const props = defineProps<{
   annotation: IdbDimension;
   draft: boolean;
+  /**
+   * World-space distance in metres, computed by the projector once both
+   * anchors are resolved through their respective Object poses. Optional
+   * because the very first frame may render before the projector has
+   * ticked; in that case we fall back to the same-frame local distance,
+   * which is correct when both anchors share a `groupId` and only wrong by
+   * the cross-Object pose for a single frame.
+   */
+  measuredMeters?: number;
 }>();
 
 const { distanceUnit } = useProjectSettings();
 const annotationsApi = useAnnotations();
 
 const measuredM = computed(() => {
+  if (typeof props.measuredMeters === 'number') return props.measuredMeters;
+  // Pre-projector-tick fallback only. Anchors live in possibly-different
+  // Object frames, so this is wrong for cross-Object dimensions — but the
+  // projector populates `measuredMeters` on the first tick after mount
+  // (next animation frame), so users never see a stale value.
   const a = props.annotation.anchor1.local;
   const b = props.annotation.anchor2.local;
-  // Anchors live in possibly-different Object frames, but for a v1 label we
-  // measure straight-line in those frames. Differences only arise when an
-  // Object's offset rotates one anchor relative to the other — rare for
-  // furniture and self-correcting once the user re-measures.
   return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
 });
 

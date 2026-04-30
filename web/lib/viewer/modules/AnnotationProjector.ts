@@ -63,6 +63,14 @@ export interface KindHooks<A extends IdbAnnotation = IdbAnnotation> {
     annotation: A,
     lookup: ObjectLocalToWorld,
   ): RenderedLeaderSpec | RenderedLeaderSpec[] | null;
+  /**
+   * Optional scalar measurement (metres) computed from world-space anchors.
+   * Used by dimensions so the label chip can display a distance that's
+   * correct across Objects with different `originalMatrix`/`offsetMatrix`.
+   * Result is exposed via `getMeasurements().get(id)`. Returning `null`
+   * (or omitting the hook) leaves the entry empty for that frame.
+   */
+  measure?(annotation: A, lookup: ObjectLocalToWorld): number | null;
 }
 
 export interface ProjectorViewer {
@@ -82,6 +90,7 @@ export class AnnotationProjector {
   readonly version: Ref<number> = ref(0);
   private positions = new Map<string, ScreenPos>();
   private auxPositions = new Map<string, ScreenPos[]>();
+  private measurements = new Map<string, number>();
   private leaderSpecs = new Map<string, RenderedLeaderSpec>();
   private hooks = new Map<AnnotationKind, KindHooks>();
   private off: (() => void) | null = null;
@@ -128,10 +137,21 @@ export class AnnotationProjector {
     return this.auxPositions;
   }
 
+  /**
+   * World-space scalar measurements (metres) keyed by annotation id, populated
+   * by kinds with a `measure` hook. Used by dimensions so the label can
+   * render a correct cross-Object distance. Pair with `version` for
+   * reactivity, same as the position maps.
+   */
+  getMeasurements(): ReadonlyMap<string, number> {
+    return this.measurements;
+  }
+
   tick(): void {
     if (this.disposed) return;
     const seen = new Set<string>();
     const seenAux = new Set<string>();
+    const seenMeasurements = new Set<string>();
     const seenLeaders = new Set<string>();
     for (const a of this.getAnnotations()) {
       seen.add(a.id);
@@ -139,6 +159,7 @@ export class AnnotationProjector {
       if (!hooks) {
         this.positions.delete(a.id);
         this.auxPositions.delete(a.id);
+        this.measurements.delete(a.id);
         this.leaderSpecs.delete(a.id);
         continue;
       }
@@ -182,6 +203,13 @@ export class AnnotationProjector {
           );
         }
       }
+      if (hooks.measure) {
+        const m = hooks.measure(a, this.lookup);
+        if (m != null && Number.isFinite(m)) {
+          seenMeasurements.add(a.id);
+          this.measurements.set(a.id, m);
+        }
+      }
       if (hooks.leaderSpec) {
         const spec = hooks.leaderSpec(a, this.lookup);
         if (Array.isArray(spec)) {
@@ -202,6 +230,9 @@ export class AnnotationProjector {
     for (const id of [...this.auxPositions.keys()]) {
       if (!seenAux.has(id)) this.auxPositions.delete(id);
     }
+    for (const id of [...this.measurements.keys()]) {
+      if (!seenMeasurements.has(id)) this.measurements.delete(id);
+    }
     for (const id of [...this.leaderSpecs.keys()]) {
       if (!seenLeaders.has(id)) this.leaderSpecs.delete(id);
     }
@@ -216,6 +247,7 @@ export class AnnotationProjector {
     this.off = null;
     this.positions.clear();
     this.auxPositions.clear();
+    this.measurements.clear();
     this.leaderSpecs.clear();
   }
 }

@@ -110,6 +110,11 @@ export function useSceneAuthor(
   const dirty = ref(false);
 
   let stopFrame: (() => void) | null = null;
+  // Pending tween resolver. Captured here (not just in the onFrame closure)
+  // so that if a new tween supersedes an in-flight one, we can resolve the
+  // prior promise rather than leaving its awaiters hanging — the new tween
+  // is treated as completion of the old.
+  let pendingResolve: (() => void) | null = null;
   const userChangeCallbacks = new Set<() => void>();
 
   // Per-model active-scene memory. We keep two side-effects in sync:
@@ -281,6 +286,11 @@ export function useSceneAuthor(
       stopFrame();
       stopFrame = null;
     }
+    if (pendingResolve) {
+      const r = pendingResolve;
+      pendingResolve = null;
+      r();
+    }
     tween.value = null;
   }
 
@@ -354,6 +364,7 @@ export function useSceneAuthor(
     activeSceneId.value = scene.id;
 
     return new Promise<void>((resolve) => {
+      pendingResolve = resolve;
       stopFrame = viewer.onFrame(() => {
         const raw = Math.min(1, (performance.now() - start) / durationMs);
         const eased = easeInOut(raw);
@@ -377,9 +388,9 @@ export function useSceneAuthor(
         }
 
         if (raw >= 1) {
+          // stopTween() resolves pendingResolve, so the awaiter unblocks.
           stopTween();
           dirty.value = false;
-          resolve();
         }
       });
     });

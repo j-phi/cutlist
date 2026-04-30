@@ -345,6 +345,30 @@ describe('useSceneAuthor — tweenToScene', () => {
     expect(a.dirty.value).toBe(false);
   });
 
+  it('Should resolve the prior promise when a new tween starts mid-flight', async () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    const scene1 = makeScene({ id: 's1' });
+    const scene2 = makeScene({ id: 's2' });
+
+    const p1 = a.tweenToScene(scene1, 200);
+    // Advance partway — well short of completion.
+    fastForward(80);
+    v.tickFrame();
+    expect(a.tween.value?.t ?? 1).toBeLessThan(1);
+
+    // Start a new tween before the first finishes — the prior promise must
+    // resolve, not hang, so awaiters aren't stranded.
+    const p2 = a.tweenToScene(scene2, 200);
+    await expect(p1).resolves.toBeUndefined();
+
+    // The new tween still completes naturally on its own timeline.
+    fastForward(220);
+    v.tickFrame();
+    await expect(p2).resolves.toBeUndefined();
+    expect(a.tween.value).toBeNull();
+  });
+
   it('Should jumpToScene when viewer is not ready', () => {
     const v = makeFakeViewer({ ready: false });
     const { result: a } = withScope(() => useSceneAuthor(v));

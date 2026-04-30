@@ -279,6 +279,45 @@ describe('AnnotationProjector', () => {
     expect(aux![1].x).toBe(9);
   });
 
+  it('Should expose measure() output through getMeasurements()', () => {
+    const v = makeViewer();
+    const annotations: IdbAnnotation[] = [
+      dimension('d', 1, [0, 0, 0], [3, 4, 0]),
+    ];
+    const p = new AnnotationProjector(v, () => annotations);
+    p.registerKind('dimension', {
+      primaryWorld: () => [0, 0, 0],
+      // Hook intentionally returns world-space distance (5 = √(3²+4²)) so
+      // the test would fail under the local-frame Math.hypot bug if the
+      // projector ignored measure() and let DimensionLabel compute itself.
+      measure: (a, lookup) => {
+        const aw = lookup(a.anchor1.groupId, a.anchor1.local);
+        const bw = lookup(a.anchor2.groupId, a.anchor2.local);
+        if (!aw || !bw) return null;
+        return Math.hypot(bw[0] - aw[0], bw[1] - aw[1], bw[2] - aw[2]);
+      },
+    });
+    p.start();
+    v.frameTick();
+    expect(p.getMeasurements().get('d')).toBeCloseTo(5, 9);
+  });
+
+  it('Should drop measurements for annotations no longer in the list', () => {
+    const v = makeViewer();
+    const list: IdbAnnotation[] = [dimension('d', 1, [0, 0, 0], [1, 0, 0])];
+    const p = new AnnotationProjector(v, () => list);
+    p.registerKind('dimension', {
+      primaryWorld: () => [0, 0, 0],
+      measure: () => 1.234,
+    });
+    p.start();
+    v.frameTick();
+    expect(p.getMeasurements().has('d')).toBe(true);
+    list.length = 0;
+    v.frameTick();
+    expect(p.getMeasurements().has('d')).toBe(false);
+  });
+
   it('Should stop ticking after dispose', () => {
     const v = makeViewer();
     const onFrameSpy = vi.spyOn(v, 'onFrame');

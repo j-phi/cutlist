@@ -240,6 +240,29 @@ describe('AnnotationLabels — rendering', () => {
     expect(Math.abs(after - before)).toBeLessThan(0.1);
   });
 
+  it('Should forward the projector measurement to the dimension kind component as measuredMeters', () => {
+    const projector = makeProjector();
+    (projector.getAuxScreenPositions() as Map<string, unknown>).set('d1', [
+      { x: 100, y: 200, inFront: true, worldAnchor: [0, 0, 0] },
+      { x: 200, y: 200, inFront: true, worldAnchor: [0.1, 0, 0] },
+    ]);
+    (projector.getMeasurements() as Map<string, number>).set('d1', 0.42);
+    const dimComp = {
+      props: ['annotation', 'draft', 'measuredMeters'],
+      template: '<span class="dl">{{ measuredMeters }}</span>',
+    };
+    const wrapper = mount(AnnotationLabels, {
+      props: {
+        annotations: [dimension('d1', 's1')],
+        activeSceneId: 's1',
+        tween: null,
+        projector,
+        kindComponents: { dimension: dimComp },
+      },
+    });
+    expect(wrapper.find('.dl').text()).toBe('0.42');
+  });
+
   it('Should render kindComponents when provided', () => {
     const projector = makeProjector();
     (projector.getScreenPositions() as Map<string, unknown>).set('a1', {

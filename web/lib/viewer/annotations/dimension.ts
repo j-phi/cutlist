@@ -403,6 +403,22 @@ export function createDimensionKindHooks(
       // these to compute the screen-space midpoint and rotation angle.
       return [built.p1, built.p2];
     },
+    measure(a, lookup) {
+      // Resolve both anchors into world space — they may live on different
+      // Objects with different `originalMatrix`/`offsetMatrix`, so the
+      // local-frame `Math.hypot` the label used to do is wrong. The
+      // `lookup` here is the projector's pose-aware `objectLocalToWorld`,
+      // so the resulting distance reflects whatever pose the Objects are
+      // currently posed in.
+      const aWorld = lookup(a.anchor1.groupId, a.anchor1.local);
+      const bWorld = lookup(a.anchor2.groupId, a.anchor2.local);
+      if (!aWorld || !bWorld) return null;
+      return Math.hypot(
+        bWorld[0] - aWorld[0],
+        bWorld[1] - aWorld[1],
+        bWorld[2] - aWorld[2],
+      );
+    },
     leaderSpec(a, lookup) {
       const built = build(a, lookup, viewer);
       if (!built) return null;

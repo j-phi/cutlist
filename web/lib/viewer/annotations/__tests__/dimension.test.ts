@@ -469,4 +469,22 @@ describe('createDimensionKindHooks', () => {
     expect(aux).not.toBeNull();
     expect(aux!).toHaveLength(2);
   });
+
+  it('Reports the world-space distance between cross-Object anchors via measure', () => {
+    const hooks = createDimensionKindHooks(viewerStub());
+    // Both anchors are at local (0,0,0) on different Objects. The naive
+    // `Math.hypot(b.local - a.local)` would yield 0, but Object 2 sits 5
+    // metres along +X in world space, so the correct measurement is 5m.
+    const a = dim([0, 0, 0], [0, 0, 0], [0, 0.1, 0], 1, 2);
+    const lookup = (g: number, l: Vec3): Vec3 =>
+      g === 1 ? l : [l[0] + 5, l[1], l[2]];
+    const m = hooks.measure!(a, lookup);
+    expect(m).toBeCloseTo(5, 9);
+  });
+
+  it('measure returns null when an anchor cannot be resolved', () => {
+    const hooks = createDimensionKindHooks(viewerStub());
+    const a = dim([0, 0, 0], [1, 0, 0]);
+    expect(hooks.measure!(a, () => null)).toBeNull();
+  });
 });

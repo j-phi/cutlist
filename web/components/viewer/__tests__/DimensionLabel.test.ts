@@ -70,6 +70,41 @@ describe('DimensionLabel — auto-format', () => {
     expect(w.text()).toContain('123mm');
   });
 
+  it('Prefers measuredMeters over the local-frame distance for cross-Object dimensions', async () => {
+    // Two anchors with identical local coords ([0,0,0]) but different
+    // groupIds. The naive `Math.hypot(b - a)` would render "0mm"; the
+    // projector-fed `measuredMeters` of 0.5 metres should win.
+    distanceUnit.value = 'mm';
+    const a: IdbDimension = {
+      id: 'd-1',
+      sceneId: 's',
+      kind: 'dimension',
+      groupId: 1,
+      anchor1: { groupId: 1, local: [0, 0, 0] },
+      anchor2: { groupId: 2, local: [0, 0, 0] },
+      offsetLocal: [0, 0, 0],
+      createdAt: '2026-04-29T00:00:00.000Z',
+      updatedAt: '2026-04-29T00:00:00.000Z',
+    };
+    const w = await mountSuspended(DimensionLabel, {
+      props: { annotation: a, draft: false, measuredMeters: 0.5 },
+    });
+    expect(w.text()).toContain('500mm');
+    // Local-frame Math.hypot would have produced "0mm" exactly — guard
+    // against a regression where the prop is ignored.
+    expect(w.text().trim()).not.toBe('0mm');
+  });
+
+  it('Falls back to the local-frame distance when measuredMeters is undefined', async () => {
+    // Pre-projector-tick safety net: same-frame anchors are still rendered
+    // correctly even before the projector has a measurement to report.
+    distanceUnit.value = 'mm';
+    const w = await mountSuspended(DimensionLabel, {
+      props: { annotation: dim([0, 0, 0], [0.25, 0, 0]), draft: false },
+    });
+    expect(w.text()).toContain('250mm');
+  });
+
   it('Renders the imperial distance with two decimals', async () => {
     distanceUnit.value = 'in';
     const w = await mountSuspended(DimensionLabel, {
