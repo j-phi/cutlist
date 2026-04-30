@@ -6,13 +6,13 @@
  * so two scenes with no Object moves capture-equal regardless of read order.
  */
 
-import { isIdentityObjectOffset } from '~/composables/useIdb';
-import type {
-  CameraMode,
-  CameraPose,
-  ObjectOffset,
-} from '~/composables/useIdb';
-import type { GroupId } from '~/utils/types';
+import {
+  isIdentityObjectOffset,
+  type CameraMode,
+  type CameraPose,
+  type GroupId,
+  type ObjectOffset,
+} from '~/utils/types';
 import type { SceneState } from './types';
 
 export interface CaptureInput {

@@ -424,9 +424,6 @@ export class ViewerCore {
   setHoveredObjects(ids: GroupId[]): void {
     this.highlighter?.setHovered(ids);
   }
-  setHoveredObject(id: GroupId | null): void {
-    this.highlighter?.setHovered(id == null ? [] : [id]);
-  }
 
   // ── Visibility ───────────────────────────────────────────────────
 

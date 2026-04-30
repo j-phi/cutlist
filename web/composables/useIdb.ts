@@ -14,8 +14,6 @@ export {
   applyModelDefaults,
   applySceneDefaults,
   applyAnnotationDefaults,
-  IDENTITY_OBJECT_OFFSET,
-  isIdentityObjectOffset,
 } from './useIdb/index';
 export type {
   AnnotationPatch,
@@ -30,7 +28,4 @@ export type {
   IdbDimension,
   DimensionAnchor,
   AnnotationKind,
-  CameraMode,
-  CameraPose,
-  ObjectOffset,
 } from './useIdb/index';

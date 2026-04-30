@@ -14,12 +14,7 @@
  */
 
 import type { Ref } from 'vue';
-import type {
-  CameraMode,
-  CameraPose,
-  IdbScene,
-  ObjectOffset,
-} from '~/composables/useIdb';
+import type { IdbScene } from '~/composables/useIdb';
 import {
   captureSceneState,
   easeInOut,
@@ -27,7 +22,12 @@ import {
   sceneStateFromIdb,
   type SceneState,
 } from '~/lib/scene';
-import type { GroupId } from '~/utils/types';
+import type {
+  CameraMode,
+  CameraPose,
+  GroupId,
+  ObjectOffset,
+} from '~/utils/types';
 
 const TWEEN_MS = 300;
 
@@ -194,7 +194,7 @@ export function useSceneAuthor(
   }
 
   function markDirty(): void {
-    if (!activeSceneId.value || tween.value !== null || dirty.value) return;
+    if (!activeSceneId.value || tween.value !== null) return;
     dirty.value = true;
   }
 

@@ -15,7 +15,7 @@
  * The projection toggle below switches between perspective and orthographic
  * (active mode highlighted), and a floor toggle controls the grid plane.
  */
-import type { CameraMode } from '~/composables/useIdb';
+import type { CameraMode } from '~/utils/types';
 import type { ViewPreset } from '~/lib/viewer/types';
 
 const props = defineProps<{

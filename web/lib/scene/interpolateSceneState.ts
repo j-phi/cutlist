@@ -13,9 +13,12 @@
  * function does not produce them.
  */
 
-import { IDENTITY_OBJECT_OFFSET } from '~/composables/useIdb';
-import type { CameraPose, ObjectOffset } from '~/composables/useIdb';
-import type { GroupId } from '~/utils/types';
+import {
+  IDENTITY_OBJECT_OFFSET,
+  type CameraPose,
+  type GroupId,
+  type ObjectOffset,
+} from '~/utils/types';
 import type { SceneState } from './types';
 
 export interface InterpolatedScene {

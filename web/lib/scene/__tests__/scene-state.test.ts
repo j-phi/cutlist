@@ -6,8 +6,9 @@ import {
   sceneStateToIdb,
   type SceneState,
 } from '../index';
-import { IDENTITY_OBJECT_OFFSET } from '~/composables/useIdb';
-import type { IdbScene, ObjectOffset } from '~/composables/useIdb';
+import { IDENTITY_OBJECT_OFFSET } from '~/utils/types';
+import type { ObjectOffset } from '~/utils/types';
+import type { IdbScene } from '~/composables/useIdb';
 
 const identityPose = {
   position: [0, 0, 0] as [number, number, number],

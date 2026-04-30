@@ -210,7 +210,6 @@ export default function useThreeViewer(
     setCameraPose: (pose: CameraPose) => core?.setCameraPose(pose),
     applyViewPreset: (preset: ViewPreset) => core?.applyViewPreset(preset),
     setSelectedObjects: (ids: GroupId[]) => core?.setSelectedObjects(ids),
-    setHoveredObject: (id: GroupId | null) => core?.setHoveredObject(id),
     setHoveredObjects: (ids: GroupId[]) => core?.setHoveredObjects(ids),
     setObjectVisible: (id: GroupId, visible: boolean) =>
       core?.setObjectVisible(id, visible),

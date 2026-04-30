@@ -10,8 +10,6 @@
 
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 import type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
-export type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
-export { IDENTITY_OBJECT_OFFSET, isIdentityObjectOffset } from '~/utils/types';
 
 export interface IdbProject {
   id: string;

@@ -6,13 +6,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, nextTick, ref, type EffectScope } from 'vue';
+import type { IdbScene } from '~/composables/useIdb';
 import type {
   CameraMode,
   CameraPose,
-  IdbScene,
+  GroupId,
   ObjectOffset,
-} from '~/composables/useIdb';
-import type { GroupId } from '~/utils/types';
+} from '~/utils/types';
 import { useSceneAuthor, type SceneAuthorViewer } from '../useSceneAuthor';
 import useModelViewerStore from '../useModelViewerStore';
 

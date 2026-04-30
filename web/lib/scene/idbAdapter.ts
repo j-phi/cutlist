@@ -4,9 +4,12 @@
  * Map/Set ↔ Record/array translation lives in one place.
  */
 
-import { isIdentityObjectOffset } from '~/composables/useIdb';
-import type { IdbScene, ObjectOffset } from '~/composables/useIdb';
-import type { GroupId } from '~/utils/types';
+import {
+  isIdentityObjectOffset,
+  type GroupId,
+  type ObjectOffset,
+} from '~/utils/types';
+import type { IdbScene } from '~/composables/useIdb';
 import type { SceneState } from './types';
 
 export function sceneStateToIdb(

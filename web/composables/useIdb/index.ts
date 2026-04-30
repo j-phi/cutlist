@@ -79,11 +79,7 @@ export type {
   IdbDimension,
   DimensionAnchor,
   AnnotationKind,
-  CameraMode,
-  CameraPose,
-  ObjectOffset,
 } from './types';
-export { IDENTITY_OBJECT_OFFSET, isIdentityObjectOffset } from './types';
 
 export function useIdb() {
   return {
