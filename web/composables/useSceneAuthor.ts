@@ -72,6 +72,14 @@ export interface SceneAuthor {
   /** Active tween or `null` when not tweening. */
   tween: Ref<Tween | null>;
   dirty: Ref<boolean>;
+  /**
+   * Reactive mirror of the viewer's camera mode. Reads stay in sync via
+   * `viewer.ready` watch + the explicit setters. Owned by the author so
+   * the host doesn't have to juggle `cameraMode.value = …; viewer.setCameraMode(…)`
+   * pairs.
+   */
+  cameraMode: Ref<CameraMode>;
+  floorVisible: Ref<boolean>;
 
   toggleObjectVisibility(groupId: GroupId): void;
   setObjectsVisibility(groupIds: GroupId[], visible: boolean): void;
@@ -89,6 +97,14 @@ export interface SceneAuthor {
   captureThumbnail(): string | null;
   jumpToScene(scene: IdbScene): void;
   tweenToScene(scene: IdbScene, durationMs?: number): Promise<void>;
+  /**
+   * Switch the camera projection mode. Wraps `viewer.setCameraMode` and
+   * marks the active scene dirty so a single host call covers both —
+   * eliminates the foot-gun of forgetting one half.
+   */
+  setCameraMode(mode: CameraMode): void;
+  /** Show / hide the ground grid. Marks the active scene dirty. */
+  setFloorVisible(v: boolean): void;
   markClean(): void;
   /**
    * Mark the active scene dirty. Used by UI controls (camera mode, floor
@@ -108,6 +124,23 @@ export function useSceneAuthor(
   const activeSceneId = ref<string | null>(null);
   const tween = ref<Tween | null>(null);
   const dirty = ref(false);
+  // The viewer doesn't expose reactive getters for camera mode / floor; we
+  // mirror them here so consumers can `v-bind` against a Ref. Initial values
+  // are synced from the viewer once it reports ready, and on every explicit
+  // setter call below.
+  const cameraMode = ref<CameraMode>('perspective');
+  const floorVisible = ref(true);
+  if (viewer.ready.value) {
+    cameraMode.value = viewer.getCameraMode();
+    floorVisible.value = viewer.getFloorVisible();
+  } else {
+    const stop = watch(viewer.ready, (r) => {
+      if (!r) return;
+      cameraMode.value = viewer.getCameraMode();
+      floorVisible.value = viewer.getFloorVisible();
+      stop();
+    });
+  }
 
   let stopFrame: (() => void) | null = null;
   // Pending tween resolver. Captured here (not just in the onFrame closure)
@@ -318,6 +351,8 @@ export function useSceneAuthor(
         viewer.setCameraMode(state.cameraMode);
         viewer.setCameraPose(state.cameraPose);
         viewer.setFloorVisible(state.floorVisible);
+        cameraMode.value = state.cameraMode;
+        floorVisible.value = state.floorVisible;
         applyVisibility(state.visibleObjects);
         applyFullOffsets(state);
       } else {
@@ -384,6 +419,8 @@ export function useSceneAuthor(
           midCutDone = true;
           viewer.setCameraMode(toState.cameraMode);
           viewer.setFloorVisible(toState.floorVisible);
+          cameraMode.value = toState.cameraMode;
+          floorVisible.value = toState.floorVisible;
           applyVisibility(toState.visibleObjects);
         }
 
@@ -400,11 +437,25 @@ export function useSceneAuthor(
     dirty.value = false;
   }
 
+  function setCameraMode(mode: CameraMode): void {
+    cameraMode.value = mode;
+    viewer.setCameraMode(mode);
+    markDirty();
+  }
+
+  function setFloorVisible(v: boolean): void {
+    floorVisible.value = v;
+    viewer.setFloorVisible(v);
+    markDirty();
+  }
+
   return {
     visibleObjects,
     activeSceneId,
     tween,
     dirty,
+    cameraMode,
+    floorVisible,
     toggleObjectVisibility,
     setObjectsVisibility,
     toggleObjectsVisibility,
@@ -416,6 +467,8 @@ export function useSceneAuthor(
     captureThumbnail,
     jumpToScene,
     tweenToScene,
+    setCameraMode,
+    setFloorVisible,
     markClean,
     markDirty,
     onUserChange,

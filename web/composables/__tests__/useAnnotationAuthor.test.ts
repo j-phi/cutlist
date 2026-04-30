@@ -176,3 +176,46 @@ describe('useAnnotationAuthor — handler registration', () => {
     expect(author.mode.value).toBe('select');
   });
 });
+
+describe('useAnnotationAuthor — projectableAnnotations', () => {
+  it('Should pass through the visible list when there is no preview draft', () => {
+    const v = makeViewer();
+    const api = makeAnnotationsApi();
+    const sceneId = ref<string | null>('s1');
+    const author = scope.run(() => useAnnotationAuthor(v, api, sceneId))!;
+    const visible = ref([
+      { id: 'a', sceneId: 's1', kind: 'callout' } as never,
+      { id: 'b', sceneId: 's1', kind: 'callout' } as never,
+    ]);
+    const projectable = author.projectableAnnotations(visible, sceneId);
+    expect(projectable.value).toHaveLength(2);
+  });
+
+  it('Should append the preview when its sceneId matches', () => {
+    const v = makeViewer();
+    const api = makeAnnotationsApi();
+    const sceneId = ref<string | null>('s1');
+    const author = scope.run(() => useAnnotationAuthor(v, api, sceneId))!;
+    const visible = ref([{ id: 'a', sceneId: 's1', kind: 'callout' } as never]);
+    const draft = { id: 'd', sceneId: 's1', kind: 'callout' } as never;
+    author.setPreview(draft);
+    const projectable = author.projectableAnnotations(visible, sceneId);
+    expect(projectable.value).toHaveLength(2);
+    expect(projectable.value.map((a) => a.id)).toContain('d');
+  });
+
+  it('Should drop the preview when its sceneId differs from the renderable id', () => {
+    const v = makeViewer();
+    const api = makeAnnotationsApi();
+    const sceneId = ref<string | null>('s1');
+    const author = scope.run(() => useAnnotationAuthor(v, api, sceneId))!;
+    const visible = ref([{ id: 'a', sceneId: 's1', kind: 'callout' } as never]);
+    author.setPreview({
+      id: 'd',
+      sceneId: 'other',
+      kind: 'callout',
+    } as never);
+    const projectable = author.projectableAnnotations(visible, sceneId);
+    expect(projectable.value).toHaveLength(1);
+  });
+});

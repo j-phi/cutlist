@@ -71,6 +71,19 @@ export interface AnnotationAuthor {
   registerHandler(kind: PickKind, handler: PickKindHandler): () => void;
   clearDraft(): void;
   setPreview(annotation: IdbAnnotation | null): void;
+  /**
+   * Combine the persisted annotations the host wants rendered with the
+   * in-flight `preview` draft. The draft is appended only when its
+   * `sceneId` matches the renderable scene — during a tween the rendered
+   * scene id can lag behind `activeSceneId`, so the host passes a
+   * `renderableSceneId` ref rather than reading `activeSceneId` directly.
+   */
+  projectableAnnotations(
+    visible:
+      | Ref<readonly IdbAnnotation[]>
+      | ComputedRef<readonly IdbAnnotation[]>,
+    renderableSceneId: Ref<string | null> | ComputedRef<string | null>,
+  ): ComputedRef<IdbAnnotation[]>;
 }
 
 /** Stable id for the in-flight preview annotation. */
@@ -161,6 +174,22 @@ export function useAnnotationAuthor(
     preview.value = annotation;
   }
 
+  function projectableAnnotations(
+    visible:
+      | Ref<readonly IdbAnnotation[]>
+      | ComputedRef<readonly IdbAnnotation[]>,
+    renderableSceneId: Ref<string | null> | ComputedRef<string | null>,
+  ): ComputedRef<IdbAnnotation[]> {
+    return computed(() => {
+      const list = visible.value;
+      const draft = preview.value;
+      if (draft && draft.sceneId === renderableSceneId.value) {
+        return [...list, draft];
+      }
+      return [...list];
+    });
+  }
+
   return {
     mode,
     pickKind,
@@ -173,6 +202,7 @@ export function useAnnotationAuthor(
     registerHandler,
     clearDraft,
     setPreview,
+    projectableAnnotations,
   };
 }
 

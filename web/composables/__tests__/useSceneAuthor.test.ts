@@ -239,6 +239,30 @@ describe('useSceneAuthor — dirty flag', () => {
     a.markDirty();
     expect(a.dirty.value).toBe(true);
   });
+
+  it('setCameraMode should call viewer + mark dirty + sync the ref', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    expect(a.dirty.value).toBe(false);
+
+    a.setCameraMode('perspective');
+    expect(v.cameraMode).toBe('perspective');
+    expect(a.cameraMode.value).toBe('perspective');
+    expect(a.dirty.value).toBe(true);
+  });
+
+  it('setFloorVisible should call viewer + mark dirty + sync the ref', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    a.markClean();
+
+    a.setFloorVisible(true);
+    expect(v.floorVisible).toBe(true);
+    expect(a.floorVisible.value).toBe(true);
+    expect(a.dirty.value).toBe(true);
+  });
 });
 
 describe('useSceneAuthor — capture', () => {

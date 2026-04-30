@@ -1,27 +1,25 @@
 <script lang="ts" setup>
 import type { BoardLayoutLeftover } from 'cutlist';
-import type { CameraMode } from '~/composables/useIdb';
 import type { GizmoMode, ViewPreset } from '~/lib/viewer/types';
-import type { ObjectGraph } from '~/utils/types';
 import ViewCube from '~/components/viewer/ViewCube.vue';
 import ObjectsPanel from '~/components/viewer/ObjectsPanel.vue';
 import SceneTimeline from '~/components/viewer/SceneTimeline.vue';
 import AnnotationLabels from '~/components/viewer/AnnotationLabels.vue';
 import CalloutLabel from '~/components/viewer/CalloutLabel.vue';
 import DimensionLabel from '~/components/viewer/DimensionLabel.vue';
+import ModelEmptyState from '~/components/viewer/ModelEmptyState.vue';
+import ModelSwitcher from '~/components/viewer/ModelSwitcher.vue';
+import GizmoModeToggle from '~/components/viewer/GizmoModeToggle.vue';
+import MouseLegend from '~/components/viewer/MouseLegend.vue';
+import PartInfoPanel from '~/components/viewer/PartInfoPanel.vue';
+import AnnotationToolbar from '~/components/viewer/AnnotationToolbar.vue';
 import { useSceneAuthor } from '~/composables/useSceneAuthor';
 import { useScenes } from '~/composables/useScenes';
 import { useAnnotations } from '~/composables/useAnnotations';
 import { useAnnotationAuthor } from '~/composables/useAnnotationAuthor';
-import { AnnotationProjector } from '~/lib/viewer/modules/AnnotationProjector';
-import {
-  calloutKindHooks,
-  createCalloutHandler,
-} from '~/lib/viewer/annotations/callout';
-import {
-  createDimensionHandler,
-  createDimensionKindHooks,
-} from '~/lib/viewer/annotations/dimension';
+import { useAnnotationProjector } from '~/composables/useAnnotationProjector';
+import { useSceneAuthoringActions } from '~/composables/useSceneAuthoringActions';
+import { useFocusedModelLoader } from '~/composables/useFocusedModelLoader';
 
 const props = withDefaults(
   defineProps<{
@@ -41,8 +39,6 @@ const enabledModels = computed(() =>
 );
 const { data: boardLayouts } = useBoardLayoutsQuery();
 const store = useModelViewerStore();
-const formatDistance = useFormatDistance();
-const idb = useIdb();
 
 const canvasContainer = ref<HTMLElement>();
 const viewer = useThreeViewer(canvasContainer);
@@ -52,7 +48,6 @@ const focusedModelIdx = ref(0);
 
 watch(activeId, () => {
   focusedModelIdx.value = 0;
-  rawSourceCache.clear();
   // The active-scene memory is keyed by modelId (stable per project), so a
   // project switch invalidates every entry — purge to keep the map bounded
   // and avoid stale ids surviving a project delete + re-create.
@@ -76,85 +71,14 @@ const hasOnlyManualModels = computed(
     allEnabledModels.value.every((m) => m.source === 'manual'),
 );
 
-// In-memory cache to avoid redundant IDB reads when switching models.
-const rawSourceCache = new Map<string, object | string>();
-const focusedRawData = ref<{
-  modelId: string;
-  raw: object | string;
-  source: 'gltf' | 'collada';
-} | null>(null);
-
-async function loadRawData() {
-  const model = focusedModel.value;
-  if (!activeId.value || !model) {
-    focusedRawData.value = null;
-    return;
-  }
-  let raw = rawSourceCache.get(model.id);
-  if (raw == null) {
-    const fetched = await idb.getModelRawSource(model.id);
-    if (fetched == null) {
-      focusedRawData.value = null;
-      return;
-    }
-    raw = fetched;
-    rawSourceCache.set(model.id, raw);
-  }
-  focusedRawData.value = {
-    modelId: model.id,
-    raw,
-    source: model.source as 'gltf' | 'collada',
-  };
-}
-
-watch([activeId, focusedModelId], loadRawData, { immediate: true });
-
-const loadedGraph = ref<ObjectGraph | null>(null);
-
-async function loadFocusedModel() {
-  const data = focusedRawData.value;
-  if (!data || !viewer.ready.value) return;
-
-  const { resolveModelScene } = await import('~/utils/resolveModelScene');
-
-  viewer.clearModels();
-  loadedGraph.value = null;
-
-  const graph = await resolveModelScene({
-    source: data.source,
-    rawSource: data.raw,
-  });
-  if (graph) {
-    await viewer.loadModel(graph);
-    loadedGraph.value = graph;
-    // After the viewer has the new model loaded, replay the remembered
-    // active scene (if any) so the camera/visibility/offsets match the
-    // marker the timeline is showing. `useSceneAuthor` has already
-    // populated `activeSceneId` from the per-model memory map; we just
-    // need to wait until both the model and its scenes are in memory
-    // before applying. `jumpToScene` is a one-shot apply (no tween).
-    const sid = sceneAuthor.activeSceneId.value;
-    if (sid) {
-      const scene = scenesApi.scenes.value.find((s) => s.id === sid);
-      if (scene) sceneAuthor.jumpToScene(scene);
-    }
-  }
-}
-
-// Single watch on the combined predicate avoids a double-fire on initial
-// mount (once when raw data lands, once when viewer becomes ready). The
-// downstream `loadFocusedModel` is idempotent enough that an extra call
-// would be harmless, but it would also re-clear the loaded graph and
-// momentarily blank the panel UI — so we gate on both upstream signals.
-watch(
-  () => ({
-    data: focusedRawData.value,
-    ready: viewer.ready.value,
-  }),
-  ({ data, ready }) => {
-    if (data && ready) void loadFocusedModel();
-  },
-);
+const emptyStateType = computed<
+  'no-models' | 'manual-only' | 'no-source' | null
+>(() => {
+  if (enabledModels.value.length === 0) return 'no-models';
+  if (hasOnlyManualModels.value) return 'manual-only';
+  if (!hasModelData.value) return 'no-source';
+  return null;
+});
 
 function findPart(partNum: number | null): BoardLayoutLeftover | undefined {
   if (partNum == null || !boardLayouts.value) return;
@@ -179,8 +103,6 @@ const infoPart = computed(() => {
   return undefined;
 });
 
-const cameraMode = ref<CameraMode>('perspective');
-const floorVisible = ref(true);
 const gizmoMode = ref<GizmoMode>('translate');
 
 const hasSelection = computed(() => store.selectedGroupIds.value.size > 0);
@@ -194,6 +116,12 @@ function onGizmoMode(mode: GizmoMode) {
 // (`useScenes`) and the per-model active-scene memory inside `useSceneAuthor`.
 const sceneAuthor = useSceneAuthor(viewer, focusedModelId);
 const scenesApi = useScenes(focusedModelId);
+const { loadedGraph } = useFocusedModelLoader({
+  viewer,
+  focusedModelId,
+  sceneAuthor,
+  scenesApi,
+});
 const annotationsApi = useAnnotations();
 const annotationAuthor = useAnnotationAuthor(
   viewer,
@@ -213,50 +141,18 @@ const visibleAnnotations = computed(() => {
   return annotationsApi.annotations.value.filter((a) => a.sceneId === sid);
 });
 
-const projectableAnnotations = computed(() => {
-  const list = visibleAnnotations.value;
-  const draft = annotationAuthor.preview.value;
-  if (draft && draft.sceneId === renderableSceneId.value) {
-    return [...list, draft];
-  }
-  return list;
-});
+const projectableAnnotations = annotationAuthor.projectableAnnotations(
+  visibleAnnotations,
+  renderableSceneId,
+);
 
-const projector = new AnnotationProjector(
+const { projector } = useAnnotationProjector({
   viewer,
-  () => projectableAnnotations.value,
-);
-projector.registerKind('callout', calloutKindHooks);
-projector.registerKind('dimension', createDimensionKindHooks(viewer));
-
-watch(
-  () => viewer.ready.value,
-  (isReady) => {
-    if (!isReady) return;
-    projector.start();
-    annotationAuthor.registerHandler(
-      'callout',
-      createCalloutHandler({
-        viewer,
-        annotationsApi,
-        activeSceneId: sceneAuthor.activeSceneId,
-        author: annotationAuthor,
-      }),
-    );
-    annotationAuthor.registerHandler(
-      'dimension',
-      createDimensionHandler({
-        viewer,
-        annotationsApi,
-        activeSceneId: sceneAuthor.activeSceneId,
-        author: annotationAuthor,
-      }),
-    );
-  },
-  { immediate: true },
-);
-
-onUnmounted(() => projector.dispose());
+  annotationsApi,
+  annotationAuthor,
+  activeSceneId: sceneAuthor.activeSceneId,
+  getAnnotations: () => projectableAnnotations.value,
+});
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -302,73 +198,10 @@ const annotationKindComponents = {
   dimension: DimensionLabel,
 };
 
-async function onAddScene() {
-  if (sceneAuthor.tween.value !== null) return;
-  const state = sceneAuthor.captureCurrentSceneState();
-  const thumbnail = sceneAuthor.captureThumbnail() ?? undefined;
-  const id = await scenesApi.addScene({ state, thumbnail });
-  if (id) sceneAuthor.activeSceneId.value = id;
-  sceneAuthor.dirty.value = false;
-}
-
-async function onSelectScene(id: string) {
-  if (sceneAuthor.tween.value !== null) return;
-  const scene = scenesApi.scenes.value.find((s) => s.id === id);
-  if (!scene) return;
-  await sceneAuthor.tweenToScene(scene);
-}
-
-async function onUpdateActiveScene() {
-  const id = sceneAuthor.activeSceneId.value;
-  if (!id) return;
-  const state = sceneAuthor.captureCurrentSceneState();
-  const thumbnail = sceneAuthor.captureThumbnail() ?? undefined;
-  const { sceneStateToIdb } = await import('~/lib/scene');
-  await scenesApi.updateScene(id, {
-    ...sceneStateToIdb(state),
-    thumbnailDataUrl: thumbnail,
-  });
-  sceneAuthor.markClean();
-}
-
-async function onRemoveScene(id: string) {
-  if (sceneAuthor.activeSceneId.value === id) {
-    sceneAuthor.activeSceneId.value = null;
-    sceneAuthor.dirty.value = false;
-  }
-  await scenesApi.removeScene(id);
-}
-
-const canUpdateScene = computed(
-  () =>
-    sceneAuthor.dirty.value &&
-    sceneAuthor.activeSceneId.value !== null &&
-    sceneAuthor.tween.value === null,
-);
-
-watch(
-  () => viewer.ready.value,
-  (isReady) => {
-    if (!isReady) return;
-    cameraMode.value = viewer.getCameraMode();
-    floorVisible.value = viewer.getFloorVisible();
-  },
-);
+const sceneActions = useSceneAuthoringActions(sceneAuthor, scenesApi);
 
 function onSnap(preset: ViewPreset) {
   viewer.applyViewPreset(preset);
-}
-
-function onCameraMode(mode: CameraMode) {
-  cameraMode.value = mode;
-  viewer.setCameraMode(mode);
-  sceneAuthor.markDirty();
-}
-
-function onFloorVisible(v: boolean) {
-  floorVisible.value = v;
-  viewer.setFloorVisible(v);
-  sceneAuthor.markDirty();
 }
 </script>
 
@@ -422,56 +255,16 @@ function onFloorVisible(v: boolean) {
         {{ annotationAuthor.hint.value }}
       </div>
 
-      <!-- Empty state: no models -->
-      <div
-        v-if="enabledModels.length === 0"
-        class="absolute inset-0 flex items-center justify-center"
-      >
-        <p class="bg-base border border-default rounded p-4 text-muted">
-          Import a model in the BOM tab to view it in 3D.
-        </p>
-      </div>
-
-      <!-- Empty state: only manual parts -->
-      <div
-        v-else-if="hasOnlyManualModels"
-        class="absolute inset-0 flex items-center justify-center"
-      >
-        <p class="bg-base border border-default rounded p-4 text-muted">
-          Parts were added manually — no 3D model to view.
-        </p>
-      </div>
-
-      <!-- Empty state: models exist but no raw source stored (pre-feature import) -->
-      <div
-        v-else-if="!hasModelData"
-        class="absolute inset-0 flex items-center justify-center"
-      >
-        <p class="bg-base border border-default rounded p-4 text-muted">
-          Re-import your model to enable 3D preview.
-        </p>
-      </div>
+      <!-- Empty states (no-models / manual-only / no-source) -->
+      <ModelEmptyState v-if="emptyStateType" :type="emptyStateType" />
 
       <!-- Model switcher (only when multiple enabled models) -->
       <div v-if="enabledModels.length > 1" class="absolute top-4 left-4 z-10">
-        <select
-          :value="focusedModelIdx === null ? '' : String(focusedModelIdx)"
-          class="model-select bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 text-sm text-body hover:text-hi cursor-pointer appearance-none pr-8 focus:outline-none focus:border-default"
-          @change="
-            (e) => {
-              focusedModelIdx = Number((e.target as HTMLSelectElement).value);
-            }
-          "
-        >
-          <option
-            v-for="(m, i) in enabledModels"
-            :key="m.id"
-            :value="String(i)"
-            style="background: #161b1d; color: #e3e7e8"
-          >
-            {{ m.filename }}
-          </option>
-        </select>
+        <ModelSwitcher
+          :models="enabledModels"
+          :focused-idx="focusedModelIdx"
+          @update:focused-idx="(idx) => (focusedModelIdx = idx)"
+        />
       </div>
 
       <div
@@ -503,26 +296,7 @@ function onFloorVisible(v: boolean) {
         class="absolute top-4 z-10"
         :class="props.showOpenButton ? 'right-[16.5rem]' : 'right-32'"
       >
-        <div
-          class="bg-overlay backdrop-blur border border-subtle rounded-lg p-1 flex gap-1"
-        >
-          <UButton
-            size="xs"
-            :color="gizmoMode === 'translate' ? 'primary' : 'neutral'"
-            :variant="gizmoMode === 'translate' ? 'soft' : 'ghost'"
-            icon="i-lucide-move"
-            label="Move"
-            @click="onGizmoMode('translate')"
-          />
-          <UButton
-            size="xs"
-            :color="gizmoMode === 'rotate' ? 'primary' : 'neutral'"
-            :variant="gizmoMode === 'rotate' ? 'soft' : 'ghost'"
-            icon="i-lucide-rotate-3d"
-            label="Rotate"
-            @click="onGizmoMode('rotate')"
-          />
-        </div>
+        <GizmoModeToggle :mode="gizmoMode" @update:mode="onGizmoMode" />
       </div>
 
       <!-- View cube + projection / floor toggles -->
@@ -533,44 +307,17 @@ function onFloorVisible(v: boolean) {
       >
         <ViewCube
           :camera-direction="viewer.cameraDirection.value"
-          :camera-mode="cameraMode"
-          :floor-visible="floorVisible"
+          :camera-mode="sceneAuthor.cameraMode.value"
+          :floor-visible="sceneAuthor.floorVisible.value"
           @snap="onSnap"
-          @update:camera-mode="onCameraMode"
-          @update:floor-visible="onFloorVisible"
+          @update:camera-mode="(m) => sceneAuthor.setCameraMode(m)"
+          @update:floor-visible="(v) => sceneAuthor.setFloorVisible(v)"
         />
       </div>
 
       <!-- Part info panel -->
-      <div
-        v-if="infoPart"
-        class="absolute bottom-4 left-4 z-10 bg-overlay backdrop-blur border border-subtle rounded-lg p-3 min-w-[200px]"
-      >
-        <p class="text-teal-400 font-bold text-lg mb-1">
-          #{{ infoPart.partNumber }} {{ infoPart.name }}
-        </p>
-        <table class="text-sm text-body">
-          <tbody>
-            <tr>
-              <td class="pr-3 text-muted">Width</td>
-              <td>{{ formatDistance(infoPart.widthM) }}</td>
-            </tr>
-            <tr>
-              <td class="pr-3 text-muted">Length</td>
-              <td>{{ formatDistance(infoPart.lengthM) }}</td>
-            </tr>
-            <tr>
-              <td class="pr-3 text-muted">Thickness</td>
-              <td>
-                {{ formatDistance(infoPart.thicknessM) }}
-              </td>
-            </tr>
-            <tr>
-              <td class="pr-3 text-muted">Material</td>
-              <td>{{ infoPart.material }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-if="infoPart" class="absolute bottom-4 left-4 z-10">
+        <PartInfoPanel :part="infoPart" />
       </div>
 
       <!-- Scene timeline (bottom strip) -->
@@ -578,63 +325,24 @@ function onFloorVisible(v: boolean) {
         v-if="hasModelData && !hasOnlyManualModels"
         class="absolute left-0 right-0 bottom-0 z-10"
       >
-        <div class="flex justify-end gap-2 px-3 pb-2">
-          <UButton
-            v-if="sceneAuthor.activeSceneId.value"
-            size="xs"
-            :color="
-              annotationAuthor.mode.value === 'pick' &&
-              annotationAuthor.pickKind.value === 'callout'
-                ? 'primary'
-                : 'neutral'
-            "
-            :variant="
-              annotationAuthor.mode.value === 'pick' &&
-              annotationAuthor.pickKind.value === 'callout'
-                ? 'solid'
-                : 'soft'
-            "
-            icon="i-lucide-message-square-text"
-            label="Callout"
-            @click="onAddCallout"
-          />
-          <UButton
-            v-if="sceneAuthor.activeSceneId.value"
-            size="xs"
-            :color="
-              annotationAuthor.mode.value === 'pick' &&
-              annotationAuthor.pickKind.value === 'dimension'
-                ? 'primary'
-                : 'neutral'
-            "
-            :variant="
-              annotationAuthor.mode.value === 'pick' &&
-              annotationAuthor.pickKind.value === 'dimension'
-                ? 'solid'
-                : 'soft'
-            "
-            icon="i-lucide-ruler"
-            label="Dimension"
-            @click="onAddDimension"
-          />
-          <UButton
-            v-if="canUpdateScene"
-            size="xs"
-            color="primary"
-            variant="solid"
-            label="Update scene"
-            @click="onUpdateActiveScene"
-          />
-        </div>
+        <AnnotationToolbar
+          :has-active-scene="!!sceneAuthor.activeSceneId.value"
+          :mode="annotationAuthor.mode.value"
+          :pick-kind="annotationAuthor.pickKind.value"
+          :can-update-scene="sceneActions.canUpdateScene.value"
+          @add-callout="onAddCallout"
+          @add-dimension="onAddDimension"
+          @update-scene="sceneActions.updateActiveScene"
+        />
         <SceneTimeline
           :scenes="scenesApi.scenes.value"
           :active-scene-id="sceneAuthor.activeSceneId.value"
           :busy="sceneAuthor.tween.value !== null"
-          @select="onSelectScene"
+          @select="sceneActions.selectScene"
           @reorder="(id, idx) => scenesApi.moveScene(id, idx)"
           @rename="(id, name) => scenesApi.updateScene(id, { name })"
-          @remove="onRemoveScene"
-          @add="onAddScene"
+          @remove="sceneActions.removeScene"
+          @add="sceneActions.addScene"
         />
       </div>
 
@@ -642,172 +350,15 @@ function onFloorVisible(v: boolean) {
       <div
         class="absolute bottom-4 right-4 z-10 hidden sm:flex flex-col items-end gap-2"
       >
-        <div
-          class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2.5 flex flex-col gap-2"
-        >
-          <!-- Right-drag → Orbit -->
-          <div class="flex items-center gap-2.5">
-            <svg
-              width="18"
-              height="24"
-              viewBox="0 0 18 24"
-              fill="none"
-              class="shrink-0 text-muted"
-            >
-              <rect
-                x="1"
-                y="5"
-                width="16"
-                height="18"
-                rx="8"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <path
-                d="M17 13H9V5a8 8 0 0 1 8 8Z"
-                fill="currentColor"
-                fill-opacity="0.5"
-              />
-              <line
-                x1="9"
-                y1="5"
-                x2="9"
-                y2="13"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <rect
-                x="7"
-                y="8"
-                width="4"
-                height="5"
-                rx="2"
-                fill="currentColor"
-                fill-opacity="0.3"
-              />
-            </svg>
-            <span class="text-xs text-muted">Right-drag</span>
-            <span class="text-xs text-body ml-auto pl-3">Orbit</span>
-          </div>
-          <!-- Middle-drag → Pan -->
-          <div class="flex items-center gap-2.5">
-            <svg
-              width="18"
-              height="24"
-              viewBox="0 0 18 24"
-              fill="none"
-              class="shrink-0 text-muted"
-            >
-              <rect
-                x="1"
-                y="5"
-                width="16"
-                height="18"
-                rx="8"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <line
-                x1="9"
-                y1="5"
-                x2="9"
-                y2="13"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <rect
-                x="7"
-                y="8"
-                width="4"
-                height="5"
-                rx="2"
-                fill="currentColor"
-                fill-opacity="0.6"
-              />
-              <path
-                d="M9 16v3M7 17l2 2 2-2"
-                stroke="currentColor"
-                stroke-width="1.25"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <span class="text-xs text-muted">Mid-drag</span>
-            <span class="text-xs text-body ml-auto pl-3">Pan</span>
-          </div>
-          <!-- Scroll → Zoom -->
-          <div class="flex items-center gap-2.5">
-            <svg
-              width="18"
-              height="24"
-              viewBox="0 0 18 24"
-              fill="none"
-              class="shrink-0 text-muted"
-            >
-              <rect
-                x="1"
-                y="5"
-                width="16"
-                height="18"
-                rx="8"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <line
-                x1="9"
-                y1="5"
-                x2="9"
-                y2="13"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <rect
-                x="7"
-                y="8"
-                width="4"
-                height="5"
-                rx="2"
-                fill="currentColor"
-              />
-            </svg>
-            <span class="text-xs text-muted">Scroll</span>
-            <span class="text-xs text-body ml-auto pl-3">Zoom</span>
-          </div>
-        </div>
+        <MouseLegend variant="desktop" />
       </div>
 
       <!-- Bottom-right controls — mobile touch legend -->
       <div
         class="absolute bottom-4 right-4 z-10 flex sm:hidden flex-col items-end gap-2"
       >
-        <div
-          class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2.5 flex flex-col gap-2"
-        >
-          <div class="flex items-center gap-2.5">
-            <UIcon name="i-lucide-pointer" class="shrink-0 text-muted size-4" />
-            <span class="text-xs text-muted">1 finger</span>
-            <span class="text-xs text-body ml-auto pl-3">Orbit</span>
-          </div>
-          <div class="flex items-center gap-2.5">
-            <UIcon name="i-lucide-move" class="shrink-0 text-muted size-4" />
-            <span class="text-xs text-muted">2 fingers</span>
-            <span class="text-xs text-body ml-auto pl-3">Pan</span>
-          </div>
-          <div class="flex items-center gap-2.5">
-            <UIcon name="i-lucide-zoom-in" class="shrink-0 text-muted size-4" />
-            <span class="text-xs text-muted">Pinch</span>
-            <span class="text-xs text-body ml-auto pl-3">Zoom</span>
-          </div>
-        </div>
+        <MouseLegend variant="mobile" />
       </div>
     </div>
   </ClientOnly>
 </template>
-
-<style scoped>
-.model-select {
-  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca8ab' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-}
-</style>
