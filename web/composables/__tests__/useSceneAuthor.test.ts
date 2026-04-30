@@ -308,25 +308,28 @@ describe('useSceneAuthor — tweenToScene', () => {
     const scene = makeScene();
 
     const promise = a.tweenToScene(scene, 100);
-    expect(a.tweening.value).toBe(true);
+    expect(a.tween.value).not.toBeNull();
+    expect(a.tween.value?.to).toBe('s1');
     expect(a.activeSceneId.value).toBe('s1');
 
     // Frame at t=0 — neither mid-cut (camera mode/floor) nor terminal apply.
     v.tickFrame();
     expect(v.cameraMode).toBe('perspective');
     expect(v.floorVisible).toBe(true);
+    expect(a.tween.value?.t ?? 1).toBeLessThan(0.5);
 
     // Past midpoint → mid-cut fires.
     fastForward(60);
     v.tickFrame();
     expect(v.cameraMode).toBe('orthographic');
     expect(v.floorVisible).toBe(false);
+    expect(a.tween.value?.t ?? 0).toBeGreaterThanOrEqual(0.5);
 
     // Past end → tween resolves and stops.
     fastForward(60);
     v.tickFrame();
     await promise;
-    expect(a.tweening.value).toBe(false);
+    expect(a.tween.value).toBeNull();
   });
 
   it('Should suppress dirty during tween-driven object-moved bursts', () => {
@@ -336,7 +339,7 @@ describe('useSceneAuthor — tweenToScene', () => {
     expect(a.dirty.value).toBe(false);
     a.tweenToScene(makeScene({ id: 's2' }), 100);
     // While tweening, simulated bus events from the apply path should not
-    // re-flip dirty (markDirty short-circuits when tweening.value).
+    // re-flip dirty (markDirty short-circuits when tween.value !== null).
     v.emitObjectMoved();
     v.emitUserInteraction();
     expect(a.dirty.value).toBe(false);
@@ -347,7 +350,7 @@ describe('useSceneAuthor — tweenToScene', () => {
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.tweenToScene(makeScene(), 100);
     expect(a.activeSceneId.value).toBe('s1');
-    expect(a.tweening.value).toBe(false);
+    expect(a.tween.value).toBeNull();
   });
 });
 

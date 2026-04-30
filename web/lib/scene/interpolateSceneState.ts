@@ -6,31 +6,31 @@
  * unit-tested without booting the renderer; the slerp matches Three.js's
  * `Quaternion.slerpQuaternions` numerically.
  *
- * Strategy per field:
- * - `cameraMode` — hard cut at the midpoint. Persp ↔ ortho cannot lerp
- *   visually; the cut hides behind maximum motion blur of camera movement.
- * - `cameraPose` — linear lerp on position + target.
- * - `objectOffsets` — per groupId: lerp position, slerp quaternion. Missing
- *   keys default to identity so a scene that doesn't move an Object behaves
- *   identically whether or not the key is present.
- * - Visibility — cross-fade per groupId via `groupOpacity`.
- * - `floorVisible` — hard cut at the midpoint.
+ * Returns only the per-frame values the renderer actually needs each tick:
+ * camera pose (lerped) and per-Object offsets (lerped position, slerped
+ * quaternion). `cameraMode`, `floorVisible`, and visibility are hard-cut at
+ * the midpoint and applied directly by the caller from the to-state — this
+ * function does not produce them.
  */
 
 import { IDENTITY_OBJECT_OFFSET } from '~/composables/useIdb';
 import type { CameraPose, ObjectOffset } from '~/composables/useIdb';
 import type { GroupId } from '~/utils/types';
-import type { AppliedSceneState, SceneState } from './types';
+import type { SceneState } from './types';
+
+export interface InterpolatedScene {
+  cameraPose: CameraPose;
+  /** Always covers every group passed in `allGroupIds`. */
+  objectOffsets: Map<GroupId, ObjectOffset>;
+}
 
 export function interpolateSceneState(
   from: SceneState,
   to: SceneState,
   t: number,
   allGroupIds: readonly GroupId[],
-): AppliedSceneState {
+): InterpolatedScene {
   const u = clamp01(t);
-  const cameraMode = u >= 0.5 ? to.cameraMode : from.cameraMode;
-  const floorVisible = u >= 0.5 ? to.floorVisible : from.floorVisible;
 
   const fromUp = from.cameraPose.up ?? [0, 1, 0];
   const toUp = to.cameraPose.up ?? [0, 1, 0];
@@ -40,18 +40,6 @@ export function interpolateSceneState(
     zoom: lerp(from.cameraPose.zoom ?? 1, to.cameraPose.zoom ?? 1, u),
     up: normalizeVec3(lerpVec3(fromUp, toUp, u)),
   };
-
-  const fromVisible = from.visibleObjects;
-  const toVisible = to.visibleObjects;
-  const groupOpacity = new Map<GroupId, number>();
-  for (const id of allGroupIds) {
-    const inFrom = fromVisible === null || fromVisible.has(id);
-    const inTo = toVisible === null || toVisible.has(id);
-    if (inFrom && inTo) groupOpacity.set(id, 1);
-    else if (!inFrom && !inTo) groupOpacity.set(id, 0);
-    else if (inFrom && !inTo) groupOpacity.set(id, 1 - u);
-    else groupOpacity.set(id, u);
-  }
 
   const objectOffsets = new Map<GroupId, ObjectOffset>();
   for (const id of allGroupIds) {
@@ -63,13 +51,7 @@ export function interpolateSceneState(
     });
   }
 
-  return {
-    cameraMode,
-    cameraPose,
-    objectOffsets,
-    groupOpacity,
-    floorVisible,
-  };
+  return { cameraPose, objectOffsets };
 }
 
 function clamp01(x: number): number {

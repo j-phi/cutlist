@@ -52,14 +52,25 @@ export interface SceneAuthorViewer {
   on(type: 'object-moved', cb: () => void): () => void;
 }
 
+/**
+ * In-flight tween handle. `null` ≡ not tweening. The whole object is
+ * reassigned on each frame so Vue reactivity holds — consumers read `t` to
+ * follow progress and `from` to know which scene's labels/leaders are still
+ * outgoing during the first half of the cross-fade.
+ */
+export interface Tween {
+  /** Previous active scene id; null means no prior active scene. */
+  from: string | null;
+  to: string;
+  /** Linear progress in [0, 1]. */
+  t: number;
+}
+
 export interface SceneAuthor {
   visibleObjects: Ref<Set<GroupId> | null>;
   activeSceneId: Ref<string | null>;
-  /** Scene we're tweening from. Set on tweenToScene start, cleared on end. */
-  tweenFromSceneId: Ref<string | null>;
-  /** Linear tween progress in [0, 1]. 0 when not tweening. */
-  tweenT: Ref<number>;
-  tweening: Ref<boolean>;
+  /** Active tween or `null` when not tweening. */
+  tween: Ref<Tween | null>;
   dirty: Ref<boolean>;
 
   toggleObjectVisibility(groupId: GroupId): void;
@@ -95,9 +106,7 @@ export function useSceneAuthor(
 ): SceneAuthor {
   const visibleObjects = ref<Set<GroupId> | null>(null);
   const activeSceneId = ref<string | null>(null);
-  const tweenFromSceneId = ref<string | null>(null);
-  const tweenT = ref(0);
-  const tweening = ref(false);
+  const tween = ref<Tween | null>(null);
   const dirty = ref(false);
 
   let stopFrame: (() => void) | null = null;
@@ -147,7 +156,7 @@ export function useSceneAuthor(
   }
 
   function markDirty(): void {
-    if (!activeSceneId.value || tweening.value || dirty.value) return;
+    if (!activeSceneId.value || tween.value !== null || dirty.value) return;
     dirty.value = true;
   }
 
@@ -272,9 +281,7 @@ export function useSceneAuthor(
       stopFrame();
       stopFrame = null;
     }
-    tweening.value = false;
-    tweenFromSceneId.value = null;
-    tweenT.value = 0;
+    tween.value = null;
   }
 
   function applyVisibility(set: Set<GroupId> | null): void {
@@ -292,7 +299,10 @@ export function useSceneAuthor(
     stopTween();
     const state = sceneStateFromIdb(scene);
     activeSceneId.value = scene.id;
-    tweening.value = true;
+    // Briefly mark a tween-in-flight so markDirty short-circuits while we
+    // poke the viewer's setters synchronously — equivalent to the previous
+    // `tweening = true` guard but expressed through the unified ref.
+    tween.value = { from: null, to: scene.id, t: 1 };
     try {
       if (viewer.ready.value) {
         viewer.setCameraMode(state.cameraMode);
@@ -305,7 +315,7 @@ export function useSceneAuthor(
           state.visibleObjects === null ? null : new Set(state.visibleObjects);
       }
     } finally {
-      tweening.value = false;
+      tween.value = null;
       dirty.value = false;
     }
   }
@@ -339,9 +349,8 @@ export function useSceneAuthor(
     const start = performance.now();
     let midCutDone = false;
 
-    tweenFromSceneId.value = activeSceneId.value;
-    tweenT.value = 0;
-    tweening.value = true;
+    const fromSceneId = activeSceneId.value;
+    tween.value = { from: fromSceneId, to: scene.id, t: 0 };
     activeSceneId.value = scene.id;
 
     return new Promise<void>((resolve) => {
@@ -357,7 +366,8 @@ export function useSceneAuthor(
 
         viewer.setCameraPose(applied.cameraPose);
         viewer.applyObjectOffsets(applied.objectOffsets);
-        tweenT.value = raw;
+        // Reassign the whole object so reactivity fires.
+        tween.value = { from: fromSceneId, to: scene.id, t: raw };
 
         if (!midCutDone && raw >= 0.5) {
           midCutDone = true;
@@ -382,9 +392,7 @@ export function useSceneAuthor(
   return {
     visibleObjects,
     activeSceneId,
-    tweenFromSceneId,
-    tweenT,
-    tweening,
+    tween,
     dirty,
     toggleObjectVisibility,
     setObjectsVisibility,

@@ -6,7 +6,6 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { mount, shallowMount } from '@vue/test-utils';
-import { ref } from 'vue';
 import AnnotationLabels from '../AnnotationLabels.vue';
 import { AnnotationProjector } from '~/lib/viewer/modules/AnnotationProjector';
 import type { IdbCallout, IdbDimension } from '~/composables/useIdb';
@@ -75,9 +74,7 @@ describe('AnnotationLabels — rendering', () => {
       props: {
         annotations,
         activeSceneId: 's1',
-        tweenFromSceneId: null,
-        tweenT: 0,
-        tweening: false,
+        tween: null,
         projector,
       },
     });
@@ -92,9 +89,7 @@ describe('AnnotationLabels — rendering', () => {
       props: {
         annotations: [],
         activeSceneId: null,
-        tweenFromSceneId: null,
-        tweenT: 0,
-        tweening: false,
+        tween: null,
         projector,
       },
     });
@@ -115,9 +110,7 @@ describe('AnnotationLabels — rendering', () => {
       props: {
         annotations,
         activeSceneId: 's2',
-        tweenFromSceneId: 's1',
-        tweenT: 0.25,
-        tweening: true,
+        tween: { from: 's1', to: 's2', t: 0.25 },
         projector,
       },
     });
@@ -133,16 +126,14 @@ describe('AnnotationLabels — rendering', () => {
       props: {
         annotations: [],
         activeSceneId: null,
-        tweenFromSceneId: null,
-        tweenT: 0,
-        tweening: false,
+        tween: null,
         projector,
         onLeaderOpacityScale,
       },
     });
     expect(onLeaderOpacityScale).toHaveBeenLastCalledWith(1);
 
-    wrapper.setProps({ tweening: true, tweenT: 0.5 });
+    wrapper.setProps({ tween: { from: null, to: 's2', t: 0.5 } });
     return wrapper.vm.$nextTick().then(() => {
       expect(onLeaderOpacityScale).toHaveBeenLastCalledWith(0);
     });
@@ -160,9 +151,7 @@ describe('AnnotationLabels — rendering', () => {
       props: {
         annotations: [callout('a1', 's1')],
         activeSceneId: 's1',
-        tweenFromSceneId: null,
-        tweenT: 0,
-        tweening: false,
+        tween: null,
         projector,
       },
     });
@@ -183,9 +172,7 @@ describe('AnnotationLabels — rendering', () => {
       props: {
         annotations: [callout('a1', 's1')],
         activeSceneId: 's1',
-        tweenFromSceneId: null,
-        tweenT: 0,
-        tweening: false,
+        tween: null,
         projector,
       },
     });
@@ -204,9 +191,7 @@ describe('AnnotationLabels — rendering', () => {
       props: {
         annotations: [dimension('d1', 's1')],
         activeSceneId: 's1',
-        tweenFromSceneId: null,
-        tweenT: 0,
-        tweening: false,
+        tween: null,
         projector,
       },
     });
@@ -231,9 +216,7 @@ describe('AnnotationLabels — rendering', () => {
       props: {
         annotations: [dimension('d1', 's1')],
         activeSceneId: 's1',
-        tweenFromSceneId: null,
-        tweenT: 0,
-        tweening: false,
+        tween: null,
         projector,
       },
     });
@@ -273,9 +256,7 @@ describe('AnnotationLabels — rendering', () => {
       props: {
         annotations: [callout('a1', 's1')],
         activeSceneId: 's1',
-        tweenFromSceneId: null,
-        tweenT: 0,
-        tweening: false,
+        tween: null,
         projector,
         kindComponents: { callout: calloutComp },
       },

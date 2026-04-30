@@ -1,16 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applySceneState,
   captureSceneState,
   interpolateSceneState,
   sceneStateFromIdb,
   sceneStateToIdb,
   type SceneState,
 } from '../index';
-import {
-  IDENTITY_OBJECT_OFFSET,
-  isIdentityObjectOffset,
-} from '~/composables/useIdb';
+import { IDENTITY_OBJECT_OFFSET } from '~/composables/useIdb';
 import type { IdbScene, ObjectOffset } from '~/composables/useIdb';
 
 const identityPose = {
@@ -68,50 +64,6 @@ describe('captureSceneState', () => {
   });
 });
 
-describe('applySceneState', () => {
-  it('Should expand visibility into per-group opacity', () => {
-    const state: SceneState = {
-      cameraMode: 'perspective',
-      cameraPose: identityPose,
-      objectOffsets: new Map(),
-      visibleObjects: new Set([2]),
-      floorVisible: true,
-    };
-    const applied = applySceneState(state, [1, 2, 3]);
-    expect(applied.groupOpacity.get(1)).toBe(0);
-    expect(applied.groupOpacity.get(2)).toBe(1);
-    expect(applied.groupOpacity.get(3)).toBe(0);
-  });
-
-  it('Should treat null visibleObjects as all visible', () => {
-    const state: SceneState = {
-      cameraMode: 'perspective',
-      cameraPose: identityPose,
-      objectOffsets: new Map(),
-      visibleObjects: null,
-      floorVisible: true,
-    };
-    const applied = applySceneState(state, [1, 2]);
-    expect(applied.groupOpacity.get(1)).toBe(1);
-    expect(applied.groupOpacity.get(2)).toBe(1);
-  });
-
-  it('Should fill missing offsets with identity', () => {
-    const state: SceneState = {
-      cameraMode: 'perspective',
-      cameraPose: identityPose,
-      objectOffsets: new Map([
-        [1, { position: [5, 0, 0], quaternion: [0, 0, 0, 1] }],
-      ]),
-      visibleObjects: null,
-      floorVisible: true,
-    };
-    const applied = applySceneState(state, [1, 2]);
-    expect(applied.objectOffsets.get(1)?.position).toEqual([5, 0, 0]);
-    expect(applied.objectOffsets.get(2)).toEqual(IDENTITY_OBJECT_OFFSET);
-  });
-});
-
 describe('interpolateSceneState', () => {
   it('Should lerp camera position linearly', () => {
     const a: SceneState = {
@@ -131,39 +83,6 @@ describe('interpolateSceneState', () => {
     const mid = interpolateSceneState(a, b, 0.5, []);
     expect(mid.cameraPose.position[0]).toBeCloseTo(5);
     expect(mid.cameraPose.target[0]).toBeCloseTo(5);
-  });
-
-  it('Should hard-cut cameraMode at midpoint', () => {
-    const a: SceneState = {
-      cameraMode: 'perspective',
-      cameraPose: identityPose,
-      objectOffsets: new Map(),
-      visibleObjects: null,
-      floorVisible: true,
-    };
-    const b: SceneState = { ...a, cameraMode: 'orthographic' };
-    expect(interpolateSceneState(a, b, 0.49, []).cameraMode).toBe(
-      'perspective',
-    );
-    expect(interpolateSceneState(a, b, 0.5, []).cameraMode).toBe(
-      'orthographic',
-    );
-    expect(interpolateSceneState(a, b, 1, []).cameraMode).toBe('orthographic');
-  });
-
-  it('Should cross-fade visibility per groupId', () => {
-    const a: SceneState = {
-      cameraMode: 'perspective',
-      cameraPose: identityPose,
-      objectOffsets: new Map(),
-      visibleObjects: new Set([1]),
-      floorVisible: true,
-    };
-    const b: SceneState = { ...a, visibleObjects: new Set([2]) };
-    const mid = interpolateSceneState(a, b, 0.25, [1, 2, 3]);
-    expect(mid.groupOpacity.get(1)).toBeCloseTo(0.75);
-    expect(mid.groupOpacity.get(2)).toBeCloseTo(0.25);
-    expect(mid.groupOpacity.get(3)).toBe(0);
   });
 
   it('Should slerp quaternions and lerp positions per Object', () => {
@@ -228,7 +147,7 @@ describe('camera zoom and up', () => {
     expect(state.cameraPose.up).toEqual([0, 1, 0]);
   });
 
-  it('Should preserve zoom and up through capture and apply', () => {
+  it('Should preserve zoom and up through capture', () => {
     const state = captureSceneState({
       cameraMode: 'orthographic',
       cameraPose: {
@@ -243,9 +162,6 @@ describe('camera zoom and up', () => {
     });
     expect(state.cameraPose.zoom).toBe(2.5);
     expect(state.cameraPose.up).toEqual([0, 0, -1]);
-    const applied = applySceneState(state, []);
-    expect(applied.cameraPose.zoom).toBe(2.5);
-    expect(applied.cameraPose.up).toEqual([0, 0, -1]);
   });
 
   it('Should round-trip zoom and up through sceneStateToIdb / sceneStateFromIdb', () => {
@@ -295,33 +211,7 @@ describe('camera zoom and up', () => {
 });
 
 describe('round-trip', () => {
-  it('Should round-trip capture → apply at t=1', () => {
-    const offsets = new Map<number, ObjectOffset>([
-      [
-        1,
-        {
-          position: [1, 2, 3],
-          quaternion: quat(0.1, 0.2, 0.3, 0.9),
-        },
-      ],
-    ]);
-    const state = captureSceneState({
-      cameraMode: 'orthographic',
-      cameraPose: { position: [10, 5, 0], target: [0, 0, 0] },
-      objectOffsets: offsets,
-      visibleObjects: new Set([1]),
-      floorVisible: false,
-    });
-    const applied = applySceneState(state, [1, 2]);
-    expect(applied.cameraMode).toBe('orthographic');
-    expect(applied.floorVisible).toBe(false);
-    expect(applied.groupOpacity.get(1)).toBe(1);
-    expect(applied.groupOpacity.get(2)).toBe(0);
-    const off = applied.objectOffsets.get(1)!;
-    expect(off.position).toEqual([1, 2, 3]);
-  });
-
-  it('Should round-trip capture → sceneStateToIdb → sceneStateFromIdb → apply', () => {
+  it('Should round-trip capture → sceneStateToIdb → sceneStateFromIdb', () => {
     const original = captureSceneState({
       cameraMode: 'perspective',
       cameraPose: { position: [4, 5, 6], target: [1, 0, 0] },
@@ -346,11 +236,14 @@ describe('round-trip', () => {
     expect(Object.keys(persisted.objectOffsets).map(Number)).toEqual([7]);
 
     const restored = sceneStateFromIdb(persisted);
-    const applied = applySceneState(restored, [7, 8]);
-    // groupId 8 (dropped on persist) reappears as identity from apply's defaults.
-    expect(isIdentityObjectOffset(applied.objectOffsets.get(8)!)).toBe(true);
     // groupId 7 survives.
-    const off = applied.objectOffsets.get(7)!;
+    const off = restored.objectOffsets.get(7)!;
     expect(off.position).toEqual([2, 0, 0]);
+    // groupId 8 was identity-dropped on persist; restored map omits it.
+    expect(restored.objectOffsets.has(8)).toBe(false);
+    // visibility round-trips intact.
+    expect([...(restored.visibleObjects as Set<number>)].sort()).toEqual([
+      7, 8,
+    ]);
   });
 });

@@ -202,9 +202,8 @@ const annotationAuthor = useAnnotationAuthor(
 );
 
 const renderableSceneId = computed<string | null>(() => {
-  if (sceneAuthor.tweening.value && sceneAuthor.tweenT.value < 0.5) {
-    return sceneAuthor.tweenFromSceneId.value;
-  }
+  const t = sceneAuthor.tween.value;
+  if (t && t.t < 0.5) return t.from;
   return sceneAuthor.activeSceneId.value;
 });
 
@@ -278,12 +277,14 @@ useEventListener('keydown', (event: KeyboardEvent) => {
 });
 
 function onAddCallout() {
-  if (!sceneAuthor.activeSceneId.value || sceneAuthor.tweening.value) return;
+  if (!sceneAuthor.activeSceneId.value || sceneAuthor.tween.value !== null)
+    return;
   annotationAuthor.enter('callout');
 }
 
 function onAddDimension() {
-  if (!sceneAuthor.activeSceneId.value || sceneAuthor.tweening.value) return;
+  if (!sceneAuthor.activeSceneId.value || sceneAuthor.tween.value !== null)
+    return;
   annotationAuthor.enter('dimension');
 }
 
@@ -293,7 +294,7 @@ const annotationKindComponents = {
 };
 
 async function onAddScene() {
-  if (sceneAuthor.tweening.value) return;
+  if (sceneAuthor.tween.value !== null) return;
   const state = sceneAuthor.captureCurrentSceneState();
   const thumbnail = sceneAuthor.captureThumbnail() ?? undefined;
   const id = await scenesApi.addScene({ state, thumbnail });
@@ -302,7 +303,7 @@ async function onAddScene() {
 }
 
 async function onSelectScene(id: string) {
-  if (sceneAuthor.tweening.value) return;
+  if (sceneAuthor.tween.value !== null) return;
   const scene = scenesApi.scenes.value.find((s) => s.id === id);
   if (!scene) return;
   await sceneAuthor.tweenToScene(scene);
@@ -333,7 +334,7 @@ const canUpdateScene = computed(
   () =>
     sceneAuthor.dirty.value &&
     sceneAuthor.activeSceneId.value !== null &&
-    !sceneAuthor.tweening.value,
+    sceneAuthor.tween.value === null,
 );
 
 watch(
@@ -392,9 +393,7 @@ function onFloorVisible(v: boolean) {
         v-if="hasModelData && !hasOnlyManualModels"
         :annotations="annotationsApi.annotations.value"
         :active-scene-id="sceneAuthor.activeSceneId.value"
-        :tween-from-scene-id="sceneAuthor.tweenFromSceneId.value"
-        :tween-t="sceneAuthor.tweenT.value"
-        :tweening="sceneAuthor.tweening.value"
+        :tween="sceneAuthor.tween.value"
         :projector="projector"
         :draft-id="annotationAuthor.draftId.value"
         :preview="annotationAuthor.preview.value"
@@ -620,7 +619,7 @@ function onFloorVisible(v: boolean) {
         <SceneTimeline
           :scenes="scenesApi.scenes.value"
           :active-scene-id="sceneAuthor.activeSceneId.value"
-          :busy="sceneAuthor.tweening.value"
+          :busy="sceneAuthor.tween.value !== null"
           @select="onSelectScene"
           @reorder="(id, idx) => scenesApi.moveScene(id, idx)"
           @rename="(id, name) => scenesApi.updateScene(id, { name })"

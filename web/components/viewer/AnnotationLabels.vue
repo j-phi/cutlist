@@ -24,14 +24,13 @@
  */
 import type { Component } from 'vue';
 import type { AnnotationKind, IdbAnnotation } from '~/composables/useIdb';
+import type { Tween } from '~/composables/useSceneAuthor';
 import type { AnnotationProjector } from '~/lib/viewer/modules/AnnotationProjector';
 
 const props = defineProps<{
   annotations: IdbAnnotation[];
   activeSceneId: string | null;
-  tweenFromSceneId: string | null;
-  tweenT: number;
-  tweening: boolean;
+  tween: Tween | null;
   projector: AnnotationProjector;
   draftId?: string | null;
   preview?: IdbAnnotation | null;
@@ -40,18 +39,18 @@ const props = defineProps<{
 }>();
 
 const activePhase = computed<'outgoing' | 'incoming' | 'idle'>(() => {
-  if (!props.tweening) return 'idle';
-  return props.tweenT < 0.5 ? 'outgoing' : 'incoming';
+  if (!props.tween) return 'idle';
+  return props.tween.t < 0.5 ? 'outgoing' : 'incoming';
 });
 
 const fadeOpacity = computed(() => {
-  if (!props.tweening) return 1;
-  const t = Math.max(0, Math.min(1, props.tweenT));
+  if (!props.tween) return 1;
+  const t = Math.max(0, Math.min(1, props.tween.t));
   return t < 0.5 ? 1 - 2 * t : 2 * (t - 0.5);
 });
 
 const renderableSceneId = computed(() => {
-  if (activePhase.value === 'outgoing') return props.tweenFromSceneId;
+  if (activePhase.value === 'outgoing') return props.tween?.from ?? null;
   return props.activeSceneId;
 });
 
