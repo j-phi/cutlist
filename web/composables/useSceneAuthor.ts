@@ -64,6 +64,11 @@ export interface SceneAuthor {
 
   toggleObjectVisibility(groupId: GroupId): void;
   setObjectsVisibility(groupIds: GroupId[], visible: boolean): void;
+  /**
+   * Tri-state group toggle. If any of `groupIds` is visible, hide them all;
+   * otherwise show them all. Matches the Objects panel's part-row semantics.
+   */
+  toggleObjectsVisibility(groupIds: readonly GroupId[]): void;
   showAllObjects(): void;
   hideAllObjects(): void;
   resetAllOffsets(): void;
@@ -162,6 +167,12 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
 
   function toggleObjectVisibility(groupId: GroupId): void {
     setObjectsVisibility([groupId], !isVisible(groupId));
+  }
+
+  function toggleObjectsVisibility(groupIds: readonly GroupId[]): void {
+    if (groupIds.length === 0) return;
+    const anyVisible = groupIds.some((id) => isVisible(id));
+    setObjectsVisibility(groupIds, !anyVisible);
   }
 
   function showAllObjects(): void {
@@ -331,6 +342,7 @@ export function useSceneAuthor(viewer: SceneAuthorViewer): SceneAuthor {
     dirty,
     toggleObjectVisibility,
     setObjectsVisibility,
+    toggleObjectsVisibility,
     showAllObjects,
     hideAllObjects,
     resetAllOffsets,

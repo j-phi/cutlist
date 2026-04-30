@@ -146,6 +146,42 @@ describe('useSceneAuthor — visibility', () => {
     expect(a.visibleObjects.value).toBeInstanceOf(Set);
     expect(a.visibleObjects.value?.size).toBe(0);
   });
+
+  it('Should hide every selected Object when any are visible', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.toggleObjectsVisibility([1, 2]);
+    const set = a.visibleObjects.value as Set<GroupId>;
+    expect(set.has(1)).toBe(false);
+    expect(set.has(2)).toBe(false);
+    expect(set.has(3)).toBe(true);
+  });
+
+  it('Should hide all selected when only some are currently visible', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.setObjectsVisibility([1], false);
+    a.toggleObjectsVisibility([1, 2]);
+    const set = a.visibleObjects.value as Set<GroupId>;
+    expect(set.has(1)).toBe(false);
+    expect(set.has(2)).toBe(false);
+  });
+
+  it('Should show every selected Object when all are currently hidden', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.setObjectsVisibility([1, 2], false);
+    a.toggleObjectsVisibility([1, 2]);
+    expect(a.visibleObjects.value).toBeNull();
+  });
+
+  it('Should be a no-op when called with no ids', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.toggleObjectsVisibility([]);
+    expect(a.visibleObjects.value).toBeNull();
+    expect(v.visibleCalls.length).toBe(0);
+  });
 });
 
 describe('useSceneAuthor — dirty flag', () => {

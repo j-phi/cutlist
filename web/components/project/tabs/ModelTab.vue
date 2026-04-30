@@ -264,6 +264,7 @@ watch(
         viewer,
         annotationsApi,
         activeSceneId: sceneAuthor.activeSceneId,
+        author: annotationAuthor,
       }),
     );
     annotationAuthor.registerHandler(
@@ -280,6 +281,24 @@ watch(
 );
 
 onUnmounted(() => projector.dispose());
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
+useEventListener('keydown', (event: KeyboardEvent) => {
+  if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+  if (event.repeat) return;
+  if (store.selectedGroupIds.value.size === 0) return;
+  if (annotationAuthor.mode.value === 'pick') return;
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (isEditableTarget(event.target)) return;
+  event.preventDefault();
+  sceneAuthor.toggleObjectsVisibility(Array.from(store.selectedGroupIds.value));
+});
 
 function onAddCallout() {
   if (!sceneAuthor.activeSceneId.value || sceneAuthor.tweening.value) return;
