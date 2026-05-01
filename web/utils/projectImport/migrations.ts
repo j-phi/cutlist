@@ -21,7 +21,12 @@
 
 import { FutureSchemaError, SCHEMA_VERSION } from '../versions';
 
-type StoreName = 'projects' | 'models' | 'buildSteps';
+type StoreName =
+  | 'projects'
+  | 'models'
+  | 'buildSteps'
+  | 'scenes'
+  | 'annotations';
 
 /** A loosely-typed export record (string-keyed object with unknown values). */
 export type IdbRecord = Record<string, unknown>;
@@ -37,7 +42,6 @@ export interface RecordMigration {
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
   // v1 baseline: nothing to migrate.
-  // Future: { version: 2, store: 'projects', migrate: (r) => ({ ...r, tags: r.tags ?? [] }) },
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */
@@ -62,6 +66,8 @@ interface RawExport {
   project?: IdbRecord;
   models?: IdbRecord[];
   buildSteps?: IdbRecord[];
+  scenes?: IdbRecord[];
+  annotations?: IdbRecord[];
   [key: string]: unknown;
 }
 
@@ -92,5 +98,21 @@ export function migrateExport(raw: RawExport): RawExport {
     migrateRecord('buildSteps', s, fromVersion),
   );
 
-  return { ...raw, version: SCHEMA_VERSION, project, models, buildSteps };
+  const scenes = (raw.scenes ?? []).map((s) =>
+    migrateRecord('scenes', s, fromVersion),
+  );
+
+  const annotations = (raw.annotations ?? []).map((a) =>
+    migrateRecord('annotations', a, fromVersion),
+  );
+
+  return {
+    ...raw,
+    version: SCHEMA_VERSION,
+    project,
+    models,
+    buildSteps,
+    scenes,
+    annotations,
+  };
 }

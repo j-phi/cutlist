@@ -29,20 +29,17 @@ Formatting runs automatically via lint-staged on commit (Prettier).
 ### Core Data Flow
 
 ```
-GLTF file import
-  → parseGltf (web/utils/parseGltf.ts)
-  → stores parts, colors, nodePartMap + rawSource (GLTF JSON) in IndexedDB
-
-COLLADA file import
-  → parseCollada (web/utils/parseCollada.ts)
-  → stores parts, colors, nodePartMap + rawSource (XML string) in IndexedDB
+GLTF / COLLADA file import
+  → parseGltf / parseCollada (web/utils/)
+  → stores parts, colors, nodePartMap + rawSource (GLTF JSON or COLLADA XML)
+    in IndexedDB
 
 Manual parts
   → user enters via BOM tab
   → stores Part[] in IndexedDB
 
 On project load (useProjects → hydrateModel)
-  → Both model types: reads stored parts/colors directly from IDB
+  → reads stored parts/colors directly from IDB
   → applies partOverrides (user edits like grainLock)
   → user assigns colorMap (material per color)
   → useBoardLayoutsQuery resolves Part → PartToCut (adds material)
@@ -50,6 +47,14 @@ On project load (useProjects → hydrateModel)
   → on cache hit: skip worker; on miss: generateBoardLayouts in worker
   → BomTab / board preview display
   → exportPdf (web/utils/exportPdf.ts) or useExportProject (.cutlist.gz)
+
+On Model tab open (single model rendered at a time)
+  → useModels.getModelGraph(modelId) — derives ObjectGraph from rawSource via
+    resolveModelScene; caches the graph in memory (cleared on project switch,
+    purged on model deletion)
+  → useThreeViewer.loadModel(graph) → ViewerCore.loadModel(graph)
+  → useScenes(modelId) loads the model's scene timeline from IDB
+  → useAnnotations() filters annotations by sceneId for the active scene
 ```
 
 ### Packing Engine (`web/lib/`)
@@ -66,19 +71,52 @@ Search passes include shelf variants, guillotine variants (with/without rotation
 
 Types: `Part` (web/utils/parseGltf.ts) is the storage/UI type (no material). `PartToCut` (web/lib/types.ts) is the packing engine input (has material). `PartOverride` (web/composables/useIdb/types.ts) holds per-part user edits (grainLock, extensible). Other packing types: `Stock`, `BoardLayout`, `SearchPass` in `web/lib/types.ts`.
 
+### 3D Viewer Architecture (`web/lib/viewer/`)
+
+The Model tab is built on a strict two-layer split: `ViewerCore` (plain TypeScript) owns every Three.js object; `useThreeViewer` (Vue adapter) is a thin reactive shell. **Three.js types never cross the boundary** — the day we move to a worker or swap engines, only `useThreeViewer.ts` and `ViewerCore.ts` change.
+
+- **`web/lib/viewer/ViewerCore.ts`** — orchestrator. Owns the renderer + scene graph + camera + selection + gizmo + annotation projection. Public API only deals in domain types (`Vec3`, `GroupId`, `CameraPose`, `ObjectGraph`, etc.).
+- **`web/lib/viewer/modules/`** — composable building blocks: `Renderer`, `SceneGraph`, `CameraRig`, `InputRouter`, `Highlighter`, `GizmoController`, `BatchLoader`, `Floor`, `SnapDetector`, `SnapVisuals`, `MarqueeSelector`, `LeaderManager`, `AnnotationProjector`, `ObjectRegistry`, `EventBus`. Each is single-responsibility and unit-testable.
+- **`web/lib/viewer/annotations/`** — per-kind logic (`callout.ts`, `dimension.ts`) split into a `KindHooks` (drives the projector) plus a `PickKindHandler` (drives the authoring FSM). `shared.ts` holds vector math used by both.
+- **`web/lib/viewer/types.ts`** — viewer-internal types (`ObjectRecord`, `PickResult`, `SnapTarget`, `MarqueeRect`, `ViewerEvent`).
+- **`web/utils/types.ts`** — domain types shared with the rest of the app (`ObjectGraph`, `GroupId`, `PartNumber`, `MeshSlice`, `ObjectNode`, plus `CameraMode`, `CameraPose`, `ObjectOffset` + identity helpers). The `useIdb` barrel re-exports a few of these for compat, but new code should import from `~/utils/types`.
+- **`web/docs/viewer-design.md`** — index of design specs (camera rig, marquee, gizmo, scenes, annotations) with codebase landing paths.
+
+### Scenes & Annotations (`web/lib/scene/`, IDB)
+
+Scenes are scoped **per model**: each `IdbModel` has its own scene timeline. Annotations chain via `sceneId`, so they cascade when scenes are deleted, and so on through the model.
+
+- **`web/lib/scene/`** — pure capture/apply/interpolate helpers (no Three.js boot needed):
+  - `captureSceneState` — viewer state → `SceneState` (sparse: identity offsets dropped, `visibleObjects: Set<GroupId> | null`)
+  - `interpolateSceneState` — produces dense per-tick `{cameraPose, objectOffsets}` for the tween loop
+  - `idbAdapter` — translates `SceneState` ↔ `IdbScene` at the persistence boundary
+  - `easing` — single ease curve used by `useSceneAuthor.tweenToScene`
+- **Authoring** lives in `useSceneAuthor` (visibility, dirty tracking, capture, jump, tween) and `useAnnotationAuthor` (FSM coordinating select ↔ pick mode, dispatching to per-kind handlers).
+- **Per-model active-scene memory** lives in `useModelViewerStore.activeSceneByModel` (`Map<modelId, sceneId>`); switching models in the dropdown restores the model's last-viewed scene.
+
 ### Composables (`web/composables/`)
 
 State is composable-based (no Pinia). Key composables:
 
 - `useProjects` — project CRUD + active project state
-- `useIdb` — IndexedDB persistence (projects, GLTF models, settings)
+- `useIdb` — IndexedDB persistence (projects, models, scenes, annotations, build steps)
+- `useModels` — module-level `ObjectGraph` cache, keyed by modelId. Avoids re-running GLTFLoader/ColladaLoader on dropdown switches
 - `useProjectSettings` — per-project settings (blade width, optimization mode)
 - `useProjectTabMap` — tab state per project
 - `useBoardLayoutsQuery` — runs packing engine reactively
 - `useBuildSteps` — assembly instruction generation
-- `useThreeViewer` — Three.js 3D viewer (GLTF rendering, camera controls)
+- `useThreeViewer(container)` — thin Vue adapter over `ViewerCore`. Owns lifecycle (mount, dispose, canvas remount) and bridges the bus to `useModelViewerStore`
+- `useModelViewerStore` — global selection / hover state for the Model tab; also holds the per-model active-scene map
+- `useScenes(modelIdRef)` — reactive scene list for a model + CRUD
+- `useAnnotations()` — reactive annotation list for the active project + CRUD
+- `useSceneAuthor(viewer, modelIdRef)` — visibility set, active scene id, dirty flag, capture, jump, tween, viewer-setter wrappers (`setCameraMode`, `setFloorVisible`) that auto-mark dirty
+- `useAnnotationAuthor(viewer, annotationsApi, activeSceneId)` — FSM coordinating select ↔ pick mode; per-kind handler registry
+- `useAnnotationProjector(viewer, annotations, activeSceneId, annotationsApi, author)` — projector lifecycle + kind/handler registration; constructs lazily on viewer ready, disposes on scope dispose
+- `useObjectsPanel` — Objects-panel filtering + visibility actions
+- `useFocusedModelLoader` — watches focused model + viewer ready and (re)loads + replays the remembered active scene
+- `useSceneAuthoringActions` — `onAddScene` / `onSelectScene` / `onUpdateActiveScene` / `onRemoveScene` + `canUpdateScene`
 - `useUrlSync` — bidirectional sync between app state (activeId, tab) and URL route
-- `useExportProject` / `useImportProject` — `.cutlist.json` file I/O
+- `useExportProject` / `useImportProject` — `.cutlist.gz` file I/O
 
 ### Routing (`web/pages/`)
 
@@ -146,10 +184,16 @@ Tests use [Vitest](https://vitest.dev) with `@nuxt/test-utils` for component tes
 - `web/lib/__tests__/` — packing algorithm tests
 - `web/lib/packers/__tests__/` — individual packer unit tests
 - `web/lib/utils/__tests__/` — utility tests
-- `web/utils/__tests__/` — web utility tests
+- `web/lib/scene/__tests__/` — scene capture/interpolate math
+- `web/lib/viewer/__tests__/` — viewer-shared utilities (edges, transforms)
+- `web/lib/viewer/modules/__tests__/` — viewer module unit tests
+- `web/lib/viewer/annotations/__tests__/` — annotation kind tests
+- `web/utils/__tests__/` — web utility tests (incl. parser-matrix-parity)
 - `web/composables/__tests__/` — composable + IDB tests
 - `web/components/*/__tests__/` — component interaction tests
 - `web/middleware/__tests__/` — route middleware tests
+
+**Outcome-based assertions, not mock metadata.** Viewer module tests use real `THREE.*` math, real `EventBus`, real `ObjectRegistry`, and stub only what genuinely needs DOM/WebGL (e.g. `TransformControls`, `BatchedMesh`'s GPU-instanced raycast). For Vue components, prefer `wrapper.emitted()` over mocked event handlers. For composables that record calls, prefer plain functions pushing into typed arrays over `vi.fn()` + `toHaveBeenCalled` introspection. See `web/lib/viewer/modules/__tests__/GizmoController.test.ts` and `MarqueeSelector.test.ts` as canonical examples.
 
 Config lives in [web/vitest.config.ts](web/vitest.config.ts). The default environment is `happy-dom` (fast, no Nuxt boot). [web/test-setup.ts](web/test-setup.ts) is loaded as a `setupFiles` entry: it installs `fake-indexeddb` and runs a global `beforeEach` that calls `__resetDbForTests()` (dynamic import so Dexie does not load before `fake-indexeddb/auto`) then `indexedDB.deleteDatabase('cutlist-db')`. **Every test starts with an empty IndexedDB** — do not rely on data from other tests or on test order.
 
@@ -161,9 +205,21 @@ When adding a test for a component that already has a test file with stubs/mocks
 
 All data lives in IndexedDB. The app is still in development — breaking schema changes are acceptable (users can reset their database).
 
+### Tables
+
+- **`projects`** — `id, updatedAt`. The top-level entity.
+- **`models`** — `id, projectId`. Each project can hold multiple models; the Model tab renders one at a time via a dropdown when there's more than one.
+- **`buildSteps`** — `id, projectId`. Assembly instructions (rich-text).
+- **`scenes`** — `id, modelId, order`. Per-model scene timeline. `IdbScene` carries camera mode + pose, per-Object rigid offsets, visibility set, floor visibility, and a thumbnail data URL.
+- **`annotations`** — `id, sceneId`. Discriminated union of `IdbCallout` and `IdbDimension`. Anchored in Object-local space so they ride explode tweens and gizmo drags.
+
+Cascade: deleting a project deletes its models, build steps, scenes, and annotations in one Dexie transaction. Deleting a model cascades to its scenes and (via sceneId) annotations.
+
 ### IdbModel — what's stored
 
-Both GLTF and manual models store their `parts`, `colors`, and `nodePartMap` directly in IndexedDB. GLTF models also keep `rawSource` (the GLTF JSON object) and COLLADA models keep `rawSource` (the XML string) for the 3D viewer. Derivation from the source format happens once at import time — there is no re-derivation on load.
+Both GLTF and manual models store their `parts`, `colors`, and `nodePartMap` directly in IndexedDB. GLTF models also keep `rawSource` (the GLTF JSON object) and COLLADA models keep `rawSource` (the XML string) for the 3D viewer. The viewer derives an `ObjectGraph` from `rawSource` on first open via `resolveModelScene`; `useModels` caches the derived graph in memory so subsequent opens of the same model are instant.
+
+`IdbModelMeta = Omit<IdbModel, 'rawSource'>` — what the reactive `useProjects().enabledModels` exposes, so the heavy raw payload doesn't leak into reactive state. Use `useIdb().getModelRawSource(id)` (or, preferably, `useModels().getModelGraph(id)`) to fetch on demand.
 
 Both model types use `partOverrides: Record<number, PartOverride>` for user edits (keyed by partNumber). To add a new per-part override, just add an optional field to `PartOverride` — no migration needed.
 
@@ -192,8 +248,10 @@ Board layouts are cached per tab in a module-level `Map` inside [web/composables
 
 ### When adding a new field to a record type
 
+The current schema is a clean v1 baseline. The first real schema bump after this point follows:
+
 1. Update the TypeScript interface in `useIdb/types.ts`.
-2. Add a new Dexie version block in `db.ts`:
+2. Append a new Dexie version block in `db.ts`:
    ```ts
    this.version(N)
      .stores({
@@ -208,6 +266,7 @@ Board layouts are cached per tab in a module-level `Map` inside [web/composables
          });
      });
    ```
+   Do NOT edit the existing v1 block.
 3. Bump `SCHEMA_VERSION` in `versions.ts` and add the matching pure-function entry to `migrations[]` in `projectImport/migrations.ts` for the import path.
 4. Update the relevant `applyDefaults` helper.
 5. Update `createX` to set the field for new records.
@@ -224,3 +283,4 @@ Board layouts are cached per tab in a module-level `Map` inside [web/composables
 - `web/tailwind.config.ts` — custom color palette
 - `web/app.config.ts` — Nuxt UI theme
 - `cutlist.config.yaml` — user-facing defaults (stock materials, blade width, optimization modes)
+- `web/docs/viewer-design.md` — index of viewer / scenes / annotations design specs

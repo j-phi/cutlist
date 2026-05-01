@@ -1,18 +1,37 @@
 <script lang="ts" setup>
 import type { BoardLayoutLeftover } from 'cutlist';
-import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
+import type { GizmoMode, ViewPreset } from '~/lib/viewer/types';
+import ViewCube from '~/components/viewer/ViewCube.vue';
+import ObjectsPanel from '~/components/viewer/ObjectsPanel.vue';
+import SceneTimeline from '~/components/viewer/SceneTimeline.vue';
+import AnnotationLabels from '~/components/viewer/AnnotationLabels.vue';
+import CalloutLabel from '~/components/viewer/CalloutLabel.vue';
+import DimensionLabel from '~/components/viewer/DimensionLabel.vue';
+import ModelEmptyState from '~/components/viewer/ModelEmptyState.vue';
+import ModelSwitcher from '~/components/viewer/ModelSwitcher.vue';
+import GizmoModeToggle from '~/components/viewer/GizmoModeToggle.vue';
+import MouseLegend from '~/components/viewer/MouseLegend.vue';
+import PartInfoPanel from '~/components/viewer/PartInfoPanel.vue';
+import AnnotationToolbar from '~/components/viewer/AnnotationToolbar.vue';
+import { useSceneAuthor } from '~/composables/useSceneAuthor';
+import { useScenes } from '~/composables/useScenes';
+import { useAnnotations } from '~/composables/useAnnotations';
+import { useAnnotationAuthor } from '~/composables/useAnnotationAuthor';
+import { useAnnotationProjector } from '~/composables/useAnnotationProjector';
+import { useSceneAuthoringActions } from '~/composables/useSceneAuthoringActions';
+import { useFocusedModelLoader } from '~/composables/useFocusedModelLoader';
+import { defaultSceneIdForModel } from '~/utils/defaultScene';
 
 const props = withDefaults(
   defineProps<{
-    showOpenButton?: boolean;
+    readOnly?: boolean;
+    defaultScenePreview?: boolean;
   }>(),
   {
-    showOpenButton: false,
+    readOnly: false,
+    defaultScenePreview: false,
   },
 );
-const emit = defineEmits<{
-  expand: [];
-}>();
 
 const { activeId, enabledModels: allEnabledModels } = useProjects();
 const enabledModels = computed(() =>
@@ -20,25 +39,33 @@ const enabledModels = computed(() =>
 );
 const { data: boardLayouts } = useBoardLayoutsQuery();
 const store = useModelViewerStore();
-const formatDistance = useFormatDistance();
-const idb = useIdb();
 
 const canvasContainer = ref<HTMLElement>();
 const viewer = useThreeViewer(canvasContainer);
+watchEffect(() => {
+  void viewer.ready.value;
+  viewer.setGizmoEnabled(!props.readOnly);
+});
 
 // Model switcher — always show exactly one model
 const focusedModelIdx = ref(0);
 
 watch(activeId, () => {
   focusedModelIdx.value = 0;
-  rawSourceCache.clear();
+  // The active-scene memory is keyed by modelId (stable per project), so a
+  // project switch invalidates every entry — purge to keep the map bounded
+  // and avoid stale ids surviving a project delete + re-create.
+  store.clearActiveSceneMemory();
 });
 
-const displayModels = computed(() => {
+const focusedModel = computed(() => {
   const idx = Math.min(focusedModelIdx.value, enabledModels.value.length - 1);
-  const m = enabledModels.value[idx];
-  return m ? [m] : [];
+  return enabledModels.value[idx] ?? null;
 });
+
+const focusedModelId = computed<string | null>(
+  () => focusedModel.value?.id ?? null,
+);
 
 const hasModelData = computed(() => enabledModels.value.length > 0);
 
@@ -48,78 +75,16 @@ const hasOnlyManualModels = computed(
     allEnabledModels.value.every((m) => m.source === 'manual'),
 );
 
-// In-memory cache to avoid redundant IDB reads when switching models.
-const rawSourceCache = new Map<string, object | string>();
-const allRawData = ref<Map<
-  string,
-  { raw: object | string; source: 'gltf' | 'collada' }
-> | null>(null);
-
-async function loadRawData() {
-  if (!activeId.value || displayModels.value.length === 0) {
-    allRawData.value = null;
-    return;
-  }
-  const entries = await Promise.all(
-    displayModels.value.map(async (m) => {
-      let raw = rawSourceCache.get(m.id);
-      if (raw == null) {
-        const fetched = await idb.getModelRawSource(m.id);
-        if (fetched != null) {
-          raw = fetched;
-          rawSourceCache.set(m.id, raw);
-        }
-      }
-      return raw != null
-        ? ([m.id, { raw, source: m.source as 'gltf' | 'collada' }] as const)
-        : null;
-    }),
-  );
-  allRawData.value = new Map(
-    entries.filter((e): e is NonNullable<typeof e> => e != null),
-  );
-}
-
-watch(
-  [activeId, () => displayModels.value.map((m) => m.id).join(',')],
-  loadRawData,
-  { immediate: true },
-);
-
-async function loadAllModels() {
-  const data = allRawData.value;
-  if (!data || !viewer.ready.value) return;
-
-  const { resolveModelScene } = await import('~/utils/resolveModelScene');
-
-  viewer.clearModels();
-
-  // Use offsets from ALL enabled models so part numbers stay consistent with BOM
-  const allOffsets = computePartNumberOffsets(enabledModels.value);
-  const models = displayModels.value;
-
-  for (const model of models) {
-    const modelIdx = enabledModels.value.findIndex((m) => m.id === model.id);
-    const offset = modelIdx >= 0 ? allOffsets[modelIdx] : 0;
-    const entry = data.get(model.id);
-    if (entry && model.nodePartMap) {
-      const resolvedNodes = await resolveModelScene(
-        entry.raw,
-        entry.source,
-        model.nodePartMap,
-      );
-      viewer.loadModel(resolvedNodes, offset);
-    }
-  }
-}
-
-watch(allRawData, loadAllModels);
-watch(
-  () => viewer.ready.value,
-  (isReady) => {
-    if (isReady) loadAllModels();
-  },
-);
+const emptyStateType = computed<
+  'no-models' | 'manual-only' | 'no-source' | null
+>(() => {
+  if (hasOnlyManualModels.value) return 'manual-only';
+  if (allEnabledModels.value.length === 0) return 'no-models';
+  if (enabledModels.value.length === 0) return 'no-models';
+  if (focusedModelId.value && loadState.value === 'missing-source')
+    return 'no-source';
+  return null;
+});
 
 function findPart(partNum: number | null): BoardLayoutLeftover | undefined {
   if (partNum == null || !boardLayouts.value) return;
@@ -129,10 +94,148 @@ function findPart(partNum: number | null): BoardLayoutLeftover | undefined {
   ].find((p) => p.partNumber === partNum);
 }
 
-const infoPart = computed(
+const infoPart = computed(() => {
+  const inv = store.partNumberOfGroupId.value;
+  for (const id of store.selectedGroupIds.value) {
+    const pn = inv.get(id);
+    const found = pn != null ? findPart(pn) : undefined;
+    if (found) return found;
+  }
+  for (const id of store.hoveredGroupIds.value) {
+    const pn = inv.get(id);
+    const found = pn != null ? findPart(pn) : undefined;
+    if (found) return found;
+  }
+  return undefined;
+});
+
+const gizmoMode = ref<GizmoMode>('translate');
+
+const hasSelection = computed(() => store.selectedGroupIds.value.size > 0);
+
+function onGizmoMode(mode: GizmoMode) {
+  gizmoMode.value = mode;
+  viewer.setGizmoMode(mode);
+}
+
+// Scenes are model-scoped. The focused model id drives both the timeline
+// (`useScenes`) and the per-model active-scene memory inside `useSceneAuthor`.
+const readOnly = computed(() => props.readOnly);
+const sceneAuthor = useSceneAuthor(viewer, focusedModelId, { readOnly });
+const scenesApi = useScenes(focusedModelId);
+const targetSceneId = computed(() => {
+  if (props.defaultScenePreview && focusedModelId.value) {
+    return defaultSceneIdForModel(focusedModelId.value);
+  }
+  return null;
+});
+const { loadedGraph, loadState } = useFocusedModelLoader({
+  viewer,
+  focusedModelId,
+  sceneAuthor,
+  scenesApi,
+  targetSceneId,
+});
+const canShowViewerControls = computed(
   () =>
-    findPart(store.selectedPartNumber.value) ??
-    findPart(store.hoveredPartNumber.value),
+    hasModelData.value && !hasOnlyManualModels.value && !emptyStateType.value,
+);
+const annotationsApi = useAnnotations();
+const annotationAuthor = useAnnotationAuthor(
+  viewer,
+  annotationsApi,
+  sceneAuthor.activeSceneId,
+);
+
+const renderableSceneId = computed<string | null>(() => {
+  const t = sceneAuthor.tween.value;
+  if (t && t.t < 0.5) return t.from;
+  return sceneAuthor.activeSceneId.value;
+});
+
+const visibleAnnotations = computed(() => {
+  const sid = renderableSceneId.value;
+  if (!sid) return [];
+  return annotationsApi.annotations.value.filter((a) => a.sceneId === sid);
+});
+
+const projectableAnnotations = annotationAuthor.projectableAnnotations(
+  visibleAnnotations,
+  renderableSceneId,
+);
+
+const { projector } = useAnnotationProjector({
+  viewer,
+  annotationsApi,
+  annotationAuthor,
+  activeSceneId: sceneAuthor.activeSceneId,
+  getAnnotations: () => projectableAnnotations.value,
+});
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
+useEventListener('keydown', (event: KeyboardEvent) => {
+  if (props.readOnly) return;
+  if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+  if (event.repeat) return;
+  if (store.selectedGroupIds.value.size === 0) return;
+  if (annotationAuthor.mode.value === 'pick') return;
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (isEditableTarget(event.target)) return;
+  event.preventDefault();
+  sceneAuthor.toggleObjectsVisibility(Array.from(store.selectedGroupIds.value));
+});
+
+function onAddCallout() {
+  if (!sceneAuthor.activeSceneId.value || sceneAuthor.tween.value !== null)
+    return;
+  annotationAuthor.enter('callout');
+}
+
+function onDraftCommitted(id: string) {
+  // The chip just settled its inline-edit — drop the draft pointer so the
+  // next render renders it as a persisted annotation (read-only span)
+  // rather than a textarea. Without this, the textarea stays visible
+  // across scene switches and on remount no longer reflects the persisted
+  // text correctly.
+  if (annotationAuthor.draftId.value === id) annotationAuthor.clearDraft();
+}
+
+function onAddDimension() {
+  if (!sceneAuthor.activeSceneId.value || sceneAuthor.tween.value !== null)
+    return;
+  annotationAuthor.enter('dimension');
+}
+
+const annotationKindComponents = {
+  callout: CalloutLabel,
+  dimension: DimensionLabel,
+};
+
+const sceneActions = useSceneAuthoringActions(sceneAuthor, scenesApi);
+
+function onSnap(preset: ViewPreset) {
+  viewer.applyViewPreset(preset);
+}
+
+// Initial targetSceneId application is handled inside `useFocusedModelLoader`
+// as part of the candidate-id chain. This watch covers the after-load case:
+// the focused model changes (so targetSceneId recomputes) without re-firing
+// the loader, or scenes finish hydrating after the initial jump.
+watch(
+  [targetSceneId, () => scenesApi.scenes.value, loadState],
+  ([sid]) => {
+    if (!sid || loadState.value !== 'loaded') return;
+    if (sceneAuthor.activeSceneId.value === sid) return;
+    const scene = scenesApi.scenes.value.find((s) => s.id === sid);
+    if (scene) sceneAuthor.jumpToScene(scene);
+  },
+  { flush: 'post' },
 );
 </script>
 
@@ -142,251 +245,139 @@ const infoPart = computed(
       <!-- 3D Canvas -->
       <div ref="canvasContainer" class="absolute inset-0 bg-mist-950" />
 
-      <!-- Empty state: no models -->
+      <!-- Marquee multi-select rect. AutoCAD/OnShape convention:
+           solid border = window (drag L→R, must fully contain) and
+           dashed border = crossing (drag R→L, any overlap counts). -->
       <div
-        v-if="enabledModels.length === 0"
-        class="absolute inset-0 flex items-center justify-center"
+        v-if="viewer.marqueeRect.value"
+        class="pointer-events-none absolute z-10 border-teal-400/70 bg-teal-400/10"
+        :class="
+          viewer.marqueeRect.value.mode === 'window'
+            ? 'border border-solid'
+            : 'border border-dashed bg-teal-400/15'
+        "
+        :style="{
+          left: viewer.marqueeRect.value.x + 'px',
+          top: viewer.marqueeRect.value.y + 'px',
+          width: viewer.marqueeRect.value.w + 'px',
+          height: viewer.marqueeRect.value.h + 'px',
+        }"
+      />
+
+      <!-- Annotation overlay -->
+      <AnnotationLabels
+        v-if="canShowViewerControls"
+        :annotations="annotationsApi.annotations.value"
+        :active-scene-id="sceneAuthor.activeSceneId.value"
+        :tween="sceneAuthor.tween.value"
+        :projector="projector"
+        :draft-id="annotationAuthor.draftId.value"
+        :preview="annotationAuthor.preview.value"
+        :kind-components="annotationKindComponents"
+        :on-leader-opacity-scale="(s) => viewer.setLeaderOpacityScale(s)"
+        @draft-committed="onDraftCommitted"
+      />
+
+      <!-- Pick-mode hint. `pointer-events: none` so the cursor never lands
+           on this overlay during a multi-step pick — otherwise the canvas
+           below would miss pointermove events between clicks (e.g. the
+           dimension offset preview would freeze). -->
+      <div
+        v-if="annotationAuthor.mode.value === 'pick'"
+        class="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 text-sm text-body shadow pointer-events-none"
       >
-        <p class="bg-base border border-default rounded p-4 text-muted">
-          Import a model in the BOM tab to view it in 3D.
-        </p>
+        {{ annotationAuthor.hint.value }}
       </div>
 
-      <!-- Empty state: only manual parts -->
-      <div
-        v-else-if="hasOnlyManualModels"
-        class="absolute inset-0 flex items-center justify-center"
-      >
-        <p class="bg-base border border-default rounded p-4 text-muted">
-          Parts were added manually — no 3D model to view.
-        </p>
-      </div>
-
-      <!-- Empty state: models exist but no raw source stored (pre-feature import) -->
-      <div
-        v-else-if="!hasModelData"
-        class="absolute inset-0 flex items-center justify-center"
-      >
-        <p class="bg-base border border-default rounded p-4 text-muted">
-          Re-import your model to enable 3D preview.
-        </p>
-      </div>
+      <!-- Empty states (no-models / manual-only / no-source) -->
+      <ModelEmptyState v-if="emptyStateType" :type="emptyStateType" />
 
       <!-- Model switcher (only when multiple enabled models) -->
-      <div v-if="enabledModels.length > 1" class="absolute top-4 left-4 z-10">
-        <select
-          :value="focusedModelIdx === null ? '' : String(focusedModelIdx)"
-          class="model-select bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 text-sm text-body hover:text-hi cursor-pointer appearance-none pr-8 focus:outline-none focus:border-default"
-          @change="
-            (e) => {
-              focusedModelIdx = Number((e.target as HTMLSelectElement).value);
-            }
-          "
-        >
-          <option
-            v-for="(m, i) in enabledModels"
-            :key="m.id"
-            :value="String(i)"
-            style="background: #161b1d; color: #e3e7e8"
-          >
-            {{ m.filename }}
-          </option>
-        </select>
+      <div
+        v-if="!props.readOnly && enabledModels.length > 1"
+        class="absolute top-4 left-4 z-10"
+      >
+        <ModelSwitcher
+          :models="enabledModels"
+          :focused-idx="focusedModelIdx"
+          @update:focused-idx="(idx) => (focusedModelIdx = idx)"
+        />
       </div>
 
+      <!-- Objects panel (left sidebar) -->
       <div
-        v-if="props.showOpenButton"
-        class="absolute top-4 right-4 z-10 bg-overlay backdrop-blur border border-subtle rounded-lg p-1"
+        v-if="!props.readOnly && canShowViewerControls && loadedGraph"
+        class="absolute top-4 left-4 z-10"
+        :class="enabledModels.length > 1 ? 'top-16' : 'top-4'"
       >
-        <UButton
-          size="xs"
-          color="primary"
-          variant="soft"
-          icon="i-lucide-expand"
-          label="Open model view"
-          @click="emit('expand')"
+        <ObjectsPanel :graph="loadedGraph" :author="sceneAuthor" />
+      </div>
+
+      <!-- Gizmo mode toolbar (only when something is selected) -->
+      <div
+        v-if="!props.readOnly && canShowViewerControls && hasSelection"
+        class="absolute top-4 right-32 z-10"
+      >
+        <GizmoModeToggle :mode="gizmoMode" @update:mode="onGizmoMode" />
+      </div>
+
+      <!-- View cube + projection / floor toggles -->
+      <div v-if="canShowViewerControls" class="absolute top-4 right-4 z-10">
+        <ViewCube
+          :camera-direction="viewer.cameraDirection.value"
+          :camera-mode="sceneAuthor.cameraMode.value"
+          :floor-visible="sceneAuthor.floorVisible.value"
+          @snap="onSnap"
+          @update:camera-mode="(m) => sceneAuthor.setCameraMode(m)"
+          @update:floor-visible="(v) => sceneAuthor.setFloorVisible(v)"
         />
       </div>
 
       <!-- Part info panel -->
-      <div
-        v-if="infoPart"
-        class="absolute bottom-4 left-4 z-10 bg-overlay backdrop-blur border border-subtle rounded-lg p-3 min-w-[200px]"
-      >
-        <p class="text-teal-400 font-bold text-lg mb-1">
-          #{{ infoPart.partNumber }} {{ infoPart.name }}
-        </p>
-        <table class="text-sm text-body">
-          <tbody>
-            <tr>
-              <td class="pr-3 text-muted">Width</td>
-              <td>{{ formatDistance(infoPart.widthM) }}</td>
-            </tr>
-            <tr>
-              <td class="pr-3 text-muted">Length</td>
-              <td>{{ formatDistance(infoPart.lengthM) }}</td>
-            </tr>
-            <tr>
-              <td class="pr-3 text-muted">Thickness</td>
-              <td>
-                {{ formatDistance(infoPart.thicknessM) }}
-              </td>
-            </tr>
-            <tr>
-              <td class="pr-3 text-muted">Material</td>
-              <td>{{ infoPart.material }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-if="infoPart" class="absolute bottom-4 left-4 z-10">
+        <PartInfoPanel :part="infoPart" />
       </div>
 
-      <!-- Bottom-right controls (mouse-only, hidden on mobile) -->
+      <!-- Scene timeline (bottom strip) -->
+      <div
+        v-if="!props.readOnly && canShowViewerControls"
+        class="absolute left-0 right-0 bottom-0 z-10"
+      >
+        <AnnotationToolbar
+          :has-active-scene="!!sceneAuthor.activeSceneId.value"
+          :mode="annotationAuthor.mode.value"
+          :pick-kind="annotationAuthor.pickKind.value"
+          :can-update-scene="sceneActions.canUpdateScene.value"
+          @add-callout="onAddCallout"
+          @add-dimension="onAddDimension"
+          @update-scene="sceneActions.updateActiveScene"
+        />
+        <SceneTimeline
+          :scenes="scenesApi.scenes.value"
+          :active-scene-id="sceneAuthor.activeSceneId.value"
+          :busy="sceneAuthor.tween.value !== null"
+          :pinned-ids="scenesApi.pinnedSceneIds.value"
+          @select="sceneActions.selectScene"
+          @reorder="(id, idx) => scenesApi.moveScene(id, idx)"
+          @rename="(id, name) => scenesApi.updateScene(id, { name })"
+          @remove="sceneActions.removeScene"
+          @add="sceneActions.addScene"
+        />
+      </div>
+
+      <!-- Bottom-right controls — desktop mouse legend (OnShape-style mapping) -->
       <div
         class="absolute bottom-4 right-4 z-10 hidden sm:flex flex-col items-end gap-2"
       >
-        <!-- Mouse controls legend -->
-        <div
-          class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2.5 flex flex-col gap-2"
-        >
-          <!-- Left drag → Orbit -->
-          <div class="flex items-center gap-2.5">
-            <svg
-              width="18"
-              height="24"
-              viewBox="0 0 18 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              class="shrink-0 text-muted"
-            >
-              <rect
-                x="1"
-                y="5"
-                width="16"
-                height="18"
-                rx="8"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <path
-                d="M1 13h7V5a8 8 0 0 0-7 8Z"
-                fill="currentColor"
-                fill-opacity="0.5"
-              />
-              <line
-                x1="9"
-                y1="5"
-                x2="9"
-                y2="13"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <rect
-                x="7"
-                y="8"
-                width="4"
-                height="5"
-                rx="2"
-                fill="currentColor"
-                fill-opacity="0.3"
-              />
-            </svg>
-            <span class="text-xs text-muted">Drag</span>
-            <span class="text-xs text-body ml-auto pl-3">Orbit</span>
-          </div>
-          <!-- Scroll → Zoom -->
-          <div class="flex items-center gap-2.5">
-            <svg
-              width="18"
-              height="24"
-              viewBox="0 0 18 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              class="shrink-0 text-muted"
-            >
-              <rect
-                x="1"
-                y="5"
-                width="16"
-                height="18"
-                rx="8"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <line
-                x1="9"
-                y1="5"
-                x2="9"
-                y2="13"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <rect
-                x="7"
-                y="8"
-                width="4"
-                height="5"
-                rx="2"
-                fill="currentColor"
-              />
-            </svg>
-            <span class="text-xs text-muted">Scroll</span>
-            <span class="text-xs text-body ml-auto pl-3">Zoom</span>
-          </div>
-          <!-- Right drag → Pan -->
-          <div class="flex items-center gap-2.5">
-            <svg
-              width="18"
-              height="24"
-              viewBox="0 0 18 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              class="shrink-0 text-muted"
-            >
-              <rect
-                x="1"
-                y="5"
-                width="16"
-                height="18"
-                rx="8"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <path
-                d="M17 13H9V5a8 8 0 0 1 8 8Z"
-                fill="currentColor"
-                fill-opacity="0.5"
-              />
-              <line
-                x1="9"
-                y1="5"
-                x2="9"
-                y2="13"
-                stroke="currentColor"
-                stroke-width="1.25"
-              />
-              <rect
-                x="7"
-                y="8"
-                width="4"
-                height="5"
-                rx="2"
-                fill="currentColor"
-                fill-opacity="0.3"
-              />
-            </svg>
-            <span class="text-xs text-muted">Drag</span>
-            <span class="text-xs text-body ml-auto pl-3">Pan</span>
-          </div>
-        </div>
+        <MouseLegend variant="desktop" />
+      </div>
+
+      <!-- Bottom-right controls — mobile touch legend -->
+      <div
+        class="absolute bottom-4 right-4 z-10 flex sm:hidden flex-col items-end gap-2"
+      >
+        <MouseLegend variant="mobile" />
       </div>
     </div>
   </ClientOnly>
 </template>
-
-<style scoped>
-.model-select {
-  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca8ab' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-}
-</style>

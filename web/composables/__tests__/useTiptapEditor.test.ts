@@ -1,124 +1,134 @@
+/**
+ * Outcome-based tests. Pattern: real Tiptap `Editor` (instantiated synchronously)
+ * with real StarterKit/Link/Placeholder extensions, plus thin recording wrappers
+ * around each extension's `configure()` so we can observe the option payloads
+ * the SUT sends. Editor state (HTML, isEmpty, link attrs) is queried directly
+ * rather than via mock metadata.
+ *
+ * Why a stubbed `useEditor`? The real one from `@tiptap/vue-3` calls
+ * `onMounted`, which only fires inside a mounted component — and we test the
+ * composable in a bare `effectScope`. The stub keeps the surface identical
+ * (`{ content, extensions, onUpdate }` → `Ref<Editor>`) while skipping the
+ * lifecycle plumbing.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, nextTick, ref, type EffectScope, type Ref } from 'vue';
+import { Editor } from '@tiptap/vue-3';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
 
-// ── Fake editor + Tiptap module mocks ────────────────────────────────────────
+// ── Recording wrappers around real extensions ───────────────────────────────
+//
+// Each call site pushes its options into an array, then forwards to the real
+// `configure()` so the editor still renders correctly. Tests assert against
+// the captured arrays.
 
-type Updater = (ctx: { editor: FakeEditor }) => void;
+const starterKitConfigureCalls: Array<Record<string, unknown>> = [];
+const linkConfigureCalls: Array<Record<string, unknown>> = [];
+const placeholderConfigureCalls: Array<Record<string, unknown>> = [];
 
-interface FakeEditorOpts {
+interface UseEditorOptions {
   content?: string;
-  onUpdate?: Updater;
   extensions?: unknown[];
   editorProps?: unknown;
+  // Tiptap's onUpdate signature includes `transaction` and
+  // `appendedTransactions`, but the SUT only reads `editor`. Accept the
+  // broader signature so the type matches Tiptap's `EditorOptions`.
+  onUpdate?: (props: {
+    editor: Editor;
+    transaction: unknown;
+    appendedTransactions: unknown[];
+  }) => void;
 }
 
-class FakeEditor {
-  contentHtml = '';
-  isEmpty = true;
-  destroyed = false;
-  updateHandler: Updater | null = null;
-  linkAttrs: Record<string, string> = {};
+interface UseEditorCall {
+  content?: string;
+  extensions: unknown[];
+  editor: Editor;
+}
+const useEditorCalls: UseEditorCall[] = [];
 
-  // Spies for chain commands.
-  focus = vi.fn().mockReturnThis();
-  extendMarkRange = vi.fn().mockReturnThis();
-  unsetLink = vi.fn().mockReturnThis();
-  setLink = vi.fn().mockReturnThis();
-  run = vi.fn().mockReturnValue(true);
+function resetRecordings() {
+  starterKitConfigureCalls.length = 0;
+  linkConfigureCalls.length = 0;
+  placeholderConfigureCalls.length = 0;
+  useEditorCalls.length = 0;
+}
 
-  // Convenience hooks for tests.
-  setContentSpy = vi.fn();
-  destroySpy = vi.fn();
-
-  constructor(opts: FakeEditorOpts) {
-    this.contentHtml = opts.content ?? '';
-    this.isEmpty = !this.contentHtml;
-    this.updateHandler = opts.onUpdate ?? null;
-  }
-
-  chain() {
-    return this;
-  }
-
-  isActive(_name: string) {
-    return false;
-  }
-
-  getHTML() {
-    return this.contentHtml;
-  }
-
-  setHTML(html: string) {
-    this.contentHtml = html;
-    this.isEmpty = !html;
-  }
-
-  getAttributes(name: string) {
-    return name === 'link' ? this.linkAttrs : {};
-  }
-
-  commands = {
-    setContent: (val: string, opts?: unknown) => {
-      this.setContentSpy(val, opts);
-      this.contentHtml = val;
-      this.isEmpty = !val;
+vi.mock('@tiptap/starter-kit', async () => {
+  const actual = await vi.importActual<typeof import('@tiptap/starter-kit')>(
+    '@tiptap/starter-kit',
+  );
+  return {
+    default: {
+      ...actual.default,
+      configure: (opts: Record<string, unknown>) => {
+        starterKitConfigureCalls.push(opts);
+        return actual.default.configure(opts);
+      },
     },
   };
-
-  destroy() {
-    this.destroyed = true;
-    this.destroySpy();
-  }
-
-  fireUpdate(html: string) {
-    this.contentHtml = html;
-    this.isEmpty = !html;
-    this.updateHandler?.({ editor: this });
-  }
-}
-
-let lastEditorOpts: FakeEditorOpts | null = null;
-let lastEditor: FakeEditor | null = null;
-const useEditorSpy = vi.fn((opts: FakeEditorOpts) => {
-  lastEditorOpts = opts;
-  lastEditor = new FakeEditor(opts);
-  return ref(lastEditor);
 });
 
-vi.mock('@tiptap/vue-3', () => ({
-  useEditor: (opts: FakeEditorOpts) => useEditorSpy(opts),
-  EditorContent: { name: 'EditorContent', render: () => null },
-}));
+vi.mock('@tiptap/extension-link', async () => {
+  const actual = await vi.importActual<typeof import('@tiptap/extension-link')>(
+    '@tiptap/extension-link',
+  );
+  return {
+    default: {
+      ...actual.default,
+      configure: (opts: Record<string, unknown>) => {
+        linkConfigureCalls.push(opts);
+        return actual.default.configure(opts);
+      },
+    },
+  };
+});
 
-const starterKitConfigure = vi.fn(
-  (opts: Record<string, unknown>) =>
-    ({ name: 'StarterKit', opts }) as { name: string; opts: typeof opts },
-);
-vi.mock('@tiptap/starter-kit', () => ({
-  default: {
-    configure: (opts: Record<string, unknown>) => starterKitConfigure(opts),
-  },
-}));
+vi.mock('@tiptap/extension-placeholder', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tiptap/extension-placeholder')
+  >('@tiptap/extension-placeholder');
+  return {
+    default: {
+      ...actual.default,
+      configure: (opts: Record<string, unknown>) => {
+        placeholderConfigureCalls.push(opts);
+        return actual.default.configure(opts);
+      },
+    },
+  };
+});
 
-const linkConfigure = vi.fn(
-  (opts: Record<string, unknown>) =>
-    ({ name: 'Link', opts }) as { name: string; opts: typeof opts },
-);
-vi.mock('@tiptap/extension-link', () => ({
-  default: {
-    configure: (opts: Record<string, unknown>) => linkConfigure(opts),
-  },
-}));
-
-const placeholderConfigure = vi.fn(
-  (opts: Record<string, unknown>) =>
-    ({ name: 'Placeholder', opts }) as { name: string; opts: typeof opts },
-);
-vi.mock('@tiptap/extension-placeholder', () => ({
-  default: {
-    configure: (opts: Record<string, unknown>) => placeholderConfigure(opts),
-  },
-}));
+// `useEditor` from @tiptap/vue-3 calls `onMounted`, which doesn't fire outside
+// a component. Replace it with a synchronous real-Editor factory that records
+// the call so tests can introspect the inputs the composable provided.
+vi.mock('@tiptap/vue-3', async () => {
+  const actual =
+    await vi.importActual<typeof import('@tiptap/vue-3')>('@tiptap/vue-3');
+  return {
+    ...actual,
+    useEditor: (opts: UseEditorOptions) => {
+      // Cast the new-Editor options through `unknown`: the @tiptap/vue-3
+      // `Editor` extends @tiptap/core `Editor` with reactive props, and
+      // the onUpdate signatures are nominally typed against @tiptap/core's
+      // Editor — TypeScript can't see they're structurally compatible here.
+      const editor = new actual.Editor({
+        content: opts.content,
+        extensions: opts.extensions,
+        editorProps: opts.editorProps,
+        onUpdate: opts.onUpdate,
+      } as unknown as ConstructorParameters<typeof actual.Editor>[0]);
+      useEditorCalls.push({
+        content: opts.content,
+        extensions: opts.extensions ?? [],
+        editor,
+      });
+      return ref(editor);
+    },
+  };
+});
 
 // Import after mocks are set up.
 import { useTiptapEditor } from '../useTiptapEditor';
@@ -128,25 +138,22 @@ import { useTiptapEditor } from '../useTiptapEditor';
 function setup(initial = '<p>start</p>', placeholder?: string) {
   const modelValue = ref(initial);
   const placeholderRef = ref<string | undefined>(placeholder);
-  const onUpdate = vi.fn<(html: string) => void>();
+  const updates: string[] = [];
   const scope = effectScope();
   const result = scope.run(() =>
     useTiptapEditor({
       modelValue: () => modelValue.value,
-      onUpdate,
+      onUpdate: (html) => updates.push(html),
       placeholder: () => placeholderRef.value,
     }),
   )!;
-  return { modelValue, placeholderRef, onUpdate, scope, result };
+  // The composable returns the same ref the stub pushed into useEditorCalls.
+  const editor = useEditorCalls.at(-1)!.editor;
+  return { modelValue, placeholderRef, updates, scope, result, editor };
 }
 
 beforeEach(() => {
-  lastEditorOpts = null;
-  lastEditor = null;
-  useEditorSpy.mockClear();
-  starterKitConfigure.mockClear();
-  linkConfigure.mockClear();
-  placeholderConfigure.mockClear();
+  resetRecordings();
 });
 
 afterEach(() => {
@@ -167,57 +174,70 @@ describe('useTiptapEditor', () => {
       const ctx = setup('<p>hello</p>');
       scope = ctx.scope;
 
-      expect(useEditorSpy).toHaveBeenCalledTimes(1);
-      expect(lastEditorOpts?.content).toBe('<p>hello</p>');
+      expect(useEditorCalls).toHaveLength(1);
+      expect(useEditorCalls[0]!.content).toBe('<p>hello</p>');
+      // Real editor renders the content.
+      expect(ctx.editor.getHTML()).toContain('hello');
     });
 
     it('Should configure StarterKit with heading/codeBlock/blockquote/horizontalRule disabled', () => {
       const ctx = setup();
       scope = ctx.scope;
 
-      expect(starterKitConfigure).toHaveBeenCalledWith({
-        heading: false,
-        codeBlock: false,
-        blockquote: false,
-        horizontalRule: false,
-      });
+      expect(starterKitConfigureCalls).toEqual([
+        {
+          heading: false,
+          codeBlock: false,
+          blockquote: false,
+          horizontalRule: false,
+        },
+      ]);
     });
 
     it('Should configure Link with openOnClick: false', () => {
       const ctx = setup();
       scope = ctx.scope;
 
-      expect(linkConfigure).toHaveBeenCalledWith({ openOnClick: false });
+      expect(linkConfigureCalls).toEqual([{ openOnClick: false }]);
     });
 
     it('Should configure Placeholder with the provided placeholder text', () => {
       const ctx = setup('<p>x</p>', 'My placeholder');
       scope = ctx.scope;
 
-      expect(placeholderConfigure).toHaveBeenCalledWith({
-        placeholder: 'My placeholder',
-      });
+      expect(placeholderConfigureCalls).toEqual([
+        { placeholder: 'My placeholder' },
+      ]);
     });
 
     it('Should fall back to the default placeholder when none is provided', () => {
       const ctx = setup('<p>x</p>');
       scope = ctx.scope;
 
-      expect(placeholderConfigure).toHaveBeenCalledWith({
-        placeholder: 'Description...',
-      });
+      expect(placeholderConfigureCalls).toEqual([
+        { placeholder: 'Description...' },
+      ]);
     });
 
-    it('Should pass the StarterKit, Link, and Placeholder configured outputs as extensions', () => {
+    it('Should pass exactly three configured extension entries — StarterKit, Link, Placeholder — to useEditor', () => {
       const ctx = setup();
       scope = ctx.scope;
 
-      const extensions = lastEditorOpts?.extensions as Array<{ name: string }>;
-      expect(extensions.map((e) => e.name)).toEqual([
-        'StarterKit',
-        'Link',
-        'Placeholder',
-      ]);
+      const extensions = useEditorCalls[0]!.extensions;
+      // StarterKit.configure → array of node/mark extensions; Link and
+      // Placeholder.configure → single extension instances. The composable
+      // forwards them to useEditor in this exact order.
+      expect(extensions).toHaveLength(3);
+
+      // Sanity-check that the resulting editor has Placeholder registered —
+      // that's the one extension uniquely contributed here (StarterKit
+      // bundles its own Link, but Placeholder isn't part of StarterKit).
+      const names = new Set(
+        ctx.editor.extensionManager.extensions.map((e) => e.name),
+      );
+      expect(names.has('placeholder')).toBe(true);
+      expect(names.has('paragraph')).toBe(true);
+      expect(names.has('heading')).toBe(false);
     });
   });
 
@@ -228,25 +248,24 @@ describe('useTiptapEditor', () => {
       scope?.stop();
     });
 
-    it('Should forward the editor HTML to onUpdate when the editor fires an update', () => {
-      const { onUpdate, scope: s } = setup('<p>start</p>');
+    it('Should forward the editor HTML to onUpdate when the editor content changes', () => {
+      const { editor, updates, scope: s } = setup('<p>start</p>');
       scope = s;
 
-      lastEditor!.fireUpdate('<p>edited</p>');
+      editor.commands.setContent('<p>edited</p>', { emitUpdate: true });
 
-      expect(onUpdate).toHaveBeenCalledWith('<p>edited</p>');
+      expect(updates).toHaveLength(1);
+      expect(updates[0]).toContain('edited');
     });
 
     it('Should pass an empty string when the editor reports isEmpty', () => {
-      const { onUpdate, scope: s } = setup('<p>start</p>');
+      const { editor, updates, scope: s } = setup('<p>start</p>');
       scope = s;
 
-      // Simulate an empty editor: clear content but invoke the handler.
-      lastEditor!.contentHtml = '';
-      lastEditor!.isEmpty = true;
-      lastEditor!.updateHandler?.({ editor: lastEditor! });
+      editor.commands.setContent('', { emitUpdate: true });
 
-      expect(onUpdate).toHaveBeenCalledWith('');
+      expect(editor.isEmpty).toBe(true);
+      expect(updates).toEqual(['']);
     });
   });
 
@@ -257,30 +276,31 @@ describe('useTiptapEditor', () => {
       scope?.stop();
     });
 
-    it('Should call commands.setContent with emitUpdate: false when the getter changes to a different value', async () => {
-      const { modelValue, scope: s } = setup('<p>same</p>');
+    it("Should update the editor's HTML and suppress onUpdate when the getter changes", async () => {
+      const { editor, modelValue, updates, scope: s } = setup('<p>same</p>');
       scope = s;
-      lastEditor!.setContentSpy.mockClear();
 
       modelValue.value = '<p>different</p>';
       await nextTick();
 
-      expect(lastEditor!.setContentSpy).toHaveBeenCalledWith(
-        '<p>different</p>',
-        { emitUpdate: false },
-      );
+      // The watcher applied the new content...
+      expect(editor.getHTML()).toContain('different');
+      // ...and used emitUpdate: false to keep onUpdate silent (otherwise we'd
+      // get an infinite v-model echo loop).
+      expect(updates).toEqual([]);
     });
 
-    it('Should not call commands.setContent when the new value matches the current HTML', async () => {
-      const { modelValue, scope: s } = setup('<p>same</p>');
+    it('Should not touch the editor when the new value matches the current HTML', async () => {
+      const { editor, modelValue, updates, scope: s } = setup('<p>same</p>');
       scope = s;
-      lastEditor!.setContentSpy.mockClear();
+      const beforeHtml = editor.getHTML();
 
-      // Same value, watcher must still not call setContent.
       modelValue.value = '<p>same</p>';
       await nextTick();
 
-      expect(lastEditor!.setContentSpy).not.toHaveBeenCalled();
+      // Still the same content, no update fired.
+      expect(editor.getHTML()).toBe(beforeHtml);
+      expect(updates).toEqual([]);
     });
   });
 
@@ -298,70 +318,96 @@ describe('useTiptapEditor', () => {
       scope?.stop();
     });
 
+    /** Replace `window.prompt` with a recorder that returns `value`. */
     function setPrompt(value: string | null) {
-      const spy = vi.fn().mockReturnValue(value);
-      window.prompt = spy as unknown as PromptFn;
-      return spy;
+      const calls: Array<{ message?: string; default?: string }> = [];
+      window.prompt = ((message?: string, def?: string) => {
+        calls.push({ message, default: def });
+        return value;
+      }) as unknown as PromptFn;
+      return calls;
+    }
+
+    /** Place the cursor on selectable text so chain commands have somewhere to act. */
+    function focusSomeText(editor: Editor) {
+      editor.commands.setContent('<p>Click here</p>');
+      editor.commands.selectAll();
     }
 
     it('Should be a no-op when prompt returns null', () => {
       setPrompt(null);
-      const { result, scope: s } = setup();
+      const { result, editor, scope: s } = setup();
       scope = s;
+      focusSomeText(editor);
 
       result.addLink();
 
-      expect(lastEditor!.setLink).not.toHaveBeenCalled();
-      expect(lastEditor!.unsetLink).not.toHaveBeenCalled();
+      // No link mark applied to the (fully-selected) text.
+      expect(editor.getHTML()).not.toContain('<a ');
     });
 
-    it('Should call unsetLink when prompt returns an empty string', () => {
+    it('Should clear the link when prompt returns an empty string', () => {
       setPrompt('');
-      const { result, scope: s } = setup();
+      const { result, editor, scope: s } = setup();
       scope = s;
+      focusSomeText(editor);
+      // Apply a link first so we have something to clear.
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange('link')
+        .setLink({ href: 'https://to-be-removed.example' })
+        .run();
+      expect(editor.getHTML()).toContain('<a ');
 
       result.addLink();
 
-      expect(lastEditor!.unsetLink).toHaveBeenCalled();
-      expect(lastEditor!.setLink).not.toHaveBeenCalled();
-      expect(lastEditor!.run).toHaveBeenCalled();
+      expect(editor.getHTML()).not.toContain('<a ');
     });
 
-    it('Should call setLink with { href: url } when prompt returns a URL', () => {
+    it('Should apply a link with the entered URL', () => {
       setPrompt('https://example.com');
-      const { result, scope: s } = setup();
+      const { result, editor, scope: s } = setup();
       scope = s;
+      focusSomeText(editor);
 
       result.addLink();
 
-      expect(lastEditor!.setLink).toHaveBeenCalledWith({
-        href: 'https://example.com',
-      });
-      expect(lastEditor!.run).toHaveBeenCalled();
+      const html = editor.getHTML();
+      expect(html).toContain('href="https://example.com"');
     });
 
     it('Should pass the existing link href as the prompt default', () => {
-      const promptSpy = setPrompt('https://new.example');
-      const { result, scope: s } = setup();
+      const calls = setPrompt('https://new.example');
+      const { result, editor, scope: s } = setup();
       scope = s;
-      lastEditor!.linkAttrs = { href: 'https://prev.example' };
+      focusSomeText(editor);
+      // Pre-existing link on the selection.
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange('link')
+        .setLink({ href: 'https://prev.example' })
+        .run();
 
       result.addLink();
 
-      expect(promptSpy).toHaveBeenCalledWith('URL', 'https://prev.example');
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toEqual({
+        message: 'URL',
+        default: 'https://prev.example',
+      });
     });
   });
 
   describe('Lifecycle', () => {
-    it('Should call destroy when the effect scope is stopped', () => {
-      const { scope } = setup();
-      const editorRef = lastEditor!;
-      expect(editorRef.destroyed).toBe(false);
+    it('Should destroy the underlying editor when the effect scope is stopped', () => {
+      const { editor, scope } = setup();
+      expect(editor.isDestroyed).toBe(false);
 
       scope.stop();
 
-      expect(editorRef.destroyed).toBe(true);
-      expect(editorRef.destroySpy).toHaveBeenCalledTimes(1);
+      expect(editor.isDestroyed).toBe(true);
     });
   });
 
@@ -373,12 +419,11 @@ describe('useTiptapEditor', () => {
     });
 
     it('Should expose the editor ref and addLink', () => {
-      const { result, scope: s } = setup();
+      const { result, editor, scope: s } = setup();
       scope = s;
 
-      const editor = result.editor as unknown as Ref<FakeEditor | null>;
-      // Vue may wrap the FakeEditor in a reactive proxy; compare via a known property.
-      expect(editor.value?.destroySpy).toBe(lastEditor!.destroySpy);
+      const editorRef = result.editor as unknown as Ref<Editor | null>;
+      expect(editorRef.value).toBe(editor);
       expect(typeof result.addLink).toBe('function');
     });
   });

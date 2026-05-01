@@ -87,7 +87,20 @@ if (typeof window !== 'undefined') {
 
 export async function deleteModel(id: string): Promise<void> {
   const db = await getDb();
-  await safeWrite(() => db.models.delete(id));
+  // Scenes are model-scoped; deleting a model cascades to its scenes and
+  // (via the sceneId chain) their annotations. Run inside one transaction so
+  // a mid-delete failure can't leave orphans.
+  await safeWrite(() =>
+    db.transaction('rw', [db.models, db.scenes, db.annotations], async () => {
+      const scenes = await db.scenes.where('modelId').equals(id).toArray();
+      const sceneIds = scenes.map((s) => s.id);
+      if (sceneIds.length > 0) {
+        await db.annotations.where('sceneId').anyOf(sceneIds).delete();
+        await db.scenes.where('modelId').equals(id).delete();
+      }
+      await db.models.delete(id);
+    }),
+  );
 }
 
 export async function getModelRawSource(

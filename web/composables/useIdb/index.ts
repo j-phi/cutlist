@@ -44,14 +44,41 @@ import {
   updateBuildStep,
   deleteBuildStep,
 } from './buildSteps';
+import {
+  getScenesForModel,
+  nextSceneOrder,
+  createScene,
+  updateScene,
+  deleteScene,
+} from './scenes';
+import {
+  getAnnotationsForScene,
+  getAnnotationsForProject,
+  getAnnotationsForModel,
+  createAnnotation,
+  updateAnnotation,
+  deleteAnnotation,
+} from './annotations';
 export { useIdbErrors, resetDatabase } from './db';
-export { applyProjectDefaults, applyModelDefaults } from './defaults';
+export {
+  applyProjectDefaults,
+  applyModelDefaults,
+  applySceneDefaults,
+  applyAnnotationDefaults,
+} from './defaults';
+export type { AnnotationPatch } from './annotations';
 export type {
   IdbProject,
   PartOverride,
   IdbModel,
   IdbModelMeta,
   IdbBuildStep,
+  IdbScene,
+  IdbAnnotation,
+  IdbCallout,
+  IdbDimension,
+  DimensionAnchor,
+  AnnotationKind,
 } from './types';
 
 export function useIdb() {
@@ -73,5 +100,16 @@ export function useIdb() {
     updateBuildStep,
     deleteBuildStep,
     flushPendingModelWrites,
+    getScenesForModel,
+    nextSceneOrder,
+    createScene,
+    updateScene,
+    deleteScene,
+    getAnnotationsForScene,
+    getAnnotationsForProject,
+    getAnnotationsForModel,
+    createAnnotation,
+    updateAnnotation,
+    deleteAnnotation,
   };
 }

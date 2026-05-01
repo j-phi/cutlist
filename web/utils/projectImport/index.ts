@@ -15,6 +15,7 @@ import type { ProjectExport } from '~/composables/useExportProject';
 import { gzipDecompress } from '~/utils/compress';
 import { migrateExport } from './migrations';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
+import { defaultSceneIdForModel, isDefaultSceneId } from '~/utils/defaultScene';
 import { z } from 'zod';
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
@@ -74,6 +75,69 @@ const BuildStepSchema = z.object({
   createdAt: z.string(),
 });
 
+const Vec3Schema = z.tuple([z.number(), z.number(), z.number()]);
+const Quat4Schema = z.tuple([z.number(), z.number(), z.number(), z.number()]);
+const ObjectOffsetSchema = z.object({
+  position: Vec3Schema,
+  quaternion: Quat4Schema,
+});
+
+const SceneSchema = z.object({
+  id: z.string(),
+  modelId: z.string(),
+  name: z.string(),
+  order: z.number().int().min(0),
+  cameraMode: z.enum(['perspective', 'orthographic']),
+  cameraPose: z.object({
+    position: Vec3Schema,
+    target: Vec3Schema,
+    zoom: z.number().finite().optional(),
+    up: Vec3Schema.optional(),
+  }),
+  objectOffsets: z.record(z.string(), ObjectOffsetSchema).default({}),
+  visibleObjects: z.array(z.number().int()).optional(),
+  floorVisible: z.boolean(),
+  thumbnailDataUrl: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const CalloutSchema = z.object({
+  id: z.string(),
+  sceneId: z.string(),
+  kind: z.literal('callout'),
+  groupId: z.number().int(),
+  anchorLocal: Vec3Schema,
+  anchorNormalLocal: Vec3Schema,
+  labelOffsetLocal: Vec3Schema,
+  text: z.string().default(''),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const DimensionAnchorSchema = z.object({
+  groupId: z.number().int(),
+  local: Vec3Schema,
+});
+
+const DimensionSchema = z.object({
+  id: z.string(),
+  sceneId: z.string(),
+  kind: z.literal('dimension'),
+  groupId: z.number().int(),
+  anchor1: DimensionAnchorSchema,
+  anchor2: DimensionAnchorSchema,
+  offsetLocal: Vec3Schema,
+  text: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const AnnotationSchema = z.discriminatedUnion('kind', [
+  CalloutSchema,
+  DimensionSchema,
+]);
+
 // Packing settings (bladeWidth, margin, optimize, showPartNumbers) now live on
 // the project record, so they travel with the export automatically. A
 // top-level `settings` field left over from the pre-v2 global-settings export
@@ -96,6 +160,8 @@ const ProjectExportSchema = z.object({
   }),
   models: z.array(ModelSchema),
   buildSteps: z.array(BuildStepSchema).optional(),
+  scenes: z.array(SceneSchema).optional(),
+  annotations: z.array(AnnotationSchema).optional(),
 });
 
 // ─── Parsing ────────────────────────────────────────────────────────────────
@@ -130,6 +196,8 @@ export interface ProjectImportDb {
   ) => Promise<unknown>;
   createModel: (model: any) => Promise<void>;
   createBuildStep: (step: any) => Promise<void>;
+  createScene: (scene: any) => Promise<void>;
+  createAnnotation: (annotation: any) => Promise<void>;
 }
 
 /**
@@ -180,14 +248,19 @@ export async function importProjectData(
     excludedColors: data.project.excludedColors,
   });
 
+  // Models get fresh IDs; scenes carry the new model id via a remap so each
+  // scene stays attached to the same model it was captured against.
+  const modelIdMap = new Map<string, string>();
   await Promise.all(
-    data.models.map((model) =>
-      idb.createModel({
+    data.models.map((model) => {
+      const newId = crypto.randomUUID();
+      modelIdMap.set(model.id, newId);
+      return idb.createModel({
         ...model,
-        id: crypto.randomUUID(),
+        id: newId,
         projectId: newProject.id,
-      }),
-    ),
+      });
+    }),
   );
 
   await Promise.all(
@@ -198,6 +271,45 @@ export async function importProjectData(
         projectId: newProject.id,
       }),
     ),
+  );
+
+  // Scenes get fresh IDs; annotations follow via a sceneId remap so the
+  // imported references stay intact under the new IDs. Scenes also need
+  // their `modelId` remapped to whichever fresh model id we just assigned.
+  const sceneIdMap = new Map<string, string>();
+  await Promise.all(
+    (data.scenes ?? []).map((scene) => {
+      const remappedModelId = modelIdMap.get(scene.modelId);
+      if (!remappedModelId) {
+        // Orphaned scene (no matching model in payload) — skip silently.
+        return;
+      }
+      const newId = isDefaultSceneId(scene.id)
+        ? defaultSceneIdForModel(remappedModelId)
+        : crypto.randomUUID();
+      sceneIdMap.set(scene.id, newId);
+      return idb.createScene({
+        ...scene,
+        id: newId,
+        modelId: remappedModelId,
+      });
+    }),
+  );
+
+  await Promise.all(
+    (data.annotations ?? []).map((annotation) => {
+      const remappedSceneId = sceneIdMap.get(annotation.sceneId);
+      if (!remappedSceneId) {
+        // Orphaned annotation (no matching scene in payload) — skip silently
+        // rather than reject the whole import.
+        return;
+      }
+      return idb.createAnnotation({
+        ...annotation,
+        id: crypto.randomUUID(),
+        sceneId: remappedSceneId,
+      });
+    }),
   );
 
   return newProject.id;

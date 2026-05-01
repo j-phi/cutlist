@@ -25,7 +25,6 @@ const { requestGrainLockChange } = useGrainLockConfirm();
 const { distanceUnit, stock } = useProjectSettings();
 const formatDistance = useFormatDistance();
 const toast = useToast();
-const tab = useProjectTab();
 const modelViewer = useModelViewerStore();
 
 // ── BOM rows & filter (extracted composables) ────────────────────────────────
@@ -158,10 +157,20 @@ const {
   vertical: { minPanelPx: 120, minMainPx: 200 },
   defaultPanelRatio: 1 / 2,
 });
-const highlightedPartNumber = computed(
-  () =>
-    modelViewer.hoveredPartNumber.value ?? modelViewer.selectedPartNumber.value,
-);
+const highlightedPartNumber = computed(() => {
+  const inv = modelViewer.partNumberOfGroupId.value;
+  const hov = modelViewer.hoveredGroupIds.value;
+  const sel = modelViewer.selectedGroupIds.value;
+  for (const id of hov) {
+    const pn = inv.get(id);
+    if (pn != null) return pn;
+  }
+  for (const id of sel) {
+    const pn = inv.get(id);
+    if (pn != null) return pn;
+  }
+  return null;
+});
 
 // ── Compact dimension format ─────────────────────────────────────────────────
 
@@ -183,25 +192,21 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
 
 function onRowClick(row: BomRow, event: MouseEvent) {
   if (isInteractiveTarget(event.target)) return;
-  modelViewer.selectedPartNumber.value = row.number;
+  modelViewer.selectPart(row.number);
 }
 
 function onRowEnter(row: BomRow) {
-  modelViewer.hoveredPartNumber.value = row.number;
+  modelViewer.hoverPart(row.number);
 }
 
 function onRowLeave(row: BomRow) {
-  if (modelViewer.hoveredPartNumber.value === row.number) {
-    modelViewer.hoveredPartNumber.value = null;
+  if (highlightedPartNumber.value === row.number) {
+    modelViewer.hoverPart(null);
   }
 }
 
 function clearBomHover() {
-  modelViewer.hoveredPartNumber.value = null;
-}
-
-function openModelTab() {
-  tab.value = 'model';
+  modelViewer.hoverPart(null);
 }
 
 // ── Manual part actions ──────────────────────────────────────────────────────
@@ -954,7 +959,7 @@ onUnmounted(() => {
           "
           @mouseleave="clearBomHover"
         >
-          <ModelTab show-open-button @expand="openModelTab" />
+          <ModelTab read-only default-scene-preview />
         </aside>
       </template>
     </div>

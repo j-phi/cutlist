@@ -15,7 +15,13 @@
 import { ref, readonly } from 'vue';
 import Dexie, { type Table } from 'dexie';
 import { FutureSchemaError, SCHEMA_VERSION } from '~/utils/versions';
-import type { IdbProject, IdbModel, IdbBuildStep } from './types';
+import type {
+  IdbProject,
+  IdbModel,
+  IdbBuildStep,
+  IdbScene,
+  IdbAnnotation,
+} from './types';
 
 // ─── Dexie class ────────────────────────────────────────────────────────────
 
@@ -23,6 +29,8 @@ export class CutlistDB extends Dexie {
   projects!: Table<IdbProject, string>;
   models!: Table<IdbModel, string>;
   buildSteps!: Table<IdbBuildStep, string>;
+  scenes!: Table<IdbScene, string>;
+  annotations!: Table<IdbAnnotation, string>;
 
   constructor() {
     super('cutlist-db');
@@ -39,6 +47,8 @@ export class CutlistDB extends Dexie {
       projects: 'id, updatedAt',
       models: 'id, projectId',
       buildSteps: 'id, projectId',
+      scenes: 'id, modelId, order',
+      annotations: 'id, sceneId',
     });
   }
 }
@@ -89,6 +99,12 @@ export async function safeWrite<T>(fn: () => Promise<T>): Promise<T> {
     if (isQuotaExceeded(err)) {
       idbError.value =
         'Storage is full. Delete unused projects or clear browser data to free space.';
+    }
+    // Surface a useful name + message in the console — Dexie's bundled
+    // error class often logs as the bare constructor name (`DexieError2`),
+    // which makes upstream debugging painful.
+    if (err instanceof Error) {
+      console.error(`[idb] write failed (${err.name}): ${err.message}`, err);
     }
     throw err;
   }
