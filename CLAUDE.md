@@ -248,8 +248,10 @@ Board layouts are cached per tab in a module-level `Map` inside [web/composables
 
 ### When adding a new field to a record type
 
+The current schema is a clean v1 baseline. The first real schema bump after this point follows:
+
 1. Update the TypeScript interface in `useIdb/types.ts`.
-2. Add a new Dexie version block in `db.ts`:
+2. Append a new Dexie version block in `db.ts`:
    ```ts
    this.version(N)
      .stores({
@@ -264,6 +266,7 @@ Board layouts are cached per tab in a module-level `Map` inside [web/composables
          });
      });
    ```
+   Do NOT edit the existing v1 block.
 3. Bump `SCHEMA_VERSION` in `versions.ts` and add the matching pure-function entry to `migrations[]` in `projectImport/migrations.ts` for the import path.
 4. Update the relevant `applyDefaults` helper.
 5. Update `createX` to set the field for new records.
@@ -280,3 +283,4 @@ Board layouts are cached per tab in a module-level `Map` inside [web/composables
 - `web/tailwind.config.ts` — custom color palette
 - `web/app.config.ts` — Nuxt UI theme
 - `cutlist.config.yaml` — user-facing defaults (stock materials, blade width, optimization modes)
+- `web/docs/viewer-design.md` — index of viewer / scenes / annotations design specs
