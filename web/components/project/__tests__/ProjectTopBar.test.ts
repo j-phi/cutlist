@@ -1,4 +1,10 @@
 // @vitest-environment nuxt
+/**
+ * Outcome-based tests for ProjectTopBar. The component invokes composable
+ * methods directly (no emits), so we observe behaviour by recording the
+ * args passed to each method via plain arrays inside `mockNuxtImport`.
+ * No vi.fn / toHaveBeenCalled introspection.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
@@ -6,7 +12,7 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
 import ProjectTopBar from '../ProjectTopBar.vue';
 
-// ── Composable mocks ─────────────────────────────────────────────────────────
+// ── Recording stand-ins for composable methods ───────────────────────────────
 
 const projects = ref<Map<string, { id: string; name: string }>>(new Map());
 const activeId = ref<string | null>(null);
@@ -14,39 +20,53 @@ const archivedList = ref<
   Array<{ id: string; name: string; archivedAt: string }>
 >([]);
 
-const closeProject = vi.fn();
-const restoreProject = vi.fn().mockResolvedValue(undefined);
-const permanentlyDeleteProject = vi.fn().mockResolvedValue(undefined);
-const clearHistory = vi.fn().mockResolvedValue(undefined);
-const resetDatabase = vi.fn().mockResolvedValue(undefined);
-const renameProject = vi.fn().mockResolvedValue(undefined);
-const reorderProjects = vi.fn();
+const closeCalls: string[] = [];
+const restoreCalls: string[] = [];
+const permanentlyDeleteCalls: string[] = [];
+const clearHistoryCalls: number[] = [];
+const resetDatabaseCalls: number[] = [];
+const renameCalls: Array<{ id: string; name: string }> = [];
+const reorderCalls: string[][] = [];
 
 mockNuxtImport('useProjects', () => () => ({
   projects,
   activeId,
   archivedList,
-  closeProject,
-  restoreProject,
-  permanentlyDeleteProject,
-  clearHistory,
-  resetDatabase,
-  renameProject,
-  reorderProjects,
+  closeProject: (id: string) => {
+    closeCalls.push(id);
+  },
+  restoreProject: async (id: string) => {
+    restoreCalls.push(id);
+  },
+  permanentlyDeleteProject: async (id: string) => {
+    permanentlyDeleteCalls.push(id);
+  },
+  clearHistory: async () => {
+    clearHistoryCalls.push(Date.now());
+  },
+  resetDatabase: async () => {
+    resetDatabaseCalls.push(Date.now());
+  },
+  renameProject: async (id: string, name: string) => {
+    renameCalls.push({ id, name });
+  },
+  reorderProjects: (ids: string[]) => {
+    reorderCalls.push(ids);
+  },
 }));
 
-const setActiveProject = vi.fn();
-const goHome = vi.fn();
 mockNuxtImport('useProjectNavigation', () => () => ({
-  setActiveProject,
-  goHome,
+  setActiveProject: () => {},
+  goHome: () => {},
 }));
 
-const exportProject = vi.fn().mockResolvedValue(undefined);
-mockNuxtImport('useExportProject', () => () => ({ exportProject }));
+mockNuxtImport('useExportProject', () => () => ({
+  exportProject: async () => {},
+}));
 
-const pickAndImport = vi.fn().mockResolvedValue(undefined);
-mockNuxtImport('useImportProject', () => () => ({ pickAndImport }));
+mockNuxtImport('useImportProject', () => () => ({
+  pickAndImport: async () => {},
+}));
 
 // ── Stubs ────────────────────────────────────────────────────────────────────
 
@@ -139,13 +159,13 @@ beforeEach(() => {
   ]);
   activeId.value = 'p1';
   archivedList.value = [];
-  closeProject.mockClear();
-  restoreProject.mockClear();
-  permanentlyDeleteProject.mockClear();
-  clearHistory.mockClear();
-  resetDatabase.mockClear();
-  renameProject.mockClear();
-  reorderProjects.mockClear();
+  closeCalls.length = 0;
+  restoreCalls.length = 0;
+  permanentlyDeleteCalls.length = 0;
+  clearHistoryCalls.length = 0;
+  resetDatabaseCalls.length = 0;
+  renameCalls.length = 0;
+  reorderCalls.length = 0;
 });
 
 afterEach(() => {
@@ -175,7 +195,7 @@ describe('ProjectTopBar', () => {
       expect(confirmBtn).toBeTruthy();
       await confirmBtn!.trigger('click');
 
-      expect(closeProject).toHaveBeenCalledWith('p2');
+      expect(closeCalls).toEqual(['p2']);
     });
 
     it('Should not call closeProject when the user cancels', async () => {
@@ -187,7 +207,7 @@ describe('ProjectTopBar', () => {
         .find((b) => b.text() === 'Cancel');
       await cancelBtn!.trigger('click');
 
-      expect(closeProject).not.toHaveBeenCalled();
+      expect(closeCalls).toEqual([]);
     });
   });
 
@@ -203,7 +223,7 @@ describe('ProjectTopBar', () => {
       stub.vm.$emit('rename', 'Renamed');
       await component.vm.$nextTick();
 
-      expect(renameProject).toHaveBeenCalledWith('p1', 'Renamed');
+      expect(renameCalls).toEqual([{ id: 'p1', name: 'Renamed' }]);
     });
 
     it('Should not call renameProject when the rename value matches the original', async () => {
@@ -216,7 +236,7 @@ describe('ProjectTopBar', () => {
       stub.vm.$emit('rename', 'Alpha');
       await component.vm.$nextTick();
 
-      expect(renameProject).not.toHaveBeenCalled();
+      expect(renameCalls).toEqual([]);
     });
   });
 
@@ -236,10 +256,8 @@ describe('ProjectTopBar', () => {
       betaStub.vm.$emit('drop');
       await component.vm.$nextTick();
 
-      expect(reorderProjects).toHaveBeenCalledTimes(1);
-      const ids = reorderProjects.mock.calls[0][0];
       // Alpha was moved to Beta's position; Beta moves earlier.
-      expect(ids).toEqual(['p2', 'p1', 'p3']);
+      expect(reorderCalls).toEqual([['p2', 'p1', 'p3']]);
     });
   });
 
@@ -274,7 +292,7 @@ describe('ProjectTopBar', () => {
         .findComponent(ProjectHistoryMenuStub)
         .vm.$emit('restore', 'a1');
 
-      expect(restoreProject).toHaveBeenCalledWith('a1');
+      expect(restoreCalls).toEqual(['a1']);
     });
 
     it('Should call permanentlyDeleteProject when the menu emits permanently-delete', async () => {
@@ -290,7 +308,7 @@ describe('ProjectTopBar', () => {
         .findComponent(ProjectHistoryMenuStub)
         .vm.$emit('permanently-delete', 'a1');
 
-      expect(permanentlyDeleteProject).toHaveBeenCalledWith('a1');
+      expect(permanentlyDeleteCalls).toEqual(['a1']);
     });
 
     it('Should call clearHistory when the menu emits clear', async () => {
@@ -304,7 +322,7 @@ describe('ProjectTopBar', () => {
         .trigger('click');
       await component.findComponent(ProjectHistoryMenuStub).vm.$emit('clear');
 
-      expect(clearHistory).toHaveBeenCalledTimes(1);
+      expect(clearHistoryCalls).toHaveLength(1);
     });
 
     it('Should call resetDatabase when the menu emits reset', async () => {
@@ -315,7 +333,7 @@ describe('ProjectTopBar', () => {
         .trigger('click');
       await component.findComponent(ProjectHistoryMenuStub).vm.$emit('reset');
 
-      expect(resetDatabase).toHaveBeenCalledTimes(1);
+      expect(resetDatabaseCalls).toHaveLength(1);
     });
   });
 });
