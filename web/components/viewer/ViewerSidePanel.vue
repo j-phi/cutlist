@@ -35,7 +35,7 @@ const collapseIcon = computed(() =>
     v-if="props.collapsed"
     type="button"
     :class="[
-      'bg-default border-subtle py-3 px-1.5 flex flex-col items-center justify-center gap-2 text-muted hover:text-hi transition-colors min-h-0 overflow-hidden',
+      'bg-base border-subtle py-3 px-1.5 flex flex-col items-center justify-center gap-2 text-muted hover:text-hi transition-colors min-h-0 overflow-hidden',
       props.side === 'left' ? 'border-r' : 'border-l',
     ]"
     :title="`Show ${props.title}`"
@@ -52,7 +52,7 @@ const collapseIcon = computed(() =>
   <div
     v-else
     :class="[
-      'bg-default flex flex-col overflow-hidden min-h-0 w-72',
+      'bg-base flex flex-col overflow-hidden min-h-0 w-72',
       props.side === 'left'
         ? 'border-r border-subtle'
         : 'border-l border-subtle',

@@ -124,9 +124,9 @@ function snap(preset: ViewPreset) {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--ui-text-muted, #9ca8ab);
-  background: rgba(22, 27, 29, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e3e7e8;
+  background: rgba(52, 62, 65, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   cursor: pointer;
   user-select: none;
   backface-visibility: hidden;
@@ -168,9 +168,9 @@ function snap(preset: ViewPreset) {
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  background: rgba(22, 27, 29, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: var(--ui-text-muted, #9ca8ab);
+  background: rgba(52, 62, 65, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e3e7e8;
   font-size: 10px;
   font-weight: 600;
   cursor: pointer;

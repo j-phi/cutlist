@@ -287,8 +287,10 @@ watch(
 
       <!-- Canvas region. `min-w-0 min-h-0` are mandatory on grid items
            whose content may overflow — grid items default to `min-*: auto`
-           and otherwise leak past the track. -->
-      <div class="relative min-w-0 min-h-0 overflow-hidden">
+           and otherwise leak past the track. `col-start-2` pins the region
+           to the `1fr` track so it still fills the row when the sidebar
+           column (auto) collapses in read-only mode. -->
+      <div class="relative col-start-2 min-w-0 min-h-0 overflow-hidden">
         <div ref="canvasContainer" class="absolute inset-0 bg-mist-950" />
 
         <!-- Marquee multi-select rect. AutoCAD/OnShape convention:

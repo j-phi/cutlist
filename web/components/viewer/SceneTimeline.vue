@@ -92,7 +92,7 @@ function commitRename(id: string, name: string): void {
 </script>
 
 <template>
-  <div class="bg-default border-t border-subtle flex flex-col shrink-0">
+  <div class="bg-base border-t border-subtle flex flex-col shrink-0">
     <!-- Header bar — collapse toggle, label, capture CTA. Always visible so
          the user can expand from any state. -->
     <div class="px-3 py-1.5 flex items-center gap-2 shrink-0">
