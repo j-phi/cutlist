@@ -1,8 +1,8 @@
 // @vitest-environment nuxt
 /**
- * Tests for SceneTimeline — the bottom strip of scene cards. The component
- * is dumb (props in, events out): we verify which user gestures emit which
- * events and that pinned scenes can't be dragged/renamed/deleted.
+ * Tests for SceneTimeline — the bottom-stuck Scenes strip. The component
+ * is dumb (props in, events out): we verify which user gestures emit
+ * which events and that pinned scenes can't be dragged/renamed/deleted.
  */
 import { describe, expect, it } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
@@ -13,8 +13,8 @@ import SceneTimeline from '../SceneTimeline.vue';
 const stubs = {
   UButton: {
     inheritAttrs: false,
-    props: ['label', 'icon'],
-    template: '<button type="button" v-bind="$attrs"></button>',
+    props: ['label', 'icon', 'block', 'size', 'variant', 'color', 'disabled'],
+    template: '<button type="button" v-bind="$attrs">{{ label }}</button>',
   },
   UIcon: true,
 };
@@ -47,6 +47,8 @@ function mount(props: {
   activeSceneId?: string | null;
   busy?: boolean;
   pinnedIds?: string[];
+  collapsed?: boolean;
+  canUpdateActive?: boolean;
 }) {
   return shallowMount(SceneTimeline, {
     props: {
@@ -54,15 +56,23 @@ function mount(props: {
       activeSceneId: props.activeSceneId ?? null,
       busy: props.busy ?? false,
       pinnedIds: props.pinnedIds,
+      collapsed: props.collapsed ?? false,
+      canUpdateActive: props.canUpdateActive ?? false,
     },
     global: { stubs },
   });
 }
 
+function findByLabel(wrapper: ReturnType<typeof mount>, label: string) {
+  return wrapper.findAll('button').find((b) => b.text().trim() === label);
+}
+
 describe('SceneTimeline', () => {
-  it('Should emit add when the trailing + button is clicked', async () => {
+  it('Should emit add when the Capture scene button is clicked', async () => {
     const wrapper = mount({ scenes: [] });
-    await wrapper.get('button[type="button"]').trigger('click');
+    const addBtn = findByLabel(wrapper, 'Capture scene');
+    expect(addBtn).toBeDefined();
+    await addBtn!.trigger('click');
     expect(wrapper.emitted('add')).toHaveLength(1);
   });
 
@@ -130,5 +140,38 @@ describe('SceneTimeline', () => {
     const cards = wrapper.findAll('[draggable]');
     expect(cards[0].classes()).not.toContain('border-teal-400');
     expect(cards[1].classes()).toContain('border-teal-400');
+  });
+
+  it('Should hide the cards body when collapsed', () => {
+    const wrapper = mount({
+      scenes: [makeScene({ id: 'a' })],
+      collapsed: true,
+    });
+    expect(wrapper.findAll('[draggable]')).toHaveLength(0);
+    // Header still renders the Capture button.
+    expect(findByLabel(wrapper, 'Capture scene')).toBeDefined();
+  });
+
+  it('Should show an Update overlay on the active scene when canUpdateActive', async () => {
+    const wrapper = mount({
+      scenes: [makeScene({ id: 'a' }), makeScene({ id: 'b' })],
+      activeSceneId: 'b',
+      canUpdateActive: true,
+    });
+    const updateBtn = findByLabel(wrapper, 'Update');
+    expect(updateBtn).toBeDefined();
+    await updateBtn!.trigger('click');
+    expect(wrapper.emitted('updateActive')).toHaveLength(1);
+    // Activating Update must not also activate the underlying scene card.
+    expect(wrapper.emitted('select')).toBeUndefined();
+  });
+
+  it('Should not emit updateActive when canUpdateActive is false', () => {
+    const wrapper = mount({
+      scenes: [makeScene({ id: 'a' })],
+      activeSceneId: 'a',
+      canUpdateActive: false,
+    });
+    expect(findByLabel(wrapper, 'Update')).toBeUndefined();
   });
 });

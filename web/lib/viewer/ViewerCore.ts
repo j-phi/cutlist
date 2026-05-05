@@ -753,32 +753,57 @@ export class ViewerCore {
 
   // ── Thumbnails ───────────────────────────────────────────────────
 
-  captureThumbnail(width = 256, height = 256): string | null {
+  captureThumbnail(width = 1024, height = 576): string | null {
     if (!this.renderer || !this.cameraRig || !this.sceneGraph) return null;
     const r = this.renderer.renderer;
-    const prevSize = r.getSize(new this.modules!.THREE.Vector2());
-    // Resize the camera frustum too — `setSize` alone leaves camera.aspect
-    // pointing at the live canvas, which would render wide content squashed
-    // into the 4:3 thumbnail.
-    r.setSize(width, height, false);
-    this.cameraRig.onResize(width, height);
-    // Hide selection visuals (gizmo + tint/ghost) so the thumbnail captures
-    // the model cleanly regardless of what the user has selected. The
-    // highlight is baked into per-instance BatchedMesh colors via
-    // Highlighter, so we have to clear it (not just toggle a group's
-    // visibility) and re-apply afterward.
-    const gizmoGroup = this.sceneGraph.groups.gizmoGroup;
+    const THREE = this.modules!.THREE;
+    const sg = this.sceneGraph;
+    const gizmoGroup = sg.groups.gizmoGroup;
+
+    // Snapshot every piece of state we're about to mutate so the live
+    // viewer is untouched after the offscreen render.
+    const prevSize = r.getSize(new THREE.Vector2());
+    const prevResolution = this.edgeMaterial?.resolution.clone() ?? null;
+    const prevLinewidth = this.edgeMaterial?.linewidth ?? null;
     const prevGizmoVisible = gizmoGroup.visible;
-    gizmoGroup.visible = false;
     const prevHovered = this.highlighter?.getHovered() ?? [];
     const prevSelected = this.highlighter?.getSelected() ?? [];
+
+    // Retarget renderer + camera frustum + edge shader at the capture size.
+    // LineMaterial computes screen-space linewidth from `resolution`, and
+    // proportional linewidth is sized for the live canvas — without these
+    // the captured edges come out scaled for the wrong target.
+    r.setSize(width, height, false);
+    this.cameraRig.onResize(width, height);
+    if (this.edgeMaterial) {
+      this.edgeMaterial.resolution.set(width, height);
+      if (this.sceneBounds) {
+        this.edgeMaterial.linewidth = computeProportionalLinewidth(
+          this.cameraRig.camera,
+          this.sceneBounds,
+          height,
+        );
+      }
+    }
+    // Hide selection visuals so the thumbnail captures the model cleanly.
+    // Highlight is baked into per-instance BatchedMesh colors, so we clear
+    // (not just toggle visibility) and re-apply afterward.
+    gizmoGroup.visible = false;
     this.highlighter?.setHovered([]);
     this.highlighter?.setSelected([]);
-    r.render(this.sceneGraph.scene, this.cameraRig.camera);
-    const url = r.domElement.toDataURL('image/png');
+
+    r.render(sg.scene, this.cameraRig.camera);
+    // JPEG keeps the per-scene IDB payload small at this resolution.
+    const url = r.domElement.toDataURL('image/jpeg', 0.92);
+
+    // Restore.
     this.highlighter?.setHovered(prevHovered);
     this.highlighter?.setSelected(prevSelected);
     gizmoGroup.visible = prevGizmoVisible;
+    if (this.edgeMaterial) {
+      if (prevResolution) this.edgeMaterial.resolution.copy(prevResolution);
+      if (prevLinewidth !== null) this.edgeMaterial.linewidth = prevLinewidth;
+    }
     r.setSize(prevSize.x, prevSize.y, false);
     this.cameraRig.onResize(prevSize.x, prevSize.y);
     this.renderer.requestRender();

@@ -1,12 +1,13 @@
 // @vitest-environment nuxt
-import { ref } from 'vue';
-import { describe, expect, it } from 'vitest';
+import { nextTick, ref } from 'vue';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import * as THREE from 'three';
 
 import ObjectsPanel from '../ObjectsPanel.vue';
 import type { SceneAuthor } from '~/composables/useSceneAuthor';
 import type { GroupId, ObjectGraph, ObjectNode } from '~/utils/types';
+import useModelViewerStore from '~/composables/useModelViewerStore';
 
 function makeNode(
   groupId: number,
@@ -106,6 +107,10 @@ const stubs = {
 };
 
 describe('ObjectsPanel', () => {
+  beforeEach(() => {
+    useModelViewerStore().clearGroupSelection();
+  });
+
   it('Should render imported part names and Object names', () => {
     const component = mount(ObjectsPanel, {
       props: { graph: makeGraph(), author: makeAuthor() },
@@ -162,6 +167,56 @@ describe('ObjectsPanel', () => {
     expect(
       author.calls.some((c) => c.startsWith('setObjectsVisibility(')),
     ).toBe(true);
+  });
+
+  it('Should scroll the first selected Object row into view when selection changes', async () => {
+    const author = makeAuthor();
+    const component = mount(ObjectsPanel, {
+      props: { graph: makeGraph(), author },
+      global: { stubs },
+      attachTo: document.body,
+    });
+    const store = useModelViewerStore();
+    const rows = component.findAll('[class*="pl-7"]');
+    expect(rows.length).toBe(3);
+    const spies = rows.map((r) => {
+      const el = r.element as HTMLElement;
+      const spy = vi.fn();
+      el.scrollIntoView = spy;
+      return spy;
+    });
+
+    store.selectGroupIds([2]);
+    await nextTick();
+    await nextTick();
+
+    expect(spies[1]).toHaveBeenCalledTimes(1);
+    expect(spies[0]).not.toHaveBeenCalled();
+    expect(spies[2]).not.toHaveBeenCalled();
+    component.unmount();
+  });
+
+  it('Should expand a collapsed Part before scrolling its Object into view', async () => {
+    const author = makeAuthor();
+    const component = mount(ObjectsPanel, {
+      props: { graph: makeGraph(), author },
+      global: { stubs },
+      attachTo: document.body,
+    });
+    const store = useModelViewerStore();
+    const collapseBtn = component
+      .findAll('button')
+      .find((b) => b.attributes('title') === 'Collapse');
+    await collapseBtn!.trigger('click');
+    expect(component.findAll('[class*="pl-7"]').length).toBeLessThan(3);
+
+    store.selectGroupIds([1]);
+    await nextTick();
+    await nextTick();
+
+    const rows = component.findAll('[class*="pl-7"]');
+    expect(rows.length).toBe(3);
+    component.unmount();
   });
 
   it('Should render the empty-state message when no graph is provided', () => {

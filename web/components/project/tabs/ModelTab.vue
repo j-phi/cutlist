@@ -2,6 +2,7 @@
 import type { BoardLayoutLeftover } from 'cutlist';
 import type { GizmoMode, ViewPreset } from '~/lib/viewer/types';
 import ViewCube from '~/components/viewer/ViewCube.vue';
+import CameraMenu from '~/components/viewer/CameraMenu.vue';
 import ObjectsPanel from '~/components/viewer/ObjectsPanel.vue';
 import SceneTimeline from '~/components/viewer/SceneTimeline.vue';
 import AnnotationLabels from '~/components/viewer/AnnotationLabels.vue';
@@ -9,10 +10,9 @@ import CalloutLabel from '~/components/viewer/CalloutLabel.vue';
 import DimensionLabel from '~/components/viewer/DimensionLabel.vue';
 import ModelEmptyState from '~/components/viewer/ModelEmptyState.vue';
 import ModelSwitcher from '~/components/viewer/ModelSwitcher.vue';
-import GizmoModeToggle from '~/components/viewer/GizmoModeToggle.vue';
-import MouseLegend from '~/components/viewer/MouseLegend.vue';
-import PartInfoPanel from '~/components/viewer/PartInfoPanel.vue';
 import AnnotationToolbar from '~/components/viewer/AnnotationToolbar.vue';
+import ViewerStatusBar from '~/components/viewer/ViewerStatusBar.vue';
+import ViewerSidePanel from '~/components/viewer/ViewerSidePanel.vue';
 import { useSceneAuthor } from '~/composables/useSceneAuthor';
 import { useScenes } from '~/composables/useScenes';
 import { useAnnotations } from '~/composables/useAnnotations';
@@ -62,7 +62,8 @@ watchEffect(() => {
   viewer.setGizmoEnabled(!props.readOnly);
 });
 
-// Model switcher — always show exactly one model
+// Index of the model the viewer is currently rendering. Always exactly one
+// model is mounted at a time; the dropdown switches between them.
 const focusedModelIdx = ref(0);
 
 watch(activeId, () => {
@@ -83,20 +84,20 @@ const focusedModelId = computed<string | null>(() => {
   return focusedModel.value?.id ?? null;
 });
 
-const hasModelData = computed(() => enabledModels.value.length > 0);
-
 const hasOnlyManualModels = computed(
   () =>
     allEnabledModels.value.length > 0 &&
     allEnabledModels.value.every((m) => m.source === 'manual'),
 );
 
+// `manual-only` and `no-models` are mutually exclusive and together cover
+// every state where `enabledModels` is empty, so we don't need a third
+// branch for that.
 const emptyStateType = computed<
   'no-models' | 'manual-only' | 'no-source' | null
 >(() => {
   if (hasOnlyManualModels.value) return 'manual-only';
   if (allEnabledModels.value.length === 0) return 'no-models';
-  if (enabledModels.value.length === 0) return 'no-models';
   if (focusedModelId.value && loadState.value === 'missing-source')
     return 'no-source';
   return null;
@@ -129,6 +130,12 @@ const gizmoMode = ref<GizmoMode>('translate');
 
 const hasSelection = computed(() => store.selectedGroupIds.value.size > 0);
 
+// Mobile-only Objects drawer — desktop renders the sidebar inline.
+const objectsOpen = ref(false);
+
+const objectsCollapsed = ref(false);
+const scenesCollapsed = ref(false);
+
 function onGizmoMode(mode: GizmoMode) {
   gizmoMode.value = mode;
   viewer.setGizmoMode(mode);
@@ -153,10 +160,7 @@ const { loadedGraph, loadState } = useFocusedModelLoader({
   scenesApi,
   targetSceneId,
 });
-const canShowViewerControls = computed(
-  () =>
-    hasModelData.value && !hasOnlyManualModels.value && !emptyStateType.value,
-);
+const canShowViewerControls = computed(() => !emptyStateType.value);
 const annotationsApi = useAnnotations();
 const annotationAuthor = useAnnotationAuthor(
   viewer,
@@ -258,143 +262,171 @@ watch(
 
 <template>
   <ClientOnly>
-    <div class="relative h-full overflow-hidden">
-      <!-- 3D Canvas -->
-      <div ref="canvasContainer" class="absolute inset-0 bg-mist-950" />
-
-      <!-- Marquee multi-select rect. AutoCAD/OnShape convention:
-           solid border = window (drag L→R, must fully contain) and
-           dashed border = crossing (drag R→L, any overlap counts). -->
-      <div
-        v-if="viewer.marqueeRect.value"
-        class="pointer-events-none absolute z-10 border-teal-400/70 bg-teal-400/10"
-        :class="
-          viewer.marqueeRect.value.mode === 'window'
-            ? 'border border-solid'
-            : 'border border-dashed bg-teal-400/15'
-        "
-        :style="{
-          left: viewer.marqueeRect.value.x + 'px',
-          top: viewer.marqueeRect.value.y + 'px',
-          width: viewer.marqueeRect.value.w + 'px',
-          height: viewer.marqueeRect.value.h + 'px',
-        }"
-      />
-
-      <!-- Annotation overlay -->
-      <AnnotationLabels
-        v-if="canShowViewerControls"
-        :annotations="annotationsApi.annotations.value"
-        :active-scene-id="sceneAuthor.activeSceneId.value"
-        :tween="sceneAuthor.tween.value"
-        :projector="projector"
-        :draft-id="annotationAuthor.draftId.value"
-        :preview="annotationAuthor.preview.value"
-        :kind-components="annotationKindComponents"
-        :on-leader-opacity-scale="(s) => viewer.setLeaderOpacityScale(s)"
-        @draft-committed="onDraftCommitted"
-      />
-
-      <!-- Pick-mode hint. `pointer-events: none` so the cursor never lands
-           on this overlay during a multi-step pick — otherwise the canvas
-           below would miss pointermove events between clicks (e.g. the
-           dimension offset preview would freeze). -->
-      <div
-        v-if="annotationAuthor.mode.value === 'pick'"
-        class="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 text-sm text-body shadow pointer-events-none"
-      >
-        {{ annotationAuthor.hint.value }}
-      </div>
-
-      <!-- Empty states (no-models / manual-only / no-source) -->
-      <ModelEmptyState v-if="emptyStateType" :type="emptyStateType" />
-
-      <!-- Model switcher (only when multiple enabled models) -->
-      <div
-        v-if="!props.readOnly && enabledModels.length > 1"
-        class="absolute top-4 left-4 z-10"
-      >
-        <ModelSwitcher
-          :models="enabledModels"
-          :focused-idx="focusedModelIdx"
-          @update:focused-idx="(idx) => (focusedModelIdx = idx)"
-        />
-      </div>
-
-      <!-- Objects panel (left sidebar) -->
-      <div
+    <!-- CSS Grid layout — `grid-cols-[auto_1fr]` (sidebar | canvas),
+         `grid-rows-[1fr_auto_auto]` (canvas-row | scenes | status). Grid
+         `1fr` tracks have a hard upper bound: tall content can't push
+         them, so the sidebar always has a deterministic height to scroll
+         within. Flex couldn't enforce this — items taller than the cross
+         axis pushed the row regardless of `min-h-0` / `align-self`. -->
+    <div
+      class="absolute inset-0 grid overflow-hidden grid-cols-[auto_1fr] grid-rows-[1fr_auto_auto]"
+    >
+      <ViewerSidePanel
         v-if="!props.readOnly && canShowViewerControls && loadedGraph"
-        class="absolute top-4 left-4 z-10"
-        :class="enabledModels.length > 1 ? 'top-16' : 'top-4'"
+        title="Objects"
+        class="hidden sm:flex"
+        :collapsed="objectsCollapsed"
+        @update:collapsed="(v) => (objectsCollapsed = v)"
       >
         <ObjectsPanel :graph="loadedGraph" :author="sceneAuthor" />
-      </div>
+      </ViewerSidePanel>
 
-      <!-- Gizmo mode toolbar (only when something is selected) -->
-      <div
-        v-if="!props.readOnly && canShowViewerControls && hasSelection"
-        class="absolute top-4 right-32 z-10"
-      >
-        <GizmoModeToggle :mode="gizmoMode" @update:mode="onGizmoMode" />
-      </div>
+      <!-- Canvas region. `min-w-0 min-h-0` are mandatory on grid items
+           whose content may overflow — grid items default to `min-*: auto`
+           and otherwise leak past the track. `col-start-2` pins the region
+           to the `1fr` track so it still fills the row when the sidebar
+           column (auto) collapses in read-only mode. -->
+      <div class="relative col-start-2 min-w-0 min-h-0 overflow-hidden">
+        <div ref="canvasContainer" class="absolute inset-0 bg-mist-950" />
 
-      <!-- View cube + projection / floor toggles -->
-      <div v-if="canShowViewerControls" class="absolute top-4 right-4 z-10">
-        <ViewCube
-          :camera-direction="viewer.cameraDirection.value"
-          :camera-mode="sceneAuthor.cameraMode.value"
-          :floor-visible="sceneAuthor.floorVisible.value"
-          @snap="onSnap"
-          @update:camera-mode="(m) => sceneAuthor.setCameraMode(m)"
-          @update:floor-visible="(v) => sceneAuthor.setFloorVisible(v)"
+        <!-- Marquee multi-select rect. AutoCAD/OnShape convention:
+             solid border = window (drag L→R, fully contain),
+             dashed border = crossing (drag R→L, any overlap counts). -->
+        <div
+          v-if="viewer.marqueeRect.value"
+          class="pointer-events-none absolute z-10 border-teal-400/70 bg-teal-400/10"
+          :class="
+            viewer.marqueeRect.value.mode === 'window'
+              ? 'border border-solid'
+              : 'border border-dashed bg-teal-400/15'
+          "
+          :style="{
+            left: viewer.marqueeRect.value.x + 'px',
+            top: viewer.marqueeRect.value.y + 'px',
+            width: viewer.marqueeRect.value.w + 'px',
+            height: viewer.marqueeRect.value.h + 'px',
+          }"
         />
-      </div>
 
-      <!-- Part info panel -->
-      <div v-if="infoPart" class="absolute bottom-4 left-4 z-10">
-        <PartInfoPanel :part="infoPart" />
-      </div>
-
-      <!-- Scene timeline (bottom strip) -->
-      <div
-        v-if="!props.readOnly && canShowViewerControls"
-        class="absolute left-0 right-0 bottom-0 z-10"
-      >
-        <AnnotationToolbar
-          :has-active-scene="!!sceneAuthor.activeSceneId.value"
-          :mode="annotationAuthor.mode.value"
-          :pick-kind="annotationAuthor.pickKind.value"
-          :can-update-scene="sceneActions.canUpdateScene.value"
-          @add-callout="onAddCallout"
-          @add-dimension="onAddDimension"
-          @update-scene="sceneActions.updateActiveScene"
-        />
-        <SceneTimeline
-          :scenes="scenesApi.scenes.value"
+        <AnnotationLabels
+          v-if="canShowViewerControls"
+          :annotations="annotationsApi.annotations.value"
           :active-scene-id="sceneAuthor.activeSceneId.value"
-          :busy="sceneAuthor.tween.value !== null"
-          :pinned-ids="scenesApi.pinnedSceneIds.value"
-          @select="sceneActions.selectScene"
-          @reorder="(id, idx) => scenesApi.moveScene(id, idx)"
-          @rename="(id, name) => scenesApi.updateScene(id, { name })"
-          @remove="sceneActions.removeScene"
-          @add="sceneActions.addScene"
+          :tween="sceneAuthor.tween.value"
+          :projector="projector"
+          :draft-id="annotationAuthor.draftId.value"
+          :preview="annotationAuthor.preview.value"
+          :kind-components="annotationKindComponents"
+          :on-leader-opacity-scale="(s) => viewer.setLeaderOpacityScale(s)"
+          @draft-committed="onDraftCommitted"
         />
+
+        <ModelEmptyState v-if="emptyStateType" :type="emptyStateType" />
+
+        <!-- Top-center: Annotation toolbar. `pointer-events-none` during
+             pick mode keeps canvas pointermove flowing — without it the
+             dimension offset preview freezes between clicks. -->
+        <div
+          v-if="!props.readOnly && canShowViewerControls"
+          class="absolute top-4 left-1/2 -translate-x-1/2 z-20"
+          :class="{
+            'pointer-events-none': annotationAuthor.mode.value === 'pick',
+          }"
+        >
+          <AnnotationToolbar
+            :has-active-scene="!!sceneAuthor.activeSceneId.value"
+            :mode="annotationAuthor.mode.value"
+            :pick-kind="annotationAuthor.pickKind.value"
+            :pick-hint="annotationAuthor.hint.value"
+            :has-selection="hasSelection"
+            :gizmo-mode="gizmoMode"
+            @add-callout="onAddCallout"
+            @add-dimension="onAddDimension"
+            @update:gizmo-mode="onGizmoMode"
+          />
+        </div>
+
+        <!-- Top-right: orientation cube + camera options dropdown. -->
+        <div
+          v-if="canShowViewerControls"
+          class="absolute top-4 right-4 z-10 flex items-start gap-2"
+        >
+          <CameraMenu
+            :camera-mode="sceneAuthor.cameraMode.value"
+            :floor-visible="sceneAuthor.floorVisible.value"
+            @update:camera-mode="(m) => sceneAuthor.setCameraMode(m)"
+            @update:floor-visible="(v) => sceneAuthor.setFloorVisible(v)"
+          />
+          <ViewCube
+            :camera-direction="viewer.cameraDirection.value"
+            @snap="onSnap"
+          />
+        </div>
+
+        <div
+          v-if="!props.readOnly && enabledModels.length > 1"
+          class="absolute top-4 left-4 z-20"
+        >
+          <ModelSwitcher
+            :models="enabledModels"
+            :focused-idx="focusedModelIdx"
+            @update:focused-idx="(idx) => (focusedModelIdx = idx)"
+          />
+        </div>
+
+        <!-- Mobile Objects trigger — opens the drawer below. Desktop uses
+             the inline ViewerSidePanel above. -->
+        <div
+          v-if="!props.readOnly && canShowViewerControls && loadedGraph"
+          class="absolute left-4 z-10 sm:hidden"
+          :class="enabledModels.length > 1 ? 'top-16' : 'top-4'"
+        >
+          <UButton
+            size="xs"
+            icon="i-lucide-layers"
+            variant="soft"
+            color="neutral"
+            label="Objects"
+            @click="objectsOpen = true"
+          />
+        </div>
+
+        <UDrawer
+          v-if="!props.readOnly && loadedGraph"
+          v-model:open="objectsOpen"
+          :ui="{ content: 'sm:hidden h-[75vh]' }"
+        >
+          <template #content>
+            <div class="h-full p-2">
+              <ObjectsPanel :graph="loadedGraph" :author="sceneAuthor" />
+            </div>
+          </template>
+        </UDrawer>
       </div>
 
-      <!-- Bottom-right controls — desktop mouse legend (OnShape-style mapping) -->
-      <div
-        class="absolute bottom-4 right-4 z-10 hidden sm:flex flex-col items-end gap-2"
-      >
-        <MouseLegend variant="desktop" />
-      </div>
+      <SceneTimeline
+        v-if="!props.readOnly && canShowViewerControls"
+        class="col-span-full"
+        :scenes="scenesApi.scenes.value"
+        :active-scene-id="sceneAuthor.activeSceneId.value"
+        :busy="sceneAuthor.tween.value !== null"
+        :pinned-ids="scenesApi.pinnedSceneIds.value"
+        :collapsed="scenesCollapsed"
+        :can-update-active="sceneActions.canUpdateScene.value"
+        @update:collapsed="(v) => (scenesCollapsed = v)"
+        @select="sceneActions.selectScene"
+        @reorder="(id, idx) => scenesApi.moveScene(id, idx)"
+        @rename="(id, name) => scenesApi.updateScene(id, { name })"
+        @remove="sceneActions.removeScene"
+        @add="sceneActions.addScene"
+        @update-active="sceneActions.updateActiveScene"
+      />
 
-      <!-- Bottom-right controls — mobile touch legend -->
-      <div
-        class="absolute bottom-4 right-4 z-10 flex sm:hidden flex-col items-end gap-2"
-      >
-        <MouseLegend variant="mobile" />
-      </div>
+      <ViewerStatusBar
+        v-if="canShowViewerControls"
+        class="col-span-full"
+        :part="infoPart ?? null"
+      />
     </div>
   </ClientOnly>
 </template>

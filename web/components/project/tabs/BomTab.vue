@@ -350,39 +350,46 @@ onUnmounted(() => {
 
           <!-- ─── Main BOM content ──────────────────────────────────────────── -->
           <template v-else>
-            <!-- Summary bar -->
-            <div
-              v-if="allRows.length > 0"
-              class="flex items-center gap-2 px-5 pt-2 pb-1 text-xs text-muted"
-            >
-              <span
-                >{{ totalParts }} part{{ totalParts === 1 ? '' : 's' }}</span
+            <template v-if="allRows.length > 0">
+              <!-- Bill of Materials subheading -->
+              <div
+                class="flex items-center justify-between gap-2 px-5 pt-4 pb-1"
               >
-              <span class="text-dim">&middot;</span>
-              <span
-                >{{ materialNames.length }} material{{
-                  materialNames.length === 1 ? '' : 's'
-                }}</span
-              >
-              <template v-if="warningCount > 0">
+                <h3 class="text-sm font-medium text-hi">Bill of Materials</h3>
+                <ExportPdfButton />
+              </div>
+
+              <!-- Summary bar -->
+              <div class="flex items-center gap-2 px-5 pb-1 text-xs text-muted">
+                <span
+                  >{{ totalParts }} part{{ totalParts === 1 ? '' : 's' }}</span
+                >
                 <span class="text-dim">&middot;</span>
-                <span class="text-amber-500"
-                  >{{ warningCount }} warning{{
-                    warningCount === 1 ? '' : 's'
+                <span
+                  >{{ materialNames.length }} material{{
+                    materialNames.length === 1 ? '' : 's'
                   }}</span
                 >
-              </template>
-              <template v-if="isComputing">
-                <span class="text-dim">&middot;</span>
-                <span class="flex items-center gap-1 text-muted">
-                  <UIcon
-                    name="i-lucide-loader-2"
-                    class="w-3 h-3 animate-spin"
-                  />
-                  Updating&hellip;
-                </span>
-              </template>
-            </div>
+                <template v-if="warningCount > 0">
+                  <span class="text-dim">&middot;</span>
+                  <span class="text-amber-500"
+                    >{{ warningCount }} warning{{
+                      warningCount === 1 ? '' : 's'
+                    }}</span
+                  >
+                </template>
+                <template v-if="isComputing">
+                  <span class="text-dim">&middot;</span>
+                  <span class="flex items-center gap-1 text-muted">
+                    <UIcon
+                      name="i-lucide-loader-2"
+                      class="w-3 h-3 animate-spin"
+                    />
+                    Updating&hellip;
+                  </span>
+                </template>
+              </div>
+            </template>
 
             <!-- Toolbar: search + add part -->
             <div class="flex items-center gap-2 px-5 pb-3">

@@ -10,13 +10,14 @@ describe('AnnotationToolbar', () => {
         hasActiveScene: false,
         mode: 'select',
         pickKind: null,
-        canUpdateScene: false,
+        pickHint: null,
+        hasSelection: false,
+        gizmoMode: 'translate',
       },
     });
     const text = wrapper.text();
     expect(text).not.toContain('Callout');
     expect(text).not.toContain('Dimension');
-    expect(text).not.toContain('Update scene');
   });
 
   it('Should show callout / dimension when a scene is active and emit on click', async () => {
@@ -25,7 +26,9 @@ describe('AnnotationToolbar', () => {
         hasActiveScene: true,
         mode: 'select',
         pickKind: null,
-        canUpdateScene: false,
+        pickHint: null,
+        hasSelection: false,
+        gizmoMode: 'translate',
       },
     });
     const buttons = wrapper.findAll('button');
@@ -36,20 +39,56 @@ describe('AnnotationToolbar', () => {
     expect(wrapper.emitted('addDimension')).toHaveLength(1);
   });
 
-  it('Should show the Update scene button when canUpdateScene is true', async () => {
+  it('Should collapse to hint text in pick mode', async () => {
+    const wrapper = await mountSuspended(AnnotationToolbar, {
+      props: {
+        hasActiveScene: true,
+        mode: 'pick',
+        pickKind: 'callout',
+        pickHint: 'Click a part to anchor',
+        hasSelection: false,
+        gizmoMode: 'translate',
+      },
+    });
+    const text = wrapper.text();
+    expect(text).toContain('Click a part to anchor');
+    expect(text).not.toContain('Callout');
+    expect(text).not.toContain('Dimension');
+    expect(wrapper.findAll('button')).toHaveLength(0);
+  });
+
+  it('Should show Move/Rotate when there is a selection and emit on click', async () => {
+    const wrapper = await mountSuspended(AnnotationToolbar, {
+      props: {
+        hasActiveScene: false,
+        mode: 'select',
+        pickKind: null,
+        pickHint: null,
+        hasSelection: true,
+        gizmoMode: 'translate',
+      },
+    });
+    expect(wrapper.text()).toContain('Move');
+    expect(wrapper.text()).toContain('Rotate');
+    const rotate = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Rotate'));
+    await rotate!.trigger('click');
+    expect(wrapper.emitted('update:gizmoMode')).toEqual([['rotate']]);
+  });
+
+  it('Should hide Move/Rotate when there is no selection', async () => {
     const wrapper = await mountSuspended(AnnotationToolbar, {
       props: {
         hasActiveScene: true,
         mode: 'select',
         pickKind: null,
-        canUpdateScene: true,
+        pickHint: null,
+        hasSelection: false,
+        gizmoMode: 'translate',
       },
     });
-    expect(wrapper.text()).toContain('Update scene');
-    const updateBtn = wrapper
-      .findAll('button')
-      .find((b) => b.text().includes('Update scene'));
-    await updateBtn!.trigger('click');
-    expect(wrapper.emitted('updateScene')).toHaveLength(1);
+    expect(wrapper.text()).not.toContain('Move');
+    expect(wrapper.text()).not.toContain('Rotate');
   });
 });

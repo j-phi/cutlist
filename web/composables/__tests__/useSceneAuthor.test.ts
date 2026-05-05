@@ -296,11 +296,11 @@ describe('useSceneAuthor — capture', () => {
     expect((state.visibleObjects as Set<number>).has(2)).toBe(false);
   });
 
-  it('Should capture a thumbnail at 320×240', () => {
+  it('Should capture a thumbnail at 1024×576 (matches the build-doc 16:9 display)', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     expect(a.captureThumbnail()).toBe('data:image/png;base64,XX');
-    expect(v.captureThumbnail).toHaveBeenCalledWith(320, 240);
+    expect(v.captureThumbnail).toHaveBeenCalledWith(1024, 576);
   });
 });
 

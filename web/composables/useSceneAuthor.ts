@@ -337,7 +337,7 @@ export function useSceneAuthor(
   }
 
   function captureThumbnail(): string | null {
-    return viewer.captureThumbnail(320, 240);
+    return viewer.captureThumbnail(1024, 576);
   }
 
   // ── Apply ──────────────────────────────────────────────────────────
