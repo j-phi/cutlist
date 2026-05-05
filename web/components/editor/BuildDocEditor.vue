@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { JSONContent } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -6,16 +7,23 @@ import { ImageBlock } from '~/lib/editor/imageBlock';
 import { SceneBlock } from '~/lib/editor/sceneBlock';
 
 const props = defineProps<{
-  modelValue: string;
+  modelValue: JSONContent;
   placeholder?: string;
 }>();
 
 const emit = defineEmits<{
-  'update:modelValue': [html: string];
+  'update:modelValue': [doc: JSONContent];
   blur: [];
 }>();
 
 // ─── Editor ───────────────────────────────────────────────────────────────
+
+// Tracks the last doc the editor emitted, so we can distinguish prop
+// changes that originated inside the editor (we emitted them; the host
+// echoed them back) from external writes (project switch) that need to
+// be pushed into the editor. Reference equality is enough because we
+// keep the same object identity through the round-trip.
+let lastEmitted: JSONContent | null = null;
 
 const editor = useEditor({
   content: props.modelValue,
@@ -43,22 +51,22 @@ const editor = useEditor({
     },
   },
   onUpdate({ editor }) {
-    emit('update:modelValue', editor.isEmpty ? '' : editor.getHTML());
+    const json = editor.getJSON();
+    lastEmitted = json;
+    emit('update:modelValue', json);
   },
   onBlur() {
     emit('blur');
   },
 });
 
-// External writes (e.g. project switch, undo) flow through `modelValue` and
-// are pushed into the editor without re-emitting `onUpdate`.
 watch(
   () => props.modelValue,
   (value) => {
     if (!editor.value) return;
-    const current = editor.value.isEmpty ? '' : editor.value.getHTML();
-    if (value === current) return;
+    if (value === lastEmitted) return;
     editor.value.commands.setContent(value, { emitUpdate: false });
+    lastEmitted = value;
   },
 );
 

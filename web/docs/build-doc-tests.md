@@ -6,14 +6,14 @@ adding more.
 
 ## Data layer
 
-### `web/composables/useIdb/__tests__/useIdb.test.ts`
+### `web/composables/__tests__/useIdb.test.ts`
 
 - **Project CRUD** (existing): create, archive, unarchive, delete with
   cascade.
 - **Build doc**: undefined when project has no doc; persists and reads
-  back; `updateBuildDoc` replaces fields atomically; `putBuildDoc`
-  round-trips an explicit record; `deleteBuildDoc` removes; partial
-  records hydrate with `html: ''` via `applyBuildDocDefaults`.
+  back JSON tree with embed nodes intact; `putBuildDoc` replaces records
+  on the same projectId; `deleteBuildDoc` removes; partial records
+  hydrate with `title: ''` and an empty doc via `applyBuildDocDefaults`.
 - **Assets**: persists asset record fields and returns the blob handle
   (the actual blob bytes aren't asserted here — see notes below);
   `deleteProject` cascades into the assets table; `getAssetsForProject`
@@ -37,11 +37,14 @@ tests above just verify the IDB plumbing accepts a blob.
 
 ### `web/utils/__tests__/buildDocRemap.test.ts`
 
-- Rewrites image-block `data-asset-id` in place; preserves caption and
+- Rewrites image-block `attrs.assetId` in place; preserves caption and
   surrounding paragraphs.
 - Rewrites scene-block model + scene ids.
 - Blanks orphan ids (no map entry) rather than dropping nodes.
-- Returns empty html unchanged.
+- Walks nested content (lists, etc.).
+- Returns an empty doc unchanged structurally.
+- `collectAssetIds` returns the set of asset ids referenced by image
+  blocks (and walks nested content).
 
 ## Composable layer
 
@@ -50,7 +53,7 @@ tests above just verify the IDB plumbing accepts a blob.
 - Returns null for a missing project.
 - Builds a payload with `SCHEMA_VERSION` and project fields.
 - Rehydrates `rawSource` onto exported models.
-- Includes the build doc with its html intact.
+- Includes the build doc with its title and JSON body intact.
 - Round-trips through `parseProjectExport` end-to-end (schema-valid).
 - Exports image-block references and asset records together (asserts
   metadata only, per the fake-IDB caveat).
@@ -58,8 +61,9 @@ tests above just verify the IDB plumbing accepts a blob.
 ### `web/composables/__tests__/useImportProject.test.ts`
 
 - `importFromFile` delegates to `importProjectFromFile` and wires the
-  new project id through `appendProject`, `setActiveProject`,
-  `useBuildDoc().reload`.
+  new project id through `appendProject` and `setActiveProject`.
+  (The `useBuildDoc` watcher picks up the new active project on its
+  own — no explicit reload is needed.)
 - Propagates errors from `importProjectFromFile` to the caller.
 - `pickAndImport` reports an error toast when the underlying import
   fails.
@@ -121,11 +125,11 @@ The editor itself is heavy, so it's stubbed; the test asserts
 plumbing, not editor mechanics.
 
 - Empty-project state when `activeProject` is null.
-- Mounts the editor with the doc html.
-- Title input prefills with the project name as placeholder when
-  `title` is undefined; shows the explicit title when set.
+- Mounts the editor with the doc body (JSONContent).
+- Title input shows the title verbatim and keeps the project name as
+  placeholder.
 - Forwards title input to `setTitle`; forwards editor updates to
-  `setHtml`; flushes pending writes when the editor blurs.
+  `setDoc`; flushes pending writes when the editor blurs.
 
 ### Embed node views
 

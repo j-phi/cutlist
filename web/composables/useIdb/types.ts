@@ -8,6 +8,7 @@
  * declared there via `this.version(N).stores({...})`.
  */
 
+import type { JSONContent } from '@tiptap/core';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 import type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
 
@@ -63,22 +64,21 @@ export type IdbModelMeta = Omit<IdbModel, 'rawSource'>;
 
 /**
  * The build "page" for a project — a single rich-text document edited
- * inline, Notion-style. Stored as Tiptap-rendered HTML. Embedded image and
- * scene nodes serialise to `<image-block data-asset-id="…" />` and
- * `<scene-block data-model-id="…" data-scene-id="…" />` so referenced ids
- * survive round-tripping.
+ * inline, Notion-style. Stored as Tiptap's native JSON tree. Embedded
+ * image and scene nodes carry their referenced ids in node `attrs`, so
+ * referenced ids survive round-tripping without HTML parsing.
  *
  * Exactly one record per project, keyed by `projectId`.
  */
 export interface IdbBuildDoc {
   projectId: string;
   /**
-   * The doc's title. Optional — when missing the UI falls back to the
-   * project name as a "prefill" placeholder. An explicit empty string
-   * means the user cleared it; we don't fall back in that case.
+   * The doc's title. Always a string. New records are seeded with the
+   * project's name on creation; subsequent project renames do not
+   * propagate. An empty string is allowed and renders as such.
    */
-  title?: string;
-  html: string;
+  title: string;
+  doc: JSONContent;
   updatedAt: string;
 }
 

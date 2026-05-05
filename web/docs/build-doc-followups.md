@@ -7,16 +7,17 @@ independently shippable; none of them block the current UX.
 
 ### Orphan asset cleanup
 
-When the user deletes an image block from the editor, the doc HTML no
-longer references its asset, but the `IdbAsset` row + `Blob` stays in
-the table. Over time this leaks storage.
+When the user deletes an image block from the editor, the doc no longer
+references its asset, but the `IdbAsset` row + `Blob` stays in the
+table. Over time this leaks storage.
 
-Fix: a small post-save GC pass. Walk the saved HTML for
-`data-asset-id` values, diff against `getAssetsForProject(projectId)`,
-delete the rows that aren't referenced.
+`web/utils/buildDocRemap.ts` exposes `collectAssetIds(doc)` for ref
+discovery — the GC pass walks the saved JSON tree, diffs against
+`getAssetsForProject(projectId)`, and deletes the rows that aren't
+referenced.
 
 Where: probably inside `useBuildDoc`'s flush path, or as a separate
-cleanup helper called after `updateBuildDoc`. Run on a longer debounce
+cleanup helper called after `putBuildDoc`. Run on a longer debounce
 than the doc save itself — say 5–10s — to avoid GC'ing an asset while
 the user is undoing.
 
@@ -31,13 +32,14 @@ has historically been quirky. Worth a manual pass.
 
 ### Editor focus on first paint
 
-When the page mounts with no doc and no title, the title input has
-focus by default (it's the first focusable element). For a brand-new
-project, focusing the editor body might be friendlier — the user
-typically wants to start writing, not retitling. Decide and wire via
-`autofocus` or a `defineExpose({ focus })` on `BuildDocEditor`.
+When the page mounts, the title input has focus by default (it's the
+first focusable element). For a brand-new project where the title is
+already seeded with the project name, focusing the editor body might be
+friendlier — the user typically wants to start writing the body, not
+retitling. Decide and wire via `autofocus` or a
+`defineExpose({ focus })` on `BuildDocEditor`.
 
-## P2 — schema cleanups (deferred from earlier audit)
+## P2 — schema cleanups
 
 ### `IdbModel.rawSource: object | string | null`
 
@@ -111,25 +113,14 @@ the viewport narrows.
 
 ## P3 — speculative
 
-### Tiptap JSON instead of HTML for storage
-
-We store Tiptap output as HTML. JSON (`editor.getJSON()`) is more
-structured and survives schema changes more gracefully (the JSON tree
-walker in `buildDocRemap` would replace `DOMParser`).
-
-Tradeoff: HTML interoperates with anything; JSON is editor-specific.
-For a future public sharing surface — where third parties might want
-to render the doc without booting Tiptap — HTML is the better
-artifact. Stick with HTML unless that calculus changes.
-
 ### Public sharing surface (out of scope)
 
 Earlier brainstorm: a `/explore/:slug` page that takes a `.cutlist.gz`
 hosted somewhere and renders it read-only. Block model already supports
 it: `BuildDocEditor` can be put in a read-only mode (drop the toolbar
-and gate `editable` via Tiptap), and `remapBuildDocHtml` already
-handles id rewriting. Out of scope for this iteration but architected
-for it.
+and gate `editable` via Tiptap), and `remapBuildDoc` already handles
+id rewriting. `editor.getHTML()` is one call away if a server-side
+renderer needs HTML rather than JSON.
 
 ### Undo across debounce window
 

@@ -24,7 +24,8 @@ import { migrateExport } from './migrations';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
 import { defaultSceneIdForModel, isDefaultSceneId } from '~/utils/defaultScene';
 import { base64ToBlob } from '~/utils/blobBase64';
-import { remapBuildDocHtml } from '~/utils/buildDocRemap';
+import { remapBuildDoc } from '~/utils/buildDocRemap';
+import type { JSONContent } from '@tiptap/core';
 import { z } from 'zod';
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
@@ -75,10 +76,38 @@ const ModelSchema = z.object({
   createdAt: z.string(),
 });
 
+// Tiptap's JSONContent is recursive and open: nodes carry an optional
+// `type`, optional text, optional attrs, optional marks, and optional
+// content. We stay permissive (`passthrough`) — the editor does its own
+// schema validation when it loads a doc, and we just need enough
+// structure to let Zod accept hand-rolled or legacy payloads without
+// drifting from Tiptap's shape.
+type ZodJSONContent = z.ZodType<JSONContent>;
+const JSONContentSchema: ZodJSONContent = z.lazy(() =>
+  z
+    .object({
+      type: z.string().optional(),
+      text: z.string().optional(),
+      attrs: z.record(z.string(), z.unknown()).optional(),
+      marks: z
+        .array(
+          z
+            .object({
+              type: z.string(),
+              attrs: z.record(z.string(), z.unknown()).optional(),
+            })
+            .passthrough(),
+        )
+        .optional(),
+      content: z.array(JSONContentSchema).optional(),
+    })
+    .passthrough(),
+);
+
 const BuildDocSchema = z.object({
   projectId: z.string(),
-  title: z.string().optional(),
-  html: z.string().default(''),
+  title: z.string().default(''),
+  doc: JSONContentSchema,
   updatedAt: z.string(),
 });
 
@@ -326,7 +355,7 @@ export async function importProjectData(
   // Build doc comes last among the per-record writes so all referenced ids
   // (assets, models, scenes) are already remapped and available in the maps.
   if (data.buildDoc) {
-    const remappedHtml = remapBuildDocHtml(data.buildDoc.html, {
+    const remappedDoc = remapBuildDoc(data.buildDoc.doc, {
       assetIdMap,
       modelIdMap,
       sceneIdMap,
@@ -334,7 +363,7 @@ export async function importProjectData(
     await idb.putBuildDoc({
       projectId: newProject.id,
       title: data.buildDoc.title,
-      html: remappedHtml,
+      doc: remappedDoc,
       updatedAt: data.buildDoc.updatedAt,
     });
   }

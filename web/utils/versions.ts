@@ -16,14 +16,14 @@
  * Schema version for record shapes. Must equal the highest Dexie
  * `.version(N)` declared on `CutlistDB`. Never decrement.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 1;
 
 /**
  * The lowest export-file schema version this client can still parse.
  * Older `.cutlist` files raise `LegacyExportError` rather than failing in
  * Zod validation with a confusing field-level error.
  */
-export const MIN_SUPPORTED_EXPORT_VERSION = 2;
+export const MIN_SUPPORTED_EXPORT_VERSION = 1;
 
 /**
  * Thrown when data (a stored DB or an imported export file) was created by

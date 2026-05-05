@@ -53,7 +53,16 @@ function makePayload(overrides?: any) {
     ],
     buildDoc: {
       projectId: 'proj-1',
-      html: '<p>Cut to size</p>',
+      title: 'Test Project',
+      doc: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Cut to size' }],
+          },
+        ],
+      },
       updatedAt: now,
     },
     ...overrides,
@@ -191,7 +200,13 @@ describe('importProjectData remapping', () => {
 
     expect(calls.putBuildDoc).toHaveLength(1);
     expect(calls.putBuildDoc[0].projectId).toBe('new-proj');
-    expect(calls.putBuildDoc[0].html).toBe('<p>Cut to size</p>');
+    expect(calls.putBuildDoc[0].title).toBe('Test Project');
+    expect(calls.putBuildDoc[0].doc).toMatchObject({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Cut to size' }] },
+      ],
+    });
   });
 });
 

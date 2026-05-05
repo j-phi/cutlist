@@ -38,12 +38,7 @@ import {
   getModelRawSource,
   flushPendingModelWrites,
 } from './models';
-import {
-  getBuildDoc,
-  putBuildDoc,
-  updateBuildDoc,
-  deleteBuildDoc,
-} from './buildDocs';
+import { getBuildDoc, putBuildDoc, deleteBuildDoc } from './buildDocs';
 import { createAsset, putAsset, getAsset, getAssetsForProject } from './assets';
 import {
   getScenesForModel,
@@ -100,7 +95,6 @@ export function useIdb() {
     getModelRawSource,
     getBuildDoc,
     putBuildDoc,
-    updateBuildDoc,
     deleteBuildDoc,
     createAsset,
     putAsset,

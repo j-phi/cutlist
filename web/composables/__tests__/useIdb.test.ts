@@ -113,7 +113,12 @@ describe('project CRUD', () => {
       createdAt: new Date().toISOString(),
     };
     await idb.createModel(model);
-    await idb.updateBuildDoc(project.id, { html: '<p>Do something</p>' });
+    await idb.putBuildDoc({
+      projectId: project.id,
+      title: 'ToDelete',
+      doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+      updatedAt: new Date().toISOString(),
+    });
 
     await idb.deleteProject(project.id);
 
@@ -306,59 +311,75 @@ describe('model CRUD', () => {
 // ─── Build Steps ────────────────────────────────────────────────────────────
 
 describe('build doc', () => {
+  function emptyDoc() {
+    return { type: 'doc', content: [{ type: 'paragraph' }] };
+  }
+
+  function makeDoc(
+    projectId: string,
+    overrides: Partial<IdbBuildDoc> = {},
+  ): IdbBuildDoc {
+    return {
+      projectId,
+      title: '',
+      doc: emptyDoc(),
+      updatedAt: new Date().toISOString(),
+      ...overrides,
+    };
+  }
+
   it('returns undefined for a project without a doc', async () => {
     const project = await idb.createProject('NoDoc');
     const doc = await idb.getBuildDoc(project.id);
     expect(doc).toBeUndefined();
   });
 
-  it('persists and reads back the doc html', async () => {
+  it('persists and reads back the doc body with embed nodes', async () => {
     const project = await idb.createProject('DocProj');
-    const html =
-      '<p>Hi</p><image-block data-asset-id="asset-x" data-caption="pic"></image-block>' +
-      '<scene-block data-model-id="m1" data-scene-id="s1"></scene-block>';
-    await idb.updateBuildDoc(project.id, { html });
-
-    const doc = await idb.getBuildDoc(project.id);
-    expect(doc).toBeDefined();
-    expect(doc!.html).toBe(html);
-  });
-
-  it('updateBuildDoc replaces fields atomically', async () => {
-    const project = await idb.createProject('DocReplace');
-    await idb.updateBuildDoc(project.id, { html: '<p>old</p>' });
-    await idb.updateBuildDoc(project.id, { html: '<p>new</p>' });
-    const doc = await idb.getBuildDoc(project.id);
-    expect(doc!.html).toBe('<p>new</p>');
-  });
-
-  it('putBuildDoc round-trips an explicit record', async () => {
-    const project = await idb.createProject('DocPut');
-    const written: IdbBuildDoc = {
-      projectId: project.id,
-      html: '<p>x</p>',
-      updatedAt: new Date('2026-01-01').toISOString(),
+    const docJson = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] },
+        { type: 'imageBlock', attrs: { assetId: 'asset-x', caption: 'pic' } },
+        {
+          type: 'sceneBlock',
+          attrs: { modelId: 'm1', sceneId: 's1', caption: '' },
+        },
+      ],
     };
-    await idb.putBuildDoc(written);
-    const fetched = await idb.getBuildDoc(project.id);
-    expect(fetched).toMatchObject({ projectId: project.id, html: '<p>x</p>' });
+    await idb.putBuildDoc(
+      makeDoc(project.id, { doc: docJson, title: 'Build' }),
+    );
+
+    const stored = await idb.getBuildDoc(project.id);
+    expect(stored).toBeDefined();
+    expect(stored!.title).toBe('Build');
+    expect(stored!.doc).toEqual(docJson);
+  });
+
+  it('putBuildDoc replaces records on the same projectId', async () => {
+    const project = await idb.createProject('DocReplace');
+    await idb.putBuildDoc(makeDoc(project.id, { title: 'old' }));
+    await idb.putBuildDoc(makeDoc(project.id, { title: 'new' }));
+    const stored = await idb.getBuildDoc(project.id);
+    expect(stored!.title).toBe('new');
   });
 
   it('deleteBuildDoc removes the record', async () => {
     const project = await idb.createProject('DocDelete');
-    await idb.updateBuildDoc(project.id, { html: '<p>x</p>' });
+    await idb.putBuildDoc(makeDoc(project.id));
     await idb.deleteBuildDoc(project.id);
     expect(await idb.getBuildDoc(project.id)).toBeUndefined();
   });
 
-  it('hydrates a partial record (missing html field) with empty string', async () => {
+  it('hydrates a partial record (missing title / doc) with defaults', async () => {
     const project = await idb.createProject('PartialDoc');
-    // Bypass the typed updateBuildDoc to simulate a record written
-    // before the html field existed — the defaults helper must fill in.
+    // Simulate a record written before today's fields were required.
     const partial = { projectId: project.id } as unknown as IdbBuildDoc;
     await idb.putBuildDoc(partial);
-    const doc = await idb.getBuildDoc(project.id);
-    expect(doc!.html).toBe('');
+    const stored = await idb.getBuildDoc(project.id);
+    expect(stored!.title).toBe('');
+    expect(stored!.doc).toEqual(emptyDoc());
   });
 });
 
@@ -436,7 +457,12 @@ describe('resetDatabase', () => {
       createdAt: new Date().toISOString(),
     };
     await idb.createModel(model);
-    await idb.updateBuildDoc(project.id, { html: '<p></p>' });
+    await idb.putBuildDoc({
+      projectId: project.id,
+      title: 'WipeMe',
+      doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+      updatedAt: new Date().toISOString(),
+    });
 
     await resetDatabase();
 

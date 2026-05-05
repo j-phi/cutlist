@@ -42,7 +42,13 @@ function makePayload() {
     ],
     buildDoc: {
       projectId: 'old-project-id',
-      html: '<p>Desc</p>',
+      title: 'Demo',
+      doc: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'Desc' }] },
+        ],
+      },
       updatedAt: now,
     },
   };
@@ -147,16 +153,14 @@ describe('parseProjectExport validation', () => {
     expect(() => parseProjectExport(payload)).toThrow('Invalid project file');
   });
 
-  it('rejects build doc with missing html field', () => {
+  it('rejects build doc with structurally bad fields', () => {
     const payload = makePayload();
     (payload as any).buildDoc = {
       projectId: 'old-project-id',
-      // html missing
-      updatedAt: new Date().toISOString(),
+      title: 'x',
+      doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+      updatedAt: 42, // should be a string
     };
-    // Default kicks in (html defaults to '') so this still parses; force a
-    // structural mismatch to verify Zod fails loudly.
-    (payload as any).buildDoc.updatedAt = 42;
     expect(() => parseProjectExport(payload)).toThrow('Invalid project file');
   });
 
@@ -221,7 +225,13 @@ describe('importProjectData', () => {
 
     expect(calls.putBuildDoc).toHaveLength(1);
     expect(calls.putBuildDoc[0].projectId).toBe('new-project-id');
-    expect(calls.putBuildDoc[0].html).toBe('<p>Desc</p>');
+    expect(calls.putBuildDoc[0].title).toBe('Demo');
+    expect(calls.putBuildDoc[0].doc).toMatchObject({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Desc' }] },
+      ],
+    });
   });
 });
 
@@ -314,7 +324,11 @@ describe('export -> import round-trip', () => {
 
     expect(validated.project.name).toBe('Demo');
     expect(validated.models).toHaveLength(1);
-    expect(validated.buildDoc?.html).toBe('<p>Desc</p>');
+    expect(validated.buildDoc?.title).toBe('Demo');
+    expect(validated.buildDoc?.doc.content?.[0]).toMatchObject({
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'Desc' }],
+    });
   });
 
   it('payload with parts round-trips correctly', () => {

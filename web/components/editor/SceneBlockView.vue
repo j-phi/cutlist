@@ -2,7 +2,7 @@
 import type { NodeViewProps } from '@tiptap/vue-3';
 import { NodeViewWrapper } from '@tiptap/vue-3';
 import type { IdbScene } from '~/composables/useIdb';
-import ModelTab from '~/components/project/tabs/ModelTab.vue';
+import SceneViewer from '~/components/editor/SceneViewer.vue';
 import BlockDragHandle from '~/components/editor/BlockDragHandle.vue';
 import EmbedCaption from '~/components/editor/EmbedCaption.vue';
 
@@ -87,11 +87,10 @@ const active = ref(false);
             : 'border-subtle',
         ]"
       >
-        <ModelTab
+        <SceneViewer
           v-if="active && hasSceneRef"
-          read-only
-          :target-model-id="modelId"
-          :target-scene-id="sceneId"
+          :model-id="modelId"
+          :scene-id="sceneId"
         />
         <template v-else>
           <img

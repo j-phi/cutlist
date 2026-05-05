@@ -1,14 +1,17 @@
 /**
- * Remap embedded asset / model / scene ids inside a build-doc HTML string.
+ * Remap embedded asset / model / scene ids inside a build-doc JSON tree.
  *
- * Build doc HTML contains `<image-block data-asset-id="…">` and
- * `<scene-block data-model-id="…" data-scene-id="…">` nodes. On import we
- * remap their referenced ids to the freshly-generated ids in the importing
- * client's IDB, so references stay valid after the new write.
+ * Build doc storage is a Tiptap JSON tree. Image and scene embeds appear
+ * as nodes with `type: 'imageBlock' | 'sceneBlock'` and carry their refs
+ * in `attrs.assetId`, `attrs.modelId`, `attrs.sceneId`. On import we
+ * rewrite those attrs to the freshly-generated ids so references stay
+ * valid in the importing client's IDB.
  *
  * Orphan ids (no entry in the relevant id map) are blanked rather than
- * rejected — the corresponding node will render its empty state.
+ * rejected — the corresponding node renders its empty state.
  */
+
+import type { JSONContent } from '@tiptap/core';
 
 export interface BuildDocRemapMaps {
   assetIdMap: Map<string, string>;
@@ -16,27 +19,52 @@ export interface BuildDocRemapMaps {
   sceneIdMap: Map<string, string>;
 }
 
-export function remapBuildDocHtml(
-  html: string,
+export function remapBuildDoc(
+  doc: JSONContent,
   maps: BuildDocRemapMaps,
-): string {
-  if (!html) return html;
+): JSONContent {
+  return walk(doc, maps);
+}
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(`<root>${html}</root>`, 'text/html');
-  const root = doc.querySelector('root');
-  if (!root) return html;
-
-  for (const el of Array.from(root.querySelectorAll('image-block'))) {
-    const old = el.getAttribute('data-asset-id') ?? '';
-    el.setAttribute('data-asset-id', maps.assetIdMap.get(old) ?? '');
+function walk(node: JSONContent, maps: BuildDocRemapMaps): JSONContent {
+  const next: JSONContent = { ...node };
+  if (node.type === 'imageBlock' && node.attrs) {
+    const old = (node.attrs.assetId as string | undefined) ?? '';
+    next.attrs = { ...node.attrs, assetId: maps.assetIdMap.get(old) ?? '' };
+  } else if (node.type === 'sceneBlock' && node.attrs) {
+    const oldModel = (node.attrs.modelId as string | undefined) ?? '';
+    const oldScene = (node.attrs.sceneId as string | undefined) ?? '';
+    next.attrs = {
+      ...node.attrs,
+      modelId: maps.modelIdMap.get(oldModel) ?? '',
+      sceneId: maps.sceneIdMap.get(oldScene) ?? '',
+    };
   }
-  for (const el of Array.from(root.querySelectorAll('scene-block'))) {
-    const oldModel = el.getAttribute('data-model-id') ?? '';
-    const oldScene = el.getAttribute('data-scene-id') ?? '';
-    el.setAttribute('data-model-id', maps.modelIdMap.get(oldModel) ?? '');
-    el.setAttribute('data-scene-id', maps.sceneIdMap.get(oldScene) ?? '');
+  if (node.content) {
+    next.content = node.content.map((c) => walk(c, maps));
   }
+  return next;
+}
 
-  return root.innerHTML;
+/**
+ * Walk a build-doc JSON tree and return the set of asset ids referenced
+ * by `imageBlock` nodes. Used by orphan-asset GC to discover live refs
+ * without re-parsing storage.
+ */
+export function collectAssetIds(doc: JSONContent): Set<string> {
+  const out = new Set<string>();
+  visit(doc, (node) => {
+    if (node.type === 'imageBlock') {
+      const id = node.attrs?.assetId;
+      if (typeof id === 'string' && id) out.add(id);
+    }
+  });
+  return out;
+}
+
+function visit(node: JSONContent, fn: (node: JSONContent) => void): void {
+  fn(node);
+  if (node.content) {
+    for (const child of node.content) visit(child, fn);
+  }
 }

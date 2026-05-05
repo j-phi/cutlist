@@ -2,12 +2,7 @@
 import BuildDocEditor from '~/components/editor/BuildDocEditor.vue';
 
 const { activeProject } = useProjects();
-const { html, title, setHtml, setTitle, flush } = useBuildDoc();
-
-// `title` is optional on the doc record. While it's `undefined` (never set)
-// the input shows the project name as a placeholder so the page feels
-// prefilled. Once the user types — even clearing back to "" — we persist
-// the explicit value and stop falling back.
+const { doc, title, setDoc, setTitle, flush } = useBuildDoc();
 
 function onTitleInput(e: Event) {
   setTitle((e.target as HTMLInputElement).value);
@@ -25,7 +20,7 @@ onBeforeUnmount(() => {
         <header class="mb-6">
           <input
             type="text"
-            :value="title ?? ''"
+            :value="title"
             :placeholder="activeProject.name"
             aria-label="Build doc title"
             class="w-full bg-transparent text-3xl sm:text-4xl font-bold text-hi placeholder:text-dim leading-tight border-0 p-0 focus:outline-none focus:ring-0"
@@ -35,9 +30,9 @@ onBeforeUnmount(() => {
         </header>
 
         <BuildDocEditor
-          :model-value="html"
+          :model-value="doc"
           placeholder="Write your build…"
-          @update:model-value="setHtml"
+          @update:model-value="setDoc"
           @blur="flush"
         />
       </template>

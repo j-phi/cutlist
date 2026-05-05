@@ -41,7 +41,7 @@ export interface RecordMigration {
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
-  // v2 baseline: nothing to migrate. Earlier formats are rejected with
+  // v1 baseline: nothing to migrate. Earlier formats are rejected with
   // `LegacyExportError` in `migrateExport` rather than transformed.
 ];
 
