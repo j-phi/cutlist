@@ -87,6 +87,34 @@ function onObjectClick(gid: GroupId, e: MouseEvent) {
     }
   }
 }
+
+const objectRowEls = new Map<GroupId, HTMLElement>();
+
+function setObjectRowRef(gid: GroupId, el: unknown) {
+  if (el instanceof HTMLElement) objectRowEls.set(gid, el);
+  else objectRowEls.delete(gid);
+}
+
+watch(
+  () => store.selectedGroupIds.value,
+  async (ids) => {
+    if (ids.size === 0) return;
+    const first = ids.values().next().value as GroupId | undefined;
+    if (first == null) return;
+    const part = panel.tree.value.find((p) =>
+      p.objects.some((o) => o.groupId === first),
+    );
+    if (!part) return;
+    if (panel.isCollapsed(part.partNumber)) {
+      panel.togglePartCollapse(part.partNumber);
+    }
+    await nextTick();
+    objectRowEls.get(first)?.scrollIntoView({
+      block: 'nearest',
+      behavior: 'instant',
+    });
+  },
+);
 </script>
 
 <template>
@@ -135,7 +163,7 @@ function onObjectClick(gid: GroupId, e: MouseEvent) {
           'flex items-center gap-1 px-2 py-1.5 cursor-pointer border-l-2',
           isPartActive(part)
             ? 'bg-teal-400/25 border-teal-400'
-            : 'border-transparent hover:bg-default/40',
+            : 'border-transparent hover:bg-elevated',
         ]"
         @click="(e) => onPartClick(part, e)"
         @mouseenter="onPartHover(part)"
@@ -187,13 +215,14 @@ function onObjectClick(gid: GroupId, e: MouseEvent) {
       <div v-if="!panel.isCollapsed(part.partNumber)">
         <div
           v-for="obj in part.objects"
+          :ref="(el) => setObjectRowRef(obj.groupId, el)"
           :key="obj.groupId"
           :class="[
             'flex items-center gap-1 pl-7 pr-2 py-1 cursor-pointer border-l-2',
             !obj.visible ? 'opacity-50' : '',
             isObjectSelected(obj.groupId)
               ? 'bg-teal-400/25 border-teal-400'
-              : 'border-transparent hover:bg-default/40',
+              : 'border-transparent hover:bg-elevated',
           ]"
           @click="(e) => onObjectClick(obj.groupId, e)"
           @mouseenter="onObjectHover(obj.groupId)"
