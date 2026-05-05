@@ -4,7 +4,7 @@ import { mountSuspended } from '@nuxt/test-utils/runtime';
 import PartInfoPanel from '../PartInfoPanel.vue';
 
 describe('PartInfoPanel', () => {
-  it('Should render the part header and the four-row dimension table', async () => {
+  it('Should render a compact single-line readout with name + dimensions', async () => {
     const wrapper = await mountSuspended(PartInfoPanel, {
       props: {
         part: {
@@ -22,9 +22,9 @@ describe('PartInfoPanel', () => {
     const text = wrapper.text();
     expect(text).toContain('#7');
     expect(text).toContain('Side panel');
-    expect(text).toContain('Width');
-    expect(text).toContain('Length');
-    expect(text).toContain('Thickness');
-    expect(text).toContain('oak-18mm');
+    // Dimensions on one line, separated by `×`. The compact readout
+    // intentionally drops material — that lives elsewhere (BOM tab).
+    expect(text).toContain('×');
+    expect(text).not.toContain('oak-18mm');
   });
 });
