@@ -4,14 +4,14 @@ import { reportError } from './useAppErrors';
 export default function useImportProject() {
   const { appendProject } = useProjects();
   const { setActiveProject } = useProjectNavigation();
-  const { reloadSteps } = useBuildSteps();
+  const { reload: reloadBuildDoc } = useBuildDoc();
   const idb = useIdb();
 
   async function importFromFile(file: File) {
     const newProjectId = await importProjectFromCompressedFile(file, idb);
     await appendProject(newProjectId);
     setActiveProject(newProjectId);
-    await reloadSteps(newProjectId);
+    await reloadBuildDoc(newProjectId);
   }
 
   function pickAndImport() {

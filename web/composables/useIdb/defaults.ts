@@ -9,6 +9,7 @@ import type {
   IdbModelMeta,
   IdbScene,
   IdbAnnotation,
+  IdbBuildDoc,
 } from './types';
 
 export function applyProjectDefaults(
@@ -54,6 +55,16 @@ export function applySceneDefaults(
     objectOffsets: s.objectOffsets ?? {},
     floorVisible: s.floorVisible ?? true,
   } as IdbScene;
+}
+
+export function applyBuildDocDefaults(
+  d: Partial<IdbBuildDoc> & { projectId: string },
+): IdbBuildDoc {
+  return {
+    ...d,
+    html: d.html ?? '',
+    updatedAt: d.updatedAt ?? new Date().toISOString(),
+  } as IdbBuildDoc;
 }
 
 export function applyAnnotationDefaults(

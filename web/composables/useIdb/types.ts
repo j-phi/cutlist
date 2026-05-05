@@ -59,13 +59,44 @@ export interface IdbModel {
 /** Model record without rawSource — what we keep in the reactive store. */
 export type IdbModelMeta = Omit<IdbModel, 'rawSource'>;
 
-export interface IdbBuildStep {
+// ─── Build doc ──────────────────────────────────────────────────────────────
+
+/**
+ * The build "page" for a project — a single rich-text document edited
+ * inline, Notion-style. Stored as Tiptap-rendered HTML. Embedded image and
+ * scene nodes serialise to `<image-block data-asset-id="…" />` and
+ * `<scene-block data-model-id="…" data-scene-id="…" />` so referenced ids
+ * survive round-tripping.
+ *
+ * Exactly one record per project, keyed by `projectId`.
+ */
+export interface IdbBuildDoc {
+  projectId: string;
+  /**
+   * The doc's title. Optional — when missing the UI falls back to the
+   * project name as a "prefill" placeholder. An explicit empty string
+   * means the user cleared it; we don't fall back in that case.
+   */
+  title?: string;
+  html: string;
+  updatedAt: string;
+}
+
+// ─── Assets ─────────────────────────────────────────────────────────────────
+
+/**
+ * A binary asset (currently always an image) referenced from a build doc
+ * by `<image-block data-asset-id="…">`. Stored in its own table so doc
+ * records stay small and so the same asset can be referenced by multiple
+ * blocks without duplicating bytes.
+ */
+export interface IdbAsset {
   id: string;
   projectId: string;
-  stepNumber: number;
-  title: string;
-  /** HTML string — supports rich text with hyperlinks. */
-  description: string;
+  /** MIME type — used at render time to set the object-URL blob's content-type. */
+  mimeType: string;
+  /** The image bytes. Dexie persists `Blob` directly. */
+  blob: Blob;
   createdAt: string;
 }
 

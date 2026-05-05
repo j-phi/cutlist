@@ -39,11 +39,12 @@ import {
   flushPendingModelWrites,
 } from './models';
 import {
-  getBuildSteps,
-  createBuildStep,
-  updateBuildStep,
-  deleteBuildStep,
-} from './buildSteps';
+  getBuildDoc,
+  putBuildDoc,
+  updateBuildDoc,
+  deleteBuildDoc,
+} from './buildDocs';
+import { createAsset, putAsset, getAsset, getAssetsForProject } from './assets';
 import {
   getScenesForModel,
   nextSceneOrder,
@@ -65,6 +66,7 @@ export {
   applyModelDefaults,
   applySceneDefaults,
   applyAnnotationDefaults,
+  applyBuildDocDefaults,
 } from './defaults';
 export type { AnnotationPatch } from './annotations';
 export type {
@@ -72,7 +74,8 @@ export type {
   PartOverride,
   IdbModel,
   IdbModelMeta,
-  IdbBuildStep,
+  IdbBuildDoc,
+  IdbAsset,
   IdbScene,
   IdbAnnotation,
   IdbCallout,
@@ -95,10 +98,14 @@ export function useIdb() {
     updateModel,
     deleteModel,
     getModelRawSource,
-    getBuildSteps,
-    createBuildStep,
-    updateBuildStep,
-    deleteBuildStep,
+    getBuildDoc,
+    putBuildDoc,
+    updateBuildDoc,
+    deleteBuildDoc,
+    createAsset,
+    putAsset,
+    getAsset,
+    getAssetsForProject,
     flushPendingModelWrites,
     getScenesForModel,
     nextSceneOrder,

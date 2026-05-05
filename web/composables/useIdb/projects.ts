@@ -1,7 +1,7 @@
 /**
  * Project CRUD: create/read/update/archive/unarchive/delete.
  *
- * Project deletion cascades to models and buildSteps in a
+ * Project deletion cascades to models, the build doc, and assets in a
  * single Dexie transaction so partial failures don't leave orphans.
  */
 
@@ -143,7 +143,14 @@ export async function deleteProject(id: string): Promise<void> {
   await safeWrite(() =>
     db.transaction(
       'rw',
-      [db.projects, db.models, db.buildSteps, db.scenes, db.annotations],
+      [
+        db.projects,
+        db.models,
+        db.buildDocs,
+        db.scenes,
+        db.annotations,
+        db.assets,
+      ],
       async () => {
         // Cascade through models → scenes → annotations. Scenes are now
         // model-scoped, so we can't query them by projectId directly.
@@ -160,7 +167,8 @@ export async function deleteProject(id: string): Promise<void> {
           }
           await db.models.where('projectId').equals(id).delete();
         }
-        await db.buildSteps.where('projectId').equals(id).delete();
+        await db.buildDocs.delete(id);
+        await db.assets.where('projectId').equals(id).delete();
         await db.projects.delete(id);
       },
     ),

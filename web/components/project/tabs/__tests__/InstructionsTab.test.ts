@@ -4,7 +4,6 @@ import { defineComponent, h, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
-import type { IdbBuildStep } from '~/composables/useIdb';
 import InstructionsTab from '../InstructionsTab.vue';
 
 interface ActiveProject {
@@ -13,295 +12,116 @@ interface ActiveProject {
 }
 
 const activeProject = ref<ActiveProject | null>(null);
+const html = ref('');
+const title = ref<string | undefined>(undefined);
+const setHtml = vi.fn((next: string) => {
+  html.value = next;
+});
+const setTitle = vi.fn((next: string) => {
+  title.value = next;
+});
+const flush = vi.fn(async () => {});
 
-const buildSteps = ref<IdbBuildStep[]>([]);
-const addStep = vi.fn(async () => undefined as string | undefined);
-const updateStep = vi.fn(
-  async (_id: string, _patch: Partial<IdbBuildStep>) => {},
-);
-const removeStep = vi.fn(async (_id: string) => {});
-const moveStep = vi.fn(async (_id: string, _dir: 'up' | 'down') => {});
-
-mockNuxtImport('useProjects', () => () => ({
-  activeProject,
+mockNuxtImport('useProjects', () => () => ({ activeProject }));
+mockNuxtImport('useBuildDoc', () => () => ({
+  html,
+  title,
+  setHtml,
+  setTitle,
+  flush,
 }));
 
-mockNuxtImport('useBuildSteps', () => () => ({
-  buildSteps,
-  addStep,
-  updateStep,
-  removeStep,
-  moveStep,
-}));
-
-const UButtonStub = defineComponent({
-  inheritAttrs: false,
-  props: {
-    label: { type: String, default: '' },
-    icon: { type: String, default: '' },
-    disabled: { type: Boolean, default: false },
-  },
-  emits: ['click'],
-  setup(props, { attrs, emit, slots }) {
-    return () =>
-      h(
-        'button',
-        {
-          ...attrs,
-          type: 'button',
-          'data-icon': props.icon,
-          disabled: props.disabled || undefined,
-          onClick: (event: MouseEvent) => emit('click', event),
-        },
-        slots.default ? slots.default() : props.label || undefined,
-      );
-  },
-});
-
-const UInputStub = defineComponent({
-  props: {
-    modelValue: { type: String, default: '' },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h('input', {
-        ...attrs,
-        value: props.modelValue,
-        onInput: (event: Event) =>
-          emit('update:modelValue', (event.target as HTMLInputElement).value),
-      });
-  },
-});
-
-const RichTextEditorStub = defineComponent({
-  props: {
-    modelValue: { type: String, default: '' },
-    placeholder: { type: String, default: '' },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { emit }) {
-    return () =>
-      h('textarea', {
-        'data-testid': 'rich-editor',
-        value: props.modelValue,
-        placeholder: props.placeholder,
-        onInput: (event: Event) =>
-          emit(
-            'update:modelValue',
-            (event.target as HTMLTextAreaElement).value,
-          ),
-      });
-  },
-});
-
-function makeStep(overrides: Partial<IdbBuildStep> = {}): IdbBuildStep {
-  return {
-    id: 'step-1',
-    projectId: 'project-1',
-    stepNumber: 1,
-    title: '',
-    description: '',
-    createdAt: new Date('2026-01-01').toISOString(),
-    ...overrides,
-  };
-}
+const stubs = {
+  UIcon: true,
+  // The editor is heavy; stub it out and just record what props/events flow.
+  BuildDocEditor: defineComponent({
+    name: 'BuildDocEditor',
+    props: {
+      modelValue: { type: String, default: '' },
+      placeholder: { type: String, default: '' },
+    },
+    emits: ['update:modelValue', 'blur'],
+    setup(props) {
+      return () =>
+        h('div', {
+          'data-testid': 'editor',
+          'data-html': props.modelValue,
+        });
+    },
+  }),
+};
 
 function getComponent() {
-  return shallowMount(InstructionsTab, {
-    global: {
-      stubs: {
-        UButton: UButtonStub,
-        UIcon: true,
-        UInput: UInputStub,
-        RichTextEditor: RichTextEditorStub,
-      },
-    },
-  });
-}
-
-function getButton(component: ReturnType<typeof getComponent>, text: string) {
-  const button = component
-    .findAll('button')
-    .find((candidate) => candidate.text() === text);
-  if (!button) throw new Error(`Missing button: ${text}`);
-  return button;
+  return shallowMount(InstructionsTab, { global: { stubs } });
 }
 
 describe('InstructionsTab', () => {
   afterEach(() => {
     activeProject.value = null;
-    buildSteps.value = [];
-    addStep.mockReset();
-    updateStep.mockReset();
-    removeStep.mockReset();
-    moveStep.mockReset();
+    html.value = '';
+    title.value = undefined;
+    setHtml.mockReset();
+    setTitle.mockReset();
+    flush.mockReset();
     vi.restoreAllMocks();
   });
 
-  describe('Rendering', () => {
-    it('Should show the empty-project state when activeProject is null', () => {
-      activeProject.value = null;
-      buildSteps.value = [];
-
-      const component = getComponent();
-
-      expect(component.text()).toContain('Create a project to get started.');
-      expect(
-        component.findAll('button').find((b) => b.text() === 'Add Step'),
-      ).toBeUndefined();
-    });
-
-    it('Should show the empty-steps state when there are no build steps', () => {
-      activeProject.value = { id: 'p1', name: 'P1' };
-      buildSteps.value = [];
-
-      const component = getComponent();
-
-      expect(component.text()).toContain('No steps yet');
-      expect(getButton(component, 'Add First Step')).toBeDefined();
-    });
-
-    it('Should zero-pad step number labels', () => {
-      activeProject.value = { id: 'p1', name: 'P1' };
-      buildSteps.value = [
-        makeStep({ id: 's1', stepNumber: 1, title: 'First' }),
-        makeStep({ id: 's2', stepNumber: 2, title: 'Second' }),
-      ];
-
-      const component = getComponent();
-      const text = component.text();
-
-      expect(text).toContain('01');
-      expect(text).toContain('02');
-    });
+  it('shows the empty-project state when no project is active', () => {
+    const c = getComponent();
+    expect(c.text()).toContain('Create a project to get started.');
+    expect(c.find('[data-testid="editor"]').exists()).toBe(false);
   });
 
-  describe('On Add Step click', () => {
-    it('Should call addStep when the header Add Step button is clicked', async () => {
-      activeProject.value = { id: 'p1', name: 'P1' };
-      buildSteps.value = [makeStep({ id: 's1', stepNumber: 1, title: 'A' })];
+  it('mounts the editor with the doc html', () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    html.value = '<p>Hello</p>';
 
-      const component = getComponent();
-
-      await getButton(component, 'Add Step').trigger('click');
-
-      expect(addStep).toHaveBeenCalledTimes(1);
-    });
+    const c = getComponent();
+    const editor = c.find('[data-testid="editor"]');
+    expect(editor.exists()).toBe(true);
+    expect(editor.attributes('data-html')).toBe('<p>Hello</p>');
   });
 
-  describe('Edit mode', () => {
-    it('Should enter edit mode when the pencil action is clicked, rendering Save and Cancel', async () => {
-      activeProject.value = { id: 'p1', name: 'P1' };
-      buildSteps.value = [
-        makeStep({ id: 's1', stepNumber: 1, title: 'Existing' }),
-      ];
+  it('prefills the title input with the project name when title is unset', () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    title.value = undefined;
 
-      const component = getComponent();
-      const pencil = component
-        .findAll('button')
-        .find((b) => b.attributes('data-icon') === 'i-lucide-pencil');
-      expect(pencil).toBeDefined();
-
-      await pencil!.trigger('click');
-
-      expect(getButton(component, 'Save')).toBeDefined();
-      expect(getButton(component, 'Cancel')).toBeDefined();
-    });
-
-    it('Should call updateStep with the edited title and description when Save is clicked', async () => {
-      activeProject.value = { id: 'p1', name: 'P1' };
-      buildSteps.value = [
-        makeStep({
-          id: 's1',
-          stepNumber: 1,
-          title: 'Original',
-          description: '<p>Old</p>',
-        }),
-      ];
-
-      const component = getComponent();
-      const pencil = component
-        .findAll('button')
-        .find((b) => b.attributes('data-icon') === 'i-lucide-pencil');
-      await pencil!.trigger('click');
-
-      const titleInput = component.get('input');
-      await titleInput.setValue('New Title');
-
-      const editor = component.get('[data-testid="rich-editor"]');
-      await editor.setValue('<p>New body</p>');
-
-      await getButton(component, 'Save').trigger('click');
-
-      expect(updateStep).toHaveBeenCalledTimes(1);
-      expect(updateStep).toHaveBeenCalledWith('s1', {
-        title: 'New Title',
-        description: '<p>New body</p>',
-      });
-    });
-
-    it('Should leave the step unchanged when Cancel is clicked', async () => {
-      activeProject.value = { id: 'p1', name: 'P1' };
-      buildSteps.value = [
-        makeStep({
-          id: 's1',
-          stepNumber: 1,
-          title: 'Keep me',
-          description: '<p>keep</p>',
-        }),
-      ];
-
-      const component = getComponent();
-      const pencil = component
-        .findAll('button')
-        .find((b) => b.attributes('data-icon') === 'i-lucide-pencil');
-      await pencil!.trigger('click');
-
-      await component.get('input').setValue('discarded');
-      await getButton(component, 'Cancel').trigger('click');
-
-      expect(updateStep).not.toHaveBeenCalled();
-      // Edit UI is gone; original title is rendered again
-      expect(
-        component.findAll('button').find((b) => b.text() === 'Save'),
-      ).toBeUndefined();
-      expect(component.text()).toContain('Keep me');
-    });
+    const c = getComponent();
+    const input = c.get('input[aria-label="Build doc title"]');
+    expect((input.element as HTMLInputElement).value).toBe('');
+    expect(input.attributes('placeholder')).toBe('Demo');
   });
 
-  describe('Move chevrons', () => {
-    it('Should disable the up chevron on step 1 and the down chevron on the last step', () => {
-      activeProject.value = { id: 'p1', name: 'P1' };
-      buildSteps.value = [
-        makeStep({ id: 's1', stepNumber: 1, title: 'First' }),
-        makeStep({ id: 's2', stepNumber: 2, title: 'Middle' }),
-        makeStep({ id: 's3', stepNumber: 3, title: 'Last' }),
-      ];
+  it('shows the explicit title once the user has set one', () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    title.value = 'My custom build';
 
-      const component = getComponent();
+    const c = getComponent();
+    const input = c.get('input[aria-label="Build doc title"]');
+    expect((input.element as HTMLInputElement).value).toBe('My custom build');
+  });
 
-      const ups = component
-        .findAll('button')
-        .filter((b) => b.attributes('data-icon') === 'i-lucide-chevron-up');
-      const downs = component
-        .findAll('button')
-        .filter((b) => b.attributes('data-icon') === 'i-lucide-chevron-down');
+  it('forwards title input to setTitle', async () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    const c = getComponent();
+    const input = c.get('input[aria-label="Build doc title"]');
+    await input.setValue('A new title');
+    expect(setTitle).toHaveBeenCalledWith('A new title');
+  });
 
-      expect(ups).toHaveLength(3);
-      expect(downs).toHaveLength(3);
+  it('forwards editor updates to setHtml', async () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    const c = getComponent();
+    const editor = c.findComponent({ name: 'BuildDocEditor' });
+    editor.vm.$emit('update:modelValue', '<p>typed</p>');
+    expect(setHtml).toHaveBeenCalledWith('<p>typed</p>');
+  });
 
-      // First step: up disabled, down enabled
-      expect(ups[0].attributes('disabled')).toBeDefined();
-      expect(downs[0].attributes('disabled')).toBeUndefined();
-
-      // Middle step: both enabled
-      expect(ups[1].attributes('disabled')).toBeUndefined();
-      expect(downs[1].attributes('disabled')).toBeUndefined();
-
-      // Last step: up enabled, down disabled
-      expect(ups[2].attributes('disabled')).toBeUndefined();
-      expect(downs[2].attributes('disabled')).toBeDefined();
-    });
+  it('flushes pending writes when the editor blurs', () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    const c = getComponent();
+    const editor = c.findComponent({ name: 'BuildDocEditor' });
+    editor.vm.$emit('blur');
+    expect(flush).toHaveBeenCalled();
   });
 });

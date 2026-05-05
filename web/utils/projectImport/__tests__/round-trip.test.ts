@@ -78,7 +78,6 @@ function makePayload(): ProjectExport {
         createdAt: now,
       },
     ],
-    buildSteps: [],
     scenes: [
       {
         id: 'scene-1',
