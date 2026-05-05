@@ -15,7 +15,6 @@ const props = defineProps<{
   pickHint: string | null;
   hasSelection: boolean;
   gizmoMode: GizmoMode;
-  showGizmoControls: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -29,8 +28,6 @@ function isPicking(kind: PickKind): boolean {
 }
 
 const isPickMode = computed(() => props.mode === 'pick' && !!props.pickHint);
-
-const showGizmo = computed(() => props.showGizmoControls && props.hasSelection);
 </script>
 
 <template>
@@ -42,7 +39,7 @@ const showGizmo = computed(() => props.showGizmoControls && props.hasSelection);
     </template>
     <template v-else>
       <UButton
-        v-if="showGizmo"
+        v-if="props.hasSelection"
         size="xs"
         :color="props.gizmoMode === 'translate' ? 'primary' : 'neutral'"
         :variant="props.gizmoMode === 'translate' ? 'solid' : 'ghost'"
@@ -51,7 +48,7 @@ const showGizmo = computed(() => props.showGizmoControls && props.hasSelection);
         @click="emit('update:gizmoMode', 'translate')"
       />
       <UButton
-        v-if="showGizmo"
+        v-if="props.hasSelection"
         size="xs"
         :color="props.gizmoMode === 'rotate' ? 'primary' : 'neutral'"
         :variant="props.gizmoMode === 'rotate' ? 'solid' : 'ghost'"
@@ -60,7 +57,7 @@ const showGizmo = computed(() => props.showGizmoControls && props.hasSelection);
         @click="emit('update:gizmoMode', 'rotate')"
       />
       <span
-        v-if="showGizmo && props.hasActiveScene"
+        v-if="props.hasSelection && props.hasActiveScene"
         class="w-px h-5 bg-subtle mx-1"
         aria-hidden="true"
       />

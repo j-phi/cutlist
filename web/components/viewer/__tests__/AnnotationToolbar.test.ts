@@ -13,7 +13,6 @@ describe('AnnotationToolbar', () => {
         pickHint: null,
         hasSelection: false,
         gizmoMode: 'translate',
-        showGizmoControls: true,
       },
     });
     const text = wrapper.text();
@@ -30,7 +29,6 @@ describe('AnnotationToolbar', () => {
         pickHint: null,
         hasSelection: false,
         gizmoMode: 'translate',
-        showGizmoControls: true,
       },
     });
     const buttons = wrapper.findAll('button');
@@ -50,7 +48,6 @@ describe('AnnotationToolbar', () => {
         pickHint: 'Click a part to anchor',
         hasSelection: false,
         gizmoMode: 'translate',
-        showGizmoControls: true,
       },
     });
     const text = wrapper.text();
@@ -69,7 +66,6 @@ describe('AnnotationToolbar', () => {
         pickHint: null,
         hasSelection: true,
         gizmoMode: 'translate',
-        showGizmoControls: true,
       },
     });
     expect(wrapper.text()).toContain('Move');
@@ -81,16 +77,15 @@ describe('AnnotationToolbar', () => {
     expect(wrapper.emitted('update:gizmoMode')).toEqual([['rotate']]);
   });
 
-  it('Should hide Move/Rotate when showGizmoControls is false (read-only)', async () => {
+  it('Should hide Move/Rotate when there is no selection', async () => {
     const wrapper = await mountSuspended(AnnotationToolbar, {
       props: {
-        hasActiveScene: false,
+        hasActiveScene: true,
         mode: 'select',
         pickKind: null,
         pickHint: null,
-        hasSelection: true,
+        hasSelection: false,
         gizmoMode: 'translate',
-        showGizmoControls: false,
       },
     });
     expect(wrapper.text()).not.toContain('Move');

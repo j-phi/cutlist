@@ -84,20 +84,20 @@ const focusedModelId = computed<string | null>(() => {
   return focusedModel.value?.id ?? null;
 });
 
-const hasModelData = computed(() => enabledModels.value.length > 0);
-
 const hasOnlyManualModels = computed(
   () =>
     allEnabledModels.value.length > 0 &&
     allEnabledModels.value.every((m) => m.source === 'manual'),
 );
 
+// `manual-only` and `no-models` are mutually exclusive and together cover
+// every state where `enabledModels` is empty, so we don't need a third
+// branch for that.
 const emptyStateType = computed<
   'no-models' | 'manual-only' | 'no-source' | null
 >(() => {
   if (hasOnlyManualModels.value) return 'manual-only';
   if (allEnabledModels.value.length === 0) return 'no-models';
-  if (enabledModels.value.length === 0) return 'no-models';
   if (focusedModelId.value && loadState.value === 'missing-source')
     return 'no-source';
   return null;
@@ -160,10 +160,7 @@ const { loadedGraph, loadState } = useFocusedModelLoader({
   scenesApi,
   targetSceneId,
 });
-const canShowViewerControls = computed(
-  () =>
-    hasModelData.value && !hasOnlyManualModels.value && !emptyStateType.value,
-);
+const canShowViewerControls = computed(() => !emptyStateType.value);
 const annotationsApi = useAnnotations();
 const annotationAuthor = useAnnotationAuthor(
   viewer,
@@ -277,7 +274,6 @@ watch(
       <ViewerSidePanel
         v-if="!props.readOnly && canShowViewerControls && loadedGraph"
         title="Objects"
-        side="left"
         class="hidden sm:flex"
         :collapsed="objectsCollapsed"
         @update:collapsed="(v) => (objectsCollapsed = v)"
@@ -344,7 +340,6 @@ watch(
             :pick-hint="annotationAuthor.hint.value"
             :has-selection="hasSelection"
             :gizmo-mode="gizmoMode"
-            :show-gizmo-controls="!props.readOnly"
             @add-callout="onAddCallout"
             @add-dimension="onAddDimension"
             @update:gizmo-mode="onGizmoMode"
