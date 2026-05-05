@@ -502,6 +502,31 @@ export class ViewerCore {
     this.renderer?.requestRender();
   }
 
+  /**
+   * Drive a per-Object fade alpha across the body. The Highlighter applies
+   * the alpha into BatchedMesh per-instance color, switching the shared
+   * material to transparent while any fade is < 1. Edge lines snap on/off
+   * at the fade midpoint so the pop lands when the body is half-transparent
+   * — true per-Object edge fading would need cloning the shared LineMaterial.
+   *
+   * Used by scene tweening to crossfade visibility changes between scenes.
+   */
+  setObjectFadeAlphas(perGroup: Map<GroupId, number>): void {
+    if (!this.registry) return;
+    this.highlighter?.setFadeAlphas(perGroup);
+    for (const [groupId, alpha] of perGroup) {
+      const r = this.registry.get(groupId);
+      if (!r?.edgeLines) continue;
+      r.edgeLines.visible = alpha >= 0.5;
+    }
+    this.renderer?.requestRender();
+  }
+
+  clearObjectFadeAlphas(): void {
+    this.highlighter?.clearFadeAlphas();
+    this.renderer?.requestRender();
+  }
+
   /** Read-only snapshot of registered Objects (groupId, partNumber, name). */
   getObjects(): Array<{ groupId: GroupId; partNumber: number; name: string }> {
     const out: Array<{

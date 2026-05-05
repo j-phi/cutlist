@@ -215,6 +215,9 @@ export default function useThreeViewer(
       core?.setObjectVisible(id, visible),
     setAllObjectsVisible: (visible: boolean) =>
       core?.setAllObjectsVisible(visible),
+    setObjectFadeAlphas: (perGroup: Map<GroupId, number>) =>
+      core?.setObjectFadeAlphas(perGroup),
+    clearObjectFadeAlphas: () => core?.clearObjectFadeAlphas(),
     getObjects: () => core?.getObjects() ?? [],
     setGizmoMode: (mode: GizmoMode) => core?.setGizmoMode(mode),
     setGizmoEnabled: (enabled: boolean) => core?.setGizmoEnabled(enabled),

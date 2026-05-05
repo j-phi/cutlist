@@ -23,6 +23,12 @@ interface FakeViewer extends SceneAuthorViewer {
   tickFrame(): void;
   appliedOffsets: Array<Map<GroupId, ObjectOffset>>;
   visibleCalls: Array<[GroupId, boolean]>;
+  /**
+   * Sequenced log of fade-alpha activity. Each entry is either the snapshot
+   * of a `setObjectFadeAlphas` call or the literal `'clear'` for
+   * `clearObjectFadeAlphas` — order matters for tween assertions.
+   */
+  fadeLog: Array<Map<GroupId, number> | 'clear'>;
   cameraMode: CameraMode;
   cameraPose: CameraPose;
   floorVisible: boolean;
@@ -46,6 +52,7 @@ function makeFakeViewer(opts: { ready?: boolean } = {}): FakeViewer {
     floorVisible: true,
     appliedOffsets: [],
     visibleCalls: [],
+    fadeLog: [],
     getCameraMode: () => v.cameraMode,
     setCameraMode: (m) => {
       v.cameraMode = m;
@@ -63,6 +70,12 @@ function makeFakeViewer(opts: { ready?: boolean } = {}): FakeViewer {
     },
     setAllObjectsVisible: (visible) => {
       for (const o of objects) v.visibleCalls.push([o.groupId, visible]);
+    },
+    setObjectFadeAlphas: (perGroup) => {
+      v.fadeLog.push(new Map(perGroup));
+    },
+    clearObjectFadeAlphas: () => {
+      v.fadeLog.push('clear');
     },
     resetAllOffsets: () => {
       offsets.clear();
@@ -354,6 +367,91 @@ describe('useSceneAuthor — tweenToScene', () => {
     v.tickFrame();
     await promise;
     expect(a.tween.value).toBeNull();
+  });
+
+  it('Should fade appearing + disappearing objects across the tween', async () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    // Start visible: only object 2. Target scene shows only objects 1 + 3,
+    // so 1 + 3 are appearing and 2 is disappearing.
+    a.jumpToScene(
+      makeScene({
+        id: 's0',
+        visibleObjects: [2],
+        objectOffsets: {},
+      }),
+    );
+    v.fadeLog.length = 0;
+    v.visibleCalls.length = 0;
+
+    const promise = a.tweenToScene(makeScene({ id: 's1' }), 100);
+
+    // Appearing objects 1 + 3 must be made body-visible up front so they
+    // have something to fade in.
+    expect(
+      v.visibleCalls.filter(([id, vis]) => vis && (id === 1 || id === 3))
+        .length,
+    ).toBe(2);
+
+    // Mid-tween: alphas progress in opposite directions.
+    fastForward(50);
+    v.tickFrame();
+    const mid = v.fadeLog.find(
+      (e) => e !== 'clear' && e.has(1) && (e.get(1) ?? 0) > 0,
+    ) as Map<GroupId, number>;
+    const appearAlpha = mid.get(1)!;
+    const disappearAlpha = mid.get(2)!;
+    expect(appearAlpha).toBeGreaterThan(0);
+    expect(appearAlpha).toBeLessThan(1);
+    expect(disappearAlpha).toBeGreaterThan(0);
+    expect(disappearAlpha).toBeLessThan(1);
+    expect(appearAlpha + disappearAlpha).toBeCloseTo(1, 5);
+
+    // Past end → fades cleared and disappearing object hidden.
+    fastForward(60);
+    v.tickFrame();
+    await promise;
+    expect(v.fadeLog).toContain('clear');
+    expect(v.visibleCalls).toContainEqual([2, false]);
+  });
+
+  it('Should skip fade work when visibility does not change between scenes', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene({ id: 's0', visibleObjects: undefined }));
+    v.fadeLog.length = 0;
+
+    a.tweenToScene(
+      makeScene({ id: 's1', visibleObjects: undefined, objectOffsets: {} }),
+      100,
+    );
+    v.tickFrame();
+    // The pre-tween 'clear' is the only fade activity; no per-tick set calls.
+    expect(v.fadeLog.every((e) => e === 'clear')).toBe(true);
+  });
+
+  it('Should clear selection + hover when tween starts', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    const store = useModelViewerStore();
+    store.selectGroupIds([1, 2]);
+    store.setHoveredGroupIds([3]);
+
+    a.tweenToScene(makeScene(), 100);
+    expect(store.selectedGroupIds.value.size).toBe(0);
+    expect(store.hoveredGroupIds.value.size).toBe(0);
+  });
+
+  it('Should clear selection + hover when jump runs', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    const store = useModelViewerStore();
+    store.selectGroupIds([1]);
+    store.setHoveredGroupIds([2]);
+
+    a.jumpToScene(makeScene());
+    expect(store.selectedGroupIds.value.size).toBe(0);
+    expect(store.hoveredGroupIds.value.size).toBe(0);
   });
 
   it('Should suppress dirty during tween-driven object-moved bursts', () => {
