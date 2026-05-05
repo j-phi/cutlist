@@ -164,7 +164,6 @@ watch(tab, () => {
           <span class="hidden sm:inline">Updating&hellip;</span>
         </span>
       </Transition>
-      <ExportPdfButton class="shrink-0 mr-2" />
     </div>
   </header>
 </template>

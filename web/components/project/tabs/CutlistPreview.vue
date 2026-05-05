@@ -129,18 +129,21 @@ const unplacedCount = computed(() => data.value?.leftovers.length ?? 0);
       <PreviewToolbar />
     </div>
 
-    <!-- Stock filter -->
-    <div
-      v-if="stockOptions.length > 1"
-      class="absolute top-3 right-3 z-10 bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
-    >
-      <label class="text-xs text-muted whitespace-nowrap">Stock</label>
-      <USelect
-        v-model="selectedStock"
-        :items="[{ label: 'All', value: ALL }, ...stockOptions]"
-        size="xs"
-        class="w-36"
-      />
+    <!-- Stock filter + print -->
+    <div class="absolute top-3 right-3 z-10 flex items-center gap-2">
+      <div
+        v-if="stockOptions.length > 1"
+        class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
+      >
+        <label class="text-xs text-muted whitespace-nowrap">Stock</label>
+        <USelect
+          v-model="selectedStock"
+          :items="[{ label: 'All', value: ALL }, ...stockOptions]"
+          size="xs"
+          class="w-36"
+        />
+      </div>
+      <ExportPdfButton />
     </div>
 
     <!-- Controls -->

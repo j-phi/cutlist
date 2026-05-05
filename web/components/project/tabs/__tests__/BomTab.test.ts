@@ -200,6 +200,7 @@ const stubs = {
   ManualPartRow: true,
   ColorMappingPanel: true,
   ModelTab: true,
+  ExportPdfButton: true,
 };
 
 // ── Test helpers ─────────────────────────────────────────────────────────────

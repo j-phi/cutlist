@@ -20,7 +20,6 @@ describe('ProjectWorkspaceNav', () => {
       global: {
         stubs: {
           UIcon: true,
-          ExportPdfButton: true,
           Transition: false,
         },
       },

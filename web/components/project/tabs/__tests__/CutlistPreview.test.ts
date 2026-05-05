@@ -103,6 +103,7 @@ describe('CutlistPreview', () => {
           PreviewToolbar: true,
           RulerToggle: true,
           ScaleController: true,
+          ExportPdfButton: true,
         },
       },
     });
