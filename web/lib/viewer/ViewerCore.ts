@@ -30,6 +30,7 @@ import { Floor } from './modules/Floor';
 import { SnapDetector } from './modules/SnapDetector';
 import { SnapVisuals } from './modules/SnapVisuals';
 import { MarqueeSelector } from './modules/MarqueeSelector';
+import { computeProportionalLinewidth } from './linewidth';
 import type {
   GizmoMode,
   InteractionMode,
@@ -213,9 +214,13 @@ export class ViewerCore {
       polygonOffsetUnits: 1,
     });
 
+    // Linewidth is in screen pixels but updated each frame from the model's
+    // current on-screen size (see `updateEdgeLinewidth`). A constant value
+    // looks too thick when zoomed out and too thin when zoomed in;
+    // `worldUnits: true` over-corrects and turns close-up lines into slabs.
     this.edgeMaterial = new modules.LineMaterial({
       color: 0x1a1a2e,
-      linewidth: 2,
+      linewidth: 1.5,
       transparent: true,
       opacity: 0.6,
       depthWrite: false,
@@ -304,6 +309,7 @@ export class ViewerCore {
 
     this.renderer.start(() => {
       if (!this.cameraRig || !this.sceneGraph) return;
+      this.updateEdgeLinewidth();
       this.renderer!.renderer.render(
         this.sceneGraph.scene,
         this.cameraRig.camera,
@@ -755,6 +761,17 @@ export class ViewerCore {
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────
+
+  private updateEdgeLinewidth(): void {
+    if (!this.edgeMaterial || !this.sceneBounds || !this.cameraRig) return;
+    const rect = this.renderer?.domElement.getBoundingClientRect();
+    if (!rect) return;
+    this.edgeMaterial.linewidth = computeProportionalLinewidth(
+      this.cameraRig.camera,
+      this.sceneBounds,
+      rect.height,
+    );
+  }
 
   private async waitForReady(): Promise<void> {
     if (this.ready || this.disposed) return;
