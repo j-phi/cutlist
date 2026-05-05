@@ -18,9 +18,10 @@ import { FutureSchemaError, SCHEMA_VERSION } from '~/utils/versions';
 import type {
   IdbProject,
   IdbModel,
-  IdbBuildStep,
+  IdbBuildDoc,
   IdbScene,
   IdbAnnotation,
+  IdbAsset,
 } from './types';
 
 // ─── Dexie class ────────────────────────────────────────────────────────────
@@ -28,9 +29,10 @@ import type {
 export class CutlistDB extends Dexie {
   projects!: Table<IdbProject, string>;
   models!: Table<IdbModel, string>;
-  buildSteps!: Table<IdbBuildStep, string>;
+  buildDocs!: Table<IdbBuildDoc, string>;
   scenes!: Table<IdbScene, string>;
   annotations!: Table<IdbAnnotation, string>;
+  assets!: Table<IdbAsset, string>;
 
   constructor() {
     super('cutlist-db');
@@ -46,9 +48,10 @@ export class CutlistDB extends Dexie {
     this.version(1).stores({
       projects: 'id, updatedAt',
       models: 'id, projectId',
-      buildSteps: 'id, projectId',
+      buildDocs: 'projectId',
       scenes: 'id, modelId, order',
       annotations: 'id, sceneId',
+      assets: 'id, projectId',
     });
   }
 }

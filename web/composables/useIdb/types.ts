@@ -8,6 +8,7 @@
  * declared there via `this.version(N).stores({...})`.
  */
 
+import type { JSONContent } from '@tiptap/core';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 import type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
 
@@ -59,13 +60,43 @@ export interface IdbModel {
 /** Model record without rawSource — what we keep in the reactive store. */
 export type IdbModelMeta = Omit<IdbModel, 'rawSource'>;
 
-export interface IdbBuildStep {
+// ─── Build doc ──────────────────────────────────────────────────────────────
+
+/**
+ * The build "page" for a project — a single rich-text document edited
+ * inline, Notion-style. Stored as Tiptap's native JSON tree. Embedded
+ * image and scene nodes carry their referenced ids in node `attrs`, so
+ * referenced ids survive round-tripping without HTML parsing.
+ *
+ * Exactly one record per project, keyed by `projectId`.
+ */
+export interface IdbBuildDoc {
+  projectId: string;
+  /**
+   * The doc's title. Always a string. New records are seeded with the
+   * project's name on creation; subsequent project renames do not
+   * propagate. An empty string is allowed and renders as such.
+   */
+  title: string;
+  doc: JSONContent;
+  updatedAt: string;
+}
+
+// ─── Assets ─────────────────────────────────────────────────────────────────
+
+/**
+ * A binary asset (currently always an image) referenced from a build doc
+ * by `<image-block data-asset-id="…">`. Stored in its own table so doc
+ * records stay small and so the same asset can be referenced by multiple
+ * blocks without duplicating bytes.
+ */
+export interface IdbAsset {
   id: string;
   projectId: string;
-  stepNumber: number;
-  title: string;
-  /** HTML string — supports rich text with hyperlinks. */
-  description: string;
+  /** MIME type — used at render time to set the object-URL blob's content-type. */
+  mimeType: string;
+  /** The image bytes. Dexie persists `Blob` directly. */
+  blob: Blob;
   createdAt: string;
 }
 

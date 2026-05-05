@@ -141,3 +141,89 @@ describe('Highlighter get/set round-trip', () => {
     expect(overlay.visible).toBe(false);
   });
 });
+
+describe('Highlighter fade alphas', () => {
+  function setup() {
+    const { h, registry } = makeHighlighter();
+    registry.register(makeRecord(1, [10]));
+    registry.register(makeRecord(2, [20]));
+    const material = new THREE.MeshStandardMaterial();
+    const writes: Array<{
+      id: number;
+      rgba: [number, number, number, number];
+    }> = [];
+    const batched = {
+      sortObjects: false,
+      setColorAt: vi.fn((id: number, v: THREE.Vector4) => {
+        writes.push({ id, rgba: [v.x, v.y, v.z, v.w] });
+      }),
+      getVisibleAt: vi.fn(() => true),
+    } as unknown as THREE.BatchedMesh;
+    const colors = new Map<number, [number, number, number, number]>([
+      [10, [1, 0, 0, 1]],
+      [20, [0, 0, 1, 1]],
+    ]);
+    h.attach(batched, material, colors);
+    writes.length = 0;
+    return { h, material, batched, writes };
+  }
+
+  it('writes per-instance alpha + flips material to transparent for partial fades', () => {
+    const { h, material, writes } = setup();
+    h.setFadeAlphas(new Map([[1, 0.4]]));
+    expect(material.transparent).toBe(true);
+    const w10 = writes.find((w) => w.id === 10)!;
+    const w20 = writes.find((w) => w.id === 20)!;
+    // Object 1 fades to 0.4, object 2 stays at 1.
+    expect(w10.rgba[3]).toBeCloseTo(0.4, 5);
+    expect(w20.rgba[3]).toBe(1);
+  });
+
+  it('keeps material opaque when every fade is 1', () => {
+    const { h, material } = setup();
+    h.setFadeAlphas(
+      new Map([
+        [1, 1],
+        [2, 1],
+      ]),
+    );
+    expect(material.transparent).toBe(false);
+  });
+
+  it('clearFadeAlphas restores fully opaque colors', () => {
+    const { h, material, writes } = setup();
+    h.setFadeAlphas(new Map([[1, 0.2]]));
+    writes.length = 0;
+    h.clearFadeAlphas();
+    expect(material.transparent).toBe(false);
+    const w10 = writes.find((w) => w.id === 10)!;
+    expect(w10.rgba[3]).toBe(1);
+  });
+
+  it('clamps out-of-range alphas to [0, 1]', () => {
+    const { h, writes } = setup();
+    h.setFadeAlphas(
+      new Map([
+        [1, -0.5],
+        [2, 2.5],
+      ]),
+    );
+    const w10 = writes.find((w) => w.id === 10)!;
+    const w20 = writes.find((w) => w.id === 20)!;
+    expect(w10.rgba[3]).toBe(0);
+    expect(w20.rgba[3]).toBe(1);
+  });
+
+  it('ignores fades while a selection is active', () => {
+    const { h, writes } = setup();
+    h.setFadeAlphas(new Map([[1, 0.2]]));
+    writes.length = 0;
+    h.setSelected([1]);
+    // Selected object 1 gets the highlight tint at alpha 1; object 2 ghosts
+    // at GHOST_OPACITY (0.15) — neither uses the prior 0.2 fade.
+    const w10 = writes.find((w) => w.id === 10)!;
+    const w20 = writes.find((w) => w.id === 20)!;
+    expect(w10.rgba[3]).toBe(1);
+    expect(w20.rgba[3]).toBeCloseTo(0.15, 5);
+  });
+});

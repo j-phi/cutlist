@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { useIdb, applyModelDefaults } from '../useIdb';
 import { resetDatabase } from '../useIdb/db';
 import { DEFAULT_SETTINGS } from '../../utils/settings';
-import type { IdbModel, IdbBuildStep } from '../useIdb';
+import type { IdbModel, IdbBuildDoc } from '../useIdb';
 
 const idb = useIdb();
 
@@ -97,7 +97,7 @@ describe('project CRUD', () => {
     );
   });
 
-  it('deleteProject removes project and cascades to models and buildSteps', async () => {
+  it('deleteProject removes project and cascades to models and buildDoc', async () => {
     const project = await idb.createProject('ToDelete');
     const model: IdbModel = {
       id: crypto.randomUUID(),
@@ -113,22 +113,19 @@ describe('project CRUD', () => {
       createdAt: new Date().toISOString(),
     };
     await idb.createModel(model);
-    const step: IdbBuildStep = {
-      id: crypto.randomUUID(),
+    await idb.putBuildDoc({
       projectId: project.id,
-      stepNumber: 1,
-      title: 'Step 1',
-      description: 'Do something',
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createBuildStep(step);
+      title: 'ToDelete',
+      doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+      updatedAt: new Date().toISOString(),
+    });
 
     await idb.deleteProject(project.id);
 
     const result = await idb.getProjectWithModels(project.id);
     expect(result).toBeUndefined();
-    const steps = await idb.getBuildSteps(project.id);
-    expect(steps).toHaveLength(0);
+    const doc = await idb.getBuildDoc(project.id);
+    expect(doc).toBeUndefined();
   });
 });
 
@@ -313,90 +310,138 @@ describe('model CRUD', () => {
 
 // ─── Build Steps ────────────────────────────────────────────────────────────
 
-describe('build steps', () => {
-  it('creates and retrieves build steps sorted by stepNumber', async () => {
-    const project = await idb.createProject('StepProject');
-    const step2: IdbBuildStep = {
-      id: crypto.randomUUID(),
-      projectId: project.id,
-      stepNumber: 2,
-      title: 'Attach sides',
-      description: 'Glue side panels',
-      createdAt: new Date().toISOString(),
-    };
-    const step1: IdbBuildStep = {
-      id: crypto.randomUUID(),
-      projectId: project.id,
-      stepNumber: 1,
-      title: 'Cut parts',
-      description: 'Cut all parts to size',
-      createdAt: new Date().toISOString(),
-    };
-    // Insert out of order
-    await idb.createBuildStep(step2);
-    await idb.createBuildStep(step1);
+describe('build doc', () => {
+  function emptyDoc() {
+    return { type: 'doc', content: [{ type: 'paragraph' }] };
+  }
 
-    const steps = await idb.getBuildSteps(project.id);
-    expect(steps).toHaveLength(2);
-    expect(steps[0].title).toBe('Cut parts');
-    expect(steps[1].title).toBe('Attach sides');
+  function makeDoc(
+    projectId: string,
+    overrides: Partial<IdbBuildDoc> = {},
+  ): IdbBuildDoc {
+    return {
+      projectId,
+      title: '',
+      doc: emptyDoc(),
+      updatedAt: new Date().toISOString(),
+      ...overrides,
+    };
+  }
+
+  it('returns undefined for a project without a doc', async () => {
+    const project = await idb.createProject('NoDoc');
+    const doc = await idb.getBuildDoc(project.id);
+    expect(doc).toBeUndefined();
   });
 
-  it('updates a build step', async () => {
-    const project = await idb.createProject('StepUpdate');
-    const step: IdbBuildStep = {
-      id: crypto.randomUUID(),
-      projectId: project.id,
-      stepNumber: 1,
-      title: 'Original',
-      description: 'Original desc',
-      createdAt: new Date().toISOString(),
+  it('persists and reads back the doc body with embed nodes', async () => {
+    const project = await idb.createProject('DocProj');
+    const docJson = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] },
+        { type: 'imageBlock', attrs: { assetId: 'asset-x', caption: 'pic' } },
+        {
+          type: 'sceneBlock',
+          attrs: { modelId: 'm1', sceneId: 's1', caption: '' },
+        },
+      ],
     };
-    await idb.createBuildStep(step);
-    await idb.updateBuildStep(step.id, {
-      title: 'Updated',
-      stepNumber: 3,
-    });
-
-    const steps = await idb.getBuildSteps(project.id);
-    expect(steps[0].title).toBe('Updated');
-    expect(steps[0].stepNumber).toBe(3);
-  });
-
-  it('updateBuildStep throws for nonexistent id', async () => {
-    expect(idb.updateBuildStep('nonexistent', { title: 'X' })).rejects.toThrow(
-      'not found',
+    await idb.putBuildDoc(
+      makeDoc(project.id, { doc: docJson, title: 'Build' }),
     );
+
+    const stored = await idb.getBuildDoc(project.id);
+    expect(stored).toBeDefined();
+    expect(stored!.title).toBe('Build');
+    expect(stored!.doc).toEqual(docJson);
   });
 
-  it('deletes a build step', async () => {
-    const project = await idb.createProject('StepDelete');
-    const step: IdbBuildStep = {
-      id: crypto.randomUUID(),
+  it('putBuildDoc replaces records on the same projectId', async () => {
+    const project = await idb.createProject('DocReplace');
+    await idb.putBuildDoc(makeDoc(project.id, { title: 'old' }));
+    await idb.putBuildDoc(makeDoc(project.id, { title: 'new' }));
+    const stored = await idb.getBuildDoc(project.id);
+    expect(stored!.title).toBe('new');
+  });
+
+  it('deleteBuildDoc removes the record', async () => {
+    const project = await idb.createProject('DocDelete');
+    await idb.putBuildDoc(makeDoc(project.id));
+    await idb.deleteBuildDoc(project.id);
+    expect(await idb.getBuildDoc(project.id)).toBeUndefined();
+  });
+
+  it('hydrates a partial record (missing title / doc) with defaults', async () => {
+    const project = await idb.createProject('PartialDoc');
+    // Simulate a record written before today's fields were required.
+    const partial = { projectId: project.id } as unknown as IdbBuildDoc;
+    await idb.putBuildDoc(partial);
+    const stored = await idb.getBuildDoc(project.id);
+    expect(stored!.title).toBe('');
+    expect(stored!.doc).toEqual(emptyDoc());
+  });
+});
+
+// ─── Assets ────────────────────────────────────────────────────────────────
+
+describe('assets', () => {
+  function makeBlob(text: string): Blob {
+    return new Blob([new TextEncoder().encode(text)], { type: 'image/png' });
+  }
+
+  it('persists asset record fields and returns the blob handle', async () => {
+    const project = await idb.createProject('AssetProj');
+    const asset = await idb.createAsset({
       projectId: project.id,
-      stepNumber: 1,
-      title: 'Gone',
-      description: '',
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createBuildStep(step);
-    await idb.deleteBuildStep(step.id);
-
-    const steps = await idb.getBuildSteps(project.id);
-    expect(steps).toHaveLength(0);
+      mimeType: 'image/png',
+      blob: makeBlob('hello'),
+    });
+    const fetched = await idb.getAsset(asset.id);
+    expect(fetched).toBeDefined();
+    expect(fetched!.mimeType).toBe('image/png');
+    expect(fetched!.projectId).toBe(project.id);
+    expect(fetched!.blob).toBeDefined();
   });
 
-  it('getBuildSteps returns empty for project with no steps', async () => {
-    const project = await idb.createProject('NoSteps');
-    const steps = await idb.getBuildSteps(project.id);
-    expect(steps).toHaveLength(0);
+  it('deleteProject cascades into the assets table', async () => {
+    const project = await idb.createProject('CascadeAsset');
+    const asset = await idb.createAsset({
+      projectId: project.id,
+      mimeType: 'image/png',
+      blob: makeBlob('bytes'),
+    });
+    await idb.deleteProject(project.id);
+    expect(await idb.getAsset(asset.id)).toBeUndefined();
+  });
+
+  it('getAssetsForProject returns all assets for a project, none for others', async () => {
+    const p1 = await idb.createProject('Q1');
+    const p2 = await idb.createProject('Q2');
+    await idb.createAsset({
+      projectId: p1.id,
+      mimeType: 'image/png',
+      blob: makeBlob('a'),
+    });
+    await idb.createAsset({
+      projectId: p1.id,
+      mimeType: 'image/png',
+      blob: makeBlob('b'),
+    });
+    await idb.createAsset({
+      projectId: p2.id,
+      mimeType: 'image/png',
+      blob: makeBlob('c'),
+    });
+    expect(await idb.getAssetsForProject(p1.id)).toHaveLength(2);
+    expect(await idb.getAssetsForProject(p2.id)).toHaveLength(1);
   });
 });
 
 // ─── Reset database ────────────────────────────────────────────────────────
 
 describe('resetDatabase', () => {
-  it('wipes all projects, models, and build steps', async () => {
+  it('wipes all projects, models, and the build doc', async () => {
     const project = await idb.createProject('WipeMe');
     const model: IdbModel = {
       id: crypto.randomUUID(),
@@ -412,15 +457,12 @@ describe('resetDatabase', () => {
       createdAt: new Date().toISOString(),
     };
     await idb.createModel(model);
-    const step: IdbBuildStep = {
-      id: crypto.randomUUID(),
+    await idb.putBuildDoc({
       projectId: project.id,
-      stepNumber: 1,
-      title: 'Step',
-      description: '',
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createBuildStep(step);
+      title: 'WipeMe',
+      doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+      updatedAt: new Date().toISOString(),
+    });
 
     await resetDatabase();
 
@@ -431,7 +473,7 @@ describe('resetDatabase', () => {
     expect(projects).toHaveLength(0);
     const archived = await freshIdb.getArchivedList();
     expect(archived).toHaveLength(0);
-    const steps = await freshIdb.getBuildSteps(project.id);
-    expect(steps).toHaveLength(0);
+    const doc = await freshIdb.getBuildDoc(project.id);
+    expect(doc).toBeUndefined();
   });
 });

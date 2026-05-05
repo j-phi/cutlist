@@ -1,11 +1,25 @@
 import type {
   IdbAnnotation,
-  IdbBuildStep,
+  IdbAsset,
+  IdbBuildDoc,
   IdbModel,
   IdbScene,
 } from '~/composables/useIdb';
 import { SCHEMA_VERSION } from '~/utils/versions';
 import { gzipCompress } from '~/utils/compress';
+import { blobToBase64 } from '~/utils/blobBase64';
+
+/**
+ * Serialised asset record. The blob is base64-encoded so it survives JSON
+ * round-tripping; on import the bytes are rebuilt via `base64ToBlob`.
+ */
+export interface ExportedAsset {
+  id: string;
+  projectId: string;
+  mimeType: string;
+  blobBase64: string;
+  createdAt: string;
+}
 
 export interface ProjectExport {
   version: number;
@@ -25,9 +39,10 @@ export interface ProjectExport {
     updatedAt: string;
   };
   models: IdbModel[];
-  buildSteps?: IdbBuildStep[];
+  buildDoc?: IdbBuildDoc;
   scenes?: IdbScene[];
   annotations?: IdbAnnotation[];
+  assets?: ExportedAsset[];
 }
 
 /**
@@ -38,16 +53,17 @@ export interface ProjectExport {
 export interface ProjectExportDb {
   getProjectWithModels: ReturnType<typeof useIdb>['getProjectWithModels'];
   getModelRawSource: ReturnType<typeof useIdb>['getModelRawSource'];
-  getBuildSteps: ReturnType<typeof useIdb>['getBuildSteps'];
+  getBuildDoc: ReturnType<typeof useIdb>['getBuildDoc'];
   getScenesForModel: ReturnType<typeof useIdb>['getScenesForModel'];
   getAnnotationsForProject: ReturnType<
     typeof useIdb
   >['getAnnotationsForProject'];
+  getAssetsForProject: ReturnType<typeof useIdb>['getAssetsForProject'];
 }
 
 /**
  * Build the `ProjectExport` payload for `projectId` by reading project,
- * models (with each model's `rawSource`), build steps, scenes (gathered
+ * models (with each model's `rawSource`), build doc, scenes (gathered
  * per-model since scenes are model-scoped), and annotations from IDB.
  * Returns `null` if the project does not exist.
  */
@@ -65,12 +81,25 @@ export async function buildExportData(
     })),
   );
 
-  const [buildSteps, sceneLists, annotations] = await Promise.all([
-    idb.getBuildSteps(projectId),
+  const [buildDoc, sceneLists, annotations, rawAssets] = await Promise.all([
+    idb.getBuildDoc(projectId),
     Promise.all(idbProject.models.map((m) => idb.getScenesForModel(m.id))),
     idb.getAnnotationsForProject(projectId),
+    idb.getAssetsForProject(projectId),
   ]);
   const scenes = sceneLists.flat();
+
+  const assets: ExportedAsset[] = await Promise.all(
+    rawAssets.map(
+      async (a: IdbAsset): Promise<ExportedAsset> => ({
+        id: a.id,
+        projectId: a.projectId,
+        mimeType: a.mimeType,
+        blobBase64: await blobToBase64(a.blob),
+        createdAt: a.createdAt,
+      }),
+    ),
+  );
 
   return {
     version: SCHEMA_VERSION,
@@ -90,9 +119,10 @@ export async function buildExportData(
       updatedAt: idbProject.updatedAt,
     },
     models: fullModels,
-    buildSteps,
+    buildDoc,
     scenes,
     annotations,
+    assets,
   };
 }
 

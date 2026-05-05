@@ -51,16 +51,20 @@ function makePayload(overrides?: any) {
         createdAt: now,
       },
     ],
-    buildSteps: [
-      {
-        id: 'step-1',
-        projectId: 'proj-1',
-        stepNumber: 1,
-        title: 'Cut parts',
-        description: 'Cut to size',
-        createdAt: now,
+    buildDoc: {
+      projectId: 'proj-1',
+      title: 'Test Project',
+      doc: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Cut to size' }],
+          },
+        ],
       },
-    ],
+      updatedAt: now,
+    },
     ...overrides,
   };
 }
@@ -70,7 +74,10 @@ function makeIdbMock() {
     createProject: [] as any[],
     updateProject: [] as any[],
     createModel: [] as any[],
-    createBuildStep: [] as any[],
+    putBuildDoc: [] as any[],
+    createScene: [] as any[],
+    createAnnotation: [] as any[],
+    putAsset: [] as any[],
   };
   return {
     calls,
@@ -85,8 +92,17 @@ function makeIdbMock() {
       async createModel(model: any) {
         calls.createModel.push(model);
       },
-      async createBuildStep(step: any) {
-        calls.createBuildStep.push(step);
+      async putBuildDoc(doc: any) {
+        calls.putBuildDoc.push(doc);
+      },
+      async createScene(scene: any) {
+        calls.createScene.push(scene);
+      },
+      async createAnnotation(annotation: any) {
+        calls.createAnnotation.push(annotation);
+      },
+      async putAsset(asset: any) {
+        calls.putAsset.push(asset);
       },
     },
   };
@@ -97,9 +113,11 @@ describe('parseProjectExport edge cases', () => {
     expect(() => parseProjectExport(true)).toThrow('expected a JSON object');
   });
 
-  it('rejects an array', () => {
-    // Array is typeof 'object' but not what we want
-    expect(() => parseProjectExport([1, 2, 3])).toThrow('Invalid project file');
+  it('rejects an unversioned array as legacy', () => {
+    // Array is typeof 'object', has no version → falls into the legacy guard.
+    expect(() => parseProjectExport([1, 2, 3])).toThrow(
+      'older version of Cutlist',
+    );
   });
 
   it('handles model with partOverrides preserved', () => {
@@ -110,11 +128,11 @@ describe('parseProjectExport edge cases', () => {
     });
   });
 
-  it('handles payload with no buildSteps field', () => {
+  it('handles payload with no buildDoc field', () => {
     const payload = makePayload();
-    delete (payload as any).buildSteps;
+    delete (payload as any).buildDoc;
     const parsed = parseProjectExport(payload);
-    expect(parsed.buildSteps).toBeUndefined();
+    expect(parsed.buildDoc).toBeUndefined();
   });
 
   it('handles payload with empty models array', () => {
@@ -175,14 +193,20 @@ describe('importProjectData remapping', () => {
     expect(modelIds[1]).not.toBe('model-2');
   });
 
-  it('imports build steps with new project ID', async () => {
+  it('imports the build doc with the new project ID', async () => {
     const payload = makePayload();
     const { db, calls } = makeIdbMock();
     await importProjectData(payload as any, db as any);
 
-    expect(calls.createBuildStep).toHaveLength(1);
-    expect(calls.createBuildStep[0].projectId).toBe('new-proj');
-    expect(calls.createBuildStep[0].title).toBe('Cut parts');
+    expect(calls.putBuildDoc).toHaveLength(1);
+    expect(calls.putBuildDoc[0].projectId).toBe('new-proj');
+    expect(calls.putBuildDoc[0].title).toBe('Test Project');
+    expect(calls.putBuildDoc[0].doc).toMatchObject({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Cut to size' }] },
+      ],
+    });
   });
 });
 
@@ -192,7 +216,7 @@ describe('importProjectFromFile corrupt data', () => {
   // crashes Bun's internal stream handling in test mode, so we test the
   // validation layer directly here instead.
 
-  it('rejects structurally invalid gzipped JSON', async () => {
+  it('rejects unversioned gzipped JSON as legacy', async () => {
     const gz = gzipSync(JSON.stringify({ random: 'garbage' }));
     const file = new File([new Uint8Array(gz)], 'bad.cutlist');
     const { db } = makeIdbMock();
@@ -203,7 +227,7 @@ describe('importProjectFromFile corrupt data', () => {
       caught = e as Error;
     }
     expect(caught).not.toBeNull();
-    expect(caught!.message).toContain('Invalid project file');
+    expect(caught!.message).toContain('older version of Cutlist');
   });
 
   it('accepts valid gzipped export', async () => {

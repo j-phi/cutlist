@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { SCHEMA_VERSION, FutureSchemaError } from '../../versions';
+import {
+  SCHEMA_VERSION,
+  FutureSchemaError,
+  LegacyExportError,
+  MIN_SUPPORTED_EXPORT_VERSION,
+} from '../../versions';
 import { migrations, migrateRecord, migrateExport } from '../migrations';
 import { DEFAULT_SETTINGS } from '../../settings';
 import {
@@ -38,7 +43,7 @@ describe('migration registry invariants', () => {
     const validStores = [
       'projects',
       'models',
-      'buildSteps',
+      'buildDoc',
       'scenes',
       'annotations',
     ];
@@ -77,31 +82,29 @@ describe('migrateExport', () => {
       version: SCHEMA_VERSION,
       project: { id: 'p' },
       models: [],
-      buildSteps: [],
     };
     const result = migrateExport(raw);
     expect(result).toBe(raw);
   });
 
-  it('handles missing version (defaults to v0)', () => {
+  it('rejects legacy versions below MIN_SUPPORTED_EXPORT_VERSION', () => {
     const raw = {
-      project: { id: 'p', name: 'Test' },
+      version: MIN_SUPPORTED_EXPORT_VERSION - 1,
+      project: {},
       models: [],
     };
-    const result = migrateExport(raw);
-    expect(result.version).toBe(SCHEMA_VERSION);
+    expect(() => migrateExport(raw)).toThrow(LegacyExportError);
+    expect(() => migrateExport(raw)).toThrow('older version of Cutlist');
   });
 
-  it('handles missing models/buildSteps keys', () => {
-    const raw = { version: 0, project: { id: 'p' } };
-    const result = migrateExport(raw);
-    expect(result.models).toEqual([]);
-    expect(result.buildSteps).toEqual([]);
+  it('treats missing version as legacy (defaults to v0)', () => {
+    const raw = { project: { id: 'p', name: 'Test' }, models: [] };
+    expect(() => migrateExport(raw)).toThrow(LegacyExportError);
   });
 
-  it('preserves unknown top-level fields', () => {
+  it('preserves unknown top-level fields on a current-version export', () => {
     const raw = {
-      version: 0,
+      version: SCHEMA_VERSION,
       project: { id: 'p' },
       models: [],
       customField: 'preserved',
@@ -119,6 +122,15 @@ describe('FutureSchemaError', () => {
     expect(err.message).toContain('99');
     expect(err.message).toContain(String(SCHEMA_VERSION));
     expect(err.name).toBe('FutureSchemaError');
+  });
+});
+
+describe('LegacyExportError', () => {
+  it('names the format version that produced the file', () => {
+    const err = new LegacyExportError(1);
+    expect(err.message).toContain('format v1');
+    expect(err.message).toContain(`format v${SCHEMA_VERSION}`);
+    expect(err.name).toBe('LegacyExportError');
   });
 });
 

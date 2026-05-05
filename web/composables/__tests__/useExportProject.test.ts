@@ -8,11 +8,34 @@
  * and verify it round-trips cleanly through `parseProjectExport`.
  */
 import { describe, expect, it } from 'vitest';
+import type { JSONContent } from '@tiptap/core';
 import { buildExportData, exportFilename } from '../useExportProject';
-import { useIdb, type IdbBuildStep, type IdbModel } from '../useIdb';
+import { useIdb, type IdbBuildDoc, type IdbModel } from '../useIdb';
 import { parseProjectExport } from '~/utils/projectImport';
 import { SCHEMA_VERSION } from '~/utils/versions';
 import type { Part } from '~/utils/modelTypes';
+
+function docWithText(text: string): JSONContent {
+  return {
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  };
+}
+
+async function writeBuildDoc(
+  idb: ReturnType<typeof useIdb>,
+  projectId: string,
+  doc: JSONContent,
+  title = '',
+): Promise<void> {
+  const record: IdbBuildDoc = {
+    projectId,
+    title,
+    doc,
+    updatedAt: new Date().toISOString(),
+  };
+  await idb.putBuildDoc(record);
+}
 
 const idb = useIdb();
 
@@ -64,7 +87,7 @@ describe('buildExportData', () => {
     expect(data!.project.colorMap).toEqual({ red: 'PLY18' });
     expect(data!.project.excludedColors).toEqual(['blue']);
     expect(data!.models).toEqual([]);
-    expect(data!.buildSteps).toEqual([]);
+    expect(data!.buildDoc).toBeUndefined();
   });
 
   it('rehydrates rawSource onto each exported model', async () => {
@@ -112,32 +135,15 @@ describe('buildExportData', () => {
     expect(exportedManual.rawSource).toBeNull();
   });
 
-  it('includes build steps sorted by stepNumber', async () => {
-    const project = await idb.createProject('WithSteps');
-
-    const step2: IdbBuildStep = {
-      id: crypto.randomUUID(),
-      projectId: project.id,
-      stepNumber: 2,
-      title: 'Glue',
-      description: 'Glue panels',
-      createdAt: new Date().toISOString(),
-    };
-    const step1: IdbBuildStep = {
-      id: crypto.randomUUID(),
-      projectId: project.id,
-      stepNumber: 1,
-      title: 'Cut',
-      description: 'Cut all parts',
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createBuildStep(step2);
-    await idb.createBuildStep(step1);
+  it('includes the build doc with its body intact', async () => {
+    const project = await idb.createProject('WithDoc');
+    const doc = docWithText('Cut all parts');
+    await writeBuildDoc(idb, project.id, doc, 'My build');
 
     const data = await buildExportData(idb, project.id);
-    expect(data!.buildSteps).toHaveLength(2);
-    expect(data!.buildSteps![0].title).toBe('Cut');
-    expect(data!.buildSteps![1].title).toBe('Glue');
+    expect(data!.buildDoc).toBeDefined();
+    expect(data!.buildDoc!.title).toBe('My build');
+    expect(data!.buildDoc!.doc).toEqual(doc);
   });
 
   it('round-trips through parseProjectExport (schema-valid)', async () => {
@@ -156,14 +162,8 @@ describe('buildExportData', () => {
       createdAt: new Date().toISOString(),
     };
     await idb.createModel(model);
-    await idb.createBuildStep({
-      id: crypto.randomUUID(),
-      projectId: project.id,
-      stepNumber: 1,
-      title: 'Step',
-      description: 'Do thing',
-      createdAt: new Date().toISOString(),
-    });
+    const doc = docWithText('Do thing');
+    await writeBuildDoc(idb, project.id, doc, 'Round Trip');
 
     const data = await buildExportData(idb, project.id);
     // Going through JSON drops `undefined` fields and proves serialisability.
@@ -175,7 +175,44 @@ describe('buildExportData', () => {
     expect(parsed.models).toHaveLength(1);
     expect(parsed.models[0].rawSource).toEqual({ scenes: [], nodes: [] });
     expect(parsed.models[0].partOverrides).toEqual({ 1: { name: 'Renamed' } });
-    expect(parsed.buildSteps).toHaveLength(1);
+    expect(parsed.buildDoc).toBeDefined();
+    expect(parsed.buildDoc!.title).toBe('Round Trip');
+    expect(parsed.buildDoc!.doc).toEqual(doc);
+  });
+
+  it('exports image-block references and asset records together', async () => {
+    const project = await idb.createProject('AssetRoundTrip');
+    const asset = await idb.createAsset({
+      projectId: project.id,
+      mimeType: 'image/png',
+      blob: new Blob([new TextEncoder().encode('PNG-BYTES')], {
+        type: 'image/png',
+      }),
+    });
+    const docJson: JSONContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'imageBlock',
+          attrs: { assetId: asset.id, caption: 'fig 1' },
+        },
+      ],
+    };
+    await writeBuildDoc(idb, project.id, docJson);
+
+    // happy-dom + fake-indexeddb don't preserve `Blob` cleanly through
+    // structuredClone, so `buildExportData` (which calls blob.arrayBuffer)
+    // can't run end-to-end here. We exercise the data assembly in two
+    // pieces: the build doc keeps its image-block reference, and the
+    // exported asset record metadata is structurally what we promised.
+    const stored = await idb.getBuildDoc(project.id);
+    const image = stored!.doc.content?.[0];
+    expect(image?.attrs?.assetId).toBe(asset.id);
+    expect(image?.attrs?.caption).toBe('fig 1');
+    const assets = await idb.getAssetsForProject(project.id);
+    expect(assets).toHaveLength(1);
+    expect(assets[0].mimeType).toBe('image/png');
+    expect(assets[0].projectId).toBe(project.id);
   });
 });
 

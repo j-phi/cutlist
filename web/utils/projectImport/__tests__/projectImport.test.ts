@@ -40,16 +40,17 @@ function makePayload() {
         createdAt: now,
       },
     ],
-    buildSteps: [
-      {
-        id: 'old-step-id',
-        projectId: 'old-project-id',
-        stepNumber: 1,
-        title: 'Step 1',
-        description: 'Desc',
-        createdAt: now,
+    buildDoc: {
+      projectId: 'old-project-id',
+      title: 'Demo',
+      doc: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'Desc' }] },
+        ],
       },
-    ],
+      updatedAt: now,
+    },
   };
 }
 
@@ -58,7 +59,10 @@ function makeIdbMock() {
     createProject: [] as any[],
     updateProject: [] as any[],
     createModel: [] as any[],
-    createBuildStep: [] as any[],
+    putBuildDoc: [] as any[],
+    createScene: [] as any[],
+    createAnnotation: [] as any[],
+    putAsset: [] as any[],
   };
   return {
     calls,
@@ -73,8 +77,17 @@ function makeIdbMock() {
       async createModel(model: any) {
         calls.createModel.push(model);
       },
-      async createBuildStep(step: any) {
-        calls.createBuildStep.push(step);
+      async putBuildDoc(doc: any) {
+        calls.putBuildDoc.push(doc);
+      },
+      async createScene(scene: any) {
+        calls.createScene.push(scene);
+      },
+      async createAnnotation(annotation: any) {
+        calls.createAnnotation.push(annotation);
+      },
+      async putAsset(asset: any) {
+        calls.putAsset.push(asset);
       },
     },
   };
@@ -112,14 +125,12 @@ describe('parseProjectExport validation', () => {
     );
   });
 
-  it('rejects missing version field', () => {
-    // migrateExport treats missing version as v0, which is fine,
-    // but the export itself needs to be structurally valid.
+  it('rejects payloads missing the version field as legacy', () => {
     const payload = makePayload();
     delete (payload as any).version;
-    // Should still work — migrateExport defaults version to 0, then stamps current
-    const parsed = parseProjectExport(payload);
-    expect(parsed.version).toBe(SCHEMA_VERSION);
+    expect(() => parseProjectExport(payload)).toThrow(
+      'older version of Cutlist',
+    );
   });
 
   it('rejects models with invalid source enum', () => {
@@ -142,11 +153,13 @@ describe('parseProjectExport validation', () => {
     expect(() => parseProjectExport(payload)).toThrow('Invalid project file');
   });
 
-  it('rejects build steps with missing title', () => {
+  it('rejects build doc with structurally bad fields', () => {
     const payload = makePayload();
-    payload.buildSteps![0] = {
-      ...payload.buildSteps![0],
-      title: undefined as any,
+    (payload as any).buildDoc = {
+      projectId: 'old-project-id',
+      title: 'x',
+      doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+      updatedAt: 42, // should be a string
     };
     expect(() => parseProjectExport(payload)).toThrow('Invalid project file');
   });
@@ -210,9 +223,15 @@ describe('importProjectData', () => {
     expect(calls.createModel[0].projectId).toBe('new-project-id');
     expect(calls.createModel[0].id).not.toBe('old-model-id');
 
-    expect(calls.createBuildStep).toHaveLength(1);
-    expect(calls.createBuildStep[0].projectId).toBe('new-project-id');
-    expect(calls.createBuildStep[0].title).toBe('Step 1');
+    expect(calls.putBuildDoc).toHaveLength(1);
+    expect(calls.putBuildDoc[0].projectId).toBe('new-project-id');
+    expect(calls.putBuildDoc[0].title).toBe('Demo');
+    expect(calls.putBuildDoc[0].doc).toMatchObject({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Desc' }] },
+      ],
+    });
   });
 });
 
@@ -259,9 +278,26 @@ describe('importProjectFromFile', () => {
     expect(caught!.message).toContain('.cutlist');
   });
 
-  it('rejects structurally invalid JSON with readable error', async () => {
+  it('rejects unversioned JSON as legacy with readable error', async () => {
     const file = new File(
       [JSON.stringify({ random: 'garbage' })],
+      'bad.cutlist',
+    );
+    const { db } = makeIdbMock();
+
+    let caught: Error | null = null;
+    try {
+      await importProjectFromFile(file, db as any);
+    } catch (e) {
+      caught = e as Error;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught!.message).toContain('older version of Cutlist');
+  });
+
+  it('rejects current-version payload missing required fields with a Zod error', async () => {
+    const file = new File(
+      [JSON.stringify({ version: SCHEMA_VERSION, random: 'garbage' })],
       'bad.cutlist',
     );
     const { db } = makeIdbMock();
@@ -288,7 +324,11 @@ describe('export -> import round-trip', () => {
 
     expect(validated.project.name).toBe('Demo');
     expect(validated.models).toHaveLength(1);
-    expect(validated.buildSteps).toHaveLength(1);
+    expect(validated.buildDoc?.title).toBe('Demo');
+    expect(validated.buildDoc?.doc.content?.[0]).toMatchObject({
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'Desc' }],
+    });
   });
 
   it('payload with parts round-trips correctly', () => {

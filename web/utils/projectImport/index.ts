@@ -14,7 +14,8 @@
 import type { ProjectExport } from '~/composables/useExportProject';
 import type {
   IdbAnnotation,
-  IdbBuildStep,
+  IdbAsset,
+  IdbBuildDoc,
   IdbModel,
   IdbScene,
 } from '~/composables/useIdb';
@@ -22,6 +23,9 @@ import { gzipDecompress } from '~/utils/compress';
 import { migrateExport } from './migrations';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
 import { defaultSceneIdForModel, isDefaultSceneId } from '~/utils/defaultScene';
+import { base64ToBlob } from '~/utils/blobBase64';
+import { remapBuildDoc } from '~/utils/buildDocRemap';
+import type { JSONContent } from '@tiptap/core';
 import { z } from 'zod';
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
@@ -72,12 +76,46 @@ const ModelSchema = z.object({
   createdAt: z.string(),
 });
 
-const BuildStepSchema = z.object({
+// Tiptap's JSONContent is recursive and open: nodes carry an optional
+// `type`, optional text, optional attrs, optional marks, and optional
+// content. We stay permissive (`passthrough`) — the editor does its own
+// schema validation when it loads a doc, and we just need enough
+// structure to let Zod accept hand-rolled or legacy payloads without
+// drifting from Tiptap's shape.
+type ZodJSONContent = z.ZodType<JSONContent>;
+const JSONContentSchema: ZodJSONContent = z.lazy(() =>
+  z
+    .object({
+      type: z.string().optional(),
+      text: z.string().optional(),
+      attrs: z.record(z.string(), z.unknown()).optional(),
+      marks: z
+        .array(
+          z
+            .object({
+              type: z.string(),
+              attrs: z.record(z.string(), z.unknown()).optional(),
+            })
+            .passthrough(),
+        )
+        .optional(),
+      content: z.array(JSONContentSchema).optional(),
+    })
+    .passthrough(),
+);
+
+const BuildDocSchema = z.object({
+  projectId: z.string(),
+  title: z.string().default(''),
+  doc: JSONContentSchema,
+  updatedAt: z.string(),
+});
+
+const ExportedAssetSchema = z.object({
   id: z.string(),
   projectId: z.string(),
-  stepNumber: z.number().int().min(0),
-  title: z.string(),
-  description: z.string(),
+  mimeType: z.string(),
+  blobBase64: z.string(),
   createdAt: z.string(),
 });
 
@@ -165,9 +203,10 @@ const ProjectExportSchema = z.object({
     updatedAt: z.string(),
   }),
   models: z.array(ModelSchema),
-  buildSteps: z.array(BuildStepSchema).optional(),
+  buildDoc: BuildDocSchema.optional(),
   scenes: z.array(SceneSchema).optional(),
   annotations: z.array(AnnotationSchema).optional(),
+  assets: z.array(ExportedAssetSchema).optional(),
 });
 
 // ─── Parsing ────────────────────────────────────────────────────────────────
@@ -196,9 +235,15 @@ export interface ProjectImportDb {
     }>,
   ) => Promise<unknown>;
   createModel: (model: IdbModel) => Promise<void>;
-  createBuildStep: (step: IdbBuildStep) => Promise<void>;
+  putBuildDoc: (doc: IdbBuildDoc) => Promise<void>;
   createScene: (scene: IdbScene) => Promise<void>;
   createAnnotation: (annotation: IdbAnnotation) => Promise<void>;
+  /**
+   * Persist an `IdbAsset` directly with its provided id. Used during import
+   * so that block-level `assetId` references can be remapped to the new id
+   * before they're written.
+   */
+  putAsset: (asset: IdbAsset) => Promise<void>;
 }
 
 /**
@@ -229,8 +274,9 @@ export function parseProjectExport(raw: unknown): ProjectExport {
 
 /**
  * Write a validated ProjectExport into IDB. Generates fresh IDs for the
- * project, models, and build steps to avoid collisions with existing data.
- * Returns the new project ID.
+ * project, models, scenes, annotations, and assets to avoid collisions
+ * with existing data. The build doc is rewritten with remapped ids before
+ * being persisted. Returns the new project ID.
  */
 export async function importProjectData(
   data: ProjectExport,
@@ -264,19 +310,28 @@ export async function importProjectData(
     }),
   );
 
+  // Assets get fresh ids first so that any image-block embedded in the
+  // build doc html can be remapped below. Without remapping, image blocks
+  // would point at the originating user's asset ids and fail to resolve.
+  const assetIdMap = new Map<string, string>();
   await Promise.all(
-    (data.buildSteps ?? []).map((step) =>
-      idb.createBuildStep({
-        ...step,
-        id: crypto.randomUUID(),
+    (data.assets ?? []).map((asset) => {
+      const newId = crypto.randomUUID();
+      assetIdMap.set(asset.id, newId);
+      return idb.putAsset({
+        id: newId,
         projectId: newProject.id,
-      }),
-    ),
+        mimeType: asset.mimeType,
+        blob: base64ToBlob(asset.blobBase64, asset.mimeType),
+        createdAt: asset.createdAt,
+      });
+    }),
   );
 
   // Scenes get fresh IDs; annotations follow via a sceneId remap so the
   // imported references stay intact under the new IDs. Scenes also need
   // their `modelId` remapped to whichever fresh model id we just assigned.
+  // Done before the build doc so embedded scene references can be remapped.
   const sceneIdMap = new Map<string, string>();
   await Promise.all(
     (data.scenes ?? []).map((scene) => {
@@ -296,6 +351,22 @@ export async function importProjectData(
       });
     }),
   );
+
+  // Build doc comes last among the per-record writes so all referenced ids
+  // (assets, models, scenes) are already remapped and available in the maps.
+  if (data.buildDoc) {
+    const remappedDoc = remapBuildDoc(data.buildDoc.doc, {
+      assetIdMap,
+      modelIdMap,
+      sceneIdMap,
+    });
+    await idb.putBuildDoc({
+      projectId: newProject.id,
+      title: data.buildDoc.title,
+      doc: remappedDoc,
+      updatedAt: data.buildDoc.updatedAt,
+    });
+  }
 
   await Promise.all(
     (data.annotations ?? []).map((annotation) => {

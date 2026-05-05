@@ -3,13 +3,21 @@
  * versions (which may be missing fields added later) still hydrate cleanly.
  */
 
+import type { JSONContent } from '@tiptap/core';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
 import type {
   IdbProject,
   IdbModelMeta,
   IdbScene,
   IdbAnnotation,
+  IdbBuildDoc,
 } from './types';
+
+/** The shape Tiptap returns from `editor.getJSON()` for a fresh editor. */
+export const EMPTY_DOC: JSONContent = {
+  type: 'doc',
+  content: [{ type: 'paragraph' }],
+};
 
 export function applyProjectDefaults(
   p: Partial<IdbProject> & { id: string; name: string },
@@ -54,6 +62,17 @@ export function applySceneDefaults(
     objectOffsets: s.objectOffsets ?? {},
     floorVisible: s.floorVisible ?? true,
   } as IdbScene;
+}
+
+export function applyBuildDocDefaults(
+  d: Partial<IdbBuildDoc> & { projectId: string },
+): IdbBuildDoc {
+  return {
+    projectId: d.projectId,
+    title: d.title ?? '',
+    doc: d.doc ?? EMPTY_DOC,
+    updatedAt: d.updatedAt ?? new Date().toISOString(),
+  };
 }
 
 export function applyAnnotationDefaults(

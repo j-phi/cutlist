@@ -26,10 +26,25 @@ const props = withDefaults(
   defineProps<{
     readOnly?: boolean;
     defaultScenePreview?: boolean;
+    /**
+     * Pin the focused model to a specific id, ignoring the project's
+     * default focus. Used by build-step scene embeds, which point at a
+     * known (modelId, sceneId) pair rather than whatever model the user
+     * last looked at in the Model tab.
+     */
+    targetModelId?: string | null;
+    /**
+     * Force a specific scene to load when the focused model is ready.
+     * When set, this takes precedence over `defaultScenePreview` and
+     * over the per-model active-scene memory.
+     */
+    targetSceneId?: string | null;
   }>(),
   {
     readOnly: false,
     defaultScenePreview: false,
+    targetModelId: null,
+    targetSceneId: null,
   },
 );
 
@@ -63,9 +78,10 @@ const focusedModel = computed(() => {
   return enabledModels.value[idx] ?? null;
 });
 
-const focusedModelId = computed<string | null>(
-  () => focusedModel.value?.id ?? null,
-);
+const focusedModelId = computed<string | null>(() => {
+  if (props.targetModelId) return props.targetModelId;
+  return focusedModel.value?.id ?? null;
+});
 
 const hasModelData = computed(() => enabledModels.value.length > 0);
 
@@ -124,6 +140,7 @@ const readOnly = computed(() => props.readOnly);
 const sceneAuthor = useSceneAuthor(viewer, focusedModelId, { readOnly });
 const scenesApi = useScenes(focusedModelId);
 const targetSceneId = computed(() => {
+  if (props.targetSceneId) return props.targetSceneId;
   if (props.defaultScenePreview && focusedModelId.value) {
     return defaultSceneIdForModel(focusedModelId.value);
   }

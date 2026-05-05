@@ -19,6 +19,18 @@
 
 /* ── Custom theme overrides ── */
 @theme {
+  /* JetBrains Mono — the app's UI font (loaded in layouts/default.vue and
+     applied body-wide). Tokenised here so the build-doc editor can reset
+     embed-block chrome back to it without re-pasting the stack. */
+  --font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  /* Modern serif used for body copy in the build doc editor. Headings,
+     UI chrome, and embeds stay on `--font-mono`. */
+  --font-serif:
+    'Source Serif 4', 'ui-serif', Georgia, Cambria, 'Times New Roman', serif;
+
   --color-mist-50: #f9fbfb;
   --color-mist-100: #f1f3f3;
   --color-mist-200: #e3e7e8;

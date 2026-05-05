@@ -19,6 +19,13 @@
 export const SCHEMA_VERSION = 1;
 
 /**
+ * The lowest export-file schema version this client can still parse.
+ * Older `.cutlist` files raise `LegacyExportError` rather than failing in
+ * Zod validation with a confusing field-level error.
+ */
+export const MIN_SUPPORTED_EXPORT_VERSION = 1;
+
+/**
  * Thrown when data (a stored DB or an imported export file) was created by
  * a newer version of Cutlist than the one currently running. Prevents
  * silent corruption by refusing to proceed.
@@ -44,5 +51,23 @@ export class FutureSchemaError extends Error {
         `v${SCHEMA_VERSION}). ${action}`,
     );
     this.name = 'FutureSchemaError';
+  }
+}
+
+/**
+ * Thrown when an imported `.cutlist` was written by a Cutlist version older
+ * than `MIN_SUPPORTED_EXPORT_VERSION`. The data shape has changed enough
+ * that no migration path exists; the user is told the file is too old to
+ * import.
+ */
+export class LegacyExportError extends Error {
+  constructor(exportVersion: number) {
+    super(
+      `This .cutlist file was made by an older version of Cutlist ` +
+        `(format v${exportVersion}) and cannot be imported by this build ` +
+        `(format v${SCHEMA_VERSION}). Open it in the version that produced ` +
+        `it, re-export, or start a new project.`,
+    );
+    this.name = 'LegacyExportError';
   }
 }

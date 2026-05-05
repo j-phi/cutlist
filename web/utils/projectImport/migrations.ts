@@ -19,14 +19,14 @@
  *  - New required fields must have a sensible default.
  */
 
-import { FutureSchemaError, SCHEMA_VERSION } from '../versions';
+import {
+  FutureSchemaError,
+  LegacyExportError,
+  MIN_SUPPORTED_EXPORT_VERSION,
+  SCHEMA_VERSION,
+} from '../versions';
 
-type StoreName =
-  | 'projects'
-  | 'models'
-  | 'buildSteps'
-  | 'scenes'
-  | 'annotations';
+type StoreName = 'projects' | 'models' | 'buildDoc' | 'scenes' | 'annotations';
 
 /** A loosely-typed export record (string-keyed object with unknown values). */
 export type IdbRecord = Record<string, unknown>;
@@ -41,7 +41,8 @@ export interface RecordMigration {
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
-  // v1 baseline: nothing to migrate.
+  // v1 baseline: nothing to migrate. Earlier formats are rejected with
+  // `LegacyExportError` in `migrateExport` rather than transformed.
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */
@@ -65,7 +66,7 @@ interface RawExport {
   version?: number;
   project?: IdbRecord;
   models?: IdbRecord[];
-  buildSteps?: IdbRecord[];
+  buildDoc?: IdbRecord;
   scenes?: IdbRecord[];
   annotations?: IdbRecord[];
   [key: string]: unknown;
@@ -84,6 +85,10 @@ export function migrateExport(raw: RawExport): RawExport {
     throw new FutureSchemaError(fromVersion, 'export');
   }
 
+  if (fromVersion < MIN_SUPPORTED_EXPORT_VERSION) {
+    throw new LegacyExportError(fromVersion);
+  }
+
   if (fromVersion >= SCHEMA_VERSION) return raw;
 
   const project = raw.project
@@ -94,9 +99,9 @@ export function migrateExport(raw: RawExport): RawExport {
     migrateRecord('models', m, fromVersion),
   );
 
-  const buildSteps = (raw.buildSteps ?? []).map((s) =>
-    migrateRecord('buildSteps', s, fromVersion),
-  );
+  const buildDoc = raw.buildDoc
+    ? migrateRecord('buildDoc', raw.buildDoc, fromVersion)
+    : raw.buildDoc;
 
   const scenes = (raw.scenes ?? []).map((s) =>
     migrateRecord('scenes', s, fromVersion),
@@ -111,7 +116,7 @@ export function migrateExport(raw: RawExport): RawExport {
     version: SCHEMA_VERSION,
     project,
     models,
-    buildSteps,
+    buildDoc,
     scenes,
     annotations,
   };

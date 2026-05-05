@@ -14,6 +14,7 @@ export {
   applyModelDefaults,
   applySceneDefaults,
   applyAnnotationDefaults,
+  applyBuildDocDefaults,
 } from './useIdb/index';
 export type {
   AnnotationPatch,
@@ -21,7 +22,8 @@ export type {
   PartOverride,
   IdbModel,
   IdbModelMeta,
-  IdbBuildStep,
+  IdbBuildDoc,
+  IdbAsset,
   IdbScene,
   IdbAnnotation,
   IdbCallout,

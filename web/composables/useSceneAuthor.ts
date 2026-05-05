@@ -41,6 +41,14 @@ export interface SceneAuthorViewer {
   setFloorVisible(v: boolean): void;
   setObjectVisible(id: GroupId, visible: boolean): void;
   setAllObjectsVisible(visible: boolean): void;
+  /**
+   * Set per-Object fade alpha in [0, 1]. Drives the Highlighter's
+   * no-highlight color path; selection should be cleared first or these
+   * alphas are ignored. Edge lines snap on/off at the fade midpoint so the
+   * pop lands when the body is half-transparent.
+   */
+  setObjectFadeAlphas(perGroup: Map<GroupId, number>): void;
+  clearObjectFadeAlphas(): void;
   resetAllOffsets(): void;
   resetSelectedOffsets(ids: GroupId[]): void;
   getObjectOffsets(): Map<GroupId, ObjectOffset>;
@@ -156,6 +164,17 @@ export function useSceneAuthor(
     return isRef(value) ? value.value : !!value;
   }
 
+  // The model-viewer store owns selection + hover. We need a reference here
+  // so scene transitions can clear it: a fading body's color is composited
+  // by the Highlighter, which ignores fade alphas while anything is
+  // hovered/selected. Clearing both on tween/jump dodges that race.
+  const modelStore = useModelViewerStore();
+
+  function clearSelectionAndHover(): void {
+    modelStore.clearGroupSelection();
+    modelStore.setHoveredGroupIds([]);
+  }
+
   // Per-model active-scene memory. We keep two side-effects in sync:
   //   1. `activeSceneId` change → write `(currentModelId → newSceneId)` so
   //      the next time the user comes back to this model the timeline lands
@@ -166,14 +185,13 @@ export function useSceneAuthor(
   // The store owns the map so it survives across composable re-runs (e.g.
   // ModelTab unmount/remount in the same project).
   if (focusedModelIdRef) {
-    const store = useModelViewerStore();
     let suppressActiveWrite = false;
 
     watch(activeSceneId, (sid) => {
       if (suppressActiveWrite) return;
       const mid = focusedModelIdRef.value;
       if (!mid) return;
-      store.setActiveSceneForModel(mid, sid);
+      modelStore.setActiveSceneForModel(mid, sid);
     });
 
     watch(
@@ -184,7 +202,9 @@ export function useSceneAuthor(
         // restoration is a read, not a user action.
         suppressActiveWrite = true;
         try {
-          activeSceneId.value = mid ? store.getActiveSceneForModel(mid) : null;
+          activeSceneId.value = mid
+            ? modelStore.getActiveSceneForModel(mid)
+            : null;
         } finally {
           suppressActiveWrite = false;
         }
@@ -356,6 +376,10 @@ export function useSceneAuthor(
     tween.value = { from: null, to: scene.id, t: 1 };
     try {
       if (viewer.ready.value) {
+        // Clear any in-flight fade + the selection so the jump lands on a
+        // clean compositing state.
+        viewer.clearObjectFadeAlphas();
+        clearSelectionAndHover();
         viewer.setCameraMode(state.cameraMode);
         viewer.setCameraPose(state.cameraPose);
         viewer.setFloorVisible(state.floorVisible);
@@ -395,12 +419,30 @@ export function useSceneAuthor(
       return Promise.resolve();
     }
     stopTween();
+    viewer.clearObjectFadeAlphas();
+    clearSelectionAndHover();
 
     const fromState = captureCurrentSceneState();
     const toState = sceneStateFromIdb(scene);
     const allGroupIds = getAllGroupIds();
     const start = performance.now();
     let midCutDone = false;
+
+    // Which objects' visibility differs between scenes — these are the ones
+    // that fade. For each, the target visibility tells us the alpha
+    // direction (appearing: 0→1, disappearing: 1→0).
+    const fading: Array<{ id: GroupId; appearing: boolean }> = [];
+    for (const id of allGroupIds) {
+      const f =
+        fromState.visibleObjects === null || fromState.visibleObjects.has(id);
+      const t =
+        toState.visibleObjects === null || toState.visibleObjects.has(id);
+      if (f === t) continue;
+      fading.push({ id, appearing: t });
+      // Appearing bodies need to be visible up front so there's something
+      // to fade in.
+      if (t) viewer.setObjectVisible(id, true);
+    }
 
     const fromSceneId = activeSceneId.value;
     tween.value = { from: fromSceneId, to: scene.id, t: 0 };
@@ -423,17 +465,26 @@ export function useSceneAuthor(
         // Reassign the whole object so reactivity fires.
         tween.value = { from: fromSceneId, to: scene.id, t: raw };
 
+        if (fading.length > 0) {
+          const fades = new Map<GroupId, number>();
+          for (const f of fading)
+            fades.set(f.id, f.appearing ? eased : 1 - eased);
+          viewer.setObjectFadeAlphas(fades);
+        }
+
         if (!midCutDone && raw >= 0.5) {
           midCutDone = true;
           viewer.setCameraMode(toState.cameraMode);
           viewer.setFloorVisible(toState.floorVisible);
           cameraMode.value = toState.cameraMode;
           floorVisible.value = toState.floorVisible;
-          applyVisibility(toState.visibleObjects);
         }
 
         if (raw >= 1) {
-          // stopTween() resolves pendingResolve, so the awaiter unblocks.
+          viewer.clearObjectFadeAlphas();
+          // Hard-cut to the target visibility (hides disappeared bodies +
+          // edges; appeared edges come back via setObjectVisible).
+          applyVisibility(toState.visibleObjects);
           stopTween();
           dirty.value = false;
         }

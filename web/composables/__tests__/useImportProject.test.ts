@@ -10,7 +10,6 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 const importProjectFromFile = vi.fn();
 const appendProject = vi.fn();
 const setActiveProject = vi.fn();
-const reloadSteps = vi.fn();
 const reportError = vi.fn();
 
 vi.mock('~/utils/projectImport', () => ({
@@ -23,7 +22,6 @@ vi.mock('../useAppErrors', () => ({
 
 mockNuxtImport('useProjects', () => () => ({ appendProject }));
 mockNuxtImport('useProjectNavigation', () => () => ({ setActiveProject }));
-mockNuxtImport('useBuildSteps', () => () => ({ reloadSteps }));
 mockNuxtImport('useIdb', () => () => ({ __stub: true }));
 
 import useImportProject from '../useImportProject';
@@ -36,7 +34,6 @@ beforeEach(() => {
   importProjectFromFile.mockReset();
   appendProject.mockReset();
   setActiveProject.mockReset();
-  reloadSteps.mockReset();
   reportError.mockReset();
 });
 
@@ -48,7 +45,6 @@ describe('useImportProject.importFromFile', () => {
   it('delegates to importProjectFromFile and wires the new project id', async () => {
     importProjectFromFile.mockResolvedValueOnce('new-project-id');
     appendProject.mockResolvedValueOnce(undefined);
-    reloadSteps.mockResolvedValueOnce(undefined);
 
     const { importFromFile } = useImportProject();
     const file = makeFile();
@@ -58,7 +54,6 @@ describe('useImportProject.importFromFile', () => {
     expect(importProjectFromFile.mock.calls[0][0]).toBe(file);
     expect(appendProject).toHaveBeenCalledWith('new-project-id');
     expect(setActiveProject).toHaveBeenCalledWith('new-project-id');
-    expect(reloadSteps).toHaveBeenCalledWith('new-project-id');
   });
 
   it('propagates errors from importProjectFromFile to the caller', async () => {
@@ -69,7 +64,6 @@ describe('useImportProject.importFromFile', () => {
 
     expect(appendProject).not.toHaveBeenCalled();
     expect(setActiveProject).not.toHaveBeenCalled();
-    expect(reloadSteps).not.toHaveBeenCalled();
   });
 });
 
