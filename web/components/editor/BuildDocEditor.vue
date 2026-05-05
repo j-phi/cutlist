@@ -311,17 +311,4 @@ function insertScene() {
   font-size: 1rem;
   line-height: 1.5;
 }
-
-/*
- * Slight bleed: media blocks read as a half-step wider than the prose
- * column on viewports with room. The article wrapper has `px-6` (1.5rem)
- * padding, so we only bleed past the column once the viewport leaves
- * enough gutter to absorb it.
- */
-@media (min-width: 64rem) {
-  .tiptap-doc :is(.doc-embed, image-block, scene-block) {
-    margin-left: -3rem;
-    margin-right: -3rem;
-  }
-}
 </style>
