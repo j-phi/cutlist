@@ -8,11 +8,15 @@ import Typography from '@tiptap/extension-typography';
 import { ImageBlock } from '~/lib/editor/imageBlock';
 import { SceneBlock } from '~/lib/editor/sceneBlock';
 
-const props = defineProps<{
-  modelValue: JSONContent;
-  projectId: string;
-  placeholder?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: JSONContent;
+    projectId: string;
+    placeholder?: string;
+    editable?: boolean;
+  }>(),
+  { editable: true },
+);
 
 const emit = defineEmits<{
   'update:modelValue': [doc: JSONContent];
@@ -82,6 +86,7 @@ async function insertImageFilesAt(files: File[], pos: number) {
 
 const editor = useEditor({
   content: props.modelValue,
+  editable: props.editable,
   extensions: [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
@@ -136,6 +141,13 @@ watch(
     if (value === lastEmitted) return;
     editor.value.commands.setContent(value, { emitUpdate: false });
     lastEmitted = value;
+  },
+);
+
+watch(
+  () => props.editable,
+  (value) => {
+    editor.value?.setEditable(value);
   },
 );
 
@@ -202,6 +214,7 @@ function insertScene() {
   <div class="space-y-4">
     <!-- Single sticky toolbar — the only formatting affordance on the page. -->
     <div
+      v-if="editable"
       class="sticky top-0 z-10 -mx-2 px-2 py-2 bg-base backdrop-blur flex items-center gap-1 flex-wrap"
     >
       <select

@@ -1,6 +1,6 @@
 // @vitest-environment nuxt
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent, h, ref } from 'vue';
+import { defineComponent, h, nextTick, ref } from 'vue';
 import type { JSONContent } from '@tiptap/core';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
@@ -17,9 +17,15 @@ const EMPTY_DOC: JSONContent = {
   content: [{ type: 'paragraph' }],
 };
 
+const FILLED_DOC: JSONContent = {
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] }],
+};
+
 const activeProject = ref<ActiveProject | null>(null);
 const doc = ref<JSONContent>(EMPTY_DOC);
 const title = ref('');
+const loadedId = ref<string | null>(null);
 const setDoc = vi.fn((next: JSONContent) => {
   doc.value = next;
 });
@@ -32,6 +38,7 @@ mockNuxtImport('useProjects', () => () => ({ activeProject }));
 mockNuxtImport('useBuildDoc', () => () => ({
   doc,
   title,
+  loadedId,
   setDoc,
   setTitle,
   flush,
@@ -39,6 +46,22 @@ mockNuxtImport('useBuildDoc', () => () => ({
 
 const stubs = {
   UIcon: true,
+  UButton: defineComponent({
+    name: 'UButton',
+    props: { label: { type: String, default: '' } },
+    emits: ['click'],
+    setup(props, { emit, slots }) {
+      return () =>
+        h(
+          'button',
+          {
+            'data-testid': `btn-${props.label.toLowerCase()}`,
+            onClick: () => emit('click'),
+          },
+          slots.default?.() ?? props.label,
+        );
+    },
+  }),
   // The editor is heavy; stub it out and just record what props/events flow.
   BuildDocEditor: defineComponent({
     name: 'BuildDocEditor',
@@ -46,6 +69,7 @@ const stubs = {
       modelValue: { type: Object as () => JSONContent, required: true },
       projectId: { type: String, required: true },
       placeholder: { type: String, default: '' },
+      editable: { type: Boolean, default: true },
     },
     emits: ['update:modelValue', 'blur'],
     setup(props) {
@@ -53,6 +77,7 @@ const stubs = {
         h('div', {
           'data-testid': 'editor',
           'data-doc-type': props.modelValue?.type ?? '',
+          'data-editable': String(props.editable),
         });
     },
   }),
@@ -67,6 +92,7 @@ describe('InstructionsTab', () => {
     activeProject.value = null;
     doc.value = EMPTY_DOC;
     title.value = '';
+    loadedId.value = null;
     setDoc.mockReset();
     setTitle.mockReset();
     flush.mockReset();
@@ -81,10 +107,8 @@ describe('InstructionsTab', () => {
 
   it('mounts the editor with the doc body', () => {
     activeProject.value = { id: 'p1', name: 'Demo' };
-    doc.value = {
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] }],
-    };
+    doc.value = FILLED_DOC;
+    loadedId.value = 'p1';
 
     const c = getComponent();
     const editor = c.find('[data-testid="editor"]');
@@ -92,11 +116,106 @@ describe('InstructionsTab', () => {
     expect(editor.attributes('data-doc-type')).toBe('doc');
   });
 
-  it('shows the title verbatim and keeps the project name as placeholder', () => {
-    activeProject.value = { id: 'p1', name: 'Demo' };
-    title.value = 'My custom build';
+  it('hides the header/editor while a project switch is loading', () => {
+    activeProject.value = { id: 'p2', name: 'New' };
+    // Stale `loadedId` from the previous project — load not yet complete.
+    loadedId.value = 'p1';
+    doc.value = FILLED_DOC;
 
     const c = getComponent();
+    expect(c.find('[data-testid="editor"]').exists()).toBe(false);
+    expect(c.find('input[aria-label="Build doc title"]').exists()).toBe(false);
+    expect(c.find('h1').exists()).toBe(false);
+  });
+
+  it('starts in edit mode for an empty doc', async () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    doc.value = EMPTY_DOC;
+    loadedId.value = 'p1';
+
+    const c = getComponent();
+    await nextTick();
+
+    const editor = c.find('[data-testid="editor"]');
+    expect(editor.attributes('data-editable')).toBe('true');
+    expect(c.find('input[aria-label="Build doc title"]').exists()).toBe(true);
+    expect(c.find('[data-testid="btn-done"]').exists()).toBe(true);
+    expect(c.find('[data-testid="btn-edit"]').exists()).toBe(false);
+  });
+
+  it('starts in view mode when the loaded doc has content', async () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    doc.value = FILLED_DOC;
+    loadedId.value = 'p1';
+
+    const c = getComponent();
+    await nextTick();
+
+    const editor = c.find('[data-testid="editor"]');
+    expect(editor.attributes('data-editable')).toBe('false');
+    expect(c.find('input[aria-label="Build doc title"]').exists()).toBe(false);
+    expect(c.find('[data-testid="btn-edit"]').exists()).toBe(true);
+    expect(c.find('[data-testid="btn-done"]').exists()).toBe(false);
+  });
+
+  it('renders the title (or project name) as a heading in view mode', async () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    doc.value = FILLED_DOC;
+    title.value = 'My custom build';
+    loadedId.value = 'p1';
+
+    const c = getComponent();
+    await nextTick();
+    expect(c.get('h1').text()).toBe('My custom build');
+
+    title.value = '';
+    await nextTick();
+    expect(c.get('h1').text()).toBe('Demo');
+  });
+
+  it('switches to edit mode when the Edit button is clicked', async () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    doc.value = FILLED_DOC;
+    loadedId.value = 'p1';
+
+    const c = getComponent();
+    await nextTick();
+
+    await c.get('[data-testid="btn-edit"]').trigger('click');
+
+    expect(c.find('input[aria-label="Build doc title"]').exists()).toBe(true);
+    expect(c.find('[data-testid="editor"]').attributes('data-editable')).toBe(
+      'true',
+    );
+    expect(c.find('[data-testid="btn-done"]').exists()).toBe(true);
+  });
+
+  it('flushes and switches to view mode when Done is clicked', async () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    doc.value = EMPTY_DOC;
+    loadedId.value = 'p1';
+
+    const c = getComponent();
+    await nextTick();
+
+    // Empty docs start in edit mode — clicking Done should flush + switch.
+    await c.get('[data-testid="btn-done"]').trigger('click');
+
+    expect(flush).toHaveBeenCalled();
+    expect(c.find('[data-testid="btn-edit"]').exists()).toBe(true);
+    expect(c.find('[data-testid="editor"]').attributes('data-editable')).toBe(
+      'false',
+    );
+  });
+
+  it('shows the title verbatim and keeps the project name as placeholder', async () => {
+    activeProject.value = { id: 'p1', name: 'Demo' };
+    title.value = 'My custom build';
+    loadedId.value = 'p1';
+    doc.value = EMPTY_DOC;
+
+    const c = getComponent();
+    await nextTick();
     const input = c.get('input[aria-label="Build doc title"]');
     expect((input.element as HTMLInputElement).value).toBe('My custom build');
     expect(input.attributes('placeholder')).toBe('Demo');
@@ -104,7 +223,10 @@ describe('InstructionsTab', () => {
 
   it('forwards title input to setTitle', async () => {
     activeProject.value = { id: 'p1', name: 'Demo' };
+    loadedId.value = 'p1';
+    doc.value = EMPTY_DOC;
     const c = getComponent();
+    await nextTick();
     const input = c.get('input[aria-label="Build doc title"]');
     await input.setValue('A new title');
     expect(setTitle).toHaveBeenCalledWith('A new title');
@@ -112,6 +234,7 @@ describe('InstructionsTab', () => {
 
   it('forwards editor updates to setDoc', () => {
     activeProject.value = { id: 'p1', name: 'Demo' };
+    loadedId.value = 'p1';
     const c = getComponent();
     const editor = c.findComponent({ name: 'BuildDocEditor' });
     const next: JSONContent = {
@@ -126,6 +249,7 @@ describe('InstructionsTab', () => {
 
   it('flushes pending writes when the editor blurs', () => {
     activeProject.value = { id: 'p1', name: 'Demo' };
+    loadedId.value = 'p1';
     const c = getComponent();
     const editor = c.findComponent({ name: 'BuildDocEditor' });
     editor.vm.$emit('blur');
