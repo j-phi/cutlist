@@ -27,16 +27,26 @@ const eligibleModels = computed(() =>
   (activeProject.value?.models ?? []).filter((m) => m.source !== 'manual'),
 );
 
+// Loads scenes for every eligible model (picker options) plus this embed's
+// own modelId — the embed's modelId can land before `activeProject` rehydrates
+// after import, so without the explicit add the thumbnail computed below would
+// miss its scene. Generation counter prevents stale async results from
+// clobbering newer ones when inputs change mid-flight.
 const scenesByModelId = ref<Map<string, IdbScene[]>>(new Map());
+let loadGen = 0;
 
 watch(
-  eligibleModels,
-  async (models) => {
+  [eligibleModels, modelId],
+  async ([models, embedModelId]) => {
+    const gen = ++loadGen;
+    const ids = new Set(models.map((m) => m.id));
+    if (embedModelId) ids.add(embedModelId);
     const entries = await Promise.all(
-      models.map(
-        async (m) => [m.id, await idb.getScenesForModel(m.id)] as const,
+      [...ids].map(
+        async (id) => [id, await idb.getScenesForModel(id)] as const,
       ),
     );
+    if (gen !== loadGen) return;
     scenesByModelId.value = new Map(entries);
   },
   { immediate: true },
