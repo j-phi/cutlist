@@ -63,9 +63,14 @@ async function onFile(e: Event) {
           :disabled="uploading"
           @click="fileInput?.click()"
         >
-          <UIcon name="i-lucide-image-plus" class="w-8 h-8" />
+          <UIcon
+            v-if="uploading"
+            name="i-lucide-loader-circle"
+            class="w-8 h-8 animate-spin"
+          />
+          <UIcon v-else name="i-lucide-image-plus" class="w-8 h-8" />
           <span class="text-sm">{{
-            uploading ? 'Uploading…' : 'Add an image'
+            uploading ? 'Compressing…' : 'Add an image'
           }}</span>
         </button>
 
@@ -76,7 +81,7 @@ async function onFile(e: Event) {
           :disabled="uploading"
           @click="fileInput?.click()"
         >
-          {{ uploading ? 'Uploading…' : 'Replace' }}
+          {{ uploading ? 'Compressing…' : 'Replace' }}
         </button>
 
         <input

@@ -26,6 +26,11 @@ const emit = defineEmits<{
 const { uploadImageAsset } = useDocAssets();
 const toast = useToast();
 
+// In-flight drop/paste uploads. The toolbar-insert path has its own
+// per-block "Compressing…" state inside `ImageBlockView`; this covers
+// drop/paste, which otherwise gives no feedback during compression.
+const pendingUploads = ref(0);
+
 // ─── Editor ───────────────────────────────────────────────────────────────
 
 // Tracks the last doc the editor emitted, so we can distinguish prop
@@ -44,10 +49,12 @@ async function insertImageFilesAt(files: File[], pos: number) {
   const projectId = props.projectId;
   if (!projectId || files.length === 0) return;
 
+  pendingUploads.value += files.length;
   // Uploads are independent — fire them in parallel.
   const uploads = await Promise.allSettled(
     files.map((f) => uploadImageAsset(f, projectId)),
   );
+  pendingUploads.value -= files.length;
 
   // If the user switched projects mid-upload, the editor now displays a
   // different doc. Inserting an asset whose projectId belongs to the
@@ -284,6 +291,19 @@ function insertScene() {
         label="3D scene"
         @click="insertScene"
       />
+
+      <div
+        v-if="pendingUploads > 0"
+        class="ml-auto flex items-center gap-2 text-xs text-muted"
+        aria-live="polite"
+      >
+        <UIcon name="i-lucide-loader-circle" class="w-3.5 h-3.5 animate-spin" />
+        <span>
+          Compressing {{ pendingUploads }} image{{
+            pendingUploads === 1 ? '' : 's'
+          }}…
+        </span>
+      </div>
     </div>
 
     <EditorContent :editor="editor" />

@@ -3,14 +3,16 @@
  *
  * Two thin layers over the IDB asset table:
  *
- * - `uploadImageAsset(file, projectId)` — stores a `File`/`Blob` and returns
- *   the asset id to drop into an image block.
+ * - `uploadImageAsset(file, projectId)` — compresses the source image
+ *   (downscale + WebP re-encode, EXIF stripped) then stores the resulting
+ *   `Blob` and returns the asset id to drop into an image block.
  * - `useAssetUrl(assetId)` — a reactive object URL bound to the calling
  *   component's lifecycle. The URL is created on demand and revoked when
  *   either the assetId changes or the component unmounts, so consumers don't
  *   leak blob URLs.
  */
 
+import imageCompression from 'browser-image-compression';
 import {
   onScopeDispose,
   ref,
@@ -51,21 +53,45 @@ export function validateImageFile(file: { type: string; size: number }): void {
   }
 }
 
+/**
+ * Compression target. 1920px on the long edge survives 2× zoom in the
+ * doc; WebP q0.82 matches JPEG q90 visually at roughly half the bytes;
+ * 0.6 MB is the threshold past which `browser-image-compression` re-runs
+ * the encoder at progressively lower quality. EXIF is stripped.
+ */
+export const COMPRESSION_OPTIONS = {
+  maxSizeMB: 0.6,
+  maxWidthOrHeight: 1920,
+  useWebWorker: true,
+  fileType: 'image/webp' as const,
+  initialQuality: 0.82,
+};
+
 export default function useDocAssets() {
   const idb = useIdb();
 
   /**
-   * Persist an image file as an asset record. Rejects unsupported MIME
-   * types and oversized files at the boundary rather than letting them
-   * sneak into IDB.
+   * Persist an image as an asset record. The compressed blob wins when
+   * smaller than the source; for tiny inputs (icons, already-optimised
+   * WebP) re-encoding can inflate, in which case the original is kept.
+   * Encoder errors fall back to the source rather than block the upload.
    */
   async function uploadImageAsset(file: File, projectId: string) {
     validateImageFile(file);
-    return idb.createAsset({
-      projectId,
-      mimeType: file.type,
-      blob: file,
-    });
+
+    let blob: Blob = file;
+    let mimeType = file.type;
+    try {
+      const compressed = await imageCompression(file, COMPRESSION_OPTIONS);
+      if (compressed.size < file.size) {
+        blob = compressed;
+        mimeType = compressed.type || 'image/webp';
+      }
+    } catch {
+      // Fall through with the original.
+    }
+
+    return idb.createAsset({ projectId, mimeType, blob });
   }
 
   /**
