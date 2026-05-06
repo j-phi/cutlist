@@ -131,6 +131,15 @@ describe('CameraRig', () => {
     expect(d.z).toBeCloseTo(1);
   });
 
+  it('Should emit user-interaction when applyViewPreset is called (so scenes mark dirty)', () => {
+    let count = 0;
+    bus.on('user-interaction', () => count++);
+
+    rig.applyViewPreset('iso');
+
+    expect(count).toBe(1);
+  });
+
   it('Should request a render when applyViewPreset starts a tween', async () => {
     rig.perspective.position.set(2, 1.5, 2);
     rig.controls.target.set(0, 0, 0);

@@ -184,6 +184,9 @@ export class CameraRig {
     const endPos = dir.multiplyScalar(dist).add(target);
     const endUp = new THREE.Vector3(...def.up);
 
+    // ViewCube clicks bypass OrbitControls, so emit the same signal here so
+    // scene authoring marks the active scene dirty.
+    this.deps.bus.emit({ type: 'user-interaction' });
     this.tweenTo(endPos, target, endUp);
   }
 
