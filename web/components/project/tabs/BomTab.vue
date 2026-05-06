@@ -360,7 +360,7 @@ onUnmounted(() => {
               </div>
 
               <!-- Summary bar -->
-              <div class="flex items-center gap-2 px-5 pb-1 text-xs text-muted">
+              <div class="flex items-center gap-2 px-5 pb-3 text-xs text-muted">
                 <span
                   >{{ totalParts }} part{{ totalParts === 1 ? '' : 's' }}</span
                 >
