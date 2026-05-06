@@ -753,7 +753,7 @@ export class ViewerCore {
 
   // ── Thumbnails ───────────────────────────────────────────────────
 
-  captureThumbnail(width = 1024, height = 576): string | null {
+  captureThumbnail(width = 1920, height = 1080): string | null {
     if (!this.renderer || !this.cameraRig || !this.sceneGraph) return null;
     const r = this.renderer.renderer;
     const THREE = this.modules!.THREE;
@@ -763,6 +763,7 @@ export class ViewerCore {
     // Snapshot every piece of state we're about to mutate so the live
     // viewer is untouched after the offscreen render.
     const prevSize = r.getSize(new THREE.Vector2());
+    const prevPixelRatio = r.getPixelRatio();
     const prevResolution = this.edgeMaterial?.resolution.clone() ?? null;
     const prevLinewidth = this.edgeMaterial?.linewidth ?? null;
     const prevGizmoVisible = gizmoGroup.visible;
@@ -770,9 +771,12 @@ export class ViewerCore {
     const prevSelected = this.highlighter?.getSelected() ?? [];
 
     // Retarget renderer + camera frustum + edge shader at the capture size.
+    // `setSize` multiplies by pixelRatio for the backing store; pin to 1 so
+    // the data URL is exactly `width × height` rather than 2× on Retina.
     // LineMaterial computes screen-space linewidth from `resolution`, and
-    // proportional linewidth is sized for the live canvas — without these
-    // the captured edges come out scaled for the wrong target.
+    // proportional linewidth is sized for the live canvas — without those
+    // updates the captured edges scale for the wrong target.
+    r.setPixelRatio(1);
     r.setSize(width, height, false);
     this.cameraRig.onResize(width, height);
     if (this.edgeMaterial) {
@@ -793,8 +797,8 @@ export class ViewerCore {
     this.highlighter?.setSelected([]);
 
     r.render(sg.scene, this.cameraRig.camera);
-    // JPEG keeps the per-scene IDB payload small at this resolution.
-    const url = r.domElement.toDataURL('image/jpeg', 0.92);
+    // WebP q0.8 ≈ JPEG q0.92 visually at roughly half the bytes.
+    const url = r.domElement.toDataURL('image/webp', 0.8);
 
     // Restore.
     this.highlighter?.setHovered(prevHovered);
@@ -804,6 +808,7 @@ export class ViewerCore {
       if (prevResolution) this.edgeMaterial.resolution.copy(prevResolution);
       if (prevLinewidth !== null) this.edgeMaterial.linewidth = prevLinewidth;
     }
+    r.setPixelRatio(prevPixelRatio);
     r.setSize(prevSize.x, prevSize.y, false);
     this.cameraRig.onResize(prevSize.x, prevSize.y);
     this.renderer.requestRender();

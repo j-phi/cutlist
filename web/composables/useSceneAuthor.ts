@@ -54,7 +54,7 @@ export interface SceneAuthorViewer {
   getObjectOffsets(): Map<GroupId, ObjectOffset>;
   applyObjectOffsets(offsets: Map<GroupId, ObjectOffset>): void;
   getObjects(): Array<{ groupId: GroupId; partNumber: number; name: string }>;
-  captureThumbnail(width: number, height: number): string | null;
+  captureThumbnail(width?: number, height?: number): string | null;
   onFrame(cb: (dt: number) => void): () => void;
   on(type: 'user-interaction', cb: () => void): () => void;
   on(type: 'object-moved', cb: () => void): () => void;
@@ -337,7 +337,7 @@ export function useSceneAuthor(
   }
 
   function captureThumbnail(): string | null {
-    return viewer.captureThumbnail(1024, 576);
+    return viewer.captureThumbnail();
   }
 
   // ── Apply ──────────────────────────────────────────────────────────
