@@ -118,6 +118,8 @@ State is composable-based (no Pinia). Key composables:
 - `useUrlSync` — bidirectional sync between app state (activeId, tab) and URL route
 - `useExportProject` / `useImportProject` — `.cutlist.gz` file I/O
 
+**Convention — project-scoped watchers must be detached.** Composables that install a `watch(activeId, …)` (or `watch(activeModelId, …)`) to load IDB data on project/model switch must wrap the call in `effectScope(true).run(() => watch(...))`. A bare `watch()` inside the composable binds to the _first caller's_ component scope; when that component unmounts (e.g. switching tabs) Vue silently disposes the watcher, and a `let watcherInstalled = false` gate then prevents reinstall, so subsequent project switches go unobserved (stale data, blank UIs). See `useScenes`, `useAnnotations`, `useBuildDoc`. `useActiveProject` is the exception — its watcher is installed via `startActiveProjectWatcher()` from `app.vue`'s `startProjects()`, which gives the same lifetime guarantee.
+
 ### Routing (`web/pages/`)
 
 File-based routing with dynamic segments:
