@@ -114,8 +114,14 @@ const importGuides = [
         <!-- HERO                                                               -->
         <!-- ═══════════════════════════════════════════════════════════════════ -->
         <section
-          class="relative min-h-[calc(100vh-2.5rem)] flex flex-col items-center justify-center overflow-hidden pt-16 pb-16 px-4"
+          class="relative min-h-[calc(100vh-2.5rem)] flex flex-col items-center overflow-hidden pt-16 px-4"
         >
+          <!-- Teal spotlight glow -->
+          <div
+            class="absolute inset-0 pointer-events-none select-none hero-spotlight"
+            aria-hidden="true"
+          />
+
           <!-- Grid background with radial fade -->
           <div
             class="absolute inset-0 pointer-events-none select-none"
@@ -152,7 +158,7 @@ const importGuides = [
 
           <!-- Hero content -->
           <div
-            class="relative z-10 flex flex-col items-center gap-8 w-full max-w-[1200px]"
+            class="relative z-10 flex-1 flex flex-col items-center justify-center gap-8 w-full max-w-[1200px]"
           >
             <!-- Branding + tagline -->
             <div class="text-center">
@@ -174,7 +180,7 @@ const importGuides = [
               :class="
                 isDragging
                   ? 'border-teal-400/50 bg-teal-500/5 shadow-[0_0_40px_rgba(20,184,166,0.12)]'
-                  : 'border-subtle bg-mist-950/70'
+                  : 'border-subtle bg-mist-950/70 shadow-2xl shadow-black/50'
               "
             >
               <template v-if="isDragging">
@@ -223,32 +229,108 @@ const importGuides = [
                 </p>
               </template>
             </div>
+          </div>
 
-            <!-- Browser mockup -->
+          <!-- Browser mockup pinned to bottom of hero -->
+          <div
+            class="relative z-10 w-full max-w-[1200px] mt-16 rounded-t-xl overflow-hidden border border-b-0 border-mist-800 shadow-2xl shadow-black/50"
+          >
+            <!-- Title bar -->
             <div
-              class="w-full rounded-xl overflow-hidden border border-mist-800 shadow-2xl shadow-black/50"
+              class="flex items-center gap-2 px-4 py-2.5 bg-mist-950 border-b border-mist-800"
             >
-              <!-- Title bar -->
-              <div
-                class="flex items-center gap-2 px-4 py-2.5 bg-mist-950 border-b border-mist-800"
-              >
-                <div class="flex items-center gap-1.5">
-                  <div class="w-3 h-3 rounded-full bg-mist-700" />
-                  <div class="w-3 h-3 rounded-full bg-mist-700" />
-                  <div class="w-3 h-3 rounded-full bg-mist-700" />
-                </div>
-                <div
-                  class="flex-1 mx-8 py-1 rounded-md bg-mist-900 text-center"
-                >
-                  <span class="text-xs text-dim font-mono"
-                    >cutliststudio.com</span
-                  >
-                </div>
+              <div class="flex items-center gap-1.5">
+                <div class="w-3 h-3 rounded-full bg-mist-700" />
+                <div class="w-3 h-3 rounded-full bg-mist-700" />
+                <div class="w-3 h-3 rounded-full bg-mist-700" />
               </div>
-              <!-- Screenshot -->
+              <div class="flex-1 mx-8 py-1 rounded-md bg-mist-900 text-center">
+                <span class="text-xs text-dim font-mono"
+                  >cutliststudio.com</span
+                >
+              </div>
+            </div>
+            <!-- Screenshot -->
+            <img
+              src="/preview.webp"
+              alt="Cutlist Studio app showing a workbench project with 3D model and bill of materials"
+              class="w-full block"
+            />
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- LAYOUT SHOWCASE                                                    -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="py-20 px-4 border-t border-subtle">
+          <div class="max-w-5xl mx-auto">
+            <div class="text-center mb-10">
+              <h2
+                class="text-teal-400 text-xs font-semibold uppercase tracking-wider mb-3"
+              >
+                Layout
+              </h2>
+              <p class="text-2xl font-bold text-hi mb-3">
+                Optimized cutting plans, one click away
+              </p>
+              <p class="text-sm text-muted max-w-md mx-auto">
+                Multiple packing strategies compete to find the layout with the
+                fewest boards and least waste. Tweak blade kerf, margins, and
+                stock filters in real time.
+              </p>
+            </div>
+
+            <div class="relative">
+              <div
+                class="rounded-xl overflow-hidden border border-mist-800 shadow-2xl shadow-black/50"
+              >
+                <img
+                  src="/layout.webp"
+                  alt="Cutlist Studio Layout tab showing optimized board layouts across multiple stock materials"
+                  class="w-full block"
+                />
+              </div>
+
+              <!-- Export to PDF callout -->
+              <div
+                class="hidden sm:flex absolute -top-4 -right-2 sm:-right-4 lg:-right-8 items-center gap-2 px-3 py-2 rounded-lg bg-teal-500 text-black shadow-lg shadow-teal-500/30 rotate-[3deg]"
+              >
+                <UIcon name="i-lucide-file-down" class="w-4 h-4" />
+                <span class="text-xs font-semibold whitespace-nowrap">
+                  One-click PDF export
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- BUILD SHOWCASE                                                     -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="py-20 px-4 border-t border-subtle">
+          <div class="max-w-5xl mx-auto">
+            <div class="text-center mb-10">
+              <h2
+                class="text-teal-400 text-xs font-semibold uppercase tracking-wider mb-3"
+              >
+                Build
+              </h2>
+              <p class="text-2xl font-bold text-hi mb-3">
+                Document your build alongside your model
+              </p>
+              <p class="text-sm text-muted max-w-md mx-auto">
+                A rich-text workspace for build notes, photos, and embedded
+                scenes. Capture exploded views from the 3D model and drop them
+                straight into your instructions.
+              </p>
+            </div>
+
+            <div
+              class="rounded-xl overflow-hidden border border-mist-800 shadow-2xl shadow-black/50"
+            >
               <img
-                src="/preview.webp"
-                alt="Cutlist Studio app showing a workbench project with 3D model and bill of materials"
+                src="/build.webp"
+                alt="Cutlist Studio Build tab showing rich-text instructions with embedded model scenes and photos"
                 class="w-full block"
               />
             </div>
@@ -532,3 +614,25 @@ const importGuides = [
     <NewProjectDialog v-model:open="showNewProject" />
   </AppShell>
 </template>
+
+<style scoped>
+.hero-spotlight {
+  background-image: radial-gradient(
+    ellipse 120% 70% at 50% 45%,
+    rgba(20, 184, 166, 0.2) 0%,
+    rgba(20, 184, 166, 0.09) 35%,
+    transparent 75%
+  );
+}
+
+@media (min-width: 640px) {
+  .hero-spotlight {
+    background-image: radial-gradient(
+      ellipse 60% 50% at 50% 45%,
+      rgba(20, 184, 166, 0.18) 0%,
+      rgba(20, 184, 166, 0.08) 35%,
+      transparent 75%
+    );
+  }
+}
+</style>
