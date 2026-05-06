@@ -99,12 +99,13 @@ Scenes are scoped **per model**: each `IdbModel` has its own scene timeline. Ann
 State is composable-based (no Pinia). Key composables:
 
 - `useProjects` — project CRUD + active project state
-- `useIdb` — IndexedDB persistence (projects, models, scenes, annotations, build steps)
+- `useIdb` — IndexedDB persistence (projects, models, scenes, annotations, build docs, assets)
 - `useModels` — module-level `ObjectGraph` cache, keyed by modelId. Avoids re-running GLTFLoader/ColladaLoader on dropdown switches
 - `useProjectSettings` — per-project settings (blade width, optimization mode)
 - `useProjectTabMap` — tab state per project
 - `useBoardLayoutsQuery` — runs packing engine reactively
-- `useBuildSteps` — assembly instruction generation
+- `useBuildDoc` — single Tiptap-based "Build" page per project (title + JSON doc). Holds module-scoped reactive state, debounces IDB writes, flushes on project switch / blur / unmount
+- `useDocAssets` — image upload + reactive blob-URL resolution for image blocks in the build doc
 - `useThreeViewer(container)` — thin Vue adapter over `ViewerCore`. Owns lifecycle (mount, dispose, canvas remount) and bridges the bus to `useModelViewerStore`
 - `useModelViewerStore` — global selection / hover state for the Model tab; also holds the per-model active-scene map
 - `useScenes(modelIdRef)` — reactive scene list for a model + CRUD
@@ -133,7 +134,7 @@ File-based routing with dynamic segments:
 
 ### UI (`web/components/`)
 
-Project sidebar and tabbed main area. Tabs: Model (3D viewer), Stock, BOM, Instructions, Warnings, Settings.
+Project sidebar and tabbed main area. Tabs (in order): BOM, Layout, Model (3D viewer), Build (rich-text instructions, Tiptap), Stock, Settings. Tab metadata is owned by `web/utils/projectTabs.ts` (id, label, icon, URL segment) — update there when adding/renaming tabs.
 
 Styling: Tailwind CSS v4 + Nuxt UI, dark mode by default, custom "mist" color palette (`tailwind.config.ts`), teal accent (`app.config.ts`).
 
@@ -211,11 +212,12 @@ All data lives in IndexedDB. The app is still in development — breaking schema
 
 - **`projects`** — `id, updatedAt`. The top-level entity.
 - **`models`** — `id, projectId`. Each project can hold multiple models; the Model tab renders one at a time via a dropdown when there's more than one.
-- **`buildSteps`** — `id, projectId`. Assembly instructions (rich-text).
+- **`buildDocs`** — keyed by `projectId` (one record per project). Tiptap JSON `doc` plus `title`. Embedded image and scene blocks reference `assets` and `scenes` by id in node `attrs`, so referenced ids survive HTML round-tripping.
 - **`scenes`** — `id, modelId, order`. Per-model scene timeline. `IdbScene` carries camera mode + pose, per-Object rigid offsets, visibility set, floor visibility, and a thumbnail data URL.
 - **`annotations`** — `id, sceneId`. Discriminated union of `IdbCallout` and `IdbDimension`. Anchored in Object-local space so they ride explode tweens and gizmo drags.
+- **`assets`** — `id, projectId`. Image blobs uploaded into the build doc. Resolved to object URLs on demand via `useDocAssets.useAssetUrl(assetId)`.
 
-Cascade: deleting a project deletes its models, build steps, scenes, and annotations in one Dexie transaction. Deleting a model cascades to its scenes and (via sceneId) annotations.
+Cascade: deleting a project deletes its models, build doc, scenes, annotations, and assets in one Dexie transaction. Deleting a model cascades to its scenes and (via sceneId) annotations.
 
 ### IdbModel — what's stored
 
