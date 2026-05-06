@@ -33,26 +33,10 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Compute base URL
-        id: base
-        run: |
-          owner="${GITHUB_REPOSITORY%/*}"
-          repo="${GITHUB_REPOSITORY#*/}"
-          owner_lc="$(echo "$owner" | tr '[:upper:]' '[:lower:]')"
-          repo_lc="$(echo "$repo" | tr '[:upper:]' '[:lower:]')"
-
-          if [ "$repo_lc" = "$owner_lc.github.io" ]; then
-            echo "value=/" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=/$repo/" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Build static site
-        env:
-          NUXT_APP_BASE_URL: ${{ steps.base.outputs.value }}
         run: bun run build:static
 
       - name: Upload Pages artifact
