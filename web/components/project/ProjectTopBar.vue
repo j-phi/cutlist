@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import * as Sentry from '@sentry/nuxt';
+
 const {
   projects,
   activeId,
@@ -30,6 +32,19 @@ const allProjects = computed(() => [...projects.value.entries()]);
 
 function closeMobileMenu() {
   showMobileMenu.value = false;
+}
+
+async function openFeedback() {
+  const feedback = Sentry.getFeedback();
+  if (!feedback) return;
+  const form = await feedback.createForm();
+  form.appendToDom();
+  form.open();
+}
+
+function openFeedbackFromMenu() {
+  closeMobileMenu();
+  void openFeedback();
 }
 
 function selectProjectFromMenu(id: string) {
@@ -283,6 +298,16 @@ function openNewProject() {
       <span class="text-xs">Import</span>
     </button>
 
+    <button
+      class="hidden sm:flex shrink-0 px-3 items-center gap-1.5 border-l border-subtle text-muted hover:text-teal-400 transition-colors"
+      title="Report an issue"
+      aria-label="Report an issue"
+      @click="openFeedback"
+    >
+      <UIcon name="i-lucide-life-buoy" class="block shrink-0 w-4 h-4" />
+      <span class="text-xs">Help</span>
+    </button>
+
     <div class="relative shrink-0 hidden sm:flex">
       <button
         class="px-3 flex items-center gap-1.5 h-full border-l border-subtle transition-colors"
@@ -448,6 +473,13 @@ function openNewProject() {
         >
           <UIcon name="i-lucide-upload" class="w-4 h-4 shrink-0" />
           <span class="text-sm">Import project</span>
+        </button>
+        <button
+          class="flex items-center gap-3 w-full px-4 py-3 text-left text-body hover:bg-surface border-b border-subtle transition-colors"
+          @click="openFeedbackFromMenu"
+        >
+          <UIcon name="i-lucide-life-buoy" class="w-4 h-4 shrink-0" />
+          <span class="text-sm">Report an issue</span>
         </button>
 
         <!-- History -->

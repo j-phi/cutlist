@@ -160,11 +160,11 @@ export default function useExportProject() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    Sentry.logger.info('Project exported', {
-      projectId: data.project.id,
-      name: data.project.name,
-      modelCount: data.models.length,
-      sizeBytes: blob.size,
+    Sentry.metrics.count('project.exported', 1, {
+      attributes: { hasModels: data.models.length > 0 },
+    });
+    Sentry.metrics.distribution('project.export.size', blob.size, {
+      unit: 'byte',
     });
   }
 

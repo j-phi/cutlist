@@ -10,5 +10,17 @@ if (dsn) {
     sendDefaultPii: false,
     debug: false,
     enableLogs: true,
+    integrations: [
+      Sentry.feedbackIntegration({
+        autoInject: false,
+        colorScheme: 'dark',
+        isNameRequired: false,
+        isEmailRequired: true,
+        enableScreenshot: true,
+        showBranding: false,
+        formTitle: 'Report an issue',
+        submitButtonLabel: 'Send report',
+      }),
+    ],
   });
 }

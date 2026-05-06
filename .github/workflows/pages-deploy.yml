@@ -38,6 +38,9 @@ jobs:
 
       - name: Build static site
         run: bun run build:static
+        env:
+          NUXT_PUBLIC_SENTRY_DSN: ${{ secrets.NUXT_PUBLIC_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
