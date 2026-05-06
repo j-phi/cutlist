@@ -109,15 +109,11 @@ const active = ref(false);
           <button
             v-if="hasSceneRef"
             type="button"
-            class="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors group focus:outline-none"
+            class="absolute bottom-2 right-2 px-4 py-2 rounded-full bg-overlay backdrop-blur border border-subtle text-sm font-medium text-body hover:bg-elevated flex items-center gap-2 focus:outline-none focus:border-teal-500/50"
             @click="active = true"
           >
-            <span
-              class="px-4 py-2 rounded-full bg-overlay backdrop-blur border border-subtle text-sm font-medium text-body group-hover:bg-elevated flex items-center gap-2"
-            >
-              <UIcon name="i-lucide-play" class="w-4 h-4" />
-              View in 3D
-            </span>
+            <UIcon name="i-lucide-play" class="w-4 h-4" />
+            View in 3D
           </button>
         </template>
 
