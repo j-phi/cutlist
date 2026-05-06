@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nuxt';
 import { importProjectFromFile as importProjectFromCompressedFile } from '~/utils/projectImport';
 import { reportError } from './useAppErrors';
 
@@ -12,6 +13,14 @@ export default function useImportProject() {
     setActiveProject(newProjectId);
     // `useBuildDoc` watches `activeId` at module scope and reloads the
     // doc when the navigation lands.
+    Sentry.captureMessage('Project imported', {
+      level: 'info',
+      extra: {
+        projectId: newProjectId,
+        fileName: file.name,
+        fileSize: file.size,
+      },
+    });
   }
 
   function pickAndImport() {

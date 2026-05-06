@@ -7,6 +7,7 @@
  * restored so URL sync follows.
  */
 import { computed } from 'vue';
+import * as Sentry from '@sentry/nuxt';
 import {
   DEFAULT_SETTINGS,
   getBladeWidthForUnit,
@@ -81,6 +82,10 @@ export default function useProjectCollection() {
     ];
     activeId.value = project.id;
     activeProjectData.value = { ...project, models: [] };
+    Sentry.captureMessage('Project created', {
+      level: 'info',
+      extra: { projectId: project.id, name: project.name, unit },
+    });
   }
 
   async function closeProject(id: string) {

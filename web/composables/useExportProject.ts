@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nuxt';
 import type {
   IdbAnnotation,
   IdbAsset,
@@ -159,6 +160,15 @@ export default function useExportProject() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    Sentry.captureMessage('Project exported', {
+      level: 'info',
+      extra: {
+        projectId: data.project.id,
+        name: data.project.name,
+        modelCount: data.models.length,
+        sizeBytes: blob.size,
+      },
+    });
   }
 
   return { exportProject };
