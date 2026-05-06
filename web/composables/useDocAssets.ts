@@ -13,6 +13,7 @@
  */
 
 import imageCompression from 'browser-image-compression';
+import * as Sentry from '@sentry/nuxt';
 import {
   onScopeDispose,
   ref,
@@ -87,8 +88,12 @@ export default function useDocAssets() {
         blob = compressed;
         mimeType = compressed.type || 'image/webp';
       }
-    } catch {
-      // Fall through with the original.
+    } catch (err) {
+      Sentry.logger.warn('Image compression failed; using original', {
+        mimeType: file.type,
+        sizeBytes: file.size,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     return idb.createAsset({ projectId, mimeType, blob });

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nuxt';
 import { exportCutlistPdf, type PdfScale } from '~/utils/exportPdf';
 import type { BomRow as PdfBomRow } from '~/utils/pdf/bom';
 
@@ -52,8 +53,12 @@ export default function () {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      Sentry.metrics.count('pdf.exported', 1, {
+        attributes: { scale, rows: bomRows.value.length },
+      });
     } catch (err) {
       console.error('[exportPdf] PDF generation failed:', err);
+      Sentry.captureException(err, { tags: { area: 'pdf-export' } });
       error.value = err instanceof Error ? err.message : 'Failed to export PDF';
     } finally {
       isExporting.value = false;

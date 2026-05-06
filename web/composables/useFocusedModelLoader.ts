@@ -14,6 +14,7 @@ import type { SceneAuthor } from '~/composables/useSceneAuthor';
 import type { UseScenesApi } from '~/composables/useScenes';
 import useModels from '~/composables/useModels';
 import useModelViewerStore from '~/composables/useModelViewerStore';
+import { reportError } from '~/composables/useAppErrors';
 
 interface FocusedModelLoaderViewer {
   ready: Ref<boolean>;
@@ -58,7 +59,19 @@ export function useFocusedModelLoader(opts: {
     clearLoadedModel();
     loadState.value = 'loading';
 
-    const graph = await models.getModelGraph(id);
+    let graph: ObjectGraph | null;
+    try {
+      graph = await models.getModelGraph(id);
+    } catch (err) {
+      if (generation !== loadGeneration || focusedModelId.value !== id) return;
+      reportError({
+        title: 'Failed to load model',
+        description: err instanceof Error ? err.message : String(err),
+        severity: 'error',
+      });
+      loadState.value = 'missing-source';
+      return;
+    }
     if (generation !== loadGeneration || focusedModelId.value !== id) return;
 
     if (!graph) {
