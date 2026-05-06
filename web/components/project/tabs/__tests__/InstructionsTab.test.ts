@@ -44,6 +44,7 @@ const stubs = {
     name: 'BuildDocEditor',
     props: {
       modelValue: { type: Object as () => JSONContent, required: true },
+      projectId: { type: String, required: true },
       placeholder: { type: String, default: '' },
     },
     emits: ['update:modelValue', 'blur'],

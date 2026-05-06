@@ -3,11 +3,14 @@ import type { JSONContent } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import FileHandler from '@tiptap/extension-file-handler';
+import Typography from '@tiptap/extension-typography';
 import { ImageBlock } from '~/lib/editor/imageBlock';
 import { SceneBlock } from '~/lib/editor/sceneBlock';
 
 const props = defineProps<{
   modelValue: JSONContent;
+  projectId: string;
   placeholder?: string;
 }>();
 
@@ -15,6 +18,9 @@ const emit = defineEmits<{
   'update:modelValue': [doc: JSONContent];
   blur: [];
 }>();
+
+const { uploadImageAsset } = useDocAssets();
+const toast = useToast();
 
 // ─── Editor ───────────────────────────────────────────────────────────────
 
@@ -24,6 +30,55 @@ const emit = defineEmits<{
 // be pushed into the editor. Reference equality is enough because we
 // keep the same object identity through the round-trip.
 let lastEmitted: JSONContent | null = null;
+
+/**
+ * Upload N files in parallel, then insert successful ones in order.
+ * Each failure surfaces a toast (oversize, unsupported MIME, etc.)
+ * without blocking the rest of the batch.
+ */
+async function insertImageFilesAt(files: File[], pos: number) {
+  const projectId = props.projectId;
+  if (!projectId || files.length === 0) return;
+
+  // Uploads are independent — fire them in parallel.
+  const uploads = await Promise.allSettled(
+    files.map((f) => uploadImageAsset(f, projectId)),
+  );
+
+  // If the user switched projects mid-upload, the editor now displays a
+  // different doc. Inserting an asset whose projectId belongs to the
+  // previous project would create a dangling cross-project reference;
+  // bail and leave the asset orphaned in its original project instead.
+  if (props.projectId !== projectId) return;
+
+  const ed = editor.value;
+  if (!ed) return;
+
+  let cursor = pos;
+  for (const result of uploads) {
+    if (result.status === 'rejected') {
+      const message =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason);
+      toast.add({
+        title: "Couldn't add image",
+        description: message,
+        color: 'error',
+      });
+      continue;
+    }
+    ed.chain()
+      .insertContentAt(cursor, {
+        type: 'imageBlock',
+        attrs: { assetId: result.value.id, caption: '' },
+      })
+      .run();
+    // Advance past the inserted atom block so subsequent images stack
+    // below rather than overwriting each other.
+    cursor = ed.state.selection.from;
+  }
+}
 
 const editor = useEditor({
   content: props.modelValue,
@@ -41,8 +96,22 @@ const editor = useEditor({
     Placeholder.configure({
       placeholder: props.placeholder ?? 'Write something…',
     }),
+    // Smart-quote / em-dash / ellipsis input rules for editorial prose.
+    Typography,
     ImageBlock,
     SceneBlock,
+    // Owns drop/paste detection for filesystem files: preventDefault,
+    // posAtCoords, and the "is this an internal drag?" check are all
+    // handled inside the extension. We just receive the File array and
+    // a target position. `uploadImageAsset` enforces MIME + size.
+    FileHandler.configure({
+      onDrop: (_editor, files, pos) => {
+        void insertImageFilesAt(files, pos);
+      },
+      onPaste: (editor, files) => {
+        void insertImageFilesAt(files, editor.state.selection.from);
+      },
+    }),
   ],
   editorProps: {
     attributes: {
@@ -133,7 +202,7 @@ function insertScene() {
   <div class="space-y-4">
     <!-- Single sticky toolbar — the only formatting affordance on the page. -->
     <div
-      class="sticky top-0 z-10 -mx-2 px-2 py-2 bg-base/90 backdrop-blur flex items-center gap-1 flex-wrap"
+      class="sticky top-0 z-10 -mx-2 px-2 py-2 bg-base backdrop-blur flex items-center gap-1 flex-wrap"
     >
       <select
         :value="activeHeading"

@@ -22,23 +22,45 @@ import {
 const ALLOWED_IMAGE_MIME = ['image/png', 'image/jpeg', 'image/webp'] as const;
 type AllowedImageMime = (typeof ALLOWED_IMAGE_MIME)[number];
 
+/**
+ * Per-image size cap. Generous enough for phone photos and typical
+ * screenshots; tight enough to keep IDB responsive and the editor snappy.
+ * Drag-from-tab fetches use this as a pre-flight memory bound too.
+ */
+export const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+const MAX_IMAGE_MB = MAX_IMAGE_BYTES / 1024 / 1024;
+
 function isAllowedImageMime(mime: string): mime is AllowedImageMime {
   return (ALLOWED_IMAGE_MIME as readonly string[]).includes(mime);
+}
+
+/**
+ * Throws a user-facing Error if the file fails MIME or size checks.
+ * Single source of truth — every upload path (toolbar picker, drag/drop,
+ * paste, URL fetch) routes through `uploadImageAsset`, which calls this.
+ */
+export function validateImageFile(file: { type: string; size: number }): void {
+  if (!isAllowedImageMime(file.type)) {
+    throw new Error(
+      `Unsupported image type "${file.type}". Use PNG, JPEG, or WebP.`,
+    );
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    const mb = (file.size / 1024 / 1024).toFixed(1);
+    throw new Error(`Image is ${mb} MB — must be under ${MAX_IMAGE_MB} MB.`);
+  }
 }
 
 export default function useDocAssets() {
   const idb = useIdb();
 
   /**
-   * Persist an image file as an asset record. Rejects unsupported MIME types
-   * at the boundary rather than letting them sneak into IDB.
+   * Persist an image file as an asset record. Rejects unsupported MIME
+   * types and oversized files at the boundary rather than letting them
+   * sneak into IDB.
    */
   async function uploadImageAsset(file: File, projectId: string) {
-    if (!isAllowedImageMime(file.type)) {
-      throw new Error(
-        `Unsupported image type "${file.type}". Use PNG, JPEG, or WebP.`,
-      );
-    }
+    validateImageFile(file);
     return idb.createAsset({
       projectId,
       mimeType: file.type,

@@ -31,6 +31,7 @@ onBeforeUnmount(() => {
 
         <BuildDocEditor
           :model-value="doc"
+          :project-id="activeProject.id"
           placeholder="Write your build…"
           @update:model-value="setDoc"
           @blur="flush"
