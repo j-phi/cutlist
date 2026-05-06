@@ -13,13 +13,10 @@ export default function useImportProject() {
     setActiveProject(newProjectId);
     // `useBuildDoc` watches `activeId` at module scope and reloads the
     // doc when the navigation lands.
-    Sentry.captureMessage('Project imported', {
-      level: 'info',
-      extra: {
-        projectId: newProjectId,
-        fileName: file.name,
-        fileSize: file.size,
-      },
+    Sentry.logger.info('Project imported', {
+      projectId: newProjectId,
+      fileName: file.name,
+      fileSize: file.size,
     });
   }
 

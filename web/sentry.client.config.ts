@@ -9,5 +9,6 @@ if (dsn) {
     tracesSampleRate: 0.1,
     sendDefaultPii: false,
     debug: false,
+    enableLogs: true,
   });
 }

@@ -82,9 +82,10 @@ export default function useProjectCollection() {
     ];
     activeId.value = project.id;
     activeProjectData.value = { ...project, models: [] };
-    Sentry.captureMessage('Project created', {
-      level: 'info',
-      extra: { projectId: project.id, name: project.name, unit },
+    Sentry.logger.info('Project created', {
+      projectId: project.id,
+      name: project.name,
+      unit,
     });
   }
 
