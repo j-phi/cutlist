@@ -111,11 +111,15 @@ describe('ObjectsPanel', () => {
     useModelViewerStore().clearGroupSelection();
   });
 
-  it('Should render imported part names and Object names', () => {
+  it('Should render imported part names and Object names', async () => {
     const component = mount(ObjectsPanel, {
       props: { graph: makeGraph(), author: makeAuthor() },
       global: { stubs },
     });
+    // Groups start collapsed — expand them so per-Object rows render.
+    for (const btn of component.findAll('button')) {
+      if (btn.attributes('title') === 'Expand') await btn.trigger('click');
+    }
     const text = component.text();
     expect(text).toContain('Drawer Side');
     expect(text).toContain('Drawer Bottom');
@@ -158,6 +162,10 @@ describe('ObjectsPanel', () => {
       props: { graph: makeGraph(), author },
       global: { stubs },
     });
+    // Groups start collapsed — expand to surface per-Object eye buttons.
+    for (const btn of component.findAll('button')) {
+      if (btn.attributes('title') === 'Expand') await btn.trigger('click');
+    }
     // Find any per-Object eye toggle (title="Hide" by default since visible).
     const eyeBtn = component
       .findAll('button')
@@ -176,6 +184,10 @@ describe('ObjectsPanel', () => {
       global: { stubs },
       attachTo: document.body,
     });
+    // Groups default to collapsed; expand both so all 3 rows render.
+    for (const btn of component.findAll('button')) {
+      if (btn.attributes('title') === 'Expand') await btn.trigger('click');
+    }
     const store = useModelViewerStore();
     const rows = component.findAll('[class*="pl-7"]');
     expect(rows.length).toBe(3);
@@ -196,7 +208,7 @@ describe('ObjectsPanel', () => {
     component.unmount();
   });
 
-  it('Should expand a collapsed Part before scrolling its Object into view', async () => {
+  it('Should expand a collapsed Part when an Object inside it is selected', async () => {
     const author = makeAuthor();
     const component = mount(ObjectsPanel, {
       props: { graph: makeGraph(), author },
@@ -204,18 +216,17 @@ describe('ObjectsPanel', () => {
       attachTo: document.body,
     });
     const store = useModelViewerStore();
-    const collapseBtn = component
-      .findAll('button')
-      .find((b) => b.attributes('title') === 'Collapse');
-    await collapseBtn!.trigger('click');
-    expect(component.findAll('[class*="pl-7"]').length).toBeLessThan(3);
+    // Groups start collapsed by default — no per-Object rows are rendered.
+    expect(component.findAll('[class*="pl-7"]').length).toBe(0);
 
     store.selectGroupIds([1]);
     await nextTick();
     await nextTick();
 
+    // Selecting Object 1 should auto-expand its Part group, surfacing both
+    // sibling rows for partNumber=10 (Object 1 and Object 2).
     const rows = component.findAll('[class*="pl-7"]');
-    expect(rows.length).toBe(3);
+    expect(rows.length).toBe(2);
     component.unmount();
   });
 

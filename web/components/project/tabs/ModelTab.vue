@@ -278,7 +278,11 @@ watch(
         :collapsed="objectsCollapsed"
         @update:collapsed="(v) => (objectsCollapsed = v)"
       >
-        <ObjectsPanel :graph="loadedGraph" :author="sceneAuthor" />
+        <ObjectsPanel
+          :graph="loadedGraph"
+          :author="sceneAuthor"
+          :parts="focusedModel?.parts ?? null"
+        />
       </ViewerSidePanel>
 
       <!-- Canvas region. `min-w-0 min-h-0` are mandatory on grid items
@@ -398,7 +402,11 @@ watch(
         >
           <template #content>
             <div class="h-full p-2">
-              <ObjectsPanel :graph="loadedGraph" :author="sceneAuthor" />
+              <ObjectsPanel
+                :graph="loadedGraph"
+                :author="sceneAuthor"
+                :parts="focusedModel?.parts ?? null"
+              />
             </div>
           </template>
         </UDrawer>

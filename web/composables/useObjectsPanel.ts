@@ -10,6 +10,7 @@
 
 import type { ComputedRef, Ref } from 'vue';
 import type { GroupId, ObjectGraph, PartNumber } from '~/utils/types';
+import type { Part } from '~/utils/modelTypes';
 import type { SceneAuthor } from './useSceneAuthor';
 
 export type PartVisibilityState = 'all' | 'none' | 'mixed';
@@ -53,14 +54,39 @@ export function partVisibility(
 export function useObjectsPanel(
   graph: Ref<ObjectGraph | null>,
   sceneAuthor: SceneAuthor,
+  hydratedParts?: Ref<Part[] | null | undefined>,
 ): ObjectsPanelState {
   const collapsed = ref<Set<PartNumber>>(new Set());
+
+  // Default every part group to collapsed when a model loads — assemblies
+  // can have 100+ Objects and the panel is unscannable fully expanded.
+  // Resets on graph swap (model switch / reload); per-part toggles the user
+  // makes during the session are preserved until the next swap.
+  watch(
+    graph,
+    (g) => {
+      if (!g) {
+        collapsed.value = new Set();
+        return;
+      }
+      collapsed.value = new Set(g.partIndex.keys());
+    },
+    { immediate: true },
+  );
 
   const tree = computed<PartGroup[]>(() => {
     const g = graph.value;
     if (!g) return [];
+    // Hydrated parts (with user `partOverrides` like rename applied) take
+    // priority over the graph's original GLTF/COLLADA names. The graph is
+    // derived from `rawSource` and doesn't see overrides; the focused
+    // model's `parts` array does.
     const partNames = new Map<PartNumber, string>();
     for (const p of g.parts) partNames.set(p.partNumber, p.name);
+    const overrides = hydratedParts?.value;
+    if (overrides) {
+      for (const p of overrides) partNames.set(p.partNumber, p.name);
+    }
 
     const partNumbers = [...g.partIndex.keys()].sort((a, b) => a - b);
     const out: PartGroup[] = [];

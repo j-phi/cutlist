@@ -8,18 +8,22 @@
  * provided by `ViewerSidePanel`.
  */
 import type { GroupId, ObjectGraph, PartNumber } from '~/utils/types';
+import type { Part } from '~/utils/modelTypes';
 import { useObjectsPanel, type PartGroup } from '~/composables/useObjectsPanel';
 import type { SceneAuthor } from '~/composables/useSceneAuthor';
 
 const props = defineProps<{
   graph: ObjectGraph | null;
   author: SceneAuthor;
+  /** Hydrated parts with `partOverrides` applied — supplies renamed part names. */
+  parts?: Part[] | null;
 }>();
 
 const store = useModelViewerStore();
 
 const graphRef = computed(() => props.graph);
-const panel = useObjectsPanel(graphRef, props.author);
+const partsRef = computed(() => props.parts ?? null);
+const panel = useObjectsPanel(graphRef, props.author, partsRef);
 
 function partEyeIcon(p: PartNumber): string {
   switch (panel.partVisibilityState(p)) {

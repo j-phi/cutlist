@@ -1,9 +1,10 @@
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { partVisibility, useObjectsPanel } from '../useObjectsPanel';
 import type { SceneAuthor } from '../useSceneAuthor';
 import type { GroupId, ObjectGraph, ObjectNode } from '~/utils/types';
+import type { Part } from '~/utils/modelTypes';
 
 function makeNode(
   groupId: number,
@@ -173,11 +174,30 @@ describe('useObjectsPanel', () => {
   it('Should track collapsed parts with togglePartCollapse', () => {
     const graph = ref<ObjectGraph | null>(makeGraph());
     const panel = useObjectsPanel(graph, makeAuthor());
-    expect(panel.isCollapsed(10)).toBe(false);
-    panel.togglePartCollapse(10);
+    // Default-collapsed on load — toggling expands then collapses again.
     expect(panel.isCollapsed(10)).toBe(true);
     panel.togglePartCollapse(10);
     expect(panel.isCollapsed(10)).toBe(false);
+    panel.togglePartCollapse(10);
+    expect(panel.isCollapsed(10)).toBe(true);
+  });
+
+  it('Should default every part group to collapsed when the graph loads', () => {
+    const graph = ref<ObjectGraph | null>(makeGraph());
+    const panel = useObjectsPanel(graph, makeAuthor());
+    expect(panel.isCollapsed(10)).toBe(true);
+    expect(panel.isCollapsed(11)).toBe(true);
+  });
+
+  it('Should re-collapse all groups when a new graph loads (model switch)', async () => {
+    const graph = ref<ObjectGraph | null>(makeGraph());
+    const panel = useObjectsPanel(graph, makeAuthor());
+    panel.togglePartCollapse(10);
+    expect(panel.isCollapsed(10)).toBe(false);
+    graph.value = makeGraph();
+    await nextTick();
+    expect(panel.isCollapsed(10)).toBe(true);
+    expect(panel.isCollapsed(11)).toBe(true);
   });
 
   it('Should call sceneAuthor.resetAllOffsets via resetAllPositions', () => {
@@ -194,5 +214,35 @@ describe('useObjectsPanel', () => {
     const graph = ref<ObjectGraph | null>(g);
     const panel = useObjectsPanel(graph, makeAuthor());
     expect(panel.tree.value[0].partName).toBe('Part #10');
+  });
+
+  it('Should prefer hydrated part names over the graph (rename overrides)', () => {
+    const graph = ref<ObjectGraph | null>(makeGraph());
+    const hydrated = ref([
+      {
+        partNumber: 10,
+        instanceNumber: 1,
+        name: 'Renamed Side',
+        size: { width: 0, length: 0, thickness: 0 },
+        colorKey: 'k',
+      },
+      {
+        partNumber: 11,
+        instanceNumber: 1,
+        name: 'Drawer Bottom',
+        size: { width: 0, length: 0, thickness: 0 },
+        colorKey: 'k',
+      },
+    ]);
+    const panel = useObjectsPanel(graph, makeAuthor(), hydrated);
+    expect(panel.tree.value[0].partName).toBe('Renamed Side');
+    expect(panel.tree.value[1].partName).toBe('Drawer Bottom');
+  });
+
+  it('Should fall through hydrated parts to graph when missing', () => {
+    const graph = ref<ObjectGraph | null>(makeGraph());
+    const hydrated = ref<Part[] | null>(null);
+    const panel = useObjectsPanel(graph, makeAuthor(), hydrated);
+    expect(panel.tree.value[0].partName).toBe('Drawer Side');
   });
 });
