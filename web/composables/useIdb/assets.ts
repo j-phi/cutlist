@@ -6,6 +6,9 @@
  *
  * Lifecycle: assets are project-scoped. The project-delete cascade in
  * `./projects.ts` clears them inside the same Dexie transaction.
+ * Orphan assets (uploaded then deleted from the doc, or stranded by a
+ * mid-upload project switch) are swept on next project load — see the
+ * sweep at the bottom of `useBuildDoc`'s activeId watcher.
  */
 
 import { getDb, safeWrite } from './db';
@@ -50,4 +53,14 @@ export async function getAssetsForProject(
 ): Promise<IdbAsset[]> {
   const db = await getDb();
   return db.assets.where('projectId').equals(projectId).toArray();
+}
+
+/**
+ * Bulk-delete assets by id. No-op for an empty list. Used by the on-load
+ * orphan-asset sweep in `useBuildDoc`.
+ */
+export async function deleteAssets(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  await safeWrite(() => db.assets.bulkDelete(ids));
 }

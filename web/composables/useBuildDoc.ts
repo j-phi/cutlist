@@ -18,6 +18,7 @@
 import type { JSONContent } from '@tiptap/core';
 import { effectScope } from 'vue';
 import { EMPTY_DOC } from '~/composables/useIdb/defaults';
+import { collectAssetIds } from '~/utils/buildDocRemap';
 
 const DEBOUNCE_MS = 400;
 
@@ -50,6 +51,28 @@ async function flushNow(): Promise<void> {
     doc: doc.value,
     updatedAt: new Date().toISOString(),
   });
+}
+
+/**
+ * Delete any assets owned by `projectId` that aren't referenced by the
+ * loaded `doc`. Errors are swallowed — this is opportunistic cleanup,
+ * not a correctness boundary.
+ */
+async function sweepOrphanAssets(
+  idb: ReturnType<typeof useIdb>,
+  projectId: string,
+  doc: JSONContent,
+): Promise<void> {
+  try {
+    const stored = await idb.getAssetsForProject(projectId);
+    if (stored.length === 0) return;
+    const live = collectAssetIds(doc);
+    const orphans = stored.filter((a) => !live.has(a.id)).map((a) => a.id);
+    await idb.deleteAssets(orphans);
+  } catch {
+    // Swallow — orphans surviving is harmless; they'll be picked up on
+    // a future load.
+  }
 }
 
 function schedule(): void {
@@ -121,6 +144,11 @@ export default function useBuildDoc() {
             title.value = activeProject.value?.name ?? '';
           }
           loadedId.value = id;
+
+          // Sweep orphan assets opportunistically. Safe on fresh load
+          // because Tiptap history is in-memory only — there's no undo
+          // that could resurrect a dead ref.
+          void sweepOrphanAssets(idb, id, doc.value);
         },
         { immediate: true },
       );

@@ -8,6 +8,7 @@ import type {
 import { SCHEMA_VERSION } from '~/utils/versions';
 import { gzipCompress } from '~/utils/compress';
 import { blobToBase64 } from '~/utils/blobBase64';
+import { collectAssetIds } from '~/utils/buildDocRemap';
 
 /**
  * Serialised asset record. The blob is base64-encoded so it survives JSON
@@ -89,8 +90,16 @@ export async function buildExportData(
   ]);
   const scenes = sceneLists.flat();
 
+  // Filter out assets the doc no longer references so the .cutlist.gz
+  // ships lean. Read-only on IDB — the on-load sweep in `useBuildDoc`
+  // is the source of truth for actually deleting orphans.
+  const liveAssetIds = buildDoc
+    ? collectAssetIds(buildDoc.doc)
+    : new Set<string>();
+  const referencedAssets = rawAssets.filter((a) => liveAssetIds.has(a.id));
+
   const assets: ExportedAsset[] = await Promise.all(
-    rawAssets.map(
+    referencedAssets.map(
       async (a: IdbAsset): Promise<ExportedAsset> => ({
         id: a.id,
         projectId: a.projectId,

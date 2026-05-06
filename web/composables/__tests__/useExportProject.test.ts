@@ -9,7 +9,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { JSONContent } from '@tiptap/core';
-import { buildExportData, exportFilename } from '../useExportProject';
+import {
+  buildExportData,
+  exportFilename,
+  type ProjectExportDb,
+} from '../useExportProject';
 import { useIdb, type IdbBuildDoc, type IdbModel } from '../useIdb';
 import { parseProjectExport } from '~/utils/projectImport';
 import { SCHEMA_VERSION } from '~/utils/versions';
@@ -178,6 +182,89 @@ describe('buildExportData', () => {
     expect(parsed.buildDoc).toBeDefined();
     expect(parsed.buildDoc!.title).toBe('Round Trip');
     expect(parsed.buildDoc!.doc).toEqual(doc);
+  });
+
+  // The orphan-asset filter sits inside `buildExportData`, but happy-dom
+  // can't round-trip a real Blob through fake-indexeddb (structuredClone
+  // drops the bytes), so we feed a hand-rolled `ProjectExportDb` with
+  // synthetic blobs that survive the base64 encode path.
+  function makeExportFakeDb(opts: {
+    projectId: string;
+    doc: JSONContent | null;
+    assets: { id: string; bytes: string }[];
+  }): ProjectExportDb {
+    const now = new Date().toISOString();
+    return {
+      getProjectWithModels: async () => ({
+        id: opts.projectId,
+        name: 'Fake',
+        colorMap: {},
+        excludedColors: [],
+        stock: '',
+        distanceUnit: 'in' as const,
+        bladeWidth: 3,
+        margin: 0,
+        optimize: 'Auto' as const,
+        showPartNumbers: true,
+        createdAt: now,
+        updatedAt: now,
+        models: [],
+      }),
+      getModelRawSource: async () => null,
+      getBuildDoc: async () =>
+        opts.doc
+          ? {
+              projectId: opts.projectId,
+              title: 'Fake',
+              doc: opts.doc,
+              updatedAt: now,
+            }
+          : undefined,
+      getScenesForModel: async () => [],
+      getAnnotationsForProject: async () => [],
+      getAssetsForProject: async () =>
+        opts.assets.map((a) => ({
+          id: a.id,
+          projectId: opts.projectId,
+          mimeType: 'image/png',
+          blob: new Blob([new TextEncoder().encode(a.bytes)], {
+            type: 'image/png',
+          }),
+          createdAt: now,
+        })),
+    };
+  }
+
+  it('omits assets the build doc no longer references', async () => {
+    const fakeDb = makeExportFakeDb({
+      projectId: 'p1',
+      doc: {
+        type: 'doc',
+        content: [
+          { type: 'imageBlock', attrs: { assetId: 'live', caption: '' } },
+        ],
+      },
+      assets: [
+        { id: 'live', bytes: 'live-bytes' },
+        { id: 'orphan', bytes: 'orphan-bytes' },
+      ],
+    });
+
+    const data = await buildExportData(fakeDb, 'p1');
+    expect(data!.assets).toHaveLength(1);
+    expect(data!.assets![0].id).toBe('live');
+  });
+
+  it('emits an empty asset list when the project has no build doc', async () => {
+    const fakeDb = makeExportFakeDb({
+      projectId: 'p2',
+      doc: null,
+      assets: [{ id: 'a1', bytes: 'x' }],
+    });
+
+    const data = await buildExportData(fakeDb, 'p2');
+    expect(data!.buildDoc).toBeUndefined();
+    expect(data!.assets).toEqual([]);
   });
 
   it('exports image-block references and asset records together', async () => {

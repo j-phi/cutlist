@@ -148,4 +148,80 @@ describe('useBuildDoc — project switch', () => {
     expect(api.doc.value).toEqual(FILLED_B);
     expect(api.loadedId.value).toBe(b.id);
   });
+
+  // ─── Orphan-asset sweep ──────────────────────────────────────────────────
+  //
+  // The sweep fires off the `activeId` watcher after the doc loads. It
+  // diffs `getAssetsForProject` against `collectAssetIds(doc)` and
+  // bulk-deletes anything not referenced. Tiptap history is in-memory
+  // only, so deleting on fresh load is safe — there's no undo that could
+  // resurrect a dead ref.
+
+  it('deletes assets that the loaded doc no longer references', async () => {
+    const idb = useIdb();
+    const project = await idb.createProject('Sweepy');
+    const liveAsset = await idb.createAsset({
+      projectId: project.id,
+      mimeType: 'image/png',
+      blob: new Blob([new TextEncoder().encode('keep')], { type: 'image/png' }),
+    });
+    const orphanAsset = await idb.createAsset({
+      projectId: project.id,
+      mimeType: 'image/png',
+      blob: new Blob([new TextEncoder().encode('drop')], { type: 'image/png' }),
+    });
+    await idb.putBuildDoc({
+      projectId: project.id,
+      title: 'Sweepy',
+      doc: {
+        type: 'doc',
+        content: [
+          { type: 'imageBlock', attrs: { assetId: liveAsset.id, caption: '' } },
+        ],
+      },
+      updatedAt: new Date().toISOString(),
+    });
+    projects.value = [project];
+
+    activeId.value = project.id;
+    activeProject.value = project;
+    await settle();
+
+    // Sweep is fire-and-forget; settle() only waits for loadedId to flip.
+    // Yield once more so the awaited deleteAssets resolves.
+    for (let i = 0; i < 20; i++) {
+      await new Promise<void>((r) => setTimeout(r, 0));
+      await nextTick();
+      if ((await idb.getAsset(orphanAsset.id)) === undefined) break;
+    }
+
+    expect(await idb.getAsset(liveAsset.id)).toBeDefined();
+    expect(await idb.getAsset(orphanAsset.id)).toBeUndefined();
+  });
+
+  it('deletes every asset when the project has no build doc record', async () => {
+    // Mid-upload project switch leaves the asset in IDB without a doc
+    // ever having referenced it. On next load of that project, the
+    // sweep should clean it up — the seeded EMPTY_DOC has no refs.
+    const idb = useIdb();
+    const project = await idb.createProject('NoDoc');
+    const orphan = await idb.createAsset({
+      projectId: project.id,
+      mimeType: 'image/png',
+      blob: new Blob([new TextEncoder().encode('x')], { type: 'image/png' }),
+    });
+    projects.value = [project];
+
+    activeId.value = project.id;
+    activeProject.value = project;
+    await settle();
+
+    for (let i = 0; i < 20; i++) {
+      await new Promise<void>((r) => setTimeout(r, 0));
+      await nextTick();
+      if ((await idb.getAsset(orphan.id)) === undefined) break;
+    }
+
+    expect(await idb.getAsset(orphan.id)).toBeUndefined();
+  });
 });

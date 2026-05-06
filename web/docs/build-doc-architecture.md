@@ -11,7 +11,7 @@ how we got here — `git log` covers that.
 
 ```
 web/composables/useIdb/buildDocs.ts   IDB CRUD: getBuildDoc, putBuildDoc, deleteBuildDoc
-web/composables/useIdb/assets.ts      IDB CRUD: createAsset, putAsset, getAsset, getAssetsForProject
+web/composables/useIdb/assets.ts      IDB CRUD: createAsset, putAsset, getAsset, getAssetsForProject, deleteAssets
 web/composables/useBuildDoc.ts        Reactive doc + debounced writer (module-scoped)
 web/composables/useDocAssets.ts       Asset upload + reactive object-URL helper
 
@@ -66,6 +66,16 @@ interface IdbAsset {
 `projects.deleteProject` cascades both tables in a single Dexie
 transaction. The cascade is inline in `projects.ts` (not via an
 asset-module helper) because it has to share the transaction.
+
+Orphan assets (uploaded then deleted from the doc, or stranded by a
+mid-upload project switch — see `BuildDocEditor.vue`'s upload guard)
+are cleaned up on next project load. The `useBuildDoc` activeId
+watcher fires a fire-and-forget sweep after the doc settles:
+`getAssetsForProject(id)` minus `collectAssetIds(doc)` →
+`deleteAssets(orphans)`. Failures are swallowed — the orphans just
+stick around for a future load. The same `collectAssetIds` helper is
+used at export time to filter out unreferenced assets from the
+`.cutlist.gz` payload without mutating IDB.
 
 ## Editor
 

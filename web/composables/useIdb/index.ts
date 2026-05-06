@@ -39,7 +39,13 @@ import {
   flushPendingModelWrites,
 } from './models';
 import { getBuildDoc, putBuildDoc, deleteBuildDoc } from './buildDocs';
-import { createAsset, putAsset, getAsset, getAssetsForProject } from './assets';
+import {
+  createAsset,
+  putAsset,
+  getAsset,
+  getAssetsForProject,
+  deleteAssets,
+} from './assets';
 import {
   getScenesForModel,
   nextSceneOrder,
@@ -100,6 +106,7 @@ export function useIdb() {
     putAsset,
     getAsset,
     getAssetsForProject,
+    deleteAssets,
     flushPendingModelWrites,
     getScenesForModel,
     nextSceneOrder,

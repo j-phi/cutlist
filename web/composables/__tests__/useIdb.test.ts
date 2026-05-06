@@ -436,6 +436,42 @@ describe('assets', () => {
     expect(await idb.getAssetsForProject(p1.id)).toHaveLength(2);
     expect(await idb.getAssetsForProject(p2.id)).toHaveLength(1);
   });
+
+  it('deleteAssets removes the listed ids and leaves the rest alone', async () => {
+    const project = await idb.createProject('Sweep');
+    const keep = await idb.createAsset({
+      projectId: project.id,
+      mimeType: 'image/png',
+      blob: makeBlob('keep'),
+    });
+    const drop1 = await idb.createAsset({
+      projectId: project.id,
+      mimeType: 'image/png',
+      blob: makeBlob('drop1'),
+    });
+    const drop2 = await idb.createAsset({
+      projectId: project.id,
+      mimeType: 'image/png',
+      blob: makeBlob('drop2'),
+    });
+
+    await idb.deleteAssets([drop1.id, drop2.id]);
+
+    expect(await idb.getAsset(keep.id)).toBeDefined();
+    expect(await idb.getAsset(drop1.id)).toBeUndefined();
+    expect(await idb.getAsset(drop2.id)).toBeUndefined();
+  });
+
+  it('deleteAssets is a no-op for an empty list', async () => {
+    const project = await idb.createProject('Noop');
+    const asset = await idb.createAsset({
+      projectId: project.id,
+      mimeType: 'image/png',
+      blob: makeBlob('still here'),
+    });
+    await idb.deleteAssets([]);
+    expect(await idb.getAsset(asset.id)).toBeDefined();
+  });
 });
 
 // ─── Reset database ────────────────────────────────────────────────────────
