@@ -133,6 +133,39 @@ describe('Guillotine Packer', () => {
     expect(result.placements).toHaveLength(2);
   });
 
+  it('exposes per-bin state for multi-board lookback', () => {
+    const packer = createGuillotinePacker<string>();
+    const bin = new Rectangle(null, 0, 0, 10, 10);
+
+    // Build state via createBinState; place rects via tryPlaceInBinState.
+    // Same algorithm as pack() but state is reusable across calls so the
+    // caller can keep one state per opened board.
+    expect(packer.createBinState).toBeDefined();
+    expect(packer.tryPlaceInBinState).toBeDefined();
+    const state = packer.createBinState!(bin);
+
+    const a = packer.tryPlaceInBinState!(
+      state,
+      new Rectangle('a', 0, 0, 6, 6),
+      baseOptions,
+    );
+    const b = packer.tryPlaceInBinState!(
+      state,
+      new Rectangle('b', 0, 0, 4, 4),
+      baseOptions,
+    );
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    // Once the bin is full of parts whose combined footprint exceeds the
+    // remaining free space, the next call returns null without mutating state.
+    const tooBig = packer.tryPlaceInBinState!(
+      state,
+      new Rectangle('c', 0, 0, 9, 9),
+      baseOptions,
+    );
+    expect(tooBig).toBeNull();
+  });
+
   it('produces strictly guillotine-cuttable layouts (axis-aligned cuts)', () => {
     // Every placement edge that lies inside the bin must extend to another
     // placement edge or a bin edge — i.e., the layout can be reproduced with

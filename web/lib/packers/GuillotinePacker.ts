@@ -27,6 +27,15 @@ interface FreeRect {
   height: number;
 }
 
+/**
+ * Per-bin state that survives between calls. Exposed to callers via
+ * `createBinState` / `tryPlaceInBinState` so multi-board lookback can keep
+ * one of these per opened board.
+ */
+interface GuillotineBinState {
+  freeRects: FreeRect[];
+}
+
 interface FitCandidate<T> {
   rect: Rectangle<T>;
   freeIndex: number;
@@ -57,42 +66,48 @@ export function createGuillotinePacker<T>(
   const splitMode = config.splitMode ?? 'sas';
   const rectMerge = config.rectMerge ?? true;
 
+  function placeRect(
+    state: GuillotineBinState,
+    rect: Rectangle<T>,
+    options: PackOptions<T>,
+  ): Rectangle<T> | null {
+    const candidate = pickBestPlacement(
+      rect,
+      state.freeRects,
+      options,
+      fitMode,
+    );
+    if (!candidate) return null;
+
+    const free = state.freeRects[candidate.freeIndex];
+    const placement = candidate.rect.clone({
+      left: free.left,
+      bottom: free.bottom,
+    });
+
+    // Split the chosen free rect into two new free rects (with kerf applied
+    // between the placement and each remaining strip). The remaining free
+    // rects are non-overlapping by construction, so no additional pruning is
+    // required.
+    const splits = splitFreeRect(free, placement, options, splitMode);
+    state.freeRects.splice(candidate.freeIndex, 1, ...splits);
+
+    if (rectMerge) {
+      mergeFreeRects(state.freeRects, options.precision);
+    }
+
+    return placement;
+  }
+
   return {
     pack(bin, rects, options) {
       const res: PackResult<T> = { placements: [], leftovers: [] };
-      const freeRects: FreeRect[] = [
-        {
-          left: bin.left,
-          bottom: bin.bottom,
-          width: bin.width,
-          height: bin.height,
-        },
-      ];
+      const state = createInitialState(bin);
 
       for (const rect of rects) {
-        const candidate = pickBestPlacement(rect, freeRects, options, fitMode);
-        if (!candidate) {
-          res.leftovers.push(rect.data);
-          continue;
-        }
-
-        const free = freeRects[candidate.freeIndex];
-        const placement = candidate.rect.clone({
-          left: free.left,
-          bottom: free.bottom,
-        });
-        res.placements.push(placement);
-
-        // Split the chosen free rect into two new free rects (with kerf
-        // applied between the placement and each remaining strip). The
-        // remaining free rects are non-overlapping by construction, so no
-        // additional pruning is required.
-        const splits = splitFreeRect(free, placement, options, splitMode);
-        freeRects.splice(candidate.freeIndex, 1, ...splits);
-
-        if (rectMerge) {
-          mergeFreeRects(freeRects, options.precision);
-        }
+        const placement = placeRect(state, rect, options);
+        if (placement) res.placements.push(placement);
+        else res.leftovers.push(rect.data);
       }
 
       return res;
@@ -100,6 +115,25 @@ export function createGuillotinePacker<T>(
     addToPack() {
       throw Error('Not supported');
     },
+    createBinState(bin) {
+      return createInitialState(bin);
+    },
+    tryPlaceInBinState(state, rect, options) {
+      return placeRect(state as GuillotineBinState, rect, options);
+    },
+  };
+}
+
+function createInitialState(bin: Rectangle<unknown>): GuillotineBinState {
+  return {
+    freeRects: [
+      {
+        left: bin.left,
+        bottom: bin.bottom,
+        width: bin.width,
+        height: bin.height,
+      },
+    ],
   };
 }
 

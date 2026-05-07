@@ -3,6 +3,13 @@ import type { PotentialBoardLayout } from '../types';
 export interface LayoutScore {
   boardsUsed: number;
   wasteArea: number;
+  /**
+   * Sum of squared per-board waste areas — same total waste but lopsided
+   * distribution scores higher (worse). Tiebreaker after `wasteArea` so
+   * a layout that consolidates parts onto earlier boards beats one that
+   * strands a few parts on a barely-used last board.
+   */
+  wasteConcentration: number;
   cutComplexity: number;
 }
 
@@ -15,6 +22,8 @@ export function compareLayoutScores(
     return a.boardsUsed - b.boardsUsed;
   if (Math.abs(a.wasteArea - b.wasteArea) > precision)
     return a.wasteArea - b.wasteArea;
+  if (Math.abs(a.wasteConcentration - b.wasteConcentration) > precision)
+    return a.wasteConcentration - b.wasteConcentration;
   if (Math.abs(a.cutComplexity - b.cutComplexity) > precision)
     return a.cutComplexity - b.cutComplexity;
   return 0;
@@ -26,6 +35,7 @@ export function scoreLayouts(
 ): LayoutScore {
   const boardsUsed = layouts.length;
   let wasteArea = 0;
+  let wasteConcentration = 0;
   let cutComplexity = 0;
 
   for (const layout of layouts) {
@@ -34,7 +44,9 @@ export function scoreLayouts(
       (total, placement) => total + placement.width * placement.height,
       0,
     );
-    wasteArea += Math.max(0, boardArea - usedArea);
+    const boardWaste = Math.max(0, boardArea - usedArea);
+    wasteArea += boardWaste;
+    wasteConcentration += boardWaste * boardWaste;
 
     const xLevels: number[] = [];
     const yLevels: number[] = [];
@@ -50,6 +62,7 @@ export function scoreLayouts(
   return {
     boardsUsed,
     wasteArea,
+    wasteConcentration,
     cutComplexity,
   };
 }

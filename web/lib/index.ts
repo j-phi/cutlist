@@ -407,6 +407,31 @@ function placeAllParts(
     packerOptions: PackOptions<PartToCut>;
   },
 ): { layouts: PotentialBoardLayout[]; leftovers: PartToCut[] } {
+  // When the packer exposes per-bin state, we can try fitting each part on
+  // every previously-opened board before opening a new one. This avoids the
+  // common "sparse last board" anomaly where small parts (sorted to the end
+  // by area-desc) opened a new sheet while obvious gaps remained on earlier
+  // sheets.
+  if (
+    typeof packer.createBinState === 'function' &&
+    typeof packer.tryPlaceInBinState === 'function'
+  ) {
+    return placeAllPartsWithLookback(config, parts, stock, packer, options);
+  }
+  return placeAllPartsSingleBoard(config, parts, stock, packer, options);
+}
+
+function placeAllPartsSingleBoard(
+  config: Config,
+  parts: PartToCut[],
+  stock: Stock[],
+  packer: Packer<PartToCut>,
+  options: {
+    partSortMode: PartSortMode;
+    randomSeed?: number;
+    packerOptions: PackOptions<PartToCut>;
+  },
+): { layouts: PotentialBoardLayout[]; leftovers: PartToCut[] } {
   const margin = new Distance(config.margin).m;
   const { packerOptions } = options;
   const unplacedParts = new Set(
@@ -434,23 +459,11 @@ function placeAllParts(
     }
 
     const layout: PotentialBoardLayout = { placements: [], stock: board };
-    const boardRect = new Rectangle(
-      board,
-      margin,
-      margin,
-      board.width - 2 * margin,
-      board.length - 2 * margin,
-    );
+    const boardRect = makeBoardRect(board, margin);
 
     const partsToPlace = unplacedPartsArray
       .filter((part) => isValidStock(board, part, config.precision))
-      .map((part) => {
-        // grainLock='width': pre-rotate so part.width is on Y-axis (with grain)
-        if (part.grainLock === 'width') {
-          return new Rectangle(part, 0, 0, part.size.length, part.size.width);
-        }
-        return new Rectangle(part, 0, 0, part.size.width, part.size.length);
-      });
+      .map((part) => makePartRect(part));
 
     const res = packer.pack(boardRect, partsToPlace, packerOptions);
     if (res.placements.length > 0) {
@@ -468,6 +481,103 @@ function placeAllParts(
   }
 
   return { layouts, leftovers };
+}
+
+interface OpenBoard {
+  stock: Stock;
+  binState: unknown;
+  placements: Rectangle<PartToCut>[];
+}
+
+function placeAllPartsWithLookback(
+  config: Config,
+  parts: PartToCut[],
+  stock: Stock[],
+  packer: Packer<PartToCut>,
+  options: {
+    partSortMode: PartSortMode;
+    randomSeed?: number;
+    packerOptions: PackOptions<PartToCut>;
+  },
+): { layouts: PotentialBoardLayout[]; leftovers: PartToCut[] } {
+  const margin = new Distance(config.margin).m;
+  const { packerOptions } = options;
+  const sortedParts = sortPartsForPlacement(
+    parts,
+    config.precision,
+    options.partSortMode,
+    options.randomSeed,
+  );
+  const leftovers: PartToCut[] = [];
+  const openBoards: OpenBoard[] = [];
+
+  // Both hooks are guaranteed defined — placeAllParts only dispatches here
+  // when the packer exposes them.
+  const createBinState = packer.createBinState!;
+  const tryPlaceInBinState = packer.tryPlaceInBinState!;
+
+  for (const part of sortedParts) {
+    const partRect = makePartRect(part);
+
+    // 1) Try to fit on any already-opened board before opening a new sheet.
+    let placed = false;
+    for (const board of openBoards) {
+      if (!isValidStock(board.stock, part, config.precision)) continue;
+      const placement = tryPlaceInBinState(
+        board.binState,
+        partRect,
+        packerOptions,
+      );
+      if (placement) {
+        board.placements.push(placement);
+        placed = true;
+        break;
+      }
+    }
+    if (placed) continue;
+
+    // 2) Open a new board.
+    const board = stock.find((s) => isValidStock(s, part, config.precision));
+    if (!board) {
+      leftovers.push(part);
+      continue;
+    }
+    const binState = createBinState(makeBoardRect(board, margin));
+    const placement = tryPlaceInBinState(binState, partRect, packerOptions);
+    if (!placement) {
+      // isValidStock said this part fits — a fresh board should accept it.
+      // Defensive: drop to leftovers if the packer disagrees.
+      leftovers.push(part);
+      continue;
+    }
+    openBoards.push({ stock: board, binState, placements: [placement] });
+  }
+
+  return {
+    layouts: openBoards.map((b) => ({
+      stock: b.stock,
+      placements: b.placements,
+    })),
+    leftovers,
+  };
+}
+
+function makeBoardRect(board: Stock, margin: number): Rectangle<Stock> {
+  return new Rectangle(
+    board,
+    margin,
+    margin,
+    board.width - 2 * margin,
+    board.length - 2 * margin,
+  );
+}
+
+function makePartRect(part: PartToCut): Rectangle<PartToCut> {
+  // grainLock='width': pre-rotate so part.width is on Y-axis (with grain).
+  if (part.grainLock === 'width') {
+    return new Rectangle(part, 0, 0, part.size.length, part.size.width);
+  }
+  return new Rectangle(part, 0, 0, part.size.width, part.size.length);
 }
 
 function sortPartsForPlacement(
@@ -578,13 +688,7 @@ function minimizeLayoutStock(
     .toSorted((a, b) => a.width * a.length - b.width * b.length);
 
   for (const smallerStock of altStock) {
-    const bin = new Rectangle(
-      smallerStock,
-      margin,
-      margin,
-      smallerStock.width - 2 * margin,
-      smallerStock.length - 2 * margin,
-    );
+    const bin = makeBoardRect(smallerStock, margin);
     const res = packer.pack(bin, [...originalLayout.placements], packerOptions);
 
     if (res.leftovers.length === 0)
