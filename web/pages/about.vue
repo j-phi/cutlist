@@ -59,21 +59,26 @@
             The cutting engine
           </h2>
           <p>
-            This is the part I'm most proud of. The engine runs a
+            The engine runs a
             <strong class="text-white">tournament</strong> &mdash; multiple
             packing strategies compete against each other and the best layout
-            wins. Strategies include strip packing (grouping similar-sized parts
-            into rows), guillotine cutting (where every cut goes edge-to-edge,
-            just like a real panel saw), and tight packing for CNC routers that
-            can cut anywhere on a sheet.
+            wins. There are three voices:
+            <strong class="text-white">Tidy</strong> (a two-stage guillotine
+            packer that aligns similar-width parts into clean columns),
+            <strong class="text-white">Compact</strong> (an n-stage free-rect
+            guillotine packer that maximises yield), and
+            <strong class="text-white">CNC</strong> (non-guillotine, for routers
+            that can cut anywhere on a sheet). You can pin a strategy per
+            project, or per material if one stock prefers one style and another
+            stock prefers another.
           </p>
           <p class="mt-3">
-            The strip packer deserves a special mention &mdash; it groups parts
-            by dimension and stacks them into simple horizontal or vertical
-            strips. The result is layouts that are
-            <strong class="text-white">dead simple to cut by hand</strong>
-            with a track saw or circular saw, and they're often the most
-            material-efficient too.
+            Tidy is the closest to how I'd actually lay parts out by hand on a
+            table saw. The cuts come out column-aligned and
+            <strong class="text-white">dead simple to follow</strong>
+            with a track saw or circular saw, and the score gives Tidy a small
+            bonus when board count and waste tie, so the cleanest layout usually
+            wins by default.
           </p>
         </div>
 
@@ -157,7 +162,7 @@ const features = [
     icon: 'i-lucide-layout-grid',
     title: 'Tournament optimizer',
     description:
-      'Strip, guillotine, and tight packers compete — the layout with the fewest boards and least waste wins.',
+      'Tidy, compact, and CNC packers compete — the cleanest layout with the fewest boards and least waste wins.',
   },
   {
     icon: 'i-lucide-scissors',
