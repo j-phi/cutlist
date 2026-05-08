@@ -78,9 +78,10 @@ export function createTidyPacker<T>(
   }
 
   /**
-   * Orientations to try, in preference order. Tidy prefers the orientation
-   * with the smaller width — narrower columns let parts of similar widths
-   * cluster into the same strip.
+   * Orientations to try, in preference order. The narrower-width orientation
+   * comes first; only `openNewStrip` (phase 3) reads the order, since phase 1
+   * scores all orientations against all strips and picks the best side-fit
+   * regardless of position.
    */
   function orientationsFor(
     rect: Rectangle<T>,
@@ -234,8 +235,10 @@ export function createTidyPacker<T>(
       );
     }
 
-    // 2) Walk all strips' residuals before opening a new one. Without this
-    // sweep, small parts that arrive late strand new boards.
+    // 2) Walk all strips' residuals before opening a new one. First-fit (vs.
+    // phase 1's best-fit) — residuals are typically few and narrow, and any
+    // re-scoring overhead doesn't pay back vs. the cost of opening a new
+    // strip. Without this sweep, small parts that arrive late strand new boards.
     for (const oriented of orientations) {
       for (const strip of state.strips) {
         for (let i = 0; i < strip.freeRects.length; i++) {

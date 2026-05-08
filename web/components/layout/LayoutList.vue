@@ -54,17 +54,14 @@ const parsedMatrix = computed<StockMatrix[]>(() => {
 });
 
 /**
- * Match a layout's `thicknessM` back to the YAML thickness key it came from.
- * Keys in `thicknessAlgorithms` use the as-written representation, e.g.
- * `"18"` for `18mm` or `"0.75"` for `0.75in`.
+ * Match a layout's `thicknessM` back to the YAML thickness key on a single
+ * `StockMatrix` row. Keys in `thicknessAlgorithms` use the as-written
+ * representation, e.g. `"18"` for `18mm` or `"0.75"` for `0.75in`.
  */
-function findThicknessKey(
-  matrix: StockMatrix[],
-  material: string,
+function findThicknessKeyOnItem(
+  item: StockMatrix,
   thicknessM: number,
 ): string | undefined {
-  const item = matrix.find((m) => m.material === material);
-  if (!item) return undefined;
   const unit = item.unit ?? 'mm';
   for (const size of item.sizes) {
     for (const t of size.thickness) {
@@ -77,12 +74,16 @@ function findThicknessKey(
 }
 
 function preferenceFor(material: string, thicknessM: number): Algorithm {
-  const matrix = parsedMatrix.value;
-  const item = matrix.find((m) => m.material === material);
-  if (!item) return defaultAlgorithm.value ?? 'auto';
-  const key = findThicknessKey(matrix, material, thicknessM);
-  const perThickness = key ? item.thicknessAlgorithms?.[key] : undefined;
-  return perThickness ?? defaultAlgorithm.value ?? 'auto';
+  // Walk every row that names this material — the engine groups by
+  // (material, thickness) so an override on any matching row applies.
+  for (const item of parsedMatrix.value) {
+    if (item.material !== material) continue;
+    const key = findThicknessKeyOnItem(item, thicknessM);
+    if (!key) continue;
+    const override = item.thicknessAlgorithms?.[key];
+    if (override) return override;
+  }
+  return defaultAlgorithm.value ?? 'auto';
 }
 
 const groups = computed<LayoutGroup[]>(() => {
@@ -133,27 +134,34 @@ function setOverride(material: string, thicknessM: number, alg: Algorithm) {
   } catch {
     return;
   }
-  const target = matrix.find((m) => m.material === material);
-  if (!target) return;
-  const key = findThicknessKey(matrix, material, thicknessM);
-  if (!key) return;
 
-  // Drop the entry when the choice matches the project default so the YAML
-  // stays minimal; otherwise pin it explicitly.
+  // Apply to every row that matches this (material, thickness). When the same
+  // material appears on two rows (e.g. one mm row + one in row), writing only
+  // the first would let the engine's group-level resolution stay split across
+  // the two rows' settings.
   const inherited = defaultAlgorithm.value ?? 'auto';
-  if (alg === inherited) {
-    if (target.thicknessAlgorithms) {
-      delete target.thicknessAlgorithms[key];
-      if (Object.keys(target.thicknessAlgorithms).length === 0) {
-        delete target.thicknessAlgorithms;
+  let touched = false;
+  for (const item of matrix) {
+    if (item.material !== material) continue;
+    const key = findThicknessKeyOnItem(item, thicknessM);
+    if (!key) continue;
+    touched = true;
+    if (alg === inherited) {
+      if (item.thicknessAlgorithms) {
+        delete item.thicknessAlgorithms[key];
+        if (Object.keys(item.thicknessAlgorithms).length === 0) {
+          delete item.thicknessAlgorithms;
+        }
       }
+    } else {
+      item.thicknessAlgorithms = {
+        ...(item.thicknessAlgorithms ?? {}),
+        [key]: alg,
+      };
     }
-  } else {
-    target.thicknessAlgorithms = {
-      ...(target.thicknessAlgorithms ?? {}),
-      [key]: alg,
-    };
   }
+  if (!touched) return;
+
   // JSON round-trip strips Vue reactivity wrappers before YAML.dump.
   stock.value = YAML.dump(JSON.parse(JSON.stringify(matrix)), {
     indent: 2,

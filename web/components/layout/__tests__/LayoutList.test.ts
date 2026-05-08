@@ -247,6 +247,69 @@ describe('LayoutList', () => {
       defaultAlgorithm.value = 'auto'; // reset for other tests
     });
 
+    it('setOverride writes to every row that matches (material, thickness)', () => {
+      // Same material+thickness split across two rows (different sheet sizes).
+      // Engine groups them together; picker must too, or a write to row 1
+      // alone leaves row 2 disagreeing at the engine level.
+      stockYaml.value = `- material: Plywood
+  unit: mm
+  sizes:
+    - width: 1220
+      length: 2440
+      thickness: [18]
+- material: Plywood
+  unit: mm
+  sizes:
+    - width: 600
+      length: 1200
+      thickness: [18]
+`;
+      const layouts: BoardLayout[] = [
+        makeLayout({ material: 'Plywood', thicknessM: 0.018 }),
+      ];
+      const component = getComponent(layouts);
+      const inner = component.findComponent(LayoutList);
+      const vm = inner.vm as unknown as {
+        setOverride: (mat: string, thicknessM: number, alg: string) => void;
+        preferenceFor: (mat: string, thicknessM: number) => string;
+      };
+
+      vm.setOverride('Plywood', 0.018, 'tidy');
+      // Both rows must carry the override.
+      const matches = stockYaml.value?.match(/'18': tidy/g);
+      expect(matches?.length).toBe(2);
+      expect(vm.preferenceFor('Plywood', 0.018)).toBe('tidy');
+    });
+
+    it('preferenceFor finds an override on any matching row', () => {
+      // Override sits on the second row only; first row has none.
+      stockYaml.value = `- material: Plywood
+  unit: mm
+  sizes:
+    - width: 1220
+      length: 2440
+      thickness: [18]
+- material: Plywood
+  unit: mm
+  sizes:
+    - width: 600
+      length: 1200
+      thickness: [18]
+  thicknessAlgorithms:
+    '18': tidy
+`;
+      const layouts: BoardLayout[] = [
+        makeLayout({ material: 'Plywood', thicknessM: 0.018 }),
+      ];
+      const component = getComponent(layouts);
+      const inner = component.findComponent(LayoutList);
+      const vm = inner.vm as unknown as {
+        preferenceFor: (mat: string, thicknessM: number) => string;
+      };
+
+      expect(vm.preferenceFor('Plywood', 0.018)).toBe('tidy');
+    });
+
     it('Should chunk groups of more than 10 boards into multiple rows', () => {
       const layouts = Array.from({ length: 23 }, () =>
         makeLayout({

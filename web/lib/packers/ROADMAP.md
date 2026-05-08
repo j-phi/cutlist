@@ -28,9 +28,9 @@ theoretical optimum on typical loads. We're probably close to that today.
   cross-axis edges. The rip axis is detected per-board as the one with fewer
   unique edges, so compact layouts that happen to be column-shaped still score
   fairly.
-- **Per-(material, thickness) algorithm choice** — `StockMatrix.algorithm`
-  sets a material default; `StockMatrix.thicknessAlgorithms[key]` overrides
-  per thickness. The Layout tab UI writes to the per-thickness map.
+- **Per-(material, thickness) algorithm choice** —
+  `StockMatrix.thicknessAlgorithms[key]` pins a per-thickness override that
+  beats `Config.defaultAlgorithm`. The Layout tab UI writes to that map.
 
 ## Tier 1 — Queued, high ROI, low risk
 

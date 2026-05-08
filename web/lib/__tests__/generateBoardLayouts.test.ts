@@ -172,6 +172,39 @@ describe('generateBoardLayouts', () => {
     expect(lefts.size).toBe(1);
   });
 
+  it('per-thickness override on any matching StockMatrix row wins', () => {
+    // Two StockMatrix rows share material+thickness — one with the override,
+    // one without. Engine must pick the defined override regardless of which
+    // row sorts first by area.
+    const stockWithOverrideOnSecondEntry = [
+      {
+        material: 'Plywood',
+        unit: 'mm' as const,
+        // Larger area — will sort first.
+        sizes: [{ width: '2m', length: '3m', thickness: ['0.018m'] }],
+      },
+      {
+        material: 'Plywood',
+        unit: 'mm' as const,
+        sizes: [{ width: '1m', length: '2m', thickness: ['0.018m'] }],
+        thicknessAlgorithms: { '0.018m': 'tidy' as const },
+      },
+    ];
+    const parts = [
+      { ...createPart(1, 0.5, 0.5), material: 'Plywood' },
+      { ...createPart(2, 0.5, 0.5), material: 'Plywood' },
+    ];
+    const result = generateBoardLayouts(parts, stockWithOverrideOnSecondEntry, {
+      bladeWidth: 0,
+      margin: 0,
+      defaultAlgorithm: 'cnc', // Must lose to the per-thickness 'tidy' override.
+      precision: 1e-5,
+    });
+
+    expect(result.leftovers).toEqual([]);
+    expect(result.layouts.every((l) => l.algorithm === 'tidy')).toBe(true);
+  });
+
   it('is deterministic in auto mode', () => {
     const config: Config = {
       bladeWidth: 0,

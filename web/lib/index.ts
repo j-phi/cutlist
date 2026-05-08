@@ -248,7 +248,12 @@ function runMultiPassSearch(
   const allLeftovers: PartToCut[] = [];
 
   for (const group of groups) {
-    const algorithm = group.stock[0]?.algorithm ?? config.defaultAlgorithm;
+    // First defined algorithm wins, regardless of area-sort position. Picking
+    // `group.stock[0]` directly would let an undefined entry override a
+    // defined one when two `StockMatrix` rows share material+thickness.
+    const algorithm =
+      group.stock.find((s) => s.algorithm != null)?.algorithm ??
+      config.defaultAlgorithm;
     const passOrder = passOverride ?? getPassesForAlgorithm(algorithm);
     let best: SearchPassResult | undefined;
 
@@ -341,91 +346,26 @@ function placeAllParts(
   options: PlaceOptions,
 ): { layouts: PotentialBoardLayout[]; leftovers: PartToCut[] } {
   // Multi-board lookback eliminates "sparse last board" — small parts that
-  // were sorted to the end could have fit in earlier-opened gaps. Only
-  // available when the packer exposes per-bin state.
-  const hasLookback =
-    typeof packer.createBinState === 'function' &&
-    typeof packer.tryPlaceInBinState === 'function';
-  return hasLookback
-    ? placeAllPartsWithLookback(
-        config,
-        parts,
-        stock,
-        packer,
-        algorithm,
-        options,
-      )
-    : placeAllPartsSingleBoard(
-        config,
-        parts,
-        stock,
-        packer,
-        algorithm,
-        options,
-      );
-}
-
-function placeAllPartsSingleBoard(
-  config: Config,
-  parts: PartToCut[],
-  stock: Stock[],
-  packer: Packer<PartToCut>,
-  algorithm: Exclude<Algorithm, 'auto'>,
-  options: PlaceOptions,
-): { layouts: PotentialBoardLayout[]; leftovers: PartToCut[] } {
-  const margin = new Distance(config.margin).m;
-  const { packerOptions } = options;
-  const unplacedParts = new Set(
-    sortPartsForPlacement(
-      parts,
-      config.precision,
-      options.partSortMode,
-      options.randomSeed,
-    ),
-  );
-  const leftovers: PartToCut[] = [];
-  const layouts: PotentialBoardLayout[] = [];
-
-  while (unplacedParts.size > 0) {
-    const unplacedPartsArray = [...unplacedParts];
-    const targetPart = unplacedPartsArray[0];
-
-    const board = stock.find((board) =>
-      isValidStock(board, targetPart, config.precision),
+  // were sorted to the end could have fit in earlier-opened gaps. Required
+  // for every active packer; the hooks are optional on the `Packer`
+  // interface so a future hookless packer can still type-check, but it
+  // would error here at runtime rather than silently fall through.
+  if (
+    typeof packer.createBinState !== 'function' ||
+    typeof packer.tryPlaceInBinState !== 'function'
+  ) {
+    throw Error(
+      'Packer must expose createBinState/tryPlaceInBinState for lookback',
     );
-    if (board == null) {
-      unplacedParts.delete(targetPart);
-      leftovers.push(targetPart);
-      continue;
-    }
-
-    const layout: PotentialBoardLayout = {
-      placements: [],
-      stock: board,
-      algorithm,
-    };
-    const boardRect = makeBoardRect(board, margin);
-
-    const partsToPlace = unplacedPartsArray
-      .filter((part) => isValidStock(board, part, config.precision))
-      .map((part) => makePartRect(part));
-
-    const res = packer.pack(boardRect, partsToPlace, packerOptions);
-    if (res.placements.length > 0) {
-      layouts.push(layout);
-      res.placements.forEach((placement) => {
-        layout.placements.push(placement);
-        unplacedParts.delete(placement.data);
-      });
-    } else {
-      res.leftovers.forEach((part) => {
-        leftovers.push(part);
-        unplacedParts.delete(part);
-      });
-    }
   }
-
-  return { layouts, leftovers };
+  return placeAllPartsWithLookback(
+    config,
+    parts,
+    stock,
+    packer,
+    algorithm,
+    options,
+  );
 }
 
 interface OpenBoard {
