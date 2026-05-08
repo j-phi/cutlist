@@ -15,7 +15,7 @@ export async function getProjectList(): Promise<
   Pick<IdbProject, 'id' | 'name' | 'updatedAt'>[]
 > {
   const db = await getDb();
-  const all = await db.projects.orderBy('updatedAt').reverse().toArray();
+  const all = await db.projects.orderBy('updatedAt').toArray();
   return all
     .filter((p) => !p.archivedAt)
     .map(({ id, name, updatedAt }) => ({ id, name, updatedAt }));
