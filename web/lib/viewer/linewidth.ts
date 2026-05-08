@@ -13,7 +13,7 @@ type OrthographicCamera = import('three').OrthographicCamera;
 type Box3 = import('three').Box3;
 
 const MIN_LINEWIDTH = 0.4;
-const MAX_LINEWIDTH = 2.5;
+const MAX_LINEWIDTH = 2;
 // At fit (~290px on-screen for a 600px-tall canvas) this divisor lands the
 // linewidth around 1.5px, matching the previous fixed-2px feel without the
 // "too heavy when small" effect.
