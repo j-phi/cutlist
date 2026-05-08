@@ -44,6 +44,7 @@ function createLayout(
         placement.height,
       );
     }),
+    algorithm: 'compact',
   };
 }
 
@@ -58,6 +59,9 @@ describe('layout score', () => {
   });
 
   it('Should calculate waste area and cut complexity for a simple board', () => {
+    // Two parts side-by-side along x. Unique X edges = 3 (0, 5, 10);
+    // unique Y edges = 2 (0, 10). Y is the strip axis (fewer edges) so
+    // it carries the rip-cut weight: 2*10 + 3 = 23.
     const score = scoreLayouts(
       [
         createLayout(stock10x10, [
@@ -72,7 +76,7 @@ describe('layout score', () => {
       boardsUsed: 1,
       wasteArea: 0,
       wasteConcentration: 0,
-      cutComplexity: 5,
+      cutComplexity: 23,
     });
   });
 

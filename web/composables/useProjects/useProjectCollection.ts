@@ -62,7 +62,7 @@ export default function useProjectCollection() {
           distanceUnit: DEFAULT_SETTINGS.distanceUnit,
           bladeWidth: DEFAULT_SETTINGS.bladeWidth,
           margin: DEFAULT_SETTINGS.margin,
-          optimize: DEFAULT_SETTINGS.optimize,
+          defaultAlgorithm: DEFAULT_SETTINGS.defaultAlgorithm,
           showPartNumbers: DEFAULT_SETTINGS.showPartNumbers,
         });
       }

@@ -53,6 +53,20 @@ export class CutlistDB extends Dexie {
       annotations: 'id, sceneId',
       assets: 'id, projectId',
     });
+
+    // v2 — replace `optimize: 'Auto' | 'CNC'` with `defaultAlgorithm:
+    // Algorithm`. Mirror this transform in `~/utils/projectImport/migrations`.
+    this.version(2)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            p.defaultAlgorithm = p.optimize === 'CNC' ? 'cnc' : 'auto';
+            delete p.optimize;
+          });
+      });
   }
 }
 

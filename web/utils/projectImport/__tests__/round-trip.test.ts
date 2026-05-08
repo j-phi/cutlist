@@ -58,7 +58,7 @@ function makePayload(): ProjectExport {
       distanceUnit: 'mm',
       bladeWidth: 3,
       margin: 0,
-      optimize: 'Auto',
+      defaultAlgorithm: 'auto',
       showPartNumbers: true,
       createdAt: now,
       updatedAt: now,

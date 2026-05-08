@@ -5,6 +5,7 @@
  * single Dexie transaction so partial failures don't leave orphans.
  */
 
+import type { Algorithm } from 'cutlist';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
 import { getDb, safeWrite } from './db';
 import { applyProjectDefaults, applyModelDefaults } from './defaults';
@@ -84,7 +85,7 @@ export async function createProject(
     distanceUnit?: 'in' | 'mm';
     bladeWidth?: number;
     margin?: number;
-    optimize?: 'Auto' | 'CNC';
+    defaultAlgorithm?: Algorithm;
     showPartNumbers?: boolean;
   },
 ): Promise<IdbProject> {
@@ -99,7 +100,8 @@ export async function createProject(
     distanceUnit: opts?.distanceUnit ?? DEFAULT_SETTINGS.distanceUnit,
     bladeWidth: opts?.bladeWidth ?? DEFAULT_SETTINGS.bladeWidth,
     margin: opts?.margin ?? DEFAULT_SETTINGS.margin,
-    optimize: opts?.optimize ?? DEFAULT_SETTINGS.optimize,
+    defaultAlgorithm:
+      opts?.defaultAlgorithm ?? DEFAULT_SETTINGS.defaultAlgorithm,
     showPartNumbers: opts?.showPartNumbers ?? DEFAULT_SETTINGS.showPartNumbers,
     createdAt: now,
     updatedAt: now,
@@ -120,7 +122,7 @@ export async function updateProject(
       | 'distanceUnit'
       | 'bladeWidth'
       | 'margin'
-      | 'optimize'
+      | 'defaultAlgorithm'
       | 'showPartNumbers'
       | 'updatedAt'
     >

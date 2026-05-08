@@ -30,7 +30,7 @@ export function applyProjectDefaults(
     distanceUnit: p.distanceUnit ?? DEFAULT_SETTINGS.distanceUnit,
     bladeWidth: p.bladeWidth ?? DEFAULT_SETTINGS.bladeWidth,
     margin: p.margin ?? DEFAULT_SETTINGS.margin,
-    optimize: p.optimize ?? DEFAULT_SETTINGS.optimize,
+    defaultAlgorithm: p.defaultAlgorithm ?? DEFAULT_SETTINGS.defaultAlgorithm,
     showPartNumbers: p.showPartNumbers ?? DEFAULT_SETTINGS.showPartNumbers,
   } as IdbProject;
 }

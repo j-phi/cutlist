@@ -18,7 +18,7 @@ mockNuxtImport('useProjectSettings', () => () => ({
   stock: ref(''),
   bladeWidth: ref(0),
   margin: ref(0),
-  optimize: ref('Auto'),
+  defaultAlgorithm: ref('auto'),
   showPartNumbers: ref(false),
   excludedColors: ref([]),
   archived: ref(false),

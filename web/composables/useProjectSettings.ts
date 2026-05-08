@@ -8,6 +8,7 @@
  * the UI sees the new value on the next tick, even before persistence lands.
  */
 
+import type { Algorithm } from 'cutlist';
 import type { IdbProject } from '~/composables/useIdb';
 
 const DEBOUNCE_MS = 300;
@@ -82,11 +83,11 @@ export default createSharedComposable(() => {
     },
   });
 
-  const optimize = computed<'Auto' | 'CNC' | undefined>({
-    get: () => activeProject.value?.optimize,
+  const defaultAlgorithm = computed<Algorithm | undefined>({
+    get: () => activeProject.value?.defaultAlgorithm,
     set: (value) => {
       if (value == null) return;
-      queueWrite({ optimize: value });
+      queueWrite({ defaultAlgorithm: value });
     },
   });
 
@@ -117,7 +118,7 @@ export default createSharedComposable(() => {
   return {
     bladeWidth,
     margin,
-    optimize,
+    defaultAlgorithm,
     showPartNumbers,
     stock,
     distanceUnit,

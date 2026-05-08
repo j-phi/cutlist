@@ -25,7 +25,7 @@ function makePayload(overrides?: any) {
       distanceUnit: 'mm' as const,
       bladeWidth: 3,
       margin: 0,
-      optimize: 'Auto' as const,
+      defaultAlgorithm: 'auto' as const,
       showPartNumbers: true,
       createdAt: now,
       updatedAt: now,
@@ -269,14 +269,14 @@ describe('round-trip fidelity', () => {
     const payload = makePayload();
     payload.project.bladeWidth = 5;
     payload.project.margin = 2;
-    payload.project.optimize = 'CNC';
+    payload.project.defaultAlgorithm = 'cnc';
     payload.project.showPartNumbers = false;
     const { db, calls } = makeIdbMock();
     await importProjectData(payload as any, db as any);
 
     expect(calls.createProject[0].opts.bladeWidth).toBe(5);
     expect(calls.createProject[0].opts.margin).toBe(2);
-    expect(calls.createProject[0].opts.optimize).toBe('CNC');
+    expect(calls.createProject[0].opts.defaultAlgorithm).toBe('cnc');
     expect(calls.createProject[0].opts.showPartNumbers).toBe(false);
   });
 
@@ -284,12 +284,12 @@ describe('round-trip fidelity', () => {
     const payload = makePayload();
     delete (payload.project as any).bladeWidth;
     delete (payload.project as any).margin;
-    delete (payload.project as any).optimize;
+    delete (payload.project as any).defaultAlgorithm;
     delete (payload.project as any).showPartNumbers;
     const parsed = parseProjectExport(payload);
     expect(parsed.project.bladeWidth).toBeDefined();
     expect(parsed.project.margin).toBeDefined();
-    expect(parsed.project.optimize).toBeDefined();
+    expect(parsed.project.defaultAlgorithm).toBeDefined();
     expect(parsed.project.showPartNumbers).toBeDefined();
   });
 

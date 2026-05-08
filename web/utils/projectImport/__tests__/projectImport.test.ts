@@ -22,7 +22,7 @@ function makePayload() {
       distanceUnit: 'mm' as const,
       bladeWidth: 3,
       margin: 0,
-      optimize: 'Auto' as const,
+      defaultAlgorithm: 'auto' as const,
       showPartNumbers: true,
       createdAt: now,
       updatedAt: now,

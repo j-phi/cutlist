@@ -144,7 +144,7 @@ const FIXTURES: Fixture[] = [
       ...repeat(8, () => part('Plywood', 90, 180, 18)),
     ],
     stock: [PLY_18MM_FULL],
-    config: { optimize: 'cnc' },
+    config: { defaultAlgorithm: 'cnc' },
   },
 ];
 
@@ -220,7 +220,7 @@ function runOnce(fixture: Fixture): Metrics {
   const config: ConfigInput = {
     bladeWidth: '3.175mm',
     margin: '0mm',
-    optimize: 'auto',
+    defaultAlgorithm: 'auto',
     precision: 1e-5,
     ...fixture.config,
   };
@@ -238,7 +238,7 @@ function runWithPasses(
   const config: ConfigInput = {
     bladeWidth: '3.175mm',
     margin: '0mm',
-    optimize: 'auto',
+    defaultAlgorithm: 'auto',
     precision: 1e-5,
     ...fixture.config,
     searchPasses: passes,
@@ -253,17 +253,23 @@ const VARIANTS: Array<{
   label: string;
   run: (f: Fixture) => Metrics;
 }> = [
-  { label: 'default ', run: runOnce },
+  { label: 'default   ', run: runOnce },
   {
-    label: 'guill-only',
+    label: 'tidy-only ',
     run: (f) =>
       runWithPasses(f, [
-        'cuts-guillotine-bssf-long-side',
-        'cuts-guillotine-bssf-area',
+        'tidy-rip-long-side',
+        'tidy-rip-area',
+        'tidy-crosscut-long-side',
       ]),
   },
   {
-    label: 'tight-only',
+    label: 'compact   ',
+    run: (f) =>
+      runWithPasses(f, ['compact-bssf-long-side', 'compact-bssf-area']),
+  },
+  {
+    label: 'tight     ',
     run: (f) => runWithPasses(f, ['cnc-area', 'cnc-perimeter', 'cnc-random']),
   },
 ];

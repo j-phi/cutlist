@@ -41,8 +41,23 @@ export interface RecordMigration {
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
-  // v1 baseline: nothing to migrate. Earlier formats are rejected with
+  // v1 baseline: nothing to migrate. Older formats are rejected with
   // `LegacyExportError` in `migrateExport` rather than transformed.
+
+  // v2: `optimize: 'Auto' | 'CNC'` → `defaultAlgorithm: Algorithm`. Mirror
+  // of the Dexie .version(2).upgrade() in `~/composables/useIdb/db`.
+  {
+    version: 2,
+    store: 'projects',
+    migrate: (record) => {
+      const next: IdbRecord = {
+        ...record,
+        defaultAlgorithm: record.optimize === 'CNC' ? 'cnc' : 'auto',
+      };
+      delete next.optimize;
+      return next;
+    },
+  },
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

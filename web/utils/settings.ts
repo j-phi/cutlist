@@ -1,11 +1,11 @@
 import YAML from 'js-yaml';
-import type { StockMatrix } from 'cutlist';
+import type { Algorithm, StockMatrix } from 'cutlist';
 
 export interface CutlistSettings {
   bladeWidth: number;
   distanceUnit: 'in' | 'mm';
   margin: number;
-  optimize: 'Auto' | 'CNC';
+  defaultAlgorithm: Algorithm;
   showPartNumbers: boolean;
   stock: string;
 }
@@ -152,7 +152,7 @@ export const DEFAULT_SETTINGS: CutlistSettings = {
   bladeWidth: 3,
   distanceUnit: 'mm',
   margin: 0,
-  optimize: 'Auto',
+  defaultAlgorithm: 'auto',
   showPartNumbers: true,
   stock: '',
 };

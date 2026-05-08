@@ -9,7 +9,7 @@ import {
 const baseConfig: Config = {
   bladeWidth: 0,
   margin: 0,
-  optimize: 'auto',
+  defaultAlgorithm: 'auto',
   precision: 1e-5,
 };
 
@@ -254,7 +254,7 @@ describe('generateBoardLayouts edge cases', () => {
     ];
     const config: Config = {
       ...baseConfig,
-      optimize: 'auto',
+      defaultAlgorithm: 'auto',
       searchPasses: ['cnc-area'],
     };
     const parts = [
@@ -437,9 +437,9 @@ describe('generateBoardLayouts edge cases', () => {
 
     const result = generateBoardLayouts(parts, stock, {
       ...baseConfig,
-      // Force the guillotine packer — strip wins by default but doesn't
-      // expose the sparse-last-board behaviour we're guarding.
-      searchPasses: ['cuts-guillotine-bssf-area'],
+      // Force the compact packer to expose its sparse-last-board behaviour
+      // — tidy passes don't hit this regression path.
+      searchPasses: ['compact-bssf-area'],
     });
     expect(result.leftovers).toHaveLength(0);
     expect(result.layouts.length).toBeLessThanOrEqual(2);

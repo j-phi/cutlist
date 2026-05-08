@@ -1,3 +1,4 @@
+import type { Algorithm } from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 
 export interface Model {
@@ -36,8 +37,8 @@ export interface Project {
   bladeWidth: number;
   /** Per-project margin/offset for the packing algorithm. */
   margin: number;
-  /** Per-project packing strategy hint. */
-  optimize: 'Auto' | 'CNC';
+  /** Per-project default packing algorithm (used when a material has none). */
+  defaultAlgorithm: Algorithm;
   /** Whether to render part numbers in visualizations. */
   showPartNumbers: boolean;
 }

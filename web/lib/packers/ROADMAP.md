@@ -2,13 +2,35 @@
 
 Future improvements to the bin-packing tournament, roughly ordered by ROI.
 
-## Current state (2026-04)
+## Current state (2026-05)
 
-- **Tournament**: 11 deterministic passes, scored by board count → waste → cut complexity. See `web/lib/index.ts`.
-- **`cuts` mode**: `GuillotinePacker` — free-rectangle tracking, BSSF/BAF/BLSF fit heuristics, SAS split, rectangle merge. Strictly guillotine-cuttable.
-- **`cnc` mode**: `TightPacker` — greedy bottom-left placement. Allows non-guillotine layouts (use with CNC routers only).
+- **Tournament**: per-(material, thickness) group, dispatched per-material via the
+  `algorithm` field on `Stock` (or `defaultAlgorithm` on `Config`). Scored by board
+  count → waste → waste concentration → stage-aware cut complexity. See
+  `web/lib/index.ts`.
+- **`tidy`** (`TidyPacker`): two-stage guillotine. Stage 1 partitions the bin into
+  rip-axis strips of varying widths; stage 2 stacks parts within each strip. Produces
+  visibly cleaner column-aligned layouts at slight yield cost. Variants: rip-first
+  (default), crosscut-first.
+- **`compact`** (`CompactPacker`): n-stage free-rectangle guillotine, BSSF/BAF/BLSF
+  fit heuristics, SAS split, rectangle merge. Tighter yield, more zigzag cut sequence.
+- **`cnc`** (`TightPacker`): greedy bottom-left, non-guillotine. CNC-only.
+- **`auto`**: runs all guillotine voices (tidy + compact) and lets the scorer pick.
 
-Benchmarks in the literature put BSSF+SAS+RM heuristics at roughly 1–3% over theoretical optimum on typical loads. We're probably close to that today.
+Benchmarks in the literature put BSSF+SAS+RM heuristics at roughly 1–3% over
+theoretical optimum on typical loads. We're probably close to that today.
+
+## Recently shipped (2026-05)
+
+- **TidyPacker** — two-stage guillotine packer, joins the tournament as the
+  cleaner-cut counterpart to Compact.
+- **Stage-aware cut complexity** — `cutComplexity` weights rip-axis edges 10×
+  cross-axis edges. The rip axis is detected per-board as the one with fewer
+  unique edges, so compact layouts that happen to be column-shaped still score
+  fairly.
+- **Per-(material, thickness) algorithm choice** — `StockMatrix.algorithm`
+  sets a material default; `StockMatrix.thicknessAlgorithms[key]` overrides
+  per thickness. The Layout tab UI writes to the per-thickness map.
 
 ## Tier 1 — Queued, high ROI, low risk
 
@@ -28,13 +50,22 @@ When a material has multiple available stock sizes (e.g., 4×8 + 5×5 plywood), 
 - **Needs**: a cost field on `Stock` (currently absent) — or default to cost ≈ area.
 - **Risk**: adds combinatorial blowup; cap at N best stock sizes per material.
 
-### 3. Reweight layout scoring
+### 3. Largest-offcut term
 
-Currently `compareLayoutScores` goes board count → waste area → cut complexity. Two layouts using the same board count but one with `[95%, 95%]` utilization vs. `[98%, 40%]` score similarly on waste area, but the first is clearly better for practical reasons (leftover piece is reusable).
+Currently `compareLayoutScores` goes board count → waste area → waste concentration
+→ cut complexity. Concentration already favours layouts with more uniform per-board
+fill, so the simplest version of this — penalising variance — landed in 2026-05.
+Still missing: a "largest offcut" term that rewards keeping one big reusable remnant
+over many small unusable scraps. Two layouts with the same total waste but one
+producing a single 600×400 leftover vs. ten scattered 100×200 strips score the same
+today even though only the first is shop-floor reusable.
 
 - **Where**: `web/lib/packers/layout-score.ts`.
-- **Ideas**: penalize variance in per-board fill ratios; or add a "largest offcut" term that rewards keeping one big usable remnant.
-- **Risk**: medium — requires calibrating weights against real-world layouts; regression-test against a corpus of known-good outputs.
+- **Ideas**: maximum-area inscribed rectangle on the remaining free space, summed
+  across boards; or simply the largest rectangle in the union of free rects exposed
+  by the packer's terminal state.
+- **Risk**: medium — requires calibrating weights against real-world layouts and
+  may interact with the new rip-axis weighting.
 
 ## Tier 2 — Algorithmic additions
 
@@ -50,7 +81,7 @@ Replace `TightPacker` with a proper MaxRects implementation. The [`maxrects-pack
 
 Low-effort passes to add: sort-by-perimeter, sort-by-side-ratio, sort-by-difference-of-sides. The Jylänki "A Thousand Ways to Pack the Bin" paper shows these occasionally win on irregular part mixes.
 
-- **Risk**: adds pass time linearly. Already have 12 passes; keep an eye on total wall-clock for large inputs, since every default pass now runs to completion.
+- **Risk**: adds pass time linearly. Already have 8 passes (3 tidy + 2 compact + 3 cnc); keep an eye on total wall-clock for large inputs, since every default pass runs to completion.
 
 ### 6. Skyline-BL for `cnc` mode
 

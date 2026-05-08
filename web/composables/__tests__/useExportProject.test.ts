@@ -68,7 +68,7 @@ describe('buildExportData', () => {
       distanceUnit: 'in',
       bladeWidth: 4,
       margin: 1,
-      optimize: 'CNC',
+      defaultAlgorithm: 'cnc',
       showPartNumbers: false,
     });
     await idb.updateProject(project.id, {
@@ -86,7 +86,7 @@ describe('buildExportData', () => {
     expect(data!.project.distanceUnit).toBe('in');
     expect(data!.project.bladeWidth).toBe(4);
     expect(data!.project.margin).toBe(1);
-    expect(data!.project.optimize).toBe('CNC');
+    expect(data!.project.defaultAlgorithm).toBe('cnc');
     expect(data!.project.showPartNumbers).toBe(false);
     expect(data!.project.colorMap).toEqual({ red: 'PLY18' });
     expect(data!.project.excludedColors).toEqual(['blue']);
@@ -204,7 +204,7 @@ describe('buildExportData', () => {
         distanceUnit: 'in' as const,
         bladeWidth: 3,
         margin: 0,
-        optimize: 'Auto' as const,
+        defaultAlgorithm: 'auto' as const,
         showPartNumbers: true,
         createdAt: now,
         updatedAt: now,

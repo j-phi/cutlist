@@ -4,14 +4,25 @@ export interface LayoutScore {
   boardsUsed: number;
   wasteArea: number;
   /**
-   * Sum of squared per-board waste areas — same total waste but lopsided
-   * distribution scores higher (worse). Tiebreaker after `wasteArea` so
-   * a layout that consolidates parts onto earlier boards beats one that
-   * strands a few parts on a barely-used last board.
+   * Sum of squared per-board waste areas. Penalises lopsided distributions
+   * (one barely-used board) over uniform ones at equal total waste.
    */
   wasteConcentration: number;
+  /**
+   * Stage-aware cut complexity: for each board, the axis with fewer unique
+   * edges (the rip axis) is weighted `RIP_WEIGHT`× more than the cross
+   * axis. Tidy column-aligned layouts score lower than compact zigzag
+   * layouts at equal fill.
+   */
   cutComplexity: number;
 }
+
+/**
+ * Per-rip-edge weight relative to per-crosscut-edge weight in
+ * `cutComplexity`. Calibrated against the benchmark fixtures so tidy
+ * passes win the `auto` tournament when board count and waste tie.
+ */
+const RIP_WEIGHT = 10;
 
 export function compareLayoutScores(
   a: LayoutScore,
@@ -54,9 +65,14 @@ export function scoreLayouts(
       xLevels.push(placement.left, placement.right);
       yLevels.push(placement.bottom, placement.top);
     }
-    cutComplexity +=
-      countUniqueLevels(xLevels, precision) +
-      countUniqueLevels(yLevels, precision);
+    // Rip axis = whichever dimension has fewer unique edges (a few rip
+    // cuts partition the board into strips of many crosscuts). Ties go
+    // to x — table-saw rip-first convention.
+    const xCount = countUniqueLevels(xLevels, precision);
+    const yCount = countUniqueLevels(yLevels, precision);
+    const ripCount = Math.min(xCount, yCount);
+    const crossCount = Math.max(xCount, yCount);
+    cutComplexity += ripCount * RIP_WEIGHT + crossCount;
   }
 
   return {

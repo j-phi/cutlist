@@ -34,7 +34,7 @@ const EMPTY_RESULT: LayoutResult = { layouts: [], leftovers: [] };
 export default createSharedComposable(() => {
   const { activeProject, activeId, enabledModels, projectLoading } =
     useProjects();
-  const { bladeWidth, optimize, margin, distanceUnit, stock } =
+  const { bladeWidth, defaultAlgorithm, margin, distanceUnit, stock } =
     useProjectSettings();
 
   const parts = computed<PartToCut[] | undefined>(() => {
@@ -68,18 +68,18 @@ export default createSharedComposable(() => {
     const pid = activeId.value;
     const partsVal = parts.value;
     const bw = bladeWidth.value;
-    const opt = optimize.value;
+    const alg = defaultAlgorithm.value;
     const mg = margin.value;
     const du = distanceUnit.value;
     const st = stock.value;
     if (!pid || partsVal == null) return undefined;
-    if (bw == null || opt == null || mg == null || du == null || st == null) {
+    if (bw == null || alg == null || mg == null || du == null || st == null) {
       return undefined;
     }
     const config: ConfigInput = {
       bladeWidth: new Distance(bw + du).m,
       margin: new Distance(mg + du).m,
-      optimize: opt === 'Auto' ? 'auto' : 'cnc',
+      defaultAlgorithm: alg,
       precision: 1e-5,
     };
     return {

@@ -9,6 +9,7 @@
  */
 
 import type { JSONContent } from '@tiptap/core';
+import type { Algorithm } from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 import type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
 
@@ -26,8 +27,11 @@ export interface IdbProject {
   bladeWidth: number;
   /** Per-project margin/offset for the packing algorithm. */
   margin: number;
-  /** Per-project packing strategy hint. */
-  optimize: 'Auto' | 'CNC';
+  /**
+   * Default packing algorithm. Used for materials in `stock` that don't
+   * carry their own `algorithm` override.
+   */
+  defaultAlgorithm: Algorithm;
   /** Whether to render part numbers in visualizations. */
   showPartNumbers: boolean;
   createdAt: string;

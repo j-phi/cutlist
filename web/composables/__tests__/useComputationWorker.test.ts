@@ -73,7 +73,7 @@ function makeParts(n: number): PartToCut[] {
 const CONFIG: ConfigInput = {
   bladeWidth: 0.003,
   margin: 0,
-  optimize: 'auto',
+  defaultAlgorithm: 'auto',
   precision: 1e-5,
 };
 
