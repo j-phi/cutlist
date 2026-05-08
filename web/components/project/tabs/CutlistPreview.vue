@@ -1,11 +1,16 @@
 <script lang="ts" setup>
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
+const tab = useProjectTab();
 
 const container = ref<HTMLDivElement>();
 const gridEl = ref<HTMLDivElement>();
 const { scale, resetZoom, zoomIn, zoomOut } = usePanZoom(container, gridEl);
 
 const formatDistance = useFormatDistance();
+
+function goToStock() {
+  tab.value = 'boards';
+}
 
 function stockKey(stock: {
   material: string;
@@ -55,6 +60,10 @@ const filteredLayouts = computed(() => {
 });
 
 const unplacedCount = computed(() => data.value?.leftovers.length ?? 0);
+
+const showLeftoverBanner = computed(
+  () => unplacedCount.value > 0 && filteredLayouts.value.length > 0,
+);
 </script>
 
 <template>
@@ -64,12 +73,33 @@ const unplacedCount = computed(() => data.value?.leftovers.length ?? 0);
       <p v-if="error" class="m-auto text-red-400">{{ error }}</p>
 
       <template v-else-if="data">
-        <p
+        <div
           v-if="filteredLayouts.length === 0"
-          class="m-auto bg-base border border-default rounded p-4 text-muted"
+          class="m-auto max-w-sm text-center bg-base border border-default rounded-lg p-6"
         >
-          No board layouts found
-        </p>
+          <UIcon name="i-lucide-layers" class="w-8 h-8 text-dim mx-auto mb-3" />
+          <h3 class="text-base text-hi font-medium mb-1">
+            {{
+              unplacedCount > 0 ? 'No matching stock' : 'No board layouts yet'
+            }}
+          </h3>
+          <p class="text-sm text-muted mb-4">
+            {{
+              unplacedCount > 0
+                ? "We couldn't find any boards in your stock that match the thicknesses your parts need."
+                : 'Add parts in the BOM tab to generate cut layouts.'
+            }}
+          </p>
+          <UButton
+            v-if="unplacedCount > 0"
+            size="sm"
+            color="primary"
+            icon="i-lucide-warehouse"
+            @click="goToStock"
+          >
+            Configure stock
+          </UButton>
+        </div>
         <template v-else>
           <div ref="gridEl" class="canvas-grid" />
           <div
@@ -93,7 +123,7 @@ const unplacedCount = computed(() => data.value?.leftovers.length ?? 0);
 
     <!-- Warning banners -->
     <div
-      v-if="!error && (partCountWarning || unplacedCount > 0)"
+      v-if="!error && (partCountWarning || showLeftoverBanner)"
       class="absolute bottom-14 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 max-w-md"
     >
       <div
@@ -107,7 +137,7 @@ const unplacedCount = computed(() => data.value?.leftovers.length ?? 0);
         <span class="text-xs text-amber-500">{{ partCountWarning }}</span>
       </div>
       <div
-        v-if="unplacedCount > 0"
+        v-if="showLeftoverBanner"
         class="bg-amber-500/15 border border-amber-500/30 rounded-lg px-4 py-2 flex items-center gap-2"
       >
         <UIcon

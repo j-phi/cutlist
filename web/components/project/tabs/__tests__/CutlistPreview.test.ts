@@ -34,6 +34,9 @@ mockNuxtImport('useBoardLayoutsQuery', () => () => ({
   partCountWarning,
 }));
 
+const tab = ref<string>('layout');
+mockNuxtImport('useProjectTab', () => () => tab);
+
 const scale = ref<number | undefined>(1);
 const resetZoom = vi.fn();
 const zoomIn = vi.fn();
@@ -88,6 +91,30 @@ function makeLayout(
   return { stock: { material, thicknessM, widthM, lengthM } };
 }
 
+function makeLeftover(
+  material: string,
+  thicknessM: number,
+  partNumber: number,
+) {
+  return { material, thicknessM, partNumber };
+}
+
+const UButtonStub = defineComponent({
+  props: { icon: { type: String, default: '' } },
+  emits: ['click'],
+  setup(_, { emit, slots }) {
+    return () =>
+      h(
+        'button',
+        {
+          'data-testid': 'configure-stock-button',
+          onClick: () => emit('click'),
+        },
+        slots.default?.(),
+      );
+  },
+});
+
 describe('CutlistPreview', () => {
   function getComponent() {
     return shallowMount(CutlistPreview, {
@@ -95,6 +122,7 @@ describe('CutlistPreview', () => {
         stubs: {
           UIcon: true,
           USelect: USelectStub,
+          UButton: UButtonStub,
           LayoutList: {
             template:
               '<div data-testid="layout-list" :data-count="layouts.length" />',
@@ -115,6 +143,7 @@ describe('CutlistPreview', () => {
     error.value = null;
     partCountWarning.value = null;
     scale.value = 1;
+    tab.value = 'layout';
     resetZoom.mockClear();
     zoomIn.mockClear();
     zoomOut.mockClear();
@@ -143,11 +172,55 @@ describe('CutlistPreview', () => {
       expect(component.text()).toContain('Computing layouts');
     });
 
-    it('Should render the empty-state hint when both arrays are empty', () => {
+    it('Should render the no-parts empty state when there are no layouts and no leftovers', () => {
       data.value = { layouts: [], leftovers: [] };
       const component = getComponent();
 
-      expect(component.text()).toContain('No board layouts found');
+      expect(component.text()).toContain('No board layouts yet');
+      expect(component.text()).toContain('Add parts in the BOM tab');
+      // Configure-stock CTA does not apply here.
+      expect(
+        component.find('[data-testid="configure-stock-button"]').exists(),
+      ).toBe(false);
+    });
+
+    it('Should render the no-matching-stock empty state when parts exist but no layouts were produced', () => {
+      data.value = {
+        layouts: [],
+        leftovers: [makeLeftover('Plywood', 0.018, 1)],
+      };
+      const component = getComponent();
+
+      expect(component.text()).toContain('No matching stock');
+      expect(component.text()).toContain(
+        "couldn't find any boards in your stock",
+      );
+      expect(
+        component.find('[data-testid="configure-stock-button"]').exists(),
+      ).toBe(true);
+    });
+
+    it('Should suppress the leftover banner when the empty state is showing', () => {
+      data.value = {
+        layouts: [],
+        leftovers: [makeLeftover('Plywood', 0.018, 1)],
+      };
+      const component = getComponent();
+
+      // Empty-state CTA shows once; the redundant leftover banner does not.
+      expect(component.text()).not.toContain('could not be placed on');
+    });
+
+    it('Should still show the leftover banner when some layouts placed but others did not', () => {
+      data.value = {
+        layouts: [makeLayout('Plywood', 0.018)],
+        leftovers: [makeLeftover('MDF', 0.012, 1)],
+      };
+      const component = getComponent();
+
+      expect(component.text()).toContain(
+        'could not be placed on matching stock',
+      );
     });
 
     it('Should not render the stock filter when only one stock option is present', () => {
@@ -172,6 +245,22 @@ describe('CutlistPreview', () => {
       expect(component.find('[data-testid="stock-filter"]').exists()).toBe(
         true,
       );
+    });
+  });
+
+  describe('Configure stock CTA', () => {
+    it('Should switch to the boards tab when clicked', async () => {
+      data.value = {
+        layouts: [],
+        leftovers: [makeLeftover('Plywood', 0.018, 1)],
+      };
+      const component = getComponent();
+
+      await component
+        .get('[data-testid="configure-stock-button"]')
+        .trigger('click');
+
+      expect(tab.value).toBe('boards');
     });
   });
 
