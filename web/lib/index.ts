@@ -18,16 +18,12 @@ import { Distance } from './utils/units';
 import {
   compareLayoutScores,
   createGuillotinePacker,
-  createShelfPacker,
-  createStripPacker,
   createTightPacker,
   scoreLayouts,
   type GuillotineFitMode,
   type LayoutScore,
   type PackOptions,
   type Packer,
-  type StripGroupingTolerance,
-  type StripOrientation,
 } from './packers';
 
 export * from './types';
@@ -35,7 +31,7 @@ export * from './utils/units';
 
 /** Internal pass category — 'cuts' for guillotine-safe, 'cnc' for unconstrained. */
 type PassCategory = 'cuts' | 'cnc';
-type PackerKind = 'shelf' | 'guillotine' | 'tight' | 'strip';
+type PackerKind = 'guillotine' | 'tight';
 type PartSortMode =
   | 'area-desc'
   | 'long-side-desc'
@@ -50,8 +46,6 @@ interface SearchPassDefinition {
   partSortMode: PartSortMode;
   guillotineFitMode?: GuillotineFitMode;
   randomSeed?: number;
-  stripOrientation?: StripOrientation;
-  stripGroupingTolerance?: StripGroupingTolerance;
 }
 
 interface SearchPassResult {
@@ -61,59 +55,9 @@ interface SearchPassResult {
 }
 
 const SEARCH_PASS_DEFINITIONS: Record<SearchPass, SearchPassDefinition> = {
-  // Strip passes — group parts by dimension, fill strips, stack on sheets
-  'cuts-strip-h-exact': {
-    id: 'cuts-strip-h-exact',
-    optimize: 'cuts',
-    packerKind: 'strip',
-    partSortMode: 'area-desc',
-    stripOrientation: 'horizontal',
-    stripGroupingTolerance: 'exact',
-  },
-  'cuts-strip-h-tolerant': {
-    id: 'cuts-strip-h-tolerant',
-    optimize: 'cuts',
-    packerKind: 'strip',
-    partSortMode: 'area-desc',
-    stripOrientation: 'horizontal',
-    stripGroupingTolerance: 'kerf',
-  },
-  'cuts-strip-v-exact': {
-    id: 'cuts-strip-v-exact',
-    optimize: 'cuts',
-    packerKind: 'strip',
-    partSortMode: 'area-desc',
-    stripOrientation: 'vertical',
-    stripGroupingTolerance: 'exact',
-  },
-  'cuts-strip-v-tolerant': {
-    id: 'cuts-strip-v-tolerant',
-    optimize: 'cuts',
-    packerKind: 'strip',
-    partSortMode: 'area-desc',
-    stripOrientation: 'vertical',
-    stripGroupingTolerance: 'kerf',
-  },
-  // Shelf passes — simple horizontal rows, easiest to hand-cut
-  'cuts-shelf-area': {
-    id: 'cuts-shelf-area',
-    optimize: 'cuts',
-    packerKind: 'shelf',
-    partSortMode: 'area-desc',
-  },
-  'cuts-shelf-long-side': {
-    id: 'cuts-shelf-long-side',
-    optimize: 'cuts',
-    packerKind: 'shelf',
-    partSortMode: 'long-side-desc',
-  },
-  'cuts-shelf-short-side': {
-    id: 'cuts-shelf-short-side',
-    optimize: 'cuts',
-    packerKind: 'shelf',
-    partSortMode: 'short-side-desc',
-  },
-  // Guillotine passes — strictly guillotine-valid, better waste efficiency
+  // Guillotine passes — every cut is edge-to-edge. Both BSSF; differ only
+  // in part sort. BAF/BLSF were dropped after benchmark runs showed no
+  // fixture where they beat BSSF.
   'cuts-guillotine-bssf-area': {
     id: 'cuts-guillotine-bssf-area',
     optimize: 'cuts',
@@ -128,27 +72,6 @@ const SEARCH_PASS_DEFINITIONS: Record<SearchPass, SearchPassDefinition> = {
     partSortMode: 'long-side-desc',
     guillotineFitMode: 'bssf',
   },
-  'cuts-guillotine-baf-area': {
-    id: 'cuts-guillotine-baf-area',
-    optimize: 'cuts',
-    packerKind: 'guillotine',
-    partSortMode: 'area-desc',
-    guillotineFitMode: 'baf',
-  },
-  'cuts-guillotine-baf-long-side': {
-    id: 'cuts-guillotine-baf-long-side',
-    optimize: 'cuts',
-    packerKind: 'guillotine',
-    partSortMode: 'long-side-desc',
-    guillotineFitMode: 'baf',
-  },
-  'cuts-guillotine-blsf-long-side': {
-    id: 'cuts-guillotine-blsf-long-side',
-    optimize: 'cuts',
-    packerKind: 'guillotine',
-    partSortMode: 'long-side-desc',
-    guillotineFitMode: 'blsf',
-  },
   // CNC / tight passes — no cutting constraints
   'cnc-area': {
     id: 'cnc-area',
@@ -162,49 +85,24 @@ const SEARCH_PASS_DEFINITIONS: Record<SearchPass, SearchPassDefinition> = {
     packerKind: 'tight',
     partSortMode: 'perimeter-desc',
   },
-  'cnc-random-a': {
-    id: 'cnc-random-a',
+  'cnc-random': {
+    id: 'cnc-random',
     optimize: 'cnc',
     packerKind: 'tight',
     partSortMode: 'area-random',
     randomSeed: 17,
   },
-  'cnc-random-b': {
-    id: 'cnc-random-b',
-    optimize: 'cnc',
-    packerKind: 'tight',
-    partSortMode: 'area-random',
-    randomSeed: 101,
-  },
-  'cnc-random-c': {
-    id: 'cnc-random-c',
-    optimize: 'cnc',
-    packerKind: 'tight',
-    partSortMode: 'area-random',
-    randomSeed: 2027,
-  },
 };
 
 const DEFAULT_SEARCH_PASSES: SearchPass[] = [
-  // Strip passes — group parts by dimension, best cut sequence
-  'cuts-strip-h-exact',
-  'cuts-strip-h-tolerant',
-  'cuts-strip-v-exact',
-  'cuts-strip-v-tolerant',
-  // Guillotine passes — fallback, may win on waste for irregular mixes
   'cuts-guillotine-bssf-long-side',
   'cuts-guillotine-bssf-area',
-  'cuts-guillotine-baf-area',
-  'cuts-guillotine-baf-long-side',
-  'cuts-guillotine-blsf-long-side',
 ];
 
 const CNC_SEARCH_PASSES: SearchPass[] = [
   'cnc-area',
   'cnc-perimeter',
-  'cnc-random-a',
-  'cnc-random-b',
-  'cnc-random-c',
+  'cnc-random',
 ];
 
 /**
@@ -289,12 +187,6 @@ export const PACKERS: Record<
   PackerKind,
   (pass?: SearchPassDefinition) => Packer<PartToCut>
 > = {
-  strip: (pass?: SearchPassDefinition) =>
-    createStripPacker<PartToCut>({
-      orientation: pass?.stripOrientation ?? 'horizontal',
-      groupingTolerance: pass?.stripGroupingTolerance ?? 'exact',
-    }),
-  shelf: () => createShelfPacker<PartToCut>(),
   guillotine: (pass?: SearchPassDefinition) =>
     createGuillotinePacker<PartToCut>({
       fitMode: pass?.guillotineFitMode ?? 'bssf',

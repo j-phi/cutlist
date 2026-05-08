@@ -8,23 +8,11 @@ const Distance = z.union([z.number(), z.string()]);
 type Distance = z.infer<typeof Distance>;
 
 export const SearchPass = z.union([
-  z.literal('cuts-strip-h-exact'),
-  z.literal('cuts-strip-h-tolerant'),
-  z.literal('cuts-strip-v-exact'),
-  z.literal('cuts-strip-v-tolerant'),
-  z.literal('cuts-shelf-area'),
-  z.literal('cuts-shelf-long-side'),
-  z.literal('cuts-shelf-short-side'),
   z.literal('cuts-guillotine-bssf-area'),
   z.literal('cuts-guillotine-bssf-long-side'),
-  z.literal('cuts-guillotine-baf-area'),
-  z.literal('cuts-guillotine-baf-long-side'),
-  z.literal('cuts-guillotine-blsf-long-side'),
   z.literal('cnc-area'),
   z.literal('cnc-perimeter'),
-  z.literal('cnc-random-a'),
-  z.literal('cnc-random-b'),
-  z.literal('cnc-random-c'),
+  z.literal('cnc-random'),
 ]);
 export type SearchPass = z.infer<typeof SearchPass>;
 
@@ -127,7 +115,7 @@ export const Config = z.object({
   bladeWidth: Distance.default('0.125in'),
   /**
    * The optimization method when laying out the parts on the stock.
-   * - `"auto"`: Run multiple deterministic passes (strip + guillotine) and
+   * - `"auto"`: Run multiple deterministic guillotine passes and
    *   keep the best guillotine-cuttable layout by board count, waste, then
    *   cut complexity. Best for table/circular/track saws.
    * - `"cnc"`: Pack as many parts onto each piece of stock as possible.

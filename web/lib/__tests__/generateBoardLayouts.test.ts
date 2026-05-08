@@ -80,7 +80,7 @@ describe('generateBoardLayouts', () => {
       margin: 0,
       optimize: 'auto',
       maxSearchPasses: 1,
-      searchPasses: ['cnc-area', 'cnc-perimeter', 'cuts-shelf-long-side'],
+      searchPasses: ['cnc-area', 'cnc-perimeter', 'cuts-guillotine-bssf-area'],
       precision: 1e-5,
     });
     const firstPassOnly = generateBoardLayouts(parts, stock, {

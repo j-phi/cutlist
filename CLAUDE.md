@@ -61,13 +61,12 @@ On Model tab open (single model rendered at a time)
 
 The heart of the app. `generateBoardLayouts` runs multiple **search passes** — each pass tries a different algorithm and configuration — then scores and ranks results.
 
-Three packers:
+Two packers:
 
-- **ShelfPacker** — fast, shelf-based baseline
-- **GuillotinePacker** — guillotine-constrained cuts (target user workflow)
-- **TightPacker** — iterative/exact placement for small boards
+- **GuillotinePacker** — recursive guillotine cuts (every cut edge-to-edge); target user workflow for table/track saws. Multi-board lookback consolidates small parts onto earlier boards.
+- **TightPacker** — non-guillotine placement for CNC / jigsaw workflows. Also uses multi-board lookback.
 
-Search passes include shelf variants, guillotine variants (with/without rotation, CNC vs manual cuts), and randomized permutations. The packer returning the fewest boards / least waste wins.
+The pass tournament runs each enabled pass per (material, thickness) stock group; the best score (fewest boards → least waste → tightest concentration) wins per group.
 
 Types: `Part` (web/utils/parseGltf.ts) is the storage/UI type (no material). `PartToCut` (web/lib/types.ts) is the packing engine input (has material). `PartOverride` (web/composables/useIdb/types.ts) holds per-part user edits (grainLock, extensible). Other packing types: `Stock`, `BoardLayout`, `SearchPass` in `web/lib/types.ts`.
 

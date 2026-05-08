@@ -260,31 +260,11 @@ const VARIANTS: Array<{
       runWithPasses(f, [
         'cuts-guillotine-bssf-long-side',
         'cuts-guillotine-bssf-area',
-        'cuts-guillotine-baf-area',
-        'cuts-guillotine-baf-long-side',
-        'cuts-guillotine-blsf-long-side',
       ]),
   },
   {
     label: 'tight-only',
-    run: (f) =>
-      runWithPasses(f, [
-        'cnc-area',
-        'cnc-perimeter',
-        'cnc-random-a',
-        'cnc-random-b',
-        'cnc-random-c',
-      ]),
-  },
-  {
-    label: 'strip-only',
-    run: (f) =>
-      runWithPasses(f, [
-        'cuts-strip-h-exact',
-        'cuts-strip-h-tolerant',
-        'cuts-strip-v-exact',
-        'cuts-strip-v-tolerant',
-      ]),
+    run: (f) => runWithPasses(f, ['cnc-area', 'cnc-perimeter', 'cnc-random']),
   },
 ];
 
