@@ -11,6 +11,7 @@ import DimensionLabel from '~/components/viewer/DimensionLabel.vue';
 import ModelEmptyState from '~/components/viewer/ModelEmptyState.vue';
 import ModelSwitcher from '~/components/viewer/ModelSwitcher.vue';
 import AnnotationToolbar from '~/components/viewer/AnnotationToolbar.vue';
+import ViewerControlsHelp from '~/components/viewer/ViewerControlsHelp.vue';
 import ViewerStatusBar from '~/components/viewer/ViewerStatusBar.vue';
 import ViewerSidePanel from '~/components/viewer/ViewerSidePanel.vue';
 import { useSceneAuthor } from '~/composables/useSceneAuthor';
@@ -402,6 +403,15 @@ watch(
             label="Objects"
             @click="objectsOpen = true"
           />
+        </div>
+
+        <!-- Bottom-right: input-controls help. `?` icon opens a popover
+             with the appropriate legend (mouse vs touch via media query). -->
+        <div
+          v-if="canShowViewerControls"
+          class="absolute bottom-4 right-4 z-10"
+        >
+          <ViewerControlsHelp />
         </div>
 
         <UDrawer
