@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nuxt';
+import type { Algorithm } from 'cutlist';
 import type {
   IdbAnnotation,
   IdbAsset,
@@ -35,7 +36,7 @@ export interface ProjectExport {
     distanceUnit: 'in' | 'mm';
     bladeWidth: number;
     margin: number;
-    optimize: 'Auto' | 'CNC';
+    defaultAlgorithm: Algorithm;
     showPartNumbers: boolean;
     createdAt: string;
     updatedAt: string;
@@ -123,7 +124,7 @@ export async function buildExportData(
       distanceUnit: idbProject.distanceUnit,
       bladeWidth: idbProject.bladeWidth,
       margin: idbProject.margin,
-      optimize: idbProject.optimize,
+      defaultAlgorithm: idbProject.defaultAlgorithm,
       showPartNumbers: idbProject.showPartNumbers,
       createdAt: idbProject.createdAt,
       updatedAt: idbProject.updatedAt,

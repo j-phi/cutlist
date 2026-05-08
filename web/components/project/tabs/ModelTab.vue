@@ -361,6 +361,15 @@ watch(
             @update:camera-mode="(m) => sceneAuthor.setCameraMode(m)"
             @update:floor-visible="(v) => sceneAuthor.setFloorVisible(v)"
           />
+          <UButton
+            size="sm"
+            variant="soft"
+            color="neutral"
+            icon="i-lucide-maximize"
+            :ui="{ base: 'rounded-lg' }"
+            title="Fit to model"
+            @click="sceneAuthor.fitToModel()"
+          />
           <ViewCube
             :camera-direction="viewer.cameraDirection.value"
             @snap="onSnap"

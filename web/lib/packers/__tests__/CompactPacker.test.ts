@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createGuillotinePacker } from '../GuillotinePacker';
+import { createCompactPacker } from '../CompactPacker';
 import type { PackOptions } from '../Packer';
 import { Rectangle } from '../../geometry';
 
@@ -9,9 +9,9 @@ const baseOptions: PackOptions = {
   precision: 0,
 };
 
-describe('Guillotine Packer', () => {
+describe('Compact Packer', () => {
   it('returns no placements for an empty rect list', () => {
-    const packer = createGuillotinePacker<string>();
+    const packer = createCompactPacker<string>();
     const bin = new Rectangle(null, 0, 0, 10, 10);
     expect(packer.pack(bin, [], baseOptions)).toEqual({
       placements: [],
@@ -20,7 +20,7 @@ describe('Guillotine Packer', () => {
   });
 
   it('places a single rect at the bin origin', () => {
-    const packer = createGuillotinePacker<string>();
+    const packer = createCompactPacker<string>();
     const bin = new Rectangle(null, 0, 0, 10, 10);
     const result = packer.pack(
       bin,
@@ -34,7 +34,7 @@ describe('Guillotine Packer', () => {
   });
 
   it('packs four rects into a 10x10 bin without overlap', () => {
-    const packer = createGuillotinePacker<string>();
+    const packer = createCompactPacker<string>();
     const bin = new Rectangle(null, 0, 0, 10, 10);
     const rects = [
       new Rectangle('a', 0, 0, 5, 5),
@@ -63,7 +63,7 @@ describe('Guillotine Packer', () => {
   });
 
   it('rotates rects to fit when allowed', () => {
-    const packer = createGuillotinePacker<string>();
+    const packer = createCompactPacker<string>();
     const bin = new Rectangle(null, 0, 0, 1, 3);
     const result = packer.pack(
       bin,
@@ -81,7 +81,7 @@ describe('Guillotine Packer', () => {
   });
 
   it('returns oversize rects as leftovers', () => {
-    const packer = createGuillotinePacker<string>();
+    const packer = createCompactPacker<string>();
     const bin = new Rectangle(null, 0, 0, 5, 5);
     const result = packer.pack(
       bin,
@@ -93,7 +93,7 @@ describe('Guillotine Packer', () => {
   });
 
   it('respects kerf gap between placements', () => {
-    const packer = createGuillotinePacker<string>();
+    const packer = createCompactPacker<string>();
     const bin = new Rectangle(null, 0, 0, 10, 5);
     // Two 4x5 rects with a kerf of 1 should fit (4 + 1 + 4 = 9 ≤ 10);
     // a third 2x5 would not (would need 4+1+4+1+2 = 12).
@@ -118,7 +118,7 @@ describe('Guillotine Packer', () => {
   it('recovers contiguous free space via rectangle merge', () => {
     // Place a small rect, remove the space it consumed, then verify a much
     // larger rect can still fit by reclaiming the merged residual.
-    const packer = createGuillotinePacker<string>();
+    const packer = createCompactPacker<string>();
     const bin = new Rectangle(null, 0, 0, 10, 10);
 
     // Without merge this scenario could fail: a 1x10 column placed first
@@ -133,11 +133,44 @@ describe('Guillotine Packer', () => {
     expect(result.placements).toHaveLength(2);
   });
 
+  it('exposes per-bin state for multi-board lookback', () => {
+    const packer = createCompactPacker<string>();
+    const bin = new Rectangle(null, 0, 0, 10, 10);
+
+    // Build state via createBinState; place rects via tryPlaceInBinState.
+    // Same algorithm as pack() but state is reusable across calls so the
+    // caller can keep one state per opened board.
+    expect(packer.createBinState).toBeDefined();
+    expect(packer.tryPlaceInBinState).toBeDefined();
+    const state = packer.createBinState!(bin);
+
+    const a = packer.tryPlaceInBinState!(
+      state,
+      new Rectangle('a', 0, 0, 6, 6),
+      baseOptions,
+    );
+    const b = packer.tryPlaceInBinState!(
+      state,
+      new Rectangle('b', 0, 0, 4, 4),
+      baseOptions,
+    );
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    // Once the bin is full of parts whose combined footprint exceeds the
+    // remaining free space, the next call returns null without mutating state.
+    const tooBig = packer.tryPlaceInBinState!(
+      state,
+      new Rectangle('c', 0, 0, 9, 9),
+      baseOptions,
+    );
+    expect(tooBig).toBeNull();
+  });
+
   it('produces strictly guillotine-cuttable layouts (axis-aligned cuts)', () => {
     // Every placement edge that lies inside the bin must extend to another
     // placement edge or a bin edge — i.e., the layout can be reproduced with
     // edge-to-edge cuts.
-    const packer = createGuillotinePacker<string>();
+    const packer = createCompactPacker<string>();
     const bin = new Rectangle(null, 0, 0, 20, 20);
     const result = packer.pack(
       bin,

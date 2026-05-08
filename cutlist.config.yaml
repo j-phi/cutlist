@@ -4,7 +4,12 @@
 bladeWidth: 3
 distanceUnit: mm
 margin: 0
-optimize: CNC
+# Default packing algorithm. One of:
+#   auto    — run all guillotine voices (tidy + compact), score picks
+#   tidy    — two-stage guillotine, columns of similar widths
+#   compact — n-stage guillotine, max yield
+#   cnc     — non-guillotine, max density (CNC routers)
+defaultAlgorithm: auto
 showPartNumbers: true
 
 # Stock presets available in the "Add preset" dropdown.

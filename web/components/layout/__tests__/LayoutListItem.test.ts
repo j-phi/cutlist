@@ -65,6 +65,7 @@ function makeLayout(
     },
     placements,
     marginM: 0,
+    algorithm: 'compact',
   };
 }
 

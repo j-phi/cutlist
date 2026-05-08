@@ -8,7 +8,7 @@ import type { PackOptions, PackResult, Packer } from './Packer';
  * - `baf`  Best Area Fit: minimize leftover area.
  * - `blsf` Best Long Side Fit: minimize the longer leftover side.
  */
-export type GuillotineFitMode = 'bssf' | 'baf' | 'blsf';
+export type CompactFitMode = 'bssf' | 'baf' | 'blsf';
 
 /**
  * Heuristic used to choose the split axis after placing a rectangle.
@@ -18,13 +18,22 @@ export type GuillotineFitMode = 'bssf' | 'baf' | 'blsf';
  * - `min-area` Pick the split that produces the larger contiguous free
  *   rectangle (lower area on the smaller fragment).
  */
-export type GuillotineSplitMode = 'sas' | 'las' | 'min-area';
+export type CompactSplitMode = 'sas' | 'las' | 'min-area';
 
 interface FreeRect {
   left: number;
   bottom: number;
   width: number;
   height: number;
+}
+
+/**
+ * Per-bin state that survives between calls. Exposed to callers via
+ * `createBinState` / `tryPlaceInBinState` so multi-board lookback can keep
+ * one of these per opened board.
+ */
+interface CompactBinState {
+  freeRects: FreeRect[];
 }
 
 interface FitCandidate<T> {
@@ -35,21 +44,19 @@ interface FitCandidate<T> {
 }
 
 /**
- * 2D bin packer using the Guillotine algorithm with explicit free-rectangle
- * tracking, configurable placement + split heuristics, and an optional
- * rectangle-merge pass to recover sliver fragments.
+ * Compact n-stage guillotine bin packer. Tracks free rectangles, picks
+ * placements via `fitMode`, splits remainders via `splitMode`, and (when
+ * `rectMerge` is on) re-fuses adjacent free rects to recover slivers.
  *
- * Layouts produced by this packer are strictly guillotine-cuttable: every
- * placement boundary corresponds to an edge-to-edge cut of the remaining
- * stock, so they're safe for table/circular/track saws.
+ * Layouts are strictly guillotine-cuttable but the cut sequence may zigzag
+ * — pair with `TidyPacker` when shop-floor cut clarity matters.
  *
- * Reference: J. Jylänki, "A Thousand Ways to Pack the Bin", and the rectpack
- * Python library by secnot.
+ * Reference: J. Jylänki, "A Thousand Ways to Pack the Bin"; secnot/rectpack.
  */
-export function createGuillotinePacker<T>(
+export function createCompactPacker<T>(
   config: {
-    fitMode?: GuillotineFitMode;
-    splitMode?: GuillotineSplitMode;
+    fitMode?: CompactFitMode;
+    splitMode?: CompactSplitMode;
     rectMerge?: boolean;
   } = {},
 ): Packer<T> {
@@ -57,42 +64,48 @@ export function createGuillotinePacker<T>(
   const splitMode = config.splitMode ?? 'sas';
   const rectMerge = config.rectMerge ?? true;
 
+  function placeRect(
+    state: CompactBinState,
+    rect: Rectangle<T>,
+    options: PackOptions<T>,
+  ): Rectangle<T> | null {
+    const candidate = pickBestPlacement(
+      rect,
+      state.freeRects,
+      options,
+      fitMode,
+    );
+    if (!candidate) return null;
+
+    const free = state.freeRects[candidate.freeIndex];
+    const placement = candidate.rect.clone({
+      left: free.left,
+      bottom: free.bottom,
+    });
+
+    // Split the chosen free rect into two new free rects (with kerf applied
+    // between the placement and each remaining strip). The remaining free
+    // rects are non-overlapping by construction, so no additional pruning is
+    // required.
+    const splits = splitFreeRect(free, placement, options, splitMode);
+    state.freeRects.splice(candidate.freeIndex, 1, ...splits);
+
+    if (rectMerge) {
+      mergeFreeRects(state.freeRects, options.precision);
+    }
+
+    return placement;
+  }
+
   return {
     pack(bin, rects, options) {
       const res: PackResult<T> = { placements: [], leftovers: [] };
-      const freeRects: FreeRect[] = [
-        {
-          left: bin.left,
-          bottom: bin.bottom,
-          width: bin.width,
-          height: bin.height,
-        },
-      ];
+      const state = createInitialState(bin);
 
       for (const rect of rects) {
-        const candidate = pickBestPlacement(rect, freeRects, options, fitMode);
-        if (!candidate) {
-          res.leftovers.push(rect.data);
-          continue;
-        }
-
-        const free = freeRects[candidate.freeIndex];
-        const placement = candidate.rect.clone({
-          left: free.left,
-          bottom: free.bottom,
-        });
-        res.placements.push(placement);
-
-        // Split the chosen free rect into two new free rects (with kerf
-        // applied between the placement and each remaining strip). The
-        // remaining free rects are non-overlapping by construction, so no
-        // additional pruning is required.
-        const splits = splitFreeRect(free, placement, options, splitMode);
-        freeRects.splice(candidate.freeIndex, 1, ...splits);
-
-        if (rectMerge) {
-          mergeFreeRects(freeRects, options.precision);
-        }
+        const placement = placeRect(state, rect, options);
+        if (placement) res.placements.push(placement);
+        else res.leftovers.push(rect.data);
       }
 
       return res;
@@ -100,6 +113,25 @@ export function createGuillotinePacker<T>(
     addToPack() {
       throw Error('Not supported');
     },
+    createBinState(bin) {
+      return createInitialState(bin);
+    },
+    tryPlaceInBinState(state, rect, options) {
+      return placeRect(state as CompactBinState, rect, options);
+    },
+  };
+}
+
+function createInitialState(bin: Rectangle<unknown>): CompactBinState {
+  return {
+    freeRects: [
+      {
+        left: bin.left,
+        bottom: bin.bottom,
+        width: bin.width,
+        height: bin.height,
+      },
+    ],
   };
 }
 
@@ -107,7 +139,7 @@ function pickBestPlacement<T>(
   rect: Rectangle<T>,
   freeRects: FreeRect[],
   options: PackOptions<T>,
-  fitMode: GuillotineFitMode,
+  fitMode: CompactFitMode,
 ): FitCandidate<T> | undefined {
   let best: FitCandidate<T> | undefined;
 
@@ -148,7 +180,7 @@ function pickBestPlacement<T>(
 }
 
 function scoreFit<T>(
-  mode: GuillotineFitMode,
+  mode: CompactFitMode,
   leftoverW: number,
   leftoverH: number,
   rect: Rectangle<T>,
@@ -166,7 +198,7 @@ function splitFreeRect<T>(
   free: FreeRect,
   placement: Rectangle<T>,
   options: PackOptions<T>,
-  splitMode: GuillotineSplitMode,
+  splitMode: CompactSplitMode,
 ): FreeRect[] {
   const leftoverW = free.width - placement.width;
   const leftoverH = free.height - placement.height;
@@ -232,7 +264,7 @@ function splitFreeRect<T>(
 }
 
 function chooseSplitAxis<T>(
-  mode: GuillotineSplitMode,
+  mode: CompactSplitMode,
   leftoverW: number,
   leftoverH: number,
   placement: Rectangle<T>,

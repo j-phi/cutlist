@@ -1,4 +1,5 @@
 import {
+  type Algorithm,
   type PartToCut,
   type Stock,
   type StockMatrix,
@@ -17,25 +18,21 @@ import { isValidStock } from './utils/stock-utils';
 import { Distance } from './utils/units';
 import {
   compareLayoutScores,
-  createGuillotinePacker,
-  createShelfPacker,
-  createStripPacker,
+  createCompactPacker,
+  createTidyPacker,
   createTightPacker,
   scoreLayouts,
-  type GuillotineFitMode,
+  type CompactFitMode,
   type LayoutScore,
   type PackOptions,
   type Packer,
-  type StripGroupingTolerance,
-  type StripOrientation,
+  type TidyAxis,
 } from './packers';
 
 export * from './types';
 export * from './utils/units';
 
-/** Internal pass category — 'cuts' for guillotine-safe, 'cnc' for unconstrained. */
-type PassCategory = 'cuts' | 'cnc';
-type PackerKind = 'shelf' | 'guillotine' | 'tight' | 'strip';
+type PackerKind = 'tidy' | 'compact' | 'tight';
 type PartSortMode =
   | 'area-desc'
   | 'long-side-desc'
@@ -45,13 +42,14 @@ type PartSortMode =
 
 interface SearchPassDefinition {
   id: SearchPass;
-  optimize: PassCategory;
   packerKind: PackerKind;
   partSortMode: PartSortMode;
-  guillotineFitMode?: GuillotineFitMode;
+  /** Set when `packerKind === 'tidy'` to pick the rip axis. */
+  tidyAxis?: TidyAxis;
+  /** Set when `packerKind === 'compact'` to pick the fit heuristic. */
+  compactFitMode?: CompactFitMode;
+  /** Optional seed for randomised sort variants. */
   randomSeed?: number;
-  stripOrientation?: StripOrientation;
-  stripGroupingTolerance?: StripGroupingTolerance;
 }
 
 interface SearchPassResult {
@@ -61,172 +59,97 @@ interface SearchPassResult {
 }
 
 const SEARCH_PASS_DEFINITIONS: Record<SearchPass, SearchPassDefinition> = {
-  // Strip passes — group parts by dimension, fill strips, stack on sheets
-  'cuts-strip-h-exact': {
-    id: 'cuts-strip-h-exact',
-    optimize: 'cuts',
-    packerKind: 'strip',
-    partSortMode: 'area-desc',
-    stripOrientation: 'horizontal',
-    stripGroupingTolerance: 'exact',
-  },
-  'cuts-strip-h-tolerant': {
-    id: 'cuts-strip-h-tolerant',
-    optimize: 'cuts',
-    packerKind: 'strip',
-    partSortMode: 'area-desc',
-    stripOrientation: 'horizontal',
-    stripGroupingTolerance: 'kerf',
-  },
-  'cuts-strip-v-exact': {
-    id: 'cuts-strip-v-exact',
-    optimize: 'cuts',
-    packerKind: 'strip',
-    partSortMode: 'area-desc',
-    stripOrientation: 'vertical',
-    stripGroupingTolerance: 'exact',
-  },
-  'cuts-strip-v-tolerant': {
-    id: 'cuts-strip-v-tolerant',
-    optimize: 'cuts',
-    packerKind: 'strip',
-    partSortMode: 'area-desc',
-    stripOrientation: 'vertical',
-    stripGroupingTolerance: 'kerf',
-  },
-  // Shelf passes — simple horizontal rows, easiest to hand-cut
-  'cuts-shelf-area': {
-    id: 'cuts-shelf-area',
-    optimize: 'cuts',
-    packerKind: 'shelf',
-    partSortMode: 'area-desc',
-  },
-  'cuts-shelf-long-side': {
-    id: 'cuts-shelf-long-side',
-    optimize: 'cuts',
-    packerKind: 'shelf',
+  // Tidy passes — two-stage guillotine. Strips are columns of similar
+  // widths; cleanest cut sequence on a table saw / track saw.
+  'tidy-rip-long-side': {
+    id: 'tidy-rip-long-side',
+    packerKind: 'tidy',
     partSortMode: 'long-side-desc',
+    tidyAxis: 'rip-first',
   },
-  'cuts-shelf-short-side': {
-    id: 'cuts-shelf-short-side',
-    optimize: 'cuts',
-    packerKind: 'shelf',
-    partSortMode: 'short-side-desc',
-  },
-  // Guillotine passes — strictly guillotine-valid, better waste efficiency
-  'cuts-guillotine-bssf-area': {
-    id: 'cuts-guillotine-bssf-area',
-    optimize: 'cuts',
-    packerKind: 'guillotine',
+  'tidy-rip-area': {
+    id: 'tidy-rip-area',
+    packerKind: 'tidy',
     partSortMode: 'area-desc',
-    guillotineFitMode: 'bssf',
+    tidyAxis: 'rip-first',
   },
-  'cuts-guillotine-bssf-long-side': {
-    id: 'cuts-guillotine-bssf-long-side',
-    optimize: 'cuts',
-    packerKind: 'guillotine',
+  'tidy-crosscut-long-side': {
+    id: 'tidy-crosscut-long-side',
+    packerKind: 'tidy',
     partSortMode: 'long-side-desc',
-    guillotineFitMode: 'bssf',
+    tidyAxis: 'crosscut-first',
   },
-  'cuts-guillotine-baf-area': {
-    id: 'cuts-guillotine-baf-area',
-    optimize: 'cuts',
-    packerKind: 'guillotine',
+  // Compact passes — free-rect n-stage guillotine. Tighter yield, zigzag
+  // cut sequence. BAF/BLSF were dropped after benchmark runs showed no
+  // fixture where they beat BSSF.
+  'compact-bssf-area': {
+    id: 'compact-bssf-area',
+    packerKind: 'compact',
     partSortMode: 'area-desc',
-    guillotineFitMode: 'baf',
+    compactFitMode: 'bssf',
   },
-  'cuts-guillotine-baf-long-side': {
-    id: 'cuts-guillotine-baf-long-side',
-    optimize: 'cuts',
-    packerKind: 'guillotine',
+  'compact-bssf-long-side': {
+    id: 'compact-bssf-long-side',
+    packerKind: 'compact',
     partSortMode: 'long-side-desc',
-    guillotineFitMode: 'baf',
-  },
-  'cuts-guillotine-blsf-long-side': {
-    id: 'cuts-guillotine-blsf-long-side',
-    optimize: 'cuts',
-    packerKind: 'guillotine',
-    partSortMode: 'long-side-desc',
-    guillotineFitMode: 'blsf',
+    compactFitMode: 'bssf',
   },
   // CNC / tight passes — no cutting constraints
   'cnc-area': {
     id: 'cnc-area',
-    optimize: 'cnc',
     packerKind: 'tight',
     partSortMode: 'area-desc',
   },
   'cnc-perimeter': {
     id: 'cnc-perimeter',
-    optimize: 'cnc',
     packerKind: 'tight',
     partSortMode: 'perimeter-desc',
   },
-  'cnc-random-a': {
-    id: 'cnc-random-a',
-    optimize: 'cnc',
+  'cnc-random': {
+    id: 'cnc-random',
     packerKind: 'tight',
     partSortMode: 'area-random',
     randomSeed: 17,
   },
-  'cnc-random-b': {
-    id: 'cnc-random-b',
-    optimize: 'cnc',
-    packerKind: 'tight',
-    partSortMode: 'area-random',
-    randomSeed: 101,
-  },
-  'cnc-random-c': {
-    id: 'cnc-random-c',
-    optimize: 'cnc',
-    packerKind: 'tight',
-    partSortMode: 'area-random',
-    randomSeed: 2027,
-  },
 };
 
-const DEFAULT_SEARCH_PASSES: SearchPass[] = [
-  // Strip passes — group parts by dimension, best cut sequence
-  'cuts-strip-h-exact',
-  'cuts-strip-h-tolerant',
-  'cuts-strip-v-exact',
-  'cuts-strip-v-tolerant',
-  // Guillotine passes — fallback, may win on waste for irregular mixes
-  'cuts-guillotine-bssf-long-side',
-  'cuts-guillotine-bssf-area',
-  'cuts-guillotine-baf-area',
-  'cuts-guillotine-baf-long-side',
-  'cuts-guillotine-blsf-long-side',
+const TIDY_SEARCH_PASSES: SearchPass[] = [
+  'tidy-rip-long-side',
+  'tidy-rip-area',
+  'tidy-crosscut-long-side',
+];
+
+const COMPACT_SEARCH_PASSES: SearchPass[] = [
+  'compact-bssf-long-side',
+  'compact-bssf-area',
 ];
 
 const CNC_SEARCH_PASSES: SearchPass[] = [
   'cnc-area',
   'cnc-perimeter',
-  'cnc-random-a',
-  'cnc-random-b',
-  'cnc-random-c',
+  'cnc-random',
 ];
 
+/** Auto runs all guillotine voices; the score picks per material. */
+const AUTO_SEARCH_PASSES: SearchPass[] = [
+  ...TIDY_SEARCH_PASSES,
+  ...COMPACT_SEARCH_PASSES,
+];
+
+const PACKER_KIND_TO_ALGORITHM: Record<
+  PackerKind,
+  Exclude<Algorithm, 'auto'>
+> = {
+  tidy: 'tidy',
+  compact: 'compact',
+  tight: 'cnc',
+};
+
 /**
- * Given a list of parts, stock, and some configuration, return the board
- * layouts (where each part goes on stock) and all the leftover parts that
- * couldn't be placed.
- *
- * General order of operations:
- * 1. Load parts that need to be placed
- * 2. Fill stock with parts until no more parts can be placed
- * 3. Try and reduce the size of final boards to minimize material usage
- *
- * The second step, filling the stock, is not simple. There's a few
- * implementations:
- * - Optimize for cnc - A greedy algorithm that packs parts as tightly as
- *   possible. Layouts may require non-guillotine cuts (plunge/jigsaw), so this
- *   is best for CNC routers and other tools that can cut anywhere on a sheet.
- * - Optimize for cuts - A variant of the [Guillotine cutting algorithm](https://en.wikipedia.org/wiki/Guillotine_cutting)
- *   that generates strictly edge-to-edge part placements that are easy to cut
- *   out with a table/circular/track saw.
- * - Optimize for auto - Run multiple deterministic passes and keep the best
- *   score by board count, then waste, then cut complexity.
+ * Pack `parts` onto `stock`. Parts are grouped by (material, thickness),
+ * each group runs the tournament for its `Algorithm` (per-stock override
+ * → per-material default → `config.defaultAlgorithm`), and the best layout
+ * wins by board count → waste → waste concentration → cut complexity.
  */
 export function generateBoardLayouts(
   parts: PartToCut[],
@@ -243,12 +166,7 @@ export function generateBoardLayouts(
   );
   if (boards.length === 0) throw Error('You must include at least 1 stock.');
 
-  const searchResult = runMultiPassSearch(
-    normalizedConfig,
-    parts,
-    boards,
-    getPassesForMode(normalizedConfig.optimize),
-  );
+  const searchResult = runMultiPassSearch(normalizedConfig, parts, boards);
 
   const marginM = new Distance(normalizedConfig.margin).m;
   return {
@@ -260,8 +178,8 @@ export function generateBoardLayouts(
 }
 
 /**
- * Convert a dimension to meters. String dimensions carry their own unit;
- * plain numbers use the material's `unit` field.
+ * Convert a dimension to meters. String dimensions carry their own unit
+ * (`"18mm"`); plain numbers use the material's `unit` field.
  */
 function dimToMeters(dim: number | string, unit: 'mm' | 'in'): number {
   if (typeof dim === 'string') return new Distance(dim).m;
@@ -269,17 +187,22 @@ function dimToMeters(dim: number | string, unit: 'mm' | 'in'): number {
 }
 
 /**
- * Given a stock matrix, reduce it down to the individual boards available.
+ * Expand a stock matrix into individual boards. Per-(material, thickness)
+ * `algorithm` overrides (`thicknessAlgorithms[key]`) flow through to each
+ * board's `Stock.algorithm`; the engine falls back to
+ * `Config.defaultAlgorithm` when unset.
  */
 export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
   return matrix.flatMap((item) => {
     const unit = item.unit ?? 'mm';
     return item.sizes.flatMap((size) =>
       size.thickness.map((thickness) => ({
-        ...item,
+        material: item.material,
         thickness: dimToMeters(thickness, unit),
         width: dimToMeters(size.width, unit),
         length: dimToMeters(size.length, unit),
+        color: item.color,
+        algorithm: item.thicknessAlgorithms?.[String(thickness)],
       })),
     );
   });
@@ -289,45 +212,49 @@ export const PACKERS: Record<
   PackerKind,
   (pass?: SearchPassDefinition) => Packer<PartToCut>
 > = {
-  strip: (pass?: SearchPassDefinition) =>
-    createStripPacker<PartToCut>({
-      orientation: pass?.stripOrientation ?? 'horizontal',
-      groupingTolerance: pass?.stripGroupingTolerance ?? 'exact',
+  tidy: (pass?: SearchPassDefinition) =>
+    createTidyPacker<PartToCut>({
+      axis: pass?.tidyAxis ?? 'rip-first',
     }),
-  shelf: () => createShelfPacker<PartToCut>(),
-  guillotine: (pass?: SearchPassDefinition) =>
-    createGuillotinePacker<PartToCut>({
-      fitMode: pass?.guillotineFitMode ?? 'bssf',
+  compact: (pass?: SearchPassDefinition) =>
+    createCompactPacker<PartToCut>({
+      fitMode: pass?.compactFitMode ?? 'bssf',
       splitMode: 'sas',
       rectMerge: true,
     }),
   tight: () => createTightPacker<PartToCut>(),
 };
 
-function getPassesForMode(optimize: Config['optimize']): SearchPass[] {
-  if (optimize === 'cnc') return CNC_SEARCH_PASSES;
-  return DEFAULT_SEARCH_PASSES;
+export function getPassesForAlgorithm(alg: Algorithm): SearchPass[] {
+  if (alg === 'tidy') return TIDY_SEARCH_PASSES;
+  if (alg === 'compact') return COMPACT_SEARCH_PASSES;
+  if (alg === 'cnc') return CNC_SEARCH_PASSES;
+  return AUTO_SEARCH_PASSES;
 }
 
 function runMultiPassSearch(
   config: Config,
   parts: PartToCut[],
   stock: Stock[],
-  defaultPasses?: SearchPass[],
 ): SearchPassResult {
-  const passOrder =
-    config.searchPasses == null || config.searchPasses.length === 0
-      ? (defaultPasses ?? DEFAULT_SEARCH_PASSES)
-      : config.searchPasses;
+  // Tests / programmatic callers can pin an exact pass list. Otherwise
+  // each group's `Algorithm` picks its tournament.
+  const passOverride = config.searchPasses?.length ? config.searchPasses : null;
 
-  // Run the tournament per stock group (material + thickness) so that changing
-  // one group's constraints (e.g. grain lock) can't cause a different search
-  // pass to win globally and alter layouts for unrelated groups.
+  // Per-group tournament — changing one group's constraints (e.g. grain
+  // lock) can't bleed into unrelated groups' winning passes.
   const groups = groupPartsByStock(parts, stock, config.precision);
   const allLayouts: PotentialBoardLayout[] = [];
   const allLeftovers: PartToCut[] = [];
 
   for (const group of groups) {
+    // First defined algorithm wins, regardless of area-sort position. Picking
+    // `group.stock[0]` directly would let an undefined entry override a
+    // defined one when two `StockMatrix` rows share material+thickness.
+    const algorithm =
+      group.stock.find((s) => s.algorithm != null)?.algorithm ??
+      config.defaultAlgorithm;
+    const passOrder = passOverride ?? getPassesForAlgorithm(algorithm);
     let best: SearchPassResult | undefined;
 
     const passLimit =
@@ -367,12 +294,20 @@ function runSearchPass(
 ): SearchPassResult {
   const packer = PACKERS[pass.packerKind](pass);
   const packerOptions = getPackerOptions(config);
+  const algorithm = PACKER_KIND_TO_ALGORITHM[pass.packerKind];
 
-  const { layouts, leftovers } = placeAllParts(config, parts, stock, packer, {
-    partSortMode: pass.partSortMode,
-    randomSeed: pass.randomSeed,
-    packerOptions,
-  });
+  const { layouts, leftovers } = placeAllParts(
+    config,
+    parts,
+    stock,
+    packer,
+    algorithm,
+    {
+      partSortMode: pass.partSortMode,
+      randomSeed: pass.randomSeed,
+      packerOptions,
+    },
+  );
   const minimizedLayouts = layouts.map((layout) =>
     minimizeLayoutStock(config, layout, stock, packer, packerOptions),
   );
@@ -396,78 +331,134 @@ function isBetterSearchResult(
   return compareLayoutScores(candidate.score, best.score, precision) < 0;
 }
 
+type PlaceOptions = {
+  partSortMode: PartSortMode;
+  randomSeed?: number;
+  packerOptions: PackOptions<PartToCut>;
+};
+
 function placeAllParts(
   config: Config,
   parts: PartToCut[],
   stock: Stock[],
   packer: Packer<PartToCut>,
-  options: {
-    partSortMode: PartSortMode;
-    randomSeed?: number;
-    packerOptions: PackOptions<PartToCut>;
-  },
+  algorithm: Exclude<Algorithm, 'auto'>,
+  options: PlaceOptions,
+): { layouts: PotentialBoardLayout[]; leftovers: PartToCut[] } {
+  // Multi-board lookback eliminates "sparse last board" — small parts that
+  // were sorted to the end could have fit in earlier-opened gaps. Required
+  // for every active packer; the hooks are optional on the `Packer`
+  // interface so a future hookless packer can still type-check, but it
+  // would error here at runtime rather than silently fall through.
+  if (
+    typeof packer.createBinState !== 'function' ||
+    typeof packer.tryPlaceInBinState !== 'function'
+  ) {
+    throw Error(
+      'Packer must expose createBinState/tryPlaceInBinState for lookback',
+    );
+  }
+  return placeAllPartsWithLookback(
+    config,
+    parts,
+    stock,
+    packer,
+    algorithm,
+    options,
+  );
+}
+
+interface OpenBoard {
+  stock: Stock;
+  binState: unknown;
+  placements: Rectangle<PartToCut>[];
+}
+
+function placeAllPartsWithLookback(
+  config: Config,
+  parts: PartToCut[],
+  stock: Stock[],
+  packer: Packer<PartToCut>,
+  algorithm: Exclude<Algorithm, 'auto'>,
+  options: PlaceOptions,
 ): { layouts: PotentialBoardLayout[]; leftovers: PartToCut[] } {
   const margin = new Distance(config.margin).m;
   const { packerOptions } = options;
-  const unplacedParts = new Set(
-    sortPartsForPlacement(
-      parts,
-      config.precision,
-      options.partSortMode,
-      options.randomSeed,
-    ),
+  const sortedParts = sortPartsForPlacement(
+    parts,
+    config.precision,
+    options.partSortMode,
+    options.randomSeed,
   );
   const leftovers: PartToCut[] = [];
-  const layouts: PotentialBoardLayout[] = [];
+  const openBoards: OpenBoard[] = [];
 
-  while (unplacedParts.size > 0) {
-    const unplacedPartsArray = [...unplacedParts];
-    const targetPart = unplacedPartsArray[0];
+  // Hook presence is what dispatched here; non-null assertion is safe.
+  const createBinState = packer.createBinState!;
+  const tryPlaceInBinState = packer.tryPlaceInBinState!;
 
-    const board = stock.find((board) =>
-      isValidStock(board, targetPart, config.precision),
-    );
-    if (board == null) {
-      unplacedParts.delete(targetPart);
-      leftovers.push(targetPart);
+  for (const part of sortedParts) {
+    const partRect = makePartRect(part);
+
+    // Try every already-opened board first.
+    let placed = false;
+    for (const board of openBoards) {
+      if (!isValidStock(board.stock, part, config.precision)) continue;
+      const placement = tryPlaceInBinState(
+        board.binState,
+        partRect,
+        packerOptions,
+      );
+      if (placement) {
+        board.placements.push(placement);
+        placed = true;
+        break;
+      }
+    }
+    if (placed) continue;
+
+    const board = stock.find((s) => isValidStock(s, part, config.precision));
+    if (!board) {
+      leftovers.push(part);
       continue;
     }
-
-    const layout: PotentialBoardLayout = { placements: [], stock: board };
-    const boardRect = new Rectangle(
-      board,
-      margin,
-      margin,
-      board.width - 2 * margin,
-      board.length - 2 * margin,
-    );
-
-    const partsToPlace = unplacedPartsArray
-      .filter((part) => isValidStock(board, part, config.precision))
-      .map((part) => {
-        // grainLock='width': pre-rotate so part.width is on Y-axis (with grain)
-        if (part.grainLock === 'width') {
-          return new Rectangle(part, 0, 0, part.size.length, part.size.width);
-        }
-        return new Rectangle(part, 0, 0, part.size.width, part.size.length);
-      });
-
-    const res = packer.pack(boardRect, partsToPlace, packerOptions);
-    if (res.placements.length > 0) {
-      layouts.push(layout);
-      res.placements.forEach((placement) => {
-        layout.placements.push(placement);
-        unplacedParts.delete(placement.data);
-      });
-    } else {
-      res.leftovers.forEach((part) => {
-        leftovers.push(part);
-        unplacedParts.delete(part);
-      });
+    const binState = createBinState(makeBoardRect(board, margin));
+    const placement = tryPlaceInBinState(binState, partRect, packerOptions);
+    if (!placement) {
+      // isValidStock claims it fits; if the packer rejects on a fresh
+      // board the part is genuinely unplaceable.
+      leftovers.push(part);
+      continue;
     }
+    openBoards.push({ stock: board, binState, placements: [placement] });
   }
 
-  return { layouts, leftovers };
+  return {
+    layouts: openBoards.map((b) => ({
+      stock: b.stock,
+      placements: b.placements,
+      algorithm,
+    })),
+    leftovers,
+  };
+}
+
+function makeBoardRect(board: Stock, margin: number): Rectangle<Stock> {
+  return new Rectangle(
+    board,
+    margin,
+    margin,
+    board.width - 2 * margin,
+    board.length - 2 * margin,
+  );
+}
+
+function makePartRect(part: PartToCut): Rectangle<PartToCut> {
+  // grainLock='width': pre-rotate so part.width is on Y-axis (with grain).
+  if (part.grainLock === 'width') {
+    return new Rectangle(part, 0, 0, part.size.length, part.size.width);
+  }
+  return new Rectangle(part, 0, 0, part.size.width, part.size.length);
 }
 
 function sortPartsForPlacement(
@@ -578,17 +569,15 @@ function minimizeLayoutStock(
     .toSorted((a, b) => a.width * a.length - b.width * b.length);
 
   for (const smallerStock of altStock) {
-    const bin = new Rectangle(
-      smallerStock,
-      margin,
-      margin,
-      smallerStock.width - 2 * margin,
-      smallerStock.length - 2 * margin,
-    );
+    const bin = makeBoardRect(smallerStock, margin);
     const res = packer.pack(bin, [...originalLayout.placements], packerOptions);
 
     if (res.leftovers.length === 0)
-      return { stock: smallerStock, placements: res.placements };
+      return {
+        stock: smallerStock,
+        placements: res.placements,
+        algorithm: originalLayout.algorithm,
+      };
   }
 
   return originalLayout;
@@ -675,6 +664,7 @@ function serializeBoardLayoutRectangles(
       color: layout.stock.color,
     },
     marginM,
+    algorithm: layout.algorithm,
   };
 }
 

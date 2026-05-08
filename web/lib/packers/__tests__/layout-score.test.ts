@@ -44,6 +44,7 @@ function createLayout(
         placement.height,
       );
     }),
+    algorithm: 'compact',
   };
 }
 
@@ -52,11 +53,15 @@ describe('layout score', () => {
     expect(scoreLayouts([], 1e-5)).toEqual({
       boardsUsed: 0,
       wasteArea: 0,
+      wasteConcentration: 0,
       cutComplexity: 0,
     });
   });
 
   it('Should calculate waste area and cut complexity for a simple board', () => {
+    // Two parts side-by-side along x. Unique X edges = 3 (0, 5, 10);
+    // unique Y edges = 2 (0, 10). Y is the strip axis (fewer edges) so
+    // it carries the rip-cut weight: 2*10 + 3 = 23.
     const score = scoreLayouts(
       [
         createLayout(stock10x10, [
@@ -70,7 +75,8 @@ describe('layout score', () => {
     expect(score).toEqual({
       boardsUsed: 1,
       wasteArea: 0,
-      cutComplexity: 5,
+      wasteConcentration: 0,
+      cutComplexity: 23,
     });
   });
 
@@ -78,12 +84,48 @@ describe('layout score', () => {
     const score = {
       boardsUsed: 1,
       wasteArea: 0.000001,
+      wasteConcentration: 0,
       cutComplexity: 4,
     };
 
     expect(compareLayoutScores(score, { ...score, wasteArea: 0 }, 1e-5)).toBe(
       0,
     );
+  });
+
+  it('prefers uniform waste over lopsided waste when total waste ties', () => {
+    // Both layouts: 2 boards (each 100 units of board area), 50 units of total
+    // waste. Lopsided puts all 50 waste on one barely-used board; uniform
+    // splits 25 + 25.
+    const lopsided = scoreLayouts(
+      [
+        createLayout(stock10x10, [
+          { left: 0, bottom: 0, width: 10, height: 10 }, // 100 used → 0 waste
+        ]),
+        createLayout(stock10x10, [
+          { left: 0, bottom: 0, width: 5, height: 10 }, // 50 used → 50 waste
+        ]),
+      ],
+      1e-5,
+    );
+    const uniform = scoreLayouts(
+      [
+        createLayout(stock10x10, [
+          { left: 0, bottom: 0, width: 5, height: 5 },
+          { left: 5, bottom: 0, width: 5, height: 10 }, // 75 used → 25 waste
+        ]),
+        createLayout(stock10x10, [
+          { left: 0, bottom: 0, width: 5, height: 5 },
+          { left: 5, bottom: 0, width: 5, height: 10 }, // 75 used → 25 waste
+        ]),
+      ],
+      1e-5,
+    );
+    expect(uniform.wasteArea).toBeCloseTo(lopsided.wasteArea);
+    expect(uniform.wasteConcentration).toBeLessThan(
+      lopsided.wasteConcentration,
+    );
+    expect(compareLayoutScores(uniform, lopsided, 1e-5)).toBeLessThan(0);
   });
 
   it('prefers fewer boards even when waste is higher', () => {

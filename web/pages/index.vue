@@ -518,7 +518,8 @@ const importGuides = [
                   </p>
                   <p class="text-sm text-muted mt-0.5">
                     Multiple packing strategies compete &mdash; the layout with
-                    the fewest boards and least waste wins automatically.
+                    the fewest boards, least waste, and cleanest cut sequence
+                    wins automatically.
                   </p>
                 </div>
               </div>
@@ -529,10 +530,13 @@ const importGuides = [
                   class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
                 />
                 <div>
-                  <p class="text-body font-medium text-hi">Real-world cuts</p>
+                  <p class="text-body font-medium text-hi">
+                    Pick your cut style
+                  </p>
                   <p class="text-sm text-muted mt-0.5">
-                    Edge-to-edge cuts you can actually make with a track saw or
-                    panel saw. No CNC required.
+                    Tidy column-aligned strips for table saws, Compact for
+                    tighter yield, or CNC for routers. Set a project default and
+                    override per material.
                   </p>
                 </div>
               </div>

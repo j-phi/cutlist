@@ -121,7 +121,7 @@ describe('generateBoardLayouts large fixture smoke tests', () => {
     const result = generateBoardLayouts(parts, stock, {
       bladeWidth: '3.175mm',
       margin: '0mm',
-      optimize: 'auto',
+      defaultAlgorithm: 'auto',
       precision: 1e-5,
     });
 
@@ -135,7 +135,7 @@ describe('generateBoardLayouts large fixture smoke tests', () => {
     const result = generateBoardLayouts(parts, stock, {
       bladeWidth: '3.175mm',
       margin: '0mm',
-      optimize: 'cnc',
+      defaultAlgorithm: 'cnc',
       precision: 1e-5,
     });
 

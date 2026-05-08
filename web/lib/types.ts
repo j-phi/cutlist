@@ -7,24 +7,30 @@ import type { Rectangle } from './geometry';
 const Distance = z.union([z.number(), z.string()]);
 type Distance = z.infer<typeof Distance>;
 
+/**
+ * Per-material packing algorithm choice.
+ * - `auto`: Run all guillotine variants (Tidy + Compact passes), score picks.
+ * - `tidy`: Two-stage guillotine (rip-first / crosscut-first). Aligns
+ *   parts of similar widths into columns. Easiest to cut on a table saw.
+ * - `compact`: Free-rect n-stage guillotine. Maximum yield within a
+ *   guillotine constraint, at the cost of a zigzag cut sequence.
+ * - `cnc`: Non-guillotine bottom-left. Maximum yield, requires a CNC router.
+ */
+export const Algorithm = z.enum(['auto', 'tidy', 'compact', 'cnc']);
+export type Algorithm = z.infer<typeof Algorithm>;
+
 export const SearchPass = z.union([
-  z.literal('cuts-strip-h-exact'),
-  z.literal('cuts-strip-h-tolerant'),
-  z.literal('cuts-strip-v-exact'),
-  z.literal('cuts-strip-v-tolerant'),
-  z.literal('cuts-shelf-area'),
-  z.literal('cuts-shelf-long-side'),
-  z.literal('cuts-shelf-short-side'),
-  z.literal('cuts-guillotine-bssf-area'),
-  z.literal('cuts-guillotine-bssf-long-side'),
-  z.literal('cuts-guillotine-baf-area'),
-  z.literal('cuts-guillotine-baf-long-side'),
-  z.literal('cuts-guillotine-blsf-long-side'),
+  // Tidy passes — two-stage guillotine, column-aligned strips.
+  z.literal('tidy-rip-long-side'),
+  z.literal('tidy-rip-area'),
+  z.literal('tidy-crosscut-long-side'),
+  // Compact passes — free-rect n-stage guillotine.
+  z.literal('compact-bssf-area'),
+  z.literal('compact-bssf-long-side'),
+  // Tight (CNC) passes — non-guillotine, max density.
   z.literal('cnc-area'),
   z.literal('cnc-perimeter'),
-  z.literal('cnc-random-a'),
-  z.literal('cnc-random-b'),
-  z.literal('cnc-random-c'),
+  z.literal('cnc-random'),
 ]);
 export type SearchPass = z.infer<typeof SearchPass>;
 
@@ -32,24 +38,21 @@ export type SearchPass = z.infer<typeof SearchPass>;
  * Contains the material and dimensions for a single panel or board.
  */
 export interface Stock {
-  /**
-   * The material name, matching what is set in Onshape.
-   */
+  /** The material name, matching what is set in Onshape. */
   material: string;
-  /**
-   * In meters
-   */
+  /** In meters. */
   thickness: number;
-  /**
-   * In meters
-   */
+  /** In meters. */
   width: number;
-  /**
-   * In meters
-   */
+  /** In meters. */
   length: number;
   /** Display color for board previews (hex string). */
   color?: string;
+  /**
+   * Per-(material, thickness) algorithm override, set via
+   * `StockMatrix.thicknessAlgorithms`. Falls back to `Config.defaultAlgorithm`.
+   */
+  algorithm?: Algorithm;
 }
 
 /**
@@ -68,18 +71,25 @@ export type StockSize = z.infer<typeof StockSize>;
 export const StockMatrix = z.object({
   material: z.string(),
   /**
-   * Unit for numeric dimensions. When a dimension is a plain number, it is
-   * interpreted in this unit. String dimensions (e.g. "18mm") carry their own
-   * unit and ignore this field. Defaults to 'mm'.
+   * Unit for numeric dimensions. Plain numbers are interpreted in this unit.
+   * String dimensions (e.g. `"18mm"`) carry their own unit and ignore this.
+   * Defaults to `'mm'`.
    */
   unit: z.enum(['mm', 'in']).default('mm'),
   /**
-   * Available board sizes. Each entry is a specific width × length pair with
-   * its own set of available thicknesses.
+   * Available board sizes. Each entry is a width × length pair with its
+   * own set of available thicknesses.
    */
   sizes: z.array(StockSize),
-  /** Display color for board previews (hex string, e.g. "#d2b996"). */
+  /** Display color for board previews (hex string, e.g. `"#d2b996"`). */
   color: z.string().optional(),
+  /**
+   * Per-thickness packing algorithm overrides. Keys are the thickness as it
+   * appears in `sizes[].thickness` — numbers stringified, strings as-is
+   * (e.g. `"18"` for `18mm` or `"0.75"` for `0.75in`). Falls back to
+   * `Config.defaultAlgorithm` when omitted.
+   */
+  thicknessAlgorithms: z.record(z.string(), Algorithm).optional(),
 });
 export type StockMatrix = z.infer<typeof StockMatrix>;
 
@@ -126,15 +136,10 @@ export const Config = z.object({
    */
   bladeWidth: Distance.default('0.125in'),
   /**
-   * The optimization method when laying out the parts on the stock.
-   * - `"auto"`: Run multiple deterministic passes (strip + guillotine) and
-   *   keep the best guillotine-cuttable layout by board count, waste, then
-   *   cut complexity. Best for table/circular/track saws.
-   * - `"cnc"`: Pack as many parts onto each piece of stock as possible.
-   *   Layouts may require non-guillotine cuts (plunge/jigsaw), so this is best
-   *   for CNC routers and other tools that can cut anywhere on a sheet.
+   * Default packing algorithm used for any material that doesn't specify its
+   * own. See `Algorithm` for variant descriptions.
    */
-  optimize: z.union([z.literal('auto'), z.literal('cnc')]).default('auto'),
+  defaultAlgorithm: Algorithm.default('auto'),
   /**
    * Board margin — inset from all edges where parts will not be placed.
    * Useful for clamping area, trimming damaged edges, or out-of-square stock.
@@ -165,6 +170,8 @@ export interface BoardLayout {
   placements: BoardLayoutPlacement[];
   /** Board margin in meters (inset from all edges). 0 when no margin is set. */
   marginM: number;
+  /** The concrete algorithm that produced this board (never `'auto'`). */
+  algorithm: Exclude<Algorithm, 'auto'>;
 }
 
 export interface BoardLayoutStock {
@@ -196,9 +203,10 @@ export interface BoardLayoutPlacement extends BoardLayoutLeftover {
 /**
  * Intermediate type for storing the board layout with the rectangle class. Not
  * JSON friendly. This gets converted into `BoardLayout`, which doesn't contain
- * any classes, and is save to convert to and from JSON.
+ * any classes, and is safe to convert to and from JSON.
  */
 export interface PotentialBoardLayout {
   stock: Stock;
   placements: Rectangle<PartToCut>[];
+  algorithm: Exclude<Algorithm, 'auto'>;
 }

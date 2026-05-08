@@ -3,23 +3,30 @@ const {
   bladeWidth,
   distanceUnit,
   margin,
-  optimize,
+  defaultAlgorithm,
   showPartNumbers,
   isLoading,
 } = useProjectSettings();
 
 useUnitConverter();
+
+const ALGORITHM_ITEMS = [
+  { label: 'Auto', value: 'auto' },
+  { label: 'Tidy', value: 'tidy' },
+  { label: 'Compact', value: 'compact' },
+  { label: 'CNC', value: 'cnc' },
+];
 </script>
 
 <template>
   <div v-if="!isLoading" class="flex items-center gap-3 flex-wrap">
     <div class="flex items-center gap-1.5">
-      <label class="text-xs text-muted whitespace-nowrap">Optimize</label>
+      <label class="text-xs text-muted whitespace-nowrap">Default cut</label>
       <USelect
-        v-model="optimize"
-        :items="['Auto', 'CNC']"
+        v-model="defaultAlgorithm"
+        :items="ALGORITHM_ITEMS"
         size="xs"
-        class="w-20"
+        class="w-24"
       />
     </div>
 

@@ -145,7 +145,7 @@ function scrollToBottom() {
       :key="matIndex"
       class="rounded-lg border border-default bg-surface p-4 flex flex-col gap-3"
     >
-      <!-- Header: color + name + unit + grain + delete -->
+      <!-- Header: color + name + unit + delete -->
       <div class="flex items-center gap-2">
         <MaterialColorPicker v-model="mat.color" />
         <UInput

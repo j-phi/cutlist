@@ -9,7 +9,7 @@ import {
 const baseConfig: Config = {
   bladeWidth: 0,
   margin: 0,
-  optimize: 'auto',
+  defaultAlgorithm: 'auto',
   precision: 1e-5,
 };
 
@@ -254,7 +254,7 @@ describe('generateBoardLayouts edge cases', () => {
     ];
     const config: Config = {
       ...baseConfig,
-      optimize: 'auto',
+      defaultAlgorithm: 'auto',
       searchPasses: ['cnc-area'],
     };
     const parts = [
@@ -414,5 +414,34 @@ describe('generateBoardLayouts edge cases', () => {
     expect(withBlade.layouts.length).toBeGreaterThan(
       withoutBlade.layouts.length,
     );
+  });
+
+  it('consolidates small parts onto earlier boards via multi-board lookback', () => {
+    // Two oversized parts each fill ~half a board. Without lookback, the
+    // remaining small part lands on a fresh third board because the packer
+    // never revisits earlier boards' leftover space. With lookback, it
+    // should drop into the gap on board 1 or 2, capping the layout at 2
+    // boards.
+    const stock: StockMatrix[] = [
+      {
+        material: 'MDF',
+        unit: 'mm',
+        sizes: [{ width: '1m', length: '1m', thickness: ['18mm'] }],
+      },
+    ];
+    const parts = [
+      makePart(1, 0.6, 0.95),
+      makePart(2, 0.6, 0.95),
+      makePart(3, 0.3, 0.3),
+    ];
+
+    const result = generateBoardLayouts(parts, stock, {
+      ...baseConfig,
+      // Force the compact packer to expose its sparse-last-board behaviour
+      // — tidy passes don't hit this regression path.
+      searchPasses: ['compact-bssf-area'],
+    });
+    expect(result.leftovers).toHaveLength(0);
+    expect(result.layouts.length).toBeLessThanOrEqual(2);
   });
 });

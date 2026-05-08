@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { computeProportionalLinewidth } from '../linewidth';
 
 const MIN = 0.4;
-const MAX = 2.5;
+const MAX = 2;
 
 function unitBox(): THREE.Box3 {
   return new THREE.Box3(

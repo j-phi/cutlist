@@ -32,6 +32,7 @@ interface FakeViewer extends SceneAuthorViewer {
   cameraMode: CameraMode;
   cameraPose: CameraPose;
   floorVisible: boolean;
+  fitCalls: number;
 }
 
 function makeFakeViewer(opts: { ready?: boolean } = {}): FakeViewer {
@@ -53,6 +54,10 @@ function makeFakeViewer(opts: { ready?: boolean } = {}): FakeViewer {
     appliedOffsets: [],
     visibleCalls: [],
     fadeLog: [],
+    fitCalls: 0,
+    fit: () => {
+      v.fitCalls++;
+    },
     getCameraMode: () => v.cameraMode,
     setCameraMode: (m) => {
       v.cameraMode = m;
@@ -275,6 +280,26 @@ describe('useSceneAuthor — dirty flag', () => {
     expect(v.floorVisible).toBe(true);
     expect(a.floorVisible.value).toBe(true);
     expect(a.dirty.value).toBe(true);
+  });
+
+  it('fitToModel should call viewer.fit and mark the active scene dirty', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    a.markClean();
+
+    a.fitToModel();
+    expect(v.fitCalls).toBe(1);
+    expect(a.dirty.value).toBe(true);
+  });
+
+  it('fitToModel should not dirty the scene when no scene is active', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+
+    a.fitToModel();
+    expect(v.fitCalls).toBe(1);
+    expect(a.dirty.value).toBe(false);
   });
 });
 

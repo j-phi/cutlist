@@ -78,30 +78,48 @@ export function useFocusedModelLoader(opts: {
       loadState.value = 'missing-source';
       return;
     }
+    // Reload scene records before loadModel so the target scene can be
+    // applied synchronously after loadModel resolves. Any await between
+    // loadModel and jumpToScene lets the renderer's rAF flush a frame at
+    // the bounds-fit pose, producing a visible "fit-then-snap" double
+    // camera move.
+    await scenesApi.reload(id);
+    if (generation !== loadGeneration || focusedModelId.value !== id) return;
+
+    const requestedSceneId = targetSceneId?.value ?? null;
+    const candidateIds = [
+      requestedSceneId,
+      sceneAuthor.activeSceneId.value,
+    ].filter((sid): sid is string => !!sid);
+    const initialScene = candidateIds
+      .map((sid) => scenesApi.scenes.value.find((s) => s.id === sid))
+      .find((s): s is NonNullable<typeof s> => !!s);
+
     await viewer.loadModel(graph);
     if (generation !== loadGeneration || focusedModelId.value !== id) return;
     loadedGraph.value = graph;
     loadState.value = 'loaded';
-    await scenesApi.reload(id);
-    if (generation !== loadGeneration || focusedModelId.value !== id) return;
+
+    // Apply the target scene synchronously — no awaits between loadModel
+    // resolving and jumpToScene running, so the renderer paints once at
+    // the final pose.
+    if (initialScene) sceneAuthor.jumpToScene(initialScene);
+
     const defaultSceneId = await scenesApi.ensureDefaultScene({
       state: sceneAuthor.captureCurrentSceneState(),
       thumbnail: sceneAuthor.captureThumbnail() ?? undefined,
     });
     if (generation !== loadGeneration || focusedModelId.value !== id) return;
 
-    // Replay an explicitly requested preview scene first, then the per-model
-    // remembered scene, and finally the always-present default scene.
-    const requestedSceneId = targetSceneId?.value ?? null;
-    const candidateIds = [
-      requestedSceneId,
-      sceneAuthor.activeSceneId.value,
-      defaultSceneId,
-    ].filter((sid): sid is string => !!sid);
-    const scene = candidateIds
-      .map((sid) => scenesApi.scenes.value.find((s) => s.id === sid))
-      .find((s): s is NonNullable<typeof s> => !!s);
-    if (scene) sceneAuthor.jumpToScene(scene);
+    // First-load fallback: when no candidate matched (e.g. a brand new
+    // model with no scenes), jump to the freshly-created default so
+    // activeSceneId is populated.
+    if (!initialScene && defaultSceneId) {
+      const created = scenesApi.scenes.value.find(
+        (s) => s.id === defaultSceneId,
+      );
+      if (created) sceneAuthor.jumpToScene(created);
+    }
   }
 
   // Single watch on the combined predicate avoids a double-fire on initial

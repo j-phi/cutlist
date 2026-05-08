@@ -39,6 +39,7 @@ function makeLayout(widthM = 1, lengthM = 2): BoardLayout {
     stock: { material: 'Plywood', widthM, lengthM, thicknessM: 0.018 },
     placements: [],
     marginM: 0,
+    algorithm: 'compact',
   };
 }
 

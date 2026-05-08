@@ -20,6 +20,32 @@ describe('migrateRecord', () => {
     const result = migrateRecord('projects', record, SCHEMA_VERSION);
     expect(result).toEqual(record);
   });
+
+  it('v1 → v2: maps optimize: "Auto" to defaultAlgorithm: "auto"', () => {
+    const v1Record = {
+      id: 'p',
+      name: 'Old Project',
+      optimize: 'Auto',
+      bladeWidth: 3,
+    };
+    const result = migrateRecord('projects', v1Record, 1);
+    expect(result.defaultAlgorithm).toBe('auto');
+    expect(result.optimize).toBeUndefined();
+    expect(result.bladeWidth).toBe(3); // unrelated fields preserved
+  });
+
+  it('v1 → v2: maps optimize: "CNC" to defaultAlgorithm: "cnc"', () => {
+    const v1Record = { id: 'p', name: 'Old', optimize: 'CNC' };
+    const result = migrateRecord('projects', v1Record, 1);
+    expect(result.defaultAlgorithm).toBe('cnc');
+    expect(result.optimize).toBeUndefined();
+  });
+
+  it('v1 → v2: missing optimize defaults to "auto"', () => {
+    const v1Record = { id: 'p', name: 'Old' };
+    const result = migrateRecord('projects', v1Record, 1);
+    expect(result.defaultAlgorithm).toBe('auto');
+  });
 });
 
 // ─── Migration registry invariants ──────────────────────────────────────────
@@ -146,7 +172,7 @@ describe('applyProjectDefaults', () => {
     expect(result.distanceUnit).toBe(DEFAULT_SETTINGS.distanceUnit);
     expect(result.bladeWidth).toBe(DEFAULT_SETTINGS.bladeWidth);
     expect(result.margin).toBe(DEFAULT_SETTINGS.margin);
-    expect(result.optimize).toBe(DEFAULT_SETTINGS.optimize);
+    expect(result.defaultAlgorithm).toBe(DEFAULT_SETTINGS.defaultAlgorithm);
     expect(result.showPartNumbers).toBe(DEFAULT_SETTINGS.showPartNumbers);
   });
 
@@ -160,7 +186,7 @@ describe('applyProjectDefaults', () => {
       distanceUnit: 'in' as const,
       bladeWidth: 4.2,
       margin: 1.5,
-      optimize: 'CNC' as const,
+      defaultAlgorithm: 'cnc' as const,
       showPartNumbers: false,
       createdAt: '',
       updatedAt: '',
@@ -172,7 +198,7 @@ describe('applyProjectDefaults', () => {
     expect(result.distanceUnit).toBe('in');
     expect(result.bladeWidth).toBe(4.2);
     expect(result.margin).toBe(1.5);
-    expect(result.optimize).toBe('CNC');
+    expect(result.defaultAlgorithm).toBe('cnc');
     expect(result.showPartNumbers).toBe(false);
   });
 });

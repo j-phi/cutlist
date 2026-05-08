@@ -19,7 +19,7 @@ describe('project CRUD', () => {
     expect(project.distanceUnit).toBe(DEFAULT_SETTINGS.distanceUnit);
     expect(project.bladeWidth).toBe(DEFAULT_SETTINGS.bladeWidth);
     expect(project.margin).toBe(DEFAULT_SETTINGS.margin);
-    expect(project.optimize).toBe(DEFAULT_SETTINGS.optimize);
+    expect(project.defaultAlgorithm).toBe(DEFAULT_SETTINGS.defaultAlgorithm);
     expect(project.showPartNumbers).toBe(DEFAULT_SETTINGS.showPartNumbers);
     expect(project.createdAt).toBeDefined();
     expect(project.updatedAt).toBeDefined();
@@ -32,14 +32,14 @@ describe('project CRUD', () => {
       distanceUnit: 'in',
       bladeWidth: 7,
       margin: 1,
-      optimize: 'CNC',
+      defaultAlgorithm: 'cnc',
       showPartNumbers: false,
     });
     expect(project.stock).toBe('custom yaml');
     expect(project.distanceUnit).toBe('in');
     expect(project.bladeWidth).toBe(7);
     expect(project.margin).toBe(1);
-    expect(project.optimize).toBe('CNC');
+    expect(project.defaultAlgorithm).toBe('cnc');
     expect(project.showPartNumbers).toBe(false);
   });
 
@@ -48,12 +48,12 @@ describe('project CRUD', () => {
     const updated = await idb.updateProject(project.id, {
       bladeWidth: 4,
       margin: 2,
-      optimize: 'CNC',
+      defaultAlgorithm: 'cnc',
       showPartNumbers: false,
     });
     expect(updated.bladeWidth).toBe(4);
     expect(updated.margin).toBe(2);
-    expect(updated.optimize).toBe('CNC');
+    expect(updated.defaultAlgorithm).toBe('cnc');
     expect(updated.showPartNumbers).toBe(false);
   });
 

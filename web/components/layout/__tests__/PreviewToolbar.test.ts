@@ -1,5 +1,6 @@
 // @vitest-environment nuxt
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import type { Algorithm } from 'cutlist';
 import { defineComponent, h, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
@@ -9,7 +10,7 @@ import PreviewToolbar from '../PreviewToolbar.vue';
 const bladeWidth = ref<number | undefined>(3);
 const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
 const margin = ref<number | undefined>(0);
-const optimize = ref<'Auto' | 'CNC' | undefined>('Auto');
+const defaultAlgorithm = ref<Algorithm | undefined>('auto');
 const showPartNumbers = ref<boolean | undefined>(true);
 const stock = ref<string | undefined>('');
 const isLoading = ref(false);
@@ -18,7 +19,7 @@ mockNuxtImport('useProjectSettings', () => () => ({
   bladeWidth,
   distanceUnit,
   margin,
-  optimize,
+  defaultAlgorithm,
   showPartNumbers,
   stock,
   isLoading,
@@ -63,7 +64,13 @@ const USelectStub = defineComponent({
               (event.target as HTMLSelectElement).value,
             ),
         },
-        (props.items as string[]).map((it) => h('option', { value: it }, it)),
+        (props.items as Array<string | { label: string; value: string }>).map(
+          (it) => {
+            const value = typeof it === 'string' ? it : it.value;
+            const label = typeof it === 'string' ? it : it.label;
+            return h('option', { value }, label);
+          },
+        ),
       );
   },
 });
@@ -89,7 +96,7 @@ describe('PreviewToolbar', () => {
     bladeWidth.value = 3;
     distanceUnit.value = 'mm';
     margin.value = 0;
-    optimize.value = 'Auto';
+    defaultAlgorithm.value = 'auto';
     showPartNumbers.value = true;
     isLoading.value = false;
   });
@@ -127,12 +134,12 @@ describe('PreviewToolbar', () => {
   });
 
   describe('v-model bindings', () => {
-    it('Should write back to optimize when the select changes', async () => {
+    it('Should write back to defaultAlgorithm when the select changes', async () => {
       const component = getComponent();
 
-      await component.get('select').setValue('CNC');
+      await component.get('select').setValue('cnc');
 
-      expect(optimize.value).toBe('CNC');
+      expect(defaultAlgorithm.value).toBe('cnc');
     });
 
     it('Should write back to bladeWidth when its number input changes', async () => {

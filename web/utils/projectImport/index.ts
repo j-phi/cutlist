@@ -182,8 +182,8 @@ const AnnotationSchema = z.discriminatedUnion('kind', [
   DimensionSchema,
 ]);
 
-// Packing settings (bladeWidth, margin, optimize, showPartNumbers) now live on
-// the project record, so they travel with the export automatically. A
+// Packing settings (bladeWidth, margin, defaultAlgorithm, showPartNumbers) now
+// live on the project record, so they travel with the export automatically. A
 // top-level `settings` field left over from the pre-v2 global-settings export
 // format is silently stripped by Zod's default object behaviour.
 const ProjectExportSchema = z.object({
@@ -197,7 +197,9 @@ const ProjectExportSchema = z.object({
     distanceUnit: z.enum(['in', 'mm']).default(DEFAULT_SETTINGS.distanceUnit),
     bladeWidth: z.number().finite().default(DEFAULT_SETTINGS.bladeWidth),
     margin: z.number().finite().default(DEFAULT_SETTINGS.margin),
-    optimize: z.enum(['Auto', 'CNC']).default(DEFAULT_SETTINGS.optimize),
+    defaultAlgorithm: z
+      .enum(['auto', 'tidy', 'compact', 'cnc'])
+      .default(DEFAULT_SETTINGS.defaultAlgorithm),
     showPartNumbers: z.boolean().default(DEFAULT_SETTINGS.showPartNumbers),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -223,7 +225,7 @@ export interface ProjectImportDb {
       distanceUnit?: 'in' | 'mm';
       bladeWidth?: number;
       margin?: number;
-      optimize?: 'Auto' | 'CNC';
+      defaultAlgorithm?: 'auto' | 'tidy' | 'compact' | 'cnc';
       showPartNumbers?: boolean;
     },
   ) => Promise<{ id: string }>;
@@ -287,7 +289,7 @@ export async function importProjectData(
     distanceUnit: data.project.distanceUnit,
     bladeWidth: data.project.bladeWidth,
     margin: data.project.margin,
-    optimize: data.project.optimize,
+    defaultAlgorithm: data.project.defaultAlgorithm,
     showPartNumbers: data.project.showPartNumbers,
   });
   await idb.updateProject(newProject.id, {
