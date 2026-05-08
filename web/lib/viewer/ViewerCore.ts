@@ -441,9 +441,35 @@ export class ViewerCore {
     return [d.x, d.y, d.z];
   }
   fit(): void {
-    if (!this.cameraRig || !this.sceneBounds) return;
-    this.cameraRig.fit(this.sceneBounds);
-    this.floor?.update(this.sceneBounds);
+    if (!this.cameraRig) return;
+    const bounds = this.computeVisibleBounds() ?? this.sceneBounds;
+    if (!bounds) return;
+    this.cameraRig.fit(bounds);
+    if (this.sceneBounds) this.floor?.update(this.sceneBounds);
+  }
+
+  private computeVisibleBounds(): import('three').Box3 | null {
+    if (!this.registry || !this.modules) return null;
+    const THREE = this.modules.THREE;
+    const box = new THREE.Box3();
+    const corner = new THREE.Vector3();
+    let any = false;
+    this.registry.forEach((r) => {
+      if (!this.isObjectVisible(r.groupId)) return;
+      const min = r.boundsLocalMin;
+      const max = r.boundsLocalMax;
+      for (let i = 0; i < 8; i++) {
+        corner.set(
+          i & 1 ? max.x : min.x,
+          i & 2 ? max.y : min.y,
+          i & 4 ? max.z : min.z,
+        );
+        transformLocalToWorld(r, corner, corner);
+        box.expandByPoint(corner);
+      }
+      any = true;
+    });
+    return any ? box : null;
   }
 
   // ── Floor ────────────────────────────────────────────────────────

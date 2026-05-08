@@ -174,7 +174,9 @@ function commitRename(id: string, name: string): void {
             @click.stop="emit('updateActive')"
           />
         </div>
-        <div class="px-2 py-1.5 flex items-center justify-between gap-1">
+        <div
+          class="px-2 py-1.5 flex items-center justify-between gap-1 min-h-9"
+        >
           <input
             v-if="editingId === scene.id"
             :id="`scene-rename-${scene.id}`"

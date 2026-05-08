@@ -33,6 +33,8 @@ const TWEEN_MS = 300;
 
 export interface SceneAuthorViewer {
   ready: Ref<boolean>;
+  /** Frame the camera around the loaded model's bounds. */
+  fit(): void;
   getCameraMode(): CameraMode;
   setCameraMode(mode: CameraMode): void;
   getCameraPose(): CameraPose | undefined;
@@ -113,6 +115,13 @@ export interface SceneAuthor {
   setCameraMode(mode: CameraMode): void;
   /** Show / hide the ground grid. Marks the active scene dirty. */
   setFloorVisible(v: boolean): void;
+  /**
+   * Frame the camera to the model bounds and mark the active scene dirty
+   * so the new pose can be saved into the scene. `viewer.fit` doesn't go
+   * through OrbitControls' user-interaction bus, so we mark dirty here —
+   * same pattern as `setCameraMode` / `setFloorVisible`.
+   */
+  fitToModel(): void;
   markClean(): void;
   /**
    * Mark the active scene dirty. Used by UI controls (camera mode, floor
@@ -508,6 +517,11 @@ export function useSceneAuthor(
     markDirty();
   }
 
+  function fitToModel(): void {
+    viewer.fit();
+    markDirty();
+  }
+
   return {
     visibleObjects,
     activeSceneId,
@@ -528,6 +542,7 @@ export function useSceneAuthor(
     tweenToScene,
     setCameraMode,
     setFloorVisible,
+    fitToModel,
     markClean,
     markDirty,
     onUserChange,
