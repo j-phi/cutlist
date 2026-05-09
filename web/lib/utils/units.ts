@@ -63,11 +63,11 @@ const fractionLookupTable = new Map<number, string>([
  *
  * Imperial input is forgiving: bare numbers, decimals, fractions ("3/4"),
  * mixed numbers ("1 1/2", "1-1/2"), feet+inches ("1' 6\"", "1ft 6in"),
- * and trailing unit glyphs (`"`, `''`, `″`, `in`, `ft`, `'`) are all
- * accepted. Metric input is plain decimals (with optional "mm" suffix).
+ * and trailing unit glyphs (`"`, `″`, `in`, `ft`, `'`) are all accepted.
+ * Metric input is plain decimals (with optional "mm" suffix).
  *
- * Returns null on empty or unparseable input. Always returns a number in
- * the requested `unit` — never a negative or non-finite value.
+ * Returns null on empty or unparseable input. Never returns a negative
+ * or non-finite number.
  */
 export function parseDimension(
   raw: string | null | undefined,
@@ -78,63 +78,38 @@ export function parseDimension(
   if (s === '') return null;
 
   if (unit === 'mm') {
-    const cleaned = s.replace(/\s*mm$/i, '').trim();
-    const n = Number(cleaned);
-    if (!Number.isFinite(n) || n < 0) return null;
-    return n;
+    const n = Number(s.replace(/\s*mm$/i, ''));
+    return Number.isFinite(n) && n >= 0 ? n : null;
   }
-
-  // Imperial: split into a feet part and an inches part. Either may be
-  // omitted. Examples:
-  //   "4ft"        -> 4'  + 0"
-  //   "8'"         -> 8'  + 0"
-  //   "1' 6\""     -> 1'  + 6"
-  //   "1ft 6in"    -> 1'  + 6"
-  //   "3/4"        -> 0'  + 3/4"
-  //   "1 1/2"      -> 0'  + 1 1/2"
-  //   "1-1/2"      -> 0'  + 1 1/2"
-  let work = s.replace(/[″"]/g, '').replace(/\s*in\b/gi, '');
-  let feet = 0;
-  const ftMatch = work.match(/^\s*([\d.]+)\s*(?:ft|')\s*/i);
-  if (ftMatch) {
-    feet = Number(ftMatch[1]);
-    if (!Number.isFinite(feet) || feet < 0) return null;
-    work = work.slice(ftMatch[0].length).trim();
-  }
-
-  let inches = 0;
-  if (work !== '') {
-    const parsed = parseInchesPart(work);
-    if (parsed == null) return null;
-    inches = parsed;
-  }
-
-  const total = feet * 12 + inches;
-  if (!Number.isFinite(total) || total < 0) return null;
-  return total;
+  return parseInches(s);
 }
 
-function parseInchesPart(s: string): number | null {
-  // "1 1/2", "1-1/2", "1.5", "3/4", "12"
-  const mixed = s.match(/^([\d.]+)\s*[-\s]\s*(\d+)\s*\/\s*(\d+)$/);
-  if (mixed) {
-    const whole = Number(mixed[1]);
-    const num = Number(mixed[2]);
-    const den = Number(mixed[3]);
-    if (!Number.isFinite(whole) || !Number.isFinite(num) || den === 0)
-      return null;
-    return whole + num / den;
-  }
-  const fraction = s.match(/^(\d+)\s*\/\s*(\d+)$/);
-  if (fraction) {
-    const num = Number(fraction[1]);
-    const den = Number(fraction[2]);
+function parseInches(raw: string): number | null {
+  // Strip inch glyphs/suffix; feet glyph stays so the regex below can split.
+  const cleaned = raw
+    .replace(/[″"]/g, '')
+    .replace(/\s*in\b/gi, '')
+    .trim();
+  if (cleaned === '') return null;
+
+  // Optional feet prefix: "4ft" or "8'".
+  const ft = cleaned.match(/^([\d.]+)\s*(?:ft|')\s*(.*)$/i);
+  const feet = ft ? Number(ft[1]) : 0;
+  const rest = (ft ? ft[2] : cleaned).trim();
+  if (!Number.isFinite(feet)) return null;
+  if (rest === '') return feet * 12;
+
+  // Inches: optional whole-number prefix + fraction, or a plain decimal.
+  const frac = rest.match(/^(?:(\d+)[\s-]+)?(\d+)\/(\d+)$/);
+  if (frac) {
+    const whole = frac[1] ? Number(frac[1]) : 0;
+    const den = Number(frac[3]);
     if (den === 0) return null;
-    return num / den;
+    return feet * 12 + whole + Number(frac[2]) / den;
   }
-  const n = Number(s);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return n;
+
+  const n = Number(rest);
+  return Number.isFinite(n) && n >= 0 ? feet * 12 + n : null;
 }
 
 /**

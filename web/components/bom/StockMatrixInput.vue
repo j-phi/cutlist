@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import {
-  Distance,
   formatDimensionForInput,
   parseDimension,
   reduceStockMatrix,
@@ -21,11 +20,13 @@ const err = ref<unknown>();
 let lastSerialized = value.value;
 let updating = false;
 
+// String dimensions (`"18mm"`) carry their own unit per the schema; the UI
+// only ever produces numbers, so we leave strings untouched here and let
+// the cutlist library interpret them downstream.
 function convertDim(dim: number | string, from: 'mm' | 'in', to: 'mm' | 'in') {
-  // Numbers carry the row's unit; strings carry their own (pass-through).
-  if (typeof dim === 'string') return dim;
-  if (from === to) return dim;
-  return Number(new Distance(dim + from)[to].toFixed(to === 'in' ? 5 : 3));
+  if (typeof dim === 'string' || from === to) return dim;
+  const factor = from === 'mm' ? 1 / 25.4 : 25.4;
+  return Number((dim * factor).toFixed(to === 'in' ? 5 : 3));
 }
 
 function normalizeRow(row: StockMatrix, target: 'mm' | 'in'): StockMatrix {
@@ -171,16 +172,6 @@ function displayDim(dim: number | string): string {
   return formatDimensionForInput(dim, unit.value);
 }
 
-const sizePlaceholder = computed(() =>
-  unit.value === 'in' ? 'e.g. 48' : 'width',
-);
-const lengthPlaceholder = computed(() =>
-  unit.value === 'in' ? 'e.g. 96' : 'length',
-);
-const thicknessPlaceholder = computed(() =>
-  unit.value === 'in' ? '3/4' : '+ thick',
-);
-
 const scrollContainer = ref<HTMLElement>();
 
 function scrollToBottom() {
@@ -266,7 +257,7 @@ function scrollToBottom() {
               v-model="newThickness[tKey(matIndex, sizeIndex)]"
               type="text"
               class="bg-default rounded px-2 py-0.5 text-[12px] text-teal-300/70 font-mono w-16 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
-              :placeholder="thicknessPlaceholder"
+              placeholder="+ thick"
               @keydown.enter.prevent="addThickness(matIndex, sizeIndex)"
               @blur="addThickness(matIndex, sizeIndex)"
             />
@@ -279,7 +270,7 @@ function scrollToBottom() {
             v-model="newSizeWidth[matIndex]"
             type="text"
             class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
-            :placeholder="sizePlaceholder"
+            placeholder="width"
             @keydown.enter.prevent="addSize(matIndex)"
           />
           <span class="text-dim text-sm">&times;</span>
@@ -287,7 +278,7 @@ function scrollToBottom() {
             v-model="newSizeLength[matIndex]"
             type="text"
             class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
-            :placeholder="lengthPlaceholder"
+            placeholder="length"
             @keydown.enter.prevent="addSize(matIndex)"
           />
           <button

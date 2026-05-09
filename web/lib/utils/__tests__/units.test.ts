@@ -57,7 +57,7 @@ describe('Unit Utils', () => {
       expect(parseDimension(input, 'in')).toBeCloseTo(expected, 6);
     });
 
-    it.each<string>(['', 'abc', '1/0', '-3/4', '1//2'])(
+    it.each<string>(['', 'abc', '1/0', '-3/4', '1//2', '1.5 1/2'])(
       '%s -> null',
       (input) => {
         expect(parseDimension(input, 'in')).toBeNull();

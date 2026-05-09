@@ -16,22 +16,18 @@ const emit = defineEmits<{
 const { distanceUnit } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
-function mmToDisplay(mm: number, u: 'mm' | 'in') {
-  return u === 'in' ? mm / 25.4 : mm;
-}
-function displayToMm(value: number, u: 'mm' | 'in') {
-  return u === 'in' ? value * 25.4 : value;
-}
+const toMm = (v: number) => (unit.value === 'in' ? v * 25.4 : v);
 
-function initialDisplay(mm: number | undefined): string {
+function fromMm(mm: number | undefined): string {
   if (mm == null) return '';
-  return formatDimensionForInput(mmToDisplay(mm, unit.value), unit.value);
+  const display = unit.value === 'in' ? mm / 25.4 : mm;
+  return formatDimensionForInput(display, unit.value);
 }
 
 const name = ref(props.initial?.name ?? '');
-const widthInput = ref(initialDisplay(props.initial?.widthMm));
-const lengthInput = ref(initialDisplay(props.initial?.lengthMm));
-const thicknessInput = ref(initialDisplay(props.initial?.thicknessMm));
+const widthInput = ref(fromMm(props.initial?.widthMm));
+const lengthInput = ref(fromMm(props.initial?.lengthMm));
+const thicknessInput = ref(fromMm(props.initial?.thicknessMm));
 const qty = ref(props.initial?.qty ?? 1);
 const material = ref(props.initial?.material ?? props.materials[0] ?? '');
 const grainLock = ref<'length' | 'width' | undefined>(props.initial?.grainLock);
@@ -39,12 +35,10 @@ const grainLock = ref<'length' | 'width' | undefined>(props.initial?.grainLock);
 // When the project's unit changes mid-edit, re-render the inputs in the new
 // unit so the typed values still reflect the same physical dimensions.
 watch(unit, (next, prev) => {
-  if (next === prev) return;
+  const factor = prev === 'in' ? 25.4 : 1 / 25.4;
   for (const r of [widthInput, lengthInput, thicknessInput]) {
-    const parsed = parseDimension(r.value, prev);
-    if (parsed == null) continue;
-    const mm = displayToMm(parsed, prev);
-    r.value = formatDimensionForInput(mmToDisplay(mm, next), next);
+    const v = parseDimension(r.value, prev);
+    if (v != null) r.value = formatDimensionForInput(v * factor, next);
   }
 });
 
@@ -79,9 +73,9 @@ function submit() {
     return;
   emit('save', {
     name: name.value.trim(),
-    widthMm: displayToMm(widthVal.value, unit.value),
-    lengthMm: displayToMm(lengthVal.value, unit.value),
-    thicknessMm: displayToMm(thicknessVal.value, unit.value),
+    widthMm: toMm(widthVal.value),
+    lengthMm: toMm(lengthVal.value),
+    thicknessMm: toMm(thicknessVal.value),
     qty: qty.value,
     material: material.value,
     grainLock: grainLock.value,
