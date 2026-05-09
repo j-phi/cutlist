@@ -133,13 +133,13 @@ describe('snapOffsetToWorldAxis', () => {
 });
 
 describe('formatLength', () => {
-  it('Rounds metric lengths to whole millimetres', () => {
-    expect(formatLength(0.1234, 'mm')).toBe('123mm');
+  it('Renders metric lengths to 2-decimal mm (matches BOM formatter)', () => {
+    expect(formatLength(0.1234, 'mm')).toBe('123.4mm');
     expect(formatLength(1.8, 'mm')).toBe('1800mm');
   });
-  it('Produces 2-decimal inches', () => {
-    expect(formatLength(0.0254, 'in')).toBe('1.00in');
-    expect(formatLength(0.5, 'in')).toBe('19.69in');
+  it('Renders inches as fractions (matches BOM formatter)', () => {
+    expect(formatLength(0.0254, 'in')).toBe('1"');
+    expect(formatLength(0.0254 * 1.5, 'in')).toBe('1 1/2"');
   });
 });
 

@@ -105,12 +105,12 @@ describe('DimensionLabel — auto-format', () => {
     expect(w.text()).toContain('250mm');
   });
 
-  it('Renders the imperial distance with two decimals', async () => {
+  it('Renders the imperial distance as a fraction (matches BOM)', async () => {
     distanceUnit.value = 'in';
     const w = await mountSuspended(DimensionLabel, {
       props: { annotation: dim([0, 0, 0], [0.0254, 0, 0]), draft: false },
     });
-    expect(w.text()).toContain('1.00in');
+    expect(w.text()).toContain('1"');
   });
 
   it('Prefers an explicit text override over the auto-formatted distance', async () => {

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import {
+  convertUnits,
   formatDimensionForInput,
   parseDimension,
   reduceStockMatrix,
@@ -25,8 +26,7 @@ let updating = false;
 // the cutlist library interpret them downstream.
 function convertDim(dim: number | string, from: 'mm' | 'in', to: 'mm' | 'in') {
   if (typeof dim === 'string' || from === to) return dim;
-  const factor = from === 'mm' ? 1 / 25.4 : 25.4;
-  return Number((dim * factor).toFixed(to === 'in' ? 5 : 3));
+  return Number(convertUnits(dim, from, to).toFixed(to === 'in' ? 5 : 3));
 }
 
 function normalizeRow(row: StockMatrix, target: 'mm' | 'in'): StockMatrix {

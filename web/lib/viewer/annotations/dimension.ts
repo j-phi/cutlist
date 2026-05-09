@@ -28,6 +28,7 @@
  * on furniture-scale models — invisible to the eye.
  */
 
+import { Distance, toFraction } from 'cutlist';
 import { ref, type Ref } from 'vue';
 import type { PickKindHandler } from '~/composables/useAnnotationAuthor';
 import { PREVIEW_ANNOTATION_ID } from '~/composables/useAnnotationAuthor';
@@ -74,13 +75,17 @@ export interface DimensionViewer {
 
 // ─── Pure helpers ──────────────────────────────────────────────────────────
 
+/**
+ * Format a viewer dimension label. Matches `useFormatDistance` so a part
+ * shows the same string in the BOM, on the model viewer, and in the PDF.
+ */
 export function formatLength(
   meters: number,
   distanceUnit: 'mm' | 'in',
 ): string {
-  return distanceUnit === 'mm'
-    ? `${Math.round(meters * 1000)}mm`
-    : `${(meters * 39.3701).toFixed(2)}in`;
+  const d = new Distance(meters);
+  if (distanceUnit === 'in') return `${toFraction(d.in)}"`;
+  return `${Number(d.mm.toFixed(2))}mm`;
 }
 
 /**

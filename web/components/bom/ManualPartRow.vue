@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { formatDimensionForInput, parseDimension } from 'cutlist';
+import { convertUnits, formatDimensionForInput, parseDimension } from 'cutlist';
 import type { ManualPartInput } from '~/composables/useProjects';
 import { cycleGrainLock, GRAIN_LABELS } from '~/utils/grain';
 
@@ -16,12 +16,14 @@ const emit = defineEmits<{
 const { distanceUnit } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
-const toMm = (v: number) => (unit.value === 'in' ? v * 25.4 : v);
+const toMm = (v: number) => convertUnits(v, unit.value, 'mm');
 
 function fromMm(mm: number | undefined): string {
   if (mm == null) return '';
-  const display = unit.value === 'in' ? mm / 25.4 : mm;
-  return formatDimensionForInput(display, unit.value);
+  return formatDimensionForInput(
+    convertUnits(mm, 'mm', unit.value),
+    unit.value,
+  );
 }
 
 const name = ref(props.initial?.name ?? '');
@@ -35,10 +37,10 @@ const grainLock = ref<'length' | 'width' | undefined>(props.initial?.grainLock);
 // When the project's unit changes mid-edit, re-render the inputs in the new
 // unit so the typed values still reflect the same physical dimensions.
 watch(unit, (next, prev) => {
-  const factor = prev === 'in' ? 25.4 : 1 / 25.4;
   for (const r of [widthInput, lengthInput, thicknessInput]) {
     const v = parseDimension(r.value, prev);
-    if (v != null) r.value = formatDimensionForInput(v * factor, next);
+    if (v != null)
+      r.value = formatDimensionForInput(convertUnits(v, prev, next), next);
   }
 });
 

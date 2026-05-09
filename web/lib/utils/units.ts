@@ -58,6 +58,22 @@ const fractionLookupTable = new Map<number, string>([
   [31 / 32, '31/32'],
 ]);
 
+/** Inches per millimeter — single source of truth for the 25.4 constant. */
+const MM_PER_IN = 25.4;
+
+/**
+ * Convert a distance between mm and inches. Pure number math; the only
+ * place in the codebase that hardcodes the inch/mm ratio.
+ */
+export function convertUnits(
+  value: number,
+  from: 'mm' | 'in',
+  to: 'mm' | 'in',
+): number {
+  if (from === to) return value;
+  return from === 'mm' ? value / MM_PER_IN : value * MM_PER_IN;
+}
+
 /**
  * Parse a user-entered dimension string into a number expressed in `unit`.
  *
