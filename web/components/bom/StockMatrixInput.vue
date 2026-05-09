@@ -1,5 +1,10 @@
 <script lang="ts" setup>
-import { reduceStockMatrix } from 'cutlist';
+import {
+  Distance,
+  formatDimensionForInput,
+  parseDimension,
+  reduceStockMatrix,
+} from 'cutlist';
 import type { StockMatrix } from 'cutlist';
 import { parseStock } from '~/utils/parseStock';
 import { FALLBACK_PALETTE } from '~/composables/useMaterialColors';
@@ -7,22 +12,55 @@ import YAML from 'js-yaml';
 
 const value = defineModel<string>({ required: true });
 
+const { distanceUnit } = useProjectSettings();
+const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
+
 const matrix = ref<StockMatrix[]>([]);
 const err = ref<unknown>();
 
 let lastSerialized = value.value;
 let updating = false;
 
+function convertDim(dim: number | string, from: 'mm' | 'in', to: 'mm' | 'in') {
+  // Numbers carry the row's unit; strings carry their own (pass-through).
+  if (typeof dim === 'string') return dim;
+  if (from === to) return dim;
+  return Number(new Distance(dim + from)[to].toFixed(to === 'in' ? 5 : 3));
+}
+
+function normalizeRow(row: StockMatrix, target: 'mm' | 'in'): StockMatrix {
+  const from = row.unit ?? 'mm';
+  if (from === target) return { ...row, unit: target };
+  return {
+    ...row,
+    unit: target,
+    sizes: row.sizes.map((size) => ({
+      width: convertDim(size.width, from, target),
+      length: convertDim(size.length, from, target),
+      thickness: size.thickness.map((t) => convertDim(t, from, target)),
+    })),
+  };
+}
+
 function parseAndSet(yaml: string) {
   updating = true;
+  let normalizedAny = false;
   try {
-    matrix.value = parseStock(yaml);
+    const raw = parseStock(yaml);
+    const target = unit.value;
+    matrix.value = raw.map((r) => {
+      if ((r.unit ?? 'mm') !== target) normalizedAny = true;
+      return normalizeRow(r, target);
+    });
     err.value = undefined;
   } catch (e) {
     err.value = e;
   } finally {
     updating = false;
   }
+  // If the incoming YAML was in a different unit than the project, persist
+  // the normalized form back through v-model so storage matches the UI.
+  if (normalizedAny && !err.value) serialize();
 }
 
 parseAndSet(value.value);
@@ -54,6 +92,12 @@ watch(
   { deep: true, flush: 'sync' },
 );
 
+// When the project unit flips, convert every row in place. The deep watcher
+// above re-serializes through v-model so the persisted YAML stays in sync.
+watch(unit, (target) => {
+  matrix.value = matrix.value.map((r) => normalizeRow(r, target));
+});
+
 function commit() {
   try {
     reduceStockMatrix(JSON.parse(JSON.stringify(matrix.value)));
@@ -78,9 +122,8 @@ function tKey(matIndex: number, sizeIndex: number) {
 function addThickness(matIndex: number, sizeIndex: number) {
   const key = tKey(matIndex, sizeIndex);
   const raw = newThickness.value[key];
-  if (raw == null || raw === '') return;
-  const num = Number(raw);
-  if (!Number.isFinite(num) || num <= 0) return;
+  const num = parseDimension(raw, unit.value);
+  if (num == null || num <= 0) return;
   matrix.value[matIndex].sizes[sizeIndex].thickness.push(num);
   newThickness.value[key] = '';
 }
@@ -98,9 +141,9 @@ const newSizeWidth = ref<Record<number, string>>({});
 const newSizeLength = ref<Record<number, string>>({});
 
 function addSize(matIndex: number) {
-  const w = Number(newSizeWidth.value[matIndex]);
-  const l = Number(newSizeLength.value[matIndex]);
-  if (!Number.isFinite(w) || w <= 0 || !Number.isFinite(l) || l <= 0) return;
+  const w = parseDimension(newSizeWidth.value[matIndex], unit.value);
+  const l = parseDimension(newSizeLength.value[matIndex], unit.value);
+  if (w == null || w <= 0 || l == null || l <= 0) return;
   matrix.value[matIndex].sizes.push({ width: w, length: l, thickness: [] });
   newSizeWidth.value[matIndex] = '';
   newSizeLength.value[matIndex] = '';
@@ -113,7 +156,7 @@ function removeSize(matIndex: number, sizeIndex: number) {
 function addMaterial() {
   matrix.value.push({
     material: 'New Material',
-    unit: 'mm',
+    unit: unit.value,
     sizes: [],
     color: FALLBACK_PALETTE[matrix.value.length % FALLBACK_PALETTE.length],
   });
@@ -122,6 +165,21 @@ function addMaterial() {
 function removeMaterial(index: number) {
   matrix.value.splice(index, 1);
 }
+
+function displayDim(dim: number | string): string {
+  if (typeof dim === 'string') return dim;
+  return formatDimensionForInput(dim, unit.value);
+}
+
+const sizePlaceholder = computed(() =>
+  unit.value === 'in' ? 'e.g. 48' : 'width',
+);
+const lengthPlaceholder = computed(() =>
+  unit.value === 'in' ? 'e.g. 96' : 'length',
+);
+const thicknessPlaceholder = computed(() =>
+  unit.value === 'in' ? '3/4' : '+ thick',
+);
 
 const scrollContainer = ref<HTMLElement>();
 
@@ -145,22 +203,13 @@ function scrollToBottom() {
       :key="matIndex"
       class="rounded-lg border border-default bg-surface p-4 flex flex-col gap-3"
     >
-      <!-- Header: color + name + unit + delete -->
+      <!-- Header: color + name + delete -->
       <div class="flex items-center gap-2">
         <MaterialColorPicker v-model="mat.color" />
         <UInput
           v-model="mat.material"
           class="flex-1"
           placeholder="Material name"
-        />
-        <USelect
-          v-model="mat.unit"
-          :items="[
-            { label: 'mm', value: 'mm' },
-            { label: 'in', value: 'in' },
-          ]"
-          size="sm"
-          class="w-18"
         />
         <UButton
           color="neutral"
@@ -174,7 +223,7 @@ function scrollToBottom() {
       <!-- Board sizes -->
       <div class="flex flex-col gap-2">
         <label class="text-xs font-medium text-muted uppercase tracking-wider">
-          Board sizes
+          Board sizes ({{ unit }})
         </label>
 
         <!-- Existing sizes -->
@@ -186,9 +235,9 @@ function scrollToBottom() {
           <!-- Size dimensions + delete -->
           <div class="flex items-center justify-between">
             <span class="text-[13px] text-teal-300 font-mono">
-              {{ size.width }}{{ mat.unit ?? 'mm' }}
+              {{ displayDim(size.width) }}{{ unit }}
               <span class="text-dim">&times;</span>
-              {{ size.length }}{{ mat.unit ?? 'mm' }}
+              {{ displayDim(size.length) }}{{ unit }}
             </span>
             <button
               class="text-dim hover:text-body leading-none transition-colors"
@@ -205,7 +254,7 @@ function scrollToBottom() {
               :key="i"
               class="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-subtle bg-default text-[12px] text-teal-300/80 font-mono"
             >
-              {{ typeof dim === 'number' ? `${dim}${mat.unit ?? 'mm'}` : dim }}
+              {{ displayDim(dim) }}{{ unit }}
               <button
                 class="text-dim hover:text-body leading-none ml-0.5 transition-colors"
                 @click="removeThickness(matIndex, sizeIndex, i)"
@@ -215,11 +264,9 @@ function scrollToBottom() {
             </span>
             <input
               v-model="newThickness[tKey(matIndex, sizeIndex)]"
-              type="number"
-              min="0"
-              step="any"
-              class="bg-default rounded px-2 py-0.5 text-[12px] text-teal-300/70 font-mono w-16 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              placeholder="+ thick"
+              type="text"
+              class="bg-default rounded px-2 py-0.5 text-[12px] text-teal-300/70 font-mono w-16 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
+              :placeholder="thicknessPlaceholder"
               @keydown.enter.prevent="addThickness(matIndex, sizeIndex)"
               @blur="addThickness(matIndex, sizeIndex)"
             />
@@ -230,21 +277,17 @@ function scrollToBottom() {
         <div class="flex items-center gap-1.5">
           <input
             v-model="newSizeWidth[matIndex]"
-            type="number"
-            min="0"
-            step="any"
-            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            placeholder="width"
+            type="text"
+            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
+            :placeholder="sizePlaceholder"
             @keydown.enter.prevent="addSize(matIndex)"
           />
           <span class="text-dim text-sm">&times;</span>
           <input
             v-model="newSizeLength[matIndex]"
-            type="number"
-            min="0"
-            step="any"
-            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            placeholder="length"
+            type="text"
+            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
+            :placeholder="lengthPlaceholder"
             @keydown.enter.prevent="addSize(matIndex)"
           />
           <button

@@ -58,6 +58,99 @@ const fractionLookupTable = new Map<number, string>([
   [31 / 32, '31/32'],
 ]);
 
+/**
+ * Parse a user-entered dimension string into a number expressed in `unit`.
+ *
+ * Imperial input is forgiving: bare numbers, decimals, fractions ("3/4"),
+ * mixed numbers ("1 1/2", "1-1/2"), feet+inches ("1' 6\"", "1ft 6in"),
+ * and trailing unit glyphs (`"`, `''`, `″`, `in`, `ft`, `'`) are all
+ * accepted. Metric input is plain decimals (with optional "mm" suffix).
+ *
+ * Returns null on empty or unparseable input. Always returns a number in
+ * the requested `unit` — never a negative or non-finite value.
+ */
+export function parseDimension(
+  raw: string | null | undefined,
+  unit: 'mm' | 'in',
+): number | null {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (s === '') return null;
+
+  if (unit === 'mm') {
+    const cleaned = s.replace(/\s*mm$/i, '').trim();
+    const n = Number(cleaned);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+  }
+
+  // Imperial: split into a feet part and an inches part. Either may be
+  // omitted. Examples:
+  //   "4ft"        -> 4'  + 0"
+  //   "8'"         -> 8'  + 0"
+  //   "1' 6\""     -> 1'  + 6"
+  //   "1ft 6in"    -> 1'  + 6"
+  //   "3/4"        -> 0'  + 3/4"
+  //   "1 1/2"      -> 0'  + 1 1/2"
+  //   "1-1/2"      -> 0'  + 1 1/2"
+  let work = s.replace(/[″"]/g, '').replace(/\s*in\b/gi, '');
+  let feet = 0;
+  const ftMatch = work.match(/^\s*([\d.]+)\s*(?:ft|')\s*/i);
+  if (ftMatch) {
+    feet = Number(ftMatch[1]);
+    if (!Number.isFinite(feet) || feet < 0) return null;
+    work = work.slice(ftMatch[0].length).trim();
+  }
+
+  let inches = 0;
+  if (work !== '') {
+    const parsed = parseInchesPart(work);
+    if (parsed == null) return null;
+    inches = parsed;
+  }
+
+  const total = feet * 12 + inches;
+  if (!Number.isFinite(total) || total < 0) return null;
+  return total;
+}
+
+function parseInchesPart(s: string): number | null {
+  // "1 1/2", "1-1/2", "1.5", "3/4", "12"
+  const mixed = s.match(/^([\d.]+)\s*[-\s]\s*(\d+)\s*\/\s*(\d+)$/);
+  if (mixed) {
+    const whole = Number(mixed[1]);
+    const num = Number(mixed[2]);
+    const den = Number(mixed[3]);
+    if (!Number.isFinite(whole) || !Number.isFinite(num) || den === 0)
+      return null;
+    return whole + num / den;
+  }
+  const fraction = s.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (fraction) {
+    const num = Number(fraction[1]);
+    const den = Number(fraction[2]);
+    if (den === 0) return null;
+    return num / den;
+  }
+  const n = Number(s);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+/**
+ * Pretty-print a value (in the given unit) for pre-filling an editable
+ * text input. Inches render as fractions when possible (`"3/4"`, `"1 1/2"`);
+ * mm renders as a trimmed decimal (no trailing zeros).
+ */
+export function formatDimensionForInput(
+  value: number | null | undefined,
+  unit: 'mm' | 'in',
+): string {
+  if (value == null || !Number.isFinite(value)) return '';
+  if (unit === 'in') return toFraction(value);
+  return String(Number(value.toFixed(3)));
+}
+
 export class Distance {
   readonly m: number;
 

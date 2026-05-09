@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { formatDimensionForInput, parseDimension } from 'cutlist';
 import type { ManualPartInput } from '~/composables/useProjects';
 import { cycleGrainLock, GRAIN_LABELS } from '~/utils/grain';
 
@@ -12,49 +13,84 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
+const { distanceUnit } = useProjectSettings();
+const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
+
+function mmToDisplay(mm: number, u: 'mm' | 'in') {
+  return u === 'in' ? mm / 25.4 : mm;
+}
+function displayToMm(value: number, u: 'mm' | 'in') {
+  return u === 'in' ? value * 25.4 : value;
+}
+
+function initialDisplay(mm: number | undefined): string {
+  if (mm == null) return '';
+  return formatDimensionForInput(mmToDisplay(mm, unit.value), unit.value);
+}
+
 const name = ref(props.initial?.name ?? '');
-const widthMm = ref<number | null>(props.initial?.widthMm ?? null);
-const lengthMm = ref<number | null>(props.initial?.lengthMm ?? null);
-const thicknessMm = ref<number | null>(props.initial?.thicknessMm ?? null);
+const widthInput = ref(initialDisplay(props.initial?.widthMm));
+const lengthInput = ref(initialDisplay(props.initial?.lengthMm));
+const thicknessInput = ref(initialDisplay(props.initial?.thicknessMm));
 const qty = ref(props.initial?.qty ?? 1);
 const material = ref(props.initial?.material ?? props.materials[0] ?? '');
 const grainLock = ref<'length' | 'width' | undefined>(props.initial?.grainLock);
 
+// When the project's unit changes mid-edit, re-render the inputs in the new
+// unit so the typed values still reflect the same physical dimensions.
+watch(unit, (next, prev) => {
+  if (next === prev) return;
+  for (const r of [widthInput, lengthInput, thicknessInput]) {
+    const parsed = parseDimension(r.value, prev);
+    if (parsed == null) continue;
+    const mm = displayToMm(parsed, prev);
+    r.value = formatDimensionForInput(mmToDisplay(mm, next), next);
+  }
+});
+
+const widthVal = computed(() => parseDimension(widthInput.value, unit.value));
+const lengthVal = computed(() => parseDimension(lengthInput.value, unit.value));
+const thicknessVal = computed(() =>
+  parseDimension(thicknessInput.value, unit.value),
+);
+
 const isValid = computed(
   () =>
     name.value.trim() !== '' &&
-    widthMm.value != null &&
-    widthMm.value > 0 &&
-    lengthMm.value != null &&
-    lengthMm.value > 0 &&
-    thicknessMm.value != null &&
-    thicknessMm.value > 0 &&
+    widthVal.value != null &&
+    widthVal.value > 0 &&
+    lengthVal.value != null &&
+    lengthVal.value > 0 &&
+    thicknessVal.value != null &&
+    thicknessVal.value > 0 &&
     qty.value >= 1 &&
     material.value !== '',
 );
 
+const placeholder = computed(() => (unit.value === 'in' ? 'e.g. 3/4' : '0'));
+
 function submit() {
   if (
     !isValid.value ||
-    widthMm.value == null ||
-    lengthMm.value == null ||
-    thicknessMm.value == null
+    widthVal.value == null ||
+    lengthVal.value == null ||
+    thicknessVal.value == null
   )
     return;
   emit('save', {
     name: name.value.trim(),
-    widthMm: widthMm.value,
-    lengthMm: lengthMm.value,
-    thicknessMm: thicknessMm.value,
+    widthMm: displayToMm(widthVal.value, unit.value),
+    lengthMm: displayToMm(lengthVal.value, unit.value),
+    thicknessMm: displayToMm(thicknessVal.value, unit.value),
     qty: qty.value,
     material: material.value,
     grainLock: grainLock.value,
   });
   if (!props.initial) {
     name.value = '';
-    widthMm.value = null;
-    lengthMm.value = null;
-    thicknessMm.value = null;
+    widthInput.value = '';
+    lengthInput.value = '';
+    thicknessInput.value = '';
     qty.value = 1;
   }
 }
@@ -82,43 +118,40 @@ function onKeydown(e: KeyboardEvent) {
     <div class="grid grid-cols-4 gap-1.5">
       <div class="flex flex-col gap-0.5">
         <label class="text-xs text-muted px-0.5" for="manual-part-width"
-          >W (mm)</label
+          >W ({{ unit }})</label
         >
         <UInput
           id="manual-part-width"
-          v-model.number="widthMm"
-          type="number"
+          v-model="widthInput"
+          type="text"
           size="sm"
-          placeholder="0"
-          :min="0"
+          :placeholder="placeholder"
           @keydown="onKeydown"
         />
       </div>
       <div class="flex flex-col gap-0.5">
         <label class="text-xs text-muted px-0.5" for="manual-part-length"
-          >L (mm)</label
+          >L ({{ unit }})</label
         >
         <UInput
           id="manual-part-length"
-          v-model.number="lengthMm"
-          type="number"
+          v-model="lengthInput"
+          type="text"
           size="sm"
-          placeholder="0"
-          :min="0"
+          :placeholder="placeholder"
           @keydown="onKeydown"
         />
       </div>
       <div class="flex flex-col gap-0.5">
         <label class="text-xs text-muted px-0.5" for="manual-part-thickness"
-          >T (mm)</label
+          >T ({{ unit }})</label
         >
         <UInput
           id="manual-part-thickness"
-          v-model.number="thicknessMm"
-          type="number"
+          v-model="thicknessInput"
+          type="text"
           size="sm"
-          placeholder="0"
-          :min="0"
+          :placeholder="placeholder"
           @keydown="onKeydown"
         />
       </div>
