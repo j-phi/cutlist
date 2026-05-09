@@ -22,13 +22,10 @@ describe('parseCollada', () => {
   });
 
   it('rejects a file with COLLADA tag but no geometry', async () => {
-    // ColladaLoader needs DOMParser which is not available in the bun test
-    // environment. This test verifies the pre-validation passes (it does
-    // contain <COLLADA) but the Three.js parse will fail without DOMParser.
+    // Pre-validation passes (string contains "<COLLADA"), but the parser
+    // throws once it finds no parts with usable geometry.
     const xml = `<?xml version="1.0"?><COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"></COLLADA>`;
     const file = makeFile(xml, 'empty.dae');
-    // Should throw because DOMParser is not available in test env, or because
-    // the file has no geometry. Either way, it should not succeed silently.
     await expect(parseCollada(file)).rejects.toThrow();
   });
 

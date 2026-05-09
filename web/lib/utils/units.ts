@@ -142,14 +142,15 @@ function parseInches(raw: string): number | null {
 }
 
 /**
- * Pretty-print a value (in the given unit) for pre-filling an editable
- * text input. Inches render as fractions when the value is essentially an
- * exact fraction (`"3/4"`, `"1 1/2"`); otherwise as a 4-decimal number.
- * mm renders as a trimmed 3-decimal number.
+ * Pretty-print a value for pre-filling an editable text input. Inches
+ * render as fractions when the value is essentially an exact fraction
+ * (`"3/4"`, `"1 1/2"`); otherwise as a 4dp number. mm renders as a
+ * trimmed 3dp number.
  *
- * `toFraction` is also used by the display formatters, where preserving
- * full precision matters; here we trade precision for legibility because
- * a 16-digit decimal in an editable input is unusable.
+ * Uses `toFraction` with the strict default so user-typed precision
+ * (e.g. `0.886`) survives an edit round-trip — display formatters use
+ * `WOODWORKER_FRACTION_THRESHOLD` for aggressive snapping, this one
+ * does not.
  */
 export function formatDimensionForInput(
   value: number | null | undefined,
@@ -158,9 +159,8 @@ export function formatDimensionForInput(
   if (value == null || !Number.isFinite(value)) return '';
   if (unit === 'mm') return String(Number(value.toFixed(3)));
   const formatted = toFraction(value);
-  // toFraction returns either a fraction string or a raw decimal. The raw
-  // decimal can be unbounded precision (e.g. metric-rooted values), which
-  // is too noisy for an input — cap it.
+  // `toFraction`'s non-snap fallback is already 5dp; the 4dp here trims
+  // one more digit so an editable input doesn't look noisy.
   if (formatted.includes('/')) return formatted;
   return String(Number(value.toFixed(4)));
 }
