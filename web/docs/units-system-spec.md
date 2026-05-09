@@ -35,6 +35,40 @@ Branch `claude/audit-imperial-dimensions-7i2y2` (commits `1ace428`,
   `useFormatDistance` — same fractional inches and 2-decimal mm
   everywhere. So a part shows the same string in BOM, layout, PDF, and
   on the model.
+- **Workshop snap (`WOODWORKER_FRACTION_THRESHOLD`)**: display
+  formatters now snap inches to nearest 1/32 (within 1/64) so
+  metric-origin parts render as e.g. `7/8"` instead of
+  `0.8857982442116039`. Edit-form prefills keep strict precision.
+- **Parser unit contracts documented and tested**: glTF JSDoc cites the
+  spec section that mandates meters; COLLADA JSDoc cites the
+  `<unit meter="N"/>` element and the Three.js code path that applies
+  it; a regression test in
+  [`web/utils/__tests__/parseCollada.test.ts`](../utils/__tests__/parseCollada.test.ts)
+  pins the contract by parsing an inch-authored DAE and asserting the
+  resulting `Part.size` is in meters.
+
+## The architecture, in one diagram
+
+There is exactly **one canonical internal unit (meters)** and exactly
+**one display preference (`distanceUnit`)**. Everything in the middle
+just works in meters. `distanceUnit` enters only at the edges:
+
+```
+INPUT (edge)         INTERNAL (canonical)         DISPLAY (edge)
+─────────────        ────────────────────         ──────────────
+glTF: meters    ┐
+COLLADA: scaled ├──→  Part.size (m)
+  by Three.js   │      PartToCut.size (m)
+Manual: typed   │      Stock (m)            ──→   useFormatDistance
+  in distanceU. │      BoardLayout (m)              (m → distanceUnit)
+  → ÷1000 → m   ┘      3D viewer (m)         ──→  formatLength (same)
+                       Annotation offsets (m)
+                       PDF positions (m)
+```
+
+The packer, the BOM, the layout, the viewer, the PDF positioning never
+need to "know" what unit anyone is in — there's only one. The only
+remaining edge fragilities are listed below.
 
 ## Remaining issues — investigate + design before coding
 
@@ -94,44 +128,15 @@ point — when `distanceUnit` changes it converts bladeWidth, margin,
 and the stock YAML in one transaction, with `StockMatrixInput`'s
 normalization removed (or kept as a safety net).
 
-### 3. Document parser unit contracts; verify COLLADA scale handling
+### 3. Parser unit contracts — closed
 
-[`web/utils/parseGltf.ts`](../utils/parseGltf.ts) and
-[`web/utils/parseCollada.ts`](../utils/parseCollada.ts).
-
-**glTF**: the [glTF 2.0 spec](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#coordinate-system-and-units)
-mandates meters. A spec-compliant `.gltf`/`.glb` file is meters by
-definition — our parser's assumption is correct, not silent. The
-remaining work is just to **document the contract** with a comment
-citing the spec, so a future contributor doesn't second-guess it.
-
-**COLLADA**: the spec carries a `<unit meter="..."/>` element giving
-the scale factor (e.g. `meter="0.0254"` for a file authored in
-inches). Three.js's `ColladaLoader` does honor this and bakes the
-scale into the loaded scene's transform — verify in the Three.js
-source, then document. If it _doesn't_ apply the scale (or only does
-so under specific conditions), we apply it ourselves at parse time
-using the document's `<unit>` element.
-
-**Non-conforming files** (the SketchUp-exports-in-mm scenario) are a
-defensive concern, not a correctness one. Optionally add a
-bounding-box sanity check (warn if the largest part is < 5 mm or > 10
-m — almost certainly a tool that ignored the spec) and a one-click
-"rescale ×25.4 / ÷25.4" affordance in the import flow. Treat as
-polish, not P0.
-
-**Investigate:**
-
-- Read Three.js's `ColladaLoader` source for `<unit>` handling.
-  Confirm the loaded scene is already in meters before our parser
-  sees it. Add a test with a known inch-scaled COLLADA file.
-- Decide whether the bounding-box sanity check is worth the
-  surface area. If yes, where does the warning surface — toast,
-  inline banner on the BOM tab, modal at import time?
-
-**Likely outcome:** A short JSDoc comment in each parser citing the
-relevant spec section. Possibly a cheap sanity warning. No
-scale-correction UI unless real users hit the SketchUp case.
+Verified empirically and locked in by tests. See "What's already
+shipped" above. The only follow-up worth considering is a defensive
+bounding-box sanity warning for non-conformant files (e.g. tools that
+export glTF in mm despite the spec). Treat as polish: surface a toast
+or inline banner if the largest part is < 5 mm or > 10 m, with a
+one-click "rescale ×25.4 / ÷25.4" affordance. Skip until real users
+hit the case.
 
 ### 4. PDF measurements have a hardcoded-mm fallback
 

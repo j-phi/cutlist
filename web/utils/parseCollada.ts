@@ -23,6 +23,15 @@ export interface ParseColladaResult extends ObjectGraph {
  *
  * SketchUp's exporter quirks (duplicate material groups, per-face normals)
  * are absorbed by `computeObjectEdges` — see `web/lib/viewer/edges.ts`.
+ *
+ * Units: COLLADA's `<asset><unit meter="N"/></asset>` element gives the
+ * scale factor from the file's authoring unit to meters (e.g. `0.0254` for
+ * inches). Three.js's `ColladaLoader` reads this via `parseAssetUnit` and
+ * applies `scene.scale.multiplyScalar(asset.unit)` before we see it, so
+ * `box.setFromObject(mesh)` returns world-space dimensions in meters
+ * regardless of authoring unit. Pinned by the
+ * "treats values authored in inches as meters" test in this directory's
+ * __tests__/parseCollada.test.ts.
  */
 export async function parseCollada(file: File): Promise<ParseColladaResult> {
   const xmlText = await file.text();
