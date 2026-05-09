@@ -72,6 +72,15 @@ describe('Unit Utils', () => {
       expect(formatDimensionForInput(48, 'in')).toBe('48');
     });
 
+    it('caps non-fraction inch values at 4 decimals', () => {
+      // 38mm / 25.4 = 1.4960629921...
+      expect(formatDimensionForInput(38 / 25.4, 'in')).toBe('1.4961');
+      // 6mm / 25.4 = 0.2362204724... — used to render at full FP precision.
+      expect(formatDimensionForInput(6 / 25.4, 'in')).toBe('0.2362');
+      // 254mm / 25.4 = 10 exactly.
+      expect(formatDimensionForInput(254 / 25.4, 'in')).toBe('10');
+    });
+
     it('renders mm as trimmed decimals', () => {
       expect(formatDimensionForInput(18, 'mm')).toBe('18');
       expect(formatDimensionForInput(18.5, 'mm')).toBe('18.5');

@@ -130,16 +130,26 @@ function parseInches(raw: string): number | null {
 
 /**
  * Pretty-print a value (in the given unit) for pre-filling an editable
- * text input. Inches render as fractions when possible (`"3/4"`, `"1 1/2"`);
- * mm renders as a trimmed decimal (no trailing zeros).
+ * text input. Inches render as fractions when the value is essentially an
+ * exact fraction (`"3/4"`, `"1 1/2"`); otherwise as a 4-decimal number.
+ * mm renders as a trimmed 3-decimal number.
+ *
+ * `toFraction` is also used by the display formatters, where preserving
+ * full precision matters; here we trade precision for legibility because
+ * a 16-digit decimal in an editable input is unusable.
  */
 export function formatDimensionForInput(
   value: number | null | undefined,
   unit: 'mm' | 'in',
 ): string {
   if (value == null || !Number.isFinite(value)) return '';
-  if (unit === 'in') return toFraction(value);
-  return String(Number(value.toFixed(3)));
+  if (unit === 'mm') return String(Number(value.toFixed(3)));
+  const formatted = toFraction(value);
+  // toFraction returns either a fraction string or a raw decimal. The raw
+  // decimal can be unbounded precision (e.g. metric-rooted values), which
+  // is too noisy for an input — cap it.
+  if (formatted.includes('/')) return formatted;
+  return String(Number(value.toFixed(4)));
 }
 
 export class Distance {
