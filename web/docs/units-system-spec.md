@@ -94,29 +94,44 @@ point — when `distanceUnit` changes it converts bladeWidth, margin,
 and the stock YAML in one transaction, with `StockMatrixInput`'s
 normalization removed (or kept as a safety net).
 
-### 3. GLTF/COLLADA parsers silently assume meters
+### 3. Document parser unit contracts; verify COLLADA scale handling
 
 [`web/utils/parseGltf.ts`](../utils/parseGltf.ts) and
-[`web/utils/parseCollada.ts`](../utils/parseCollada.ts). The Three.js
-loaders default to meters; these parsers don't validate or document the
-assumption. A SketchUp export in inches lands as parts 39× too small,
-and the bug only surfaces at layout time when board sizes look absurd.
+[`web/utils/parseCollada.ts`](../utils/parseCollada.ts).
+
+**glTF**: the [glTF 2.0 spec](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#coordinate-system-and-units)
+mandates meters. A spec-compliant `.gltf`/`.glb` file is meters by
+definition — our parser's assumption is correct, not silent. The
+remaining work is just to **document the contract** with a comment
+citing the spec, so a future contributor doesn't second-guess it.
+
+**COLLADA**: the spec carries a `<unit meter="..."/>` element giving
+the scale factor (e.g. `meter="0.0254"` for a file authored in
+inches). Three.js's `ColladaLoader` does honor this and bakes the
+scale into the loaded scene's transform — verify in the Three.js
+source, then document. If it _doesn't_ apply the scale (or only does
+so under specific conditions), we apply it ourselves at parse time
+using the document's `<unit>` element.
+
+**Non-conforming files** (the SketchUp-exports-in-mm scenario) are a
+defensive concern, not a correctness one. Optionally add a
+bounding-box sanity check (warn if the largest part is < 5 mm or > 10
+m — almost certainly a tool that ignored the spec) and a one-click
+"rescale ×25.4 / ÷25.4" affordance in the import flow. Treat as
+polish, not P0.
 
 **Investigate:**
 
-- Does the GLTF spec carry unit metadata anywhere we can sniff
-  (`asset.extras`? a custom extension?). Same for COLLADA's
-  `<unit meter="..."/>` element — Three.js's COLLADA loader might already
-  apply the scale.
-- What's a reasonable sanity check? E.g. flag a warning if any part's
-  longest dimension is < 5 mm or > 10 m — almost certainly a unit
-  mismatch.
-- Is there a scale-correction UI we could offer post-import? ("This
-  model looks tiny — apply ×25.4 scale?")
+- Read Three.js's `ColladaLoader` source for `<unit>` handling.
+  Confirm the loaded scene is already in meters before our parser
+  sees it. Add a test with a known inch-scaled COLLADA file.
+- Decide whether the bounding-box sanity check is worth the
+  surface area. If yes, where does the warning surface — toast,
+  inline banner on the BOM tab, modal at import time?
 
-**Likely outcome:** Add a unit-sanity check at parse time, surface a
-toast or banner if the bounding box looks suspicious, and document the
-"meters in, meters out" contract explicitly in both parser files.
+**Likely outcome:** A short JSDoc comment in each parser citing the
+relevant spec section. Possibly a cheap sanity warning. No
+scale-correction UI unless real users hit the SketchUp case.
 
 ### 4. PDF measurements have a hardcoded-mm fallback
 
@@ -209,9 +224,8 @@ without reading comments:
 2. _What happens if I flip the project's distance unit?_ — One place
    (`useUnitConverter`) owns the conversion and lists every affected
    field.
-3. _What unit does this loader produce?_ — Documented inline in the
-   parser; sanity-checked at parse time with a user-visible warning if
-   the bounding box looks wrong.
+3. _What unit does this loader produce?_ — Meters, per spec, documented
+   inline with a citation.
 4. _Where is `25.4` defined?_ — Exactly once, in
    `web/lib/utils/units.ts`.
 5. _Will this stored value still mean the right thing in five years?_ —
@@ -235,8 +249,8 @@ The issues interact. A reasonable order:
    fallback becomes correct because there's only one unit at rest).
 4. **#2 (`useUnitConverter` completeness)** — falls out of #6, or done
    directly if #6 is deferred.
-5. **#3 (GLTF/COLLADA sanity check)** is independent — can be done
-   anytime.
+5. **#3 (parser docs + COLLADA scale verify)** is independent and
+   small — JSDoc citing the spec, plus one Three.js source-read.
 6. **#4 (PDF fallback)** is a one-line cleanup after #6 or independent.
 
 Each step is shippable on its own. Aim for small commits with tests.
