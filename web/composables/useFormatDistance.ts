@@ -1,4 +1,4 @@
-import { Distance, toFraction } from 'cutlist';
+import { Distance, toFraction, WOODWORKER_FRACTION_THRESHOLD } from 'cutlist';
 
 export default function () {
   const { distanceUnit } = useProjectSettings();
@@ -8,7 +8,7 @@ export default function () {
 
     const distance = new Distance(m);
     if (toValue(distanceUnit) === 'in') {
-      return `${toFraction(distance.in)}"`;
+      return `${toFraction(distance.in, WOODWORKER_FRACTION_THRESHOLD)}"`;
     }
     return `${roundMetric(distance.mm, 2)}mm`;
   };

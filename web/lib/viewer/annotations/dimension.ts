@@ -28,7 +28,7 @@
  * on furniture-scale models — invisible to the eye.
  */
 
-import { Distance, toFraction } from 'cutlist';
+import { Distance, toFraction, WOODWORKER_FRACTION_THRESHOLD } from 'cutlist';
 import { ref, type Ref } from 'vue';
 import type { PickKindHandler } from '~/composables/useAnnotationAuthor';
 import { PREVIEW_ANNOTATION_ID } from '~/composables/useAnnotationAuthor';
@@ -84,7 +84,8 @@ export function formatLength(
   distanceUnit: 'mm' | 'in',
 ): string {
   const d = new Distance(meters);
-  if (distanceUnit === 'in') return `${toFraction(d.in)}"`;
+  if (distanceUnit === 'in')
+    return `${toFraction(d.in, WOODWORKER_FRACTION_THRESHOLD)}"`;
   return `${Number(d.mm.toFixed(2))}mm`;
 }
 

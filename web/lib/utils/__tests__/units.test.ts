@@ -1,16 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { formatDimensionForInput, parseDimension, toFraction } from '../units';
+import {
+  formatDimensionForInput,
+  parseDimension,
+  toFraction,
+  WOODWORKER_FRACTION_THRESHOLD,
+} from '../units';
 
 describe('Unit Utils', () => {
-  describe('toFraction', () => {
+  describe('toFraction (strict, default)', () => {
     it.each([
       [1 / 2, '1/2'],
       [2, '2'],
       [3 + 1 / 8, '3 1/8'],
       [4 + 7 / 32, '4 7/32'],
+      // Not within 1e-5 of any 1/32 fraction → 5dp decimal fallback.
       [7.33333, '7.33333'],
+      // Bug regression: sub-inch decimals previously leaked raw FP precision.
+      [0.8857982442116039, '0.8858'],
     ])('%d -> %s', (input, expected) => {
       expect(toFraction(input)).toBe(expected);
+    });
+  });
+
+  describe('toFraction (workshop snap)', () => {
+    it.each([
+      // 22.5 mm and similar metric-origin parts now snap to nearest 1/32.
+      [0.8857982442116039, '7/8'],
+      [0.7345049616297954, '3/4'],
+      [1.32382, '1 5/16'],
+      [1.55686, '1 9/16'],
+      [3.5, '3 1/2'],
+      // Just outside the 1/64 window → still falls back to 5dp.
+      [0.9858470278544692, '0.98585'],
+      // Whole inches and clean fractions still render the same way.
+      [2, '2'],
+      [1 / 2, '1/2'],
+      [3 + 1 / 8, '3 1/8'],
+    ])('%d -> %s', (input, expected) => {
+      expect(toFraction(input, WOODWORKER_FRACTION_THRESHOLD)).toBe(expected);
     });
   });
 

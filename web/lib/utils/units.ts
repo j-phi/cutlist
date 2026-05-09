@@ -1,27 +1,40 @@
-export function toFraction(value: number, threshold = 1e-5) {
+/**
+ * Snap threshold appropriate for workshop measurement (half a 32nd of an
+ * inch, ≈ 0.4 mm). Display formatters pass this so that 22.5 mm renders as
+ * "7/8\"" — what the woodworker marks on the wood — instead of a raw
+ * float. Input formatters keep the strict default so user-typed precision
+ * survives the round-trip.
+ */
+export const WOODWORKER_FRACTION_THRESHOLD = 1 / 64;
+
+/**
+ * Render a decimal as a fractional string, rounded to the nearest 1/32.
+ * If the value is within `threshold` of a 1/32 fraction it snaps; otherwise
+ * it falls back to a 5-decimal-place number. The default `1e-5` only snaps
+ * exact fractions; callers wanting workshop-friendly output should pass
+ * `WOODWORKER_FRACTION_THRESHOLD`.
+ */
+export function toFraction(value: number, threshold = 1e-5): string {
   const integerPart = Math.floor(value);
   const decimalPart = value - integerPart;
 
   let minDifference = Infinity;
-  let closestFraction = decimalPart.toString();
-  for (let [fractionDecimal, fractionString] of fractionLookupTable) {
-    let difference = Math.abs(decimalPart - fractionDecimal);
+  let closestFraction = '';
+  for (const [fractionDecimal, fractionString] of fractionLookupTable) {
+    const difference = Math.abs(decimalPart - fractionDecimal);
     if (difference < minDifference) {
       minDifference = difference;
       closestFraction = fractionString;
     }
   }
 
-  // If the decimal part is close enough to a fraction, prepare the result with the integer part
-  let result =
-    minDifference <= threshold ? closestFraction : decimalPart.toString();
-  if (integerPart > 0) {
-    result =
-      minDifference <= threshold || decimalPart === 0
-        ? `${integerPart}` + (decimalPart > 0 ? ` ${result}` : '')
-        : Number(value.toFixed(5)).toString();
+  if (minDifference <= threshold) {
+    if (integerPart === 0) return closestFraction;
+    return `${integerPart} ${closestFraction}`;
   }
-  return result;
+  // Not close enough to snap. Whole numbers and non-fraction decimals share
+  // the same 5dp-trimmed path — never returns the raw float.
+  return Number(value.toFixed(5)).toString();
 }
 
 const fractionLookupTable = new Map<number, string>([
