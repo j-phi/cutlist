@@ -103,8 +103,11 @@ export const STOCK_PRESETS: StockPreset[] = [
     },
   },
   {
+    // Real hardwood is sold in random widths and lengths, so a fixed-size
+    // preset is misleading as an auto-default. Kept in the dropdown for
+    // users who do buy standardized board widths (1×6, 1×8, 1×12 S4S).
     label: 'Hardwood Lumber (in)',
-    default: true,
+    default: false,
     stock: {
       material: 'Hardwood',
       unit: 'in',
