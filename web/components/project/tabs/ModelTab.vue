@@ -105,11 +105,12 @@ const emptyStateType = computed<
 
 function findPart(partNum: number | null): BoardLayoutLeftover | undefined {
   if (partNum == null || !boardLayouts.value) return;
-  return [
+  const all: BoardLayoutLeftover[] = [
     ...boardLayouts.value.layouts.flatMap((l) => l.placements),
     ...boardLayouts.value.linearLayouts.flatMap((l) => l.placements),
     ...boardLayouts.value.leftovers,
-  ].find((p) => p.partNumber === partNum);
+  ];
+  return all.find((p) => p.partNumber === partNum);
 }
 
 const infoPart = computed(() => {

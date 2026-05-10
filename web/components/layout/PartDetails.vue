@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import type { BoardLayoutLeftover, BoardLayoutPlacement } from 'cutlist';
+import type { BoardLayoutLeftover, SheetBoardLayoutPlacement } from 'cutlist';
 
 const props = defineProps<{
   part: BoardLayoutLeftover;
-  placement?: BoardLayoutPlacement;
+  placement?: SheetBoardLayoutPlacement;
 }>();
 
 const formatDistance = useFormatDistance();

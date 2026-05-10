@@ -1,20 +1,21 @@
 import { isNearlyEqual } from './floating-point-utils';
 import {
-  type AnyStock,
-  type BoardLayoutStock,
   type LinearStock,
   type PartToCut,
+  type SheetBoardLayoutStock,
+  type SheetStock,
   type Stock,
   isLinearStock,
 } from '../types';
 
 /**
- * Sheet-stock validity: material + thickness match.
- * Used by sheet-stock paths only; linear paths go through `isValidLinearStockForPart`.
+ * Sheet-stock validity: material + thickness match. The first arg accepts
+ * either an in-flight `SheetStock` or a serialised `SheetBoardLayoutStock`
+ * (which uses `thicknessM` instead of `thickness`).
  */
-export function isValidStock(
-  test: Stock | BoardLayoutStock,
-  target: PartToCut | Stock,
+export function isValidSheetStock(
+  test: SheetStock | SheetBoardLayoutStock,
+  target: PartToCut | SheetStock,
   epsilon: number,
 ) {
   return (
@@ -69,10 +70,14 @@ export function isCompatibleLinearStock(
   );
 }
 
-/** Dispatching wrapper used by the routing pipeline. */
-export function isValidAnyStock(
-  test: AnyStock,
-  target: PartToCut | AnyStock,
+/**
+ * Dispatching wrapper: checks whether `test` accommodates `target` regardless
+ * of kind. Used by the routing pipeline to match parts to stock and to find
+ * smaller equivalent stocks during layout minimisation.
+ */
+export function isValidStock(
+  test: Stock,
+  target: PartToCut | Stock,
   epsilon: number,
 ): boolean {
   const targetIsPart = 'size' in target;
@@ -82,6 +87,6 @@ export function isValidAnyStock(
       isLinearStock(target) && isCompatibleLinearStock(test, target, epsilon)
     );
   }
-  if (targetIsPart) return isValidStock(test, target, epsilon);
-  return !isLinearStock(target) && isValidStock(test, target, epsilon);
+  if (targetIsPart) return isValidSheetStock(test, target, epsilon);
+  return !isLinearStock(target) && isValidSheetStock(test, target, epsilon);
 }

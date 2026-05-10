@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { canFitOnAnyBoard } from '../canFitOnAnyBoard';
-import type { Stock } from 'cutlist';
+import type { SheetStock } from 'cutlist';
 
 const board = (
   material: string,
   thickness: number,
   width: number,
   length: number,
-): Stock => ({ material, thickness, width, length });
+): SheetStock => ({ kind: 'sheet', material, thickness, width, length });
 
 const part = (
   material: string,

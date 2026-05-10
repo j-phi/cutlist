@@ -4,7 +4,11 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Algorithm, BoardLayout, BoardLayoutPlacement } from 'cutlist';
+import type {
+  Algorithm,
+  SheetBoardLayout,
+  SheetBoardLayoutPlacement,
+} from 'cutlist';
 
 import LayoutList from '../LayoutList.vue';
 
@@ -37,15 +41,15 @@ mockNuxtImport('useProjectSettings', () => () => ({
 interface LayoutFactoryArgs {
   material: string;
   thicknessM: number;
-  placements?: Partial<BoardLayoutPlacement>[];
+  placements?: Partial<SheetBoardLayoutPlacement>[];
   widthM?: number;
   lengthM?: number;
 }
 
-function makeLayout(args: LayoutFactoryArgs): BoardLayout {
+function makeLayout(args: LayoutFactoryArgs): SheetBoardLayout {
   const widthM = args.widthM ?? 1.0;
   const lengthM = args.lengthM ?? 2.0;
-  const placements: BoardLayoutPlacement[] = (args.placements ?? []).map(
+  const placements: SheetBoardLayoutPlacement[] = (args.placements ?? []).map(
     (p, i) => ({
       partNumber: i + 1,
       instanceNumber: 1,
@@ -62,6 +66,7 @@ function makeLayout(args: LayoutFactoryArgs): BoardLayout {
     }),
   );
   return {
+    kind: 'sheet',
     stock: {
       material: args.material,
       widthM,
@@ -74,7 +79,7 @@ function makeLayout(args: LayoutFactoryArgs): BoardLayout {
   };
 }
 
-function getComponent(layouts: BoardLayout[]) {
+function getComponent(layouts: SheetBoardLayout[]) {
   return shallowMount(LayoutList, {
     props: { layouts },
     global: {
@@ -104,7 +109,7 @@ describe('LayoutList', () => {
     it('Should sort by material → thickness → fuller boards first', () => {
       const big = [{}, {}, {}];
       const small = [{}];
-      const layouts: BoardLayout[] = [
+      const layouts: SheetBoardLayout[] = [
         makeLayout({
           material: 'Plywood',
           thicknessM: 0.018,
@@ -121,7 +126,7 @@ describe('LayoutList', () => {
       expect(items.map((i) => i.props('boardIndex'))).toEqual([0, 1, 2, 3]);
       expect(
         items.map((i) => {
-          const l = i.props('layout') as BoardLayout;
+          const l = i.props('layout') as SheetBoardLayout;
           return `${l.stock.material}__${l.stock.thicknessM}`;
         }),
       ).toEqual([
@@ -157,7 +162,7 @@ describe('LayoutList', () => {
 
   describe('Algorithm picker', () => {
     it('Trigger button shows the algorithm that actually ran', () => {
-      const layouts: BoardLayout[] = [
+      const layouts: SheetBoardLayout[] = [
         {
           ...makeLayout({ material: 'Plywood', thicknessM: 0.018 }),
           algorithm: 'tidy',
@@ -174,7 +179,7 @@ describe('LayoutList', () => {
       length: 2440
       thickness: [18, 12]
 `;
-      const layouts: BoardLayout[] = [
+      const layouts: SheetBoardLayout[] = [
         makeLayout({ material: 'Plywood', thicknessM: 0.018 }),
       ];
       const component = getComponent(layouts);

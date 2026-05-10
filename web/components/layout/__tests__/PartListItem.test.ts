@@ -4,7 +4,7 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ref, type Ref } from 'vue';
 
-import type { BoardLayoutPlacement } from 'cutlist';
+import type { SheetBoardLayoutPlacement } from 'cutlist';
 
 import PartListItem from '../PartListItem.vue';
 
@@ -14,8 +14,8 @@ mockNuxtImport('useGetPx', () => () => (m: number) => `${m * 100}px`);
 mockNuxtImport('useProjectSettings', () => () => ({ showPartNumbers }));
 
 function makePlacement(
-  overrides: Partial<BoardLayoutPlacement> = {},
-): BoardLayoutPlacement {
+  overrides: Partial<SheetBoardLayoutPlacement> = {},
+): SheetBoardLayoutPlacement {
   return {
     partNumber: 1,
     instanceNumber: 1,

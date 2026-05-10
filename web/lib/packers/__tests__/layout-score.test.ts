@@ -4,6 +4,7 @@ import type { PartToCut, PotentialBoardLayout, Stock } from '../../types';
 import { compareLayoutScores, scoreLayouts } from '../layout-score';
 
 const stock10x10: Stock = {
+  kind: 'sheet',
   material: 'MDF',
   thickness: 0.018,
   width: 10,

@@ -1,10 +1,10 @@
 import {
   isLinearBoardLayout,
-  type BoardLayout,
   type BoardLayoutLeftover,
   type ConfigInput,
   type LinearBoardLayout,
   type PartToCut,
+  type SheetBoardLayout,
 } from 'cutlist';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import {
@@ -17,7 +17,7 @@ import * as layoutCache from '~/composables/boardLayoutsCache';
 
 type LayoutResult = {
   /** Sheet (2D) board layouts, unchanged shape for legacy consumers. */
-  layouts: BoardLayout[];
+  layouts: SheetBoardLayout[];
   /** Linear (1D) stick layouts, split out for the Layout tab's stick view. */
   linearLayouts: LinearBoardLayout[];
   leftovers: BoardLayoutLeftover[];
@@ -114,7 +114,7 @@ export default createSharedComposable(() => {
 
     const cached = layoutCache.get(pid);
     if (cached) {
-      const sheet: BoardLayout[] = [];
+      const sheet: SheetBoardLayout[] = [];
       const linear: LinearBoardLayout[] = [];
       for (const l of cached.layouts) {
         if (isLinearBoardLayout(l)) linear.push(l);

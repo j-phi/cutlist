@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import type { BoardLayout, BoardLayoutPlacement } from 'cutlist';
+import type { SheetBoardLayout, SheetBoardLayoutPlacement } from 'cutlist';
 import PartListItem from './PartListItem.vue';
 
 const props = defineProps<{
-  layout: BoardLayout;
+  layout: SheetBoardLayout;
   boardIndex: number;
 }>();
 
@@ -110,7 +110,7 @@ function onPointerDown(e: PointerEvent) {
   );
 }
 
-const hoveredPlacement = computed<BoardLayoutPlacement | null>(() =>
+const hoveredPlacement = computed<SheetBoardLayoutPlacement | null>(() =>
   hoveredIndex.value != null
     ? (props.layout.placements[hoveredIndex.value] ?? null)
     : null,

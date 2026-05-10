@@ -2,20 +2,20 @@ import { describe, it, expect } from 'vitest';
 import {
   generateBoardLayouts,
   isLinearBoardLayout,
-  type AnyBoardLayout,
   type BoardLayout,
   type Config,
   type PartToCut,
+  type SheetBoardLayout,
   type StockMatrix,
 } from '..';
 
-function asSheet(layout: AnyBoardLayout): BoardLayout {
+function asSheet(layout: BoardLayout): SheetBoardLayout {
   if (isLinearBoardLayout(layout))
     throw new Error('expected sheet board layout, got linear');
   return layout;
 }
 
-function sheetLayouts(layouts: AnyBoardLayout[]): BoardLayout[] {
+function sheetLayouts(layouts: BoardLayout[]): SheetBoardLayout[] {
   return layouts.map(asSheet);
 }
 

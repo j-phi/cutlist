@@ -33,16 +33,15 @@ export const SearchPass = z.union([
 export type SearchPass = z.infer<typeof SearchPass>;
 
 /**
- * Contains the material and dimensions for a single panel or board.
+ * Engine-side sheet stock: a 2D panel (plywood, MDF, hardboard, …).
+ * All numbers are meters (engine internal unit).
  */
-export interface Stock {
+export interface SheetStock {
+  kind: 'sheet';
   /** The material name, matching what is set in Onshape. */
   material: string;
-  /** In meters. */
   thickness: number;
-  /** In meters. */
   width: number;
-  /** In meters. */
   length: number;
   /** Display color for board previews (hex string). */
   color?: string;
@@ -54,27 +53,28 @@ export interface Stock {
 }
 
 /**
- * Engine-side linear stock: a single stick at a single length.
+ * Engine-side linear stock: a 1D stick at a single length.
  * All numbers are meters (engine internal unit).
  */
 export interface LinearStock {
   kind: 'linear';
   material: string;
-  /** Cross-section width in METERS. */
   crossSectionWidth: number;
-  /** Cross-section thickness in METERS. */
   crossSectionThickness: number;
-  /** Stick length in METERS. */
   length: number;
   color?: string;
   algorithm?: Algorithm;
 }
 
-/** Engine-side stock union — sheet panels or linear sticks. */
-export type AnyStock = Stock | LinearStock;
+/**
+ * Engine-side stock. A material has a `kind` (sheet, linear, …) which
+ * determines its form. Add new kinds as new variants in this union.
+ */
+export type Stock = SheetStock | LinearStock;
 
-export const isLinearStock = (s: AnyStock): s is LinearStock =>
-  'kind' in s && s.kind === 'linear';
+export const isLinearStock = (s: Stock): s is LinearStock =>
+  s.kind === 'linear';
+export const isSheetStock = (s: Stock): s is SheetStock => s.kind === 'sheet';
 
 /**
  * Sheet stock matrix: a material sold as 2D panels (plywood, MDF, …).
@@ -224,19 +224,8 @@ export const Config = z.object({
 export type Config = z.infer<typeof Config>;
 export type ConfigInput = z.input<typeof Config>;
 
-/**
- * JSON friendly object containing boards and part placements.
- */
-export interface BoardLayout {
-  stock: BoardLayoutStock;
-  placements: BoardLayoutPlacement[];
-  /** Board margin in meters (inset from all edges). 0 when no margin is set. */
-  marginM: number;
-  /** The concrete algorithm that produced this board (never `'auto'`). */
-  algorithm: Exclude<Algorithm, 'auto'>;
-}
-
-export interface BoardLayoutStock {
+/** Per-board info attached to a sheet layout (output side). */
+export interface SheetBoardLayoutStock {
   material: string;
   widthM: number;
   lengthM: number;
@@ -244,6 +233,20 @@ export interface BoardLayoutStock {
   color?: string;
 }
 
+/** Per-board info attached to a linear layout (output side). */
+export interface LinearBoardLayoutStock {
+  material: string;
+  crossSectionWidthM: number;
+  crossSectionThicknessM: number;
+  lengthM: number;
+  color?: string;
+}
+
+/**
+ * A part that wasn't placed (or a placement viewed as a leftover-shaped
+ * record — same field set). Shared between sheet placements and linear
+ * placements so BOM aggregation can treat both uniformly.
+ */
 export interface BoardLayoutLeftover {
   partNumber: number;
   instanceNumber: number;
@@ -255,43 +258,32 @@ export interface BoardLayoutLeftover {
   grainLock?: 'length' | 'width';
 }
 
-export interface BoardLayoutPlacement extends BoardLayoutLeftover {
+/** Sheet placement: leftover shape + 2D bounding rectangle on the board. */
+export interface SheetBoardLayoutPlacement extends BoardLayoutLeftover {
   leftM: number;
   rightM: number;
   topM: number;
   bottomM: number;
 }
 
-export interface LinearBoardLayoutStock {
-  material: string;
-  crossSectionWidthM: number;
-  crossSectionThicknessM: number;
-  lengthM: number;
-  color?: string;
-}
-
-export interface LinearBoardLayoutPlacement {
-  partNumber: number;
-  instanceNumber: number;
-  name: string;
-  material: string;
-  /**
-   * Part's authored width/thickness in METERS. Carried so BOM consumers
-   * and hover info can resolve dimensions without joining back to the
-   * source part.
-   */
-  widthM: number;
-  thicknessM: number;
-  /** Cut length in METERS — the only dimension that varies along the stick. */
-  lengthM: number;
+/** Linear placement: leftover shape + 1D offset along the stick. */
+export interface LinearBoardLayoutPlacement extends BoardLayoutLeftover {
   /** Offset from the start of the stick in METERS. */
   offsetM: number;
 }
 
-/**
- * Engine output for a single linear stick. The stick view in the UI and the
- * shopping-list aggregator both consume this shape directly.
- */
+/** Engine output for a single sheet. */
+export interface SheetBoardLayout {
+  kind: 'sheet';
+  stock: SheetBoardLayoutStock;
+  placements: SheetBoardLayoutPlacement[];
+  /** Board margin in meters (inset from all edges). 0 when no margin is set. */
+  marginM: number;
+  /** The concrete algorithm that produced this board (never `'auto'`). */
+  algorithm: Exclude<Algorithm, 'auto' | 'linear'>;
+}
+
+/** Engine output for a single linear stick. */
 export interface LinearBoardLayout {
   kind: 'linear';
   stock: LinearBoardLayoutStock;
@@ -302,20 +294,24 @@ export interface LinearBoardLayout {
   algorithm: 'linear';
 }
 
-/** Engine output union — sheet board layouts or linear stick layouts. */
-export type AnyBoardLayout = BoardLayout | LinearBoardLayout;
+/**
+ * Engine output. A layout has a `kind` matching its stock's `kind`.
+ * Add new layout variants when adding new stock kinds.
+ */
+export type BoardLayout = SheetBoardLayout | LinearBoardLayout;
 
-export const isLinearBoardLayout = (
-  l: AnyBoardLayout,
-): l is LinearBoardLayout => 'kind' in l && l.kind === 'linear';
+export const isLinearBoardLayout = (l: BoardLayout): l is LinearBoardLayout =>
+  l.kind === 'linear';
+export const isSheetBoardLayout = (l: BoardLayout): l is SheetBoardLayout =>
+  l.kind === 'sheet';
 
 /**
- * Intermediate type for storing the board layout with the rectangle class. Not
- * JSON friendly. This gets converted into `BoardLayout`, which doesn't contain
- * any classes, and is safe to convert to and from JSON.
+ * Intermediate type for storing the board layout with the rectangle class.
+ * Not JSON friendly. This gets converted into `BoardLayout`, which doesn't
+ * contain any classes, and is safe to convert to and from JSON.
  */
 export interface PotentialBoardLayout {
-  stock: AnyStock;
+  stock: Stock;
   placements: Rectangle<PartToCut>[];
   algorithm: Exclude<Algorithm, 'auto'>;
 }

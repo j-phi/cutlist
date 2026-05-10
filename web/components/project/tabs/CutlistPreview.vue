@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { BoardLayout, LinearBoardLayout } from 'cutlist';
+import type { SheetBoardLayout, LinearBoardLayout } from 'cutlist';
 
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
 const tab = useProjectTab();
@@ -23,7 +23,9 @@ function stockKey(stock: {
   return `${stock.material}__${stock.thicknessM}__${stock.widthM}__${stock.lengthM}`;
 }
 
-const sheetLayouts = computed<BoardLayout[]>(() => data.value?.layouts ?? []);
+const sheetLayouts = computed<SheetBoardLayout[]>(
+  () => data.value?.layouts ?? [],
+);
 const linearLayouts = computed<LinearBoardLayout[]>(
   () => data.value?.linearLayouts ?? [],
 );
@@ -57,7 +59,7 @@ watch(stockOptions, (opts) => {
   }
 });
 
-const filteredSheetLayouts = computed<BoardLayout[]>(() => {
+const filteredSheetLayouts = computed<SheetBoardLayout[]>(() => {
   if (selectedStock.value === ALL) return sheetLayouts.value;
   return sheetLayouts.value.filter(
     (l) => stockKey(l.stock) === selectedStock.value,

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isLinearStock, reduceStockMatrix, type Stock } from '..';
+import { isLinearStock, reduceStockMatrix, type SheetStock } from '..';
 
-const sheetOnly = (stocks: ReturnType<typeof reduceStockMatrix>): Stock[] =>
-  stocks.filter((s): s is Stock => !isLinearStock(s));
+const sheetOnly = (
+  stocks: ReturnType<typeof reduceStockMatrix>,
+): SheetStock[] => stocks.filter((s): s is SheetStock => !isLinearStock(s));
 
 describe('reduceStockMatrix', () => {
   it('returns [] for an empty matrix', () => {

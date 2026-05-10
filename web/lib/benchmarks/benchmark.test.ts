@@ -11,15 +11,15 @@ import { describe, it } from 'vitest';
 import {
   generateBoardLayouts,
   isLinearBoardLayout,
-  type AnyBoardLayout,
   type BoardLayout,
   type ConfigInput,
   type PartToCut,
+  type SheetBoardLayout,
   type StockMatrix,
 } from '..';
 
-const onlySheet = (layouts: AnyBoardLayout[]): BoardLayout[] =>
-  layouts.filter((l): l is BoardLayout => !isLinearBoardLayout(l));
+const onlySheet = (layouts: BoardLayout[]): SheetBoardLayout[] =>
+  layouts.filter((l): l is SheetBoardLayout => !isLinearBoardLayout(l));
 
 interface Fixture {
   name: string;
@@ -167,7 +167,7 @@ interface Metrics {
 }
 
 function measure(
-  layouts: BoardLayout[],
+  layouts: SheetBoardLayout[],
   runtimeMs: number,
   leftovers: number,
 ): Metrics {

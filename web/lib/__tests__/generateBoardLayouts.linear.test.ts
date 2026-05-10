@@ -4,13 +4,12 @@ import {
   isLinearBoardLayout,
   isLinearStock,
   reduceStockMatrix,
-  type AnyBoardLayout,
-  type AnyStock,
   type BoardLayout,
   type Config,
   type LinearBoardLayout,
   type LinearStock,
   type PartToCut,
+  type SheetBoardLayout,
   type Stock,
   type StockMatrix,
 } from '..';
@@ -45,19 +44,19 @@ function makeLinearPart(
   };
 }
 
-function asLinear(layout: AnyBoardLayout): LinearBoardLayout {
+function asLinear(layout: BoardLayout): LinearBoardLayout {
   if (!isLinearBoardLayout(layout))
     throw new Error('expected linear board layout, got sheet');
   return layout;
 }
 
-function asSheet(layout: AnyBoardLayout): BoardLayout {
+function asSheet(layout: BoardLayout): SheetBoardLayout {
   if (isLinearBoardLayout(layout))
     throw new Error('expected sheet board layout, got linear');
   return layout;
 }
 
-function isLinear(s: AnyStock): s is LinearStock {
+function isLinear(s: Stock): s is LinearStock {
   return isLinearStock(s);
 }
 

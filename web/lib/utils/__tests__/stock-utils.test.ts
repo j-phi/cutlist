@@ -1,19 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { isValidStock } from '../stock-utils';
-import type { Stock, BoardLayoutStock, PartToCut } from '../../types';
+import { isValidSheetStock, isValidStock } from '../stock-utils';
+import type { Stock, SheetBoardLayoutStock, PartToCut } from '../../types';
 
 const EPSILON = 1e-5;
 
 // Helpers to build minimal fixture objects
 
 function makeStock(material: string, thickness: number): Stock {
-  return { material, thickness, width: 0.6, length: 2.4 };
+  return { kind: 'sheet', material, thickness, width: 0.6, length: 2.4 };
 }
 
-function makeBoardLayoutStock(
+function makeSheetBoardLayoutStock(
   material: string,
   thicknessM: number,
-): BoardLayoutStock {
+): SheetBoardLayoutStock {
   return { material, widthM: 0.6, lengthM: 2.4, thicknessM };
 }
 
@@ -62,17 +62,17 @@ describe('isValidStock', () => {
     });
   });
 
-  describe('BoardLayoutStock vs PartToCut', () => {
+  describe('SheetBoardLayoutStock vs PartToCut', () => {
     it('uses thicknessM on test and size.thickness on target — returns true when matching', () => {
-      const bls = makeBoardLayoutStock('Plywood', 0.018);
+      const bls = makeSheetBoardLayoutStock('Plywood', 0.018);
       const part = makePart('Plywood', 0.018);
-      expect(isValidStock(bls, part, EPSILON)).toBe(true);
+      expect(isValidSheetStock(bls, part, EPSILON)).toBe(true);
     });
 
     it('returns false when thicknessM and size.thickness differ', () => {
-      const bls = makeBoardLayoutStock('Plywood', 0.018);
+      const bls = makeSheetBoardLayoutStock('Plywood', 0.018);
       const part = makePart('Plywood', 0.012);
-      expect(isValidStock(bls, part, EPSILON)).toBe(false);
+      expect(isValidSheetStock(bls, part, EPSILON)).toBe(false);
     });
   });
 

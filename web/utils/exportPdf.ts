@@ -1,8 +1,8 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type {
-  BoardLayout,
   BoardLayoutLeftover,
   LinearBoardLayout,
+  SheetBoardLayout,
 } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
 import { drawBomPages, type BomRow } from './pdf/bom';
@@ -24,7 +24,7 @@ export interface ExportPdfOptions {
    * board layouts have been generated yet — e.g. before stock is assigned.
    */
   bomRows: BomRow[];
-  layouts: BoardLayout[];
+  layouts: SheetBoardLayout[];
   /** Linear (1D timber) layouts. Rendered as a separate section after sheets. */
   linearLayouts?: LinearBoardLayout[];
   leftovers: BoardLayoutLeftover[];

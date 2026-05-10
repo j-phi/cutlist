@@ -2,14 +2,14 @@
 import {
   M_PER_IN,
   type Algorithm,
-  type BoardLayout,
+  type SheetBoardLayout,
   type SheetStockMatrix,
 } from 'cutlist';
 import YAML from 'js-yaml';
 import { parseStock } from '~/utils/parseStock';
 
 const props = defineProps<{
-  layouts: BoardLayout[];
+  layouts: SheetBoardLayout[];
 }>();
 
 const getPx = useGetPx();
@@ -38,7 +38,7 @@ interface LayoutGroup {
   material: string;
   thickness: string;
   thicknessM: number;
-  layouts: BoardLayout[];
+  layouts: SheetBoardLayout[];
   /** Indices into `props.layouts` for board numbering. */
   indices: number[];
   /** Algorithm that produced this group's boards (never `'auto'`). */

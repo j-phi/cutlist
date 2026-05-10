@@ -1,6 +1,6 @@
 import { rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
-import type { BoardLayoutLeftover, BoardLayoutPlacement } from 'cutlist';
+import type { BoardLayoutLeftover } from 'cutlist';
 import { groupPartsByNumber } from '~/lib/utils/bom-utils';
 import {
   A4_H_MM,
@@ -21,7 +21,7 @@ export interface BomRow {
 }
 
 export function aggregateBom(
-  placements: BoardLayoutPlacement[],
+  placements: BoardLayoutLeftover[],
   leftovers: BoardLayoutLeftover[],
   formatSize: (m: number) => string | undefined,
 ): BomRow[] {

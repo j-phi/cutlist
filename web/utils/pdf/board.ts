@@ -1,6 +1,6 @@
 import { rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
-import type { BoardLayout } from 'cutlist';
+import type { SheetBoardLayout } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
 import type { PdfScale } from '../exportPdf';
 import {
@@ -27,7 +27,7 @@ interface TileGeom {
 
 export function drawBoardTiles(
   ctx: Ctx,
-  layout: BoardLayout,
+  layout: SheetBoardLayout,
   boardIndex: number,
   totalBoards: number,
   measurements: RulerMeasurement[],
@@ -80,7 +80,7 @@ export function drawBoardTiles(
 
 function drawBoardTilePage(
   ctx: Ctx,
-  layout: BoardLayout,
+  layout: SheetBoardLayout,
   boardIndex: number,
   totalBoards: number,
   col: number,

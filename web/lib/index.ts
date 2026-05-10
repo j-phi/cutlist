@@ -1,26 +1,26 @@
 import {
   type Algorithm,
-  type AnyBoardLayout,
-  type AnyStock,
-  type PartToCut,
-  type Stock,
-  type LinearStock,
-  type StockMatrix,
-  Config,
-  type ConfigInput,
   type BoardLayout,
   type BoardLayoutLeftover,
-  type BoardLayoutPlacement,
+  Config,
+  type ConfigInput,
   type LinearBoardLayout,
   type LinearBoardLayoutPlacement,
+  type LinearStock,
+  type PartToCut,
   type PotentialBoardLayout,
   type SearchPass,
+  type SheetBoardLayout,
+  type SheetBoardLayoutPlacement,
+  type SheetStock,
+  type Stock,
+  type StockMatrix,
   isLinearStock,
 } from './types';
 
 import { Rectangle } from './geometry';
 import { isNearlyEqual } from './utils/floating-point-utils';
-import { isCompatibleLinearStock, isValidAnyStock } from './utils/stock-utils';
+import { isCompatibleLinearStock, isValidStock } from './utils/stock-utils';
 import { mmToM } from './utils/units';
 import {
   compareLayoutScores,
@@ -173,7 +173,7 @@ export function generateBoardLayouts(
   stock: StockMatrix[],
   config: ConfigInput,
 ): {
-  layouts: AnyBoardLayout[];
+  layouts: BoardLayout[];
   leftovers: BoardLayoutLeftover[];
 } {
   const normalizedConfig = Config.parse(config);
@@ -197,7 +197,7 @@ export function generateBoardLayouts(
   };
 }
 
-function stockSortMetric(stock: AnyStock): number {
+function stockSortMetric(stock: Stock): number {
   if (isLinearStock(stock)) return stock.length;
   return stock.width * stock.length;
 }
@@ -212,8 +212,8 @@ function stockSortMetric(stock: AnyStock): number {
  *
  * Linear rows expand to one `LinearStock` per stock length.
  */
-export function reduceStockMatrix(matrix: StockMatrix[]): AnyStock[] {
-  return matrix.flatMap<AnyStock>((item) => {
+export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
+  return matrix.flatMap<Stock>((item) => {
     if (item.kind === 'linear') {
       return item.size.lengths.map<LinearStock>((lenMm) => ({
         kind: 'linear',
@@ -226,7 +226,8 @@ export function reduceStockMatrix(matrix: StockMatrix[]): AnyStock[] {
       }));
     }
     return item.sizes.flatMap<Stock>((size) =>
-      size.thickness.map((thickness) => ({
+      size.thickness.map<SheetStock>((thickness) => ({
+        kind: 'sheet',
         material: item.material,
         thickness: mmToM(thickness),
         width: mmToM(size.width),
@@ -267,7 +268,7 @@ export function getPassesForAlgorithm(alg: Algorithm): SearchPass[] {
 function runMultiPassSearch(
   config: Config,
   parts: PartToCut[],
-  stock: AnyStock[],
+  stock: Stock[],
 ): SearchPassResult {
   // Tests / programmatic callers can pin an exact pass list. Otherwise
   // each group's `Algorithm` picks its tournament.
@@ -321,7 +322,7 @@ function runMultiPassSearch(
 function runSearchPass(
   config: Config,
   parts: PartToCut[],
-  stock: AnyStock[],
+  stock: Stock[],
   pass: SearchPassDefinition,
 ): SearchPassResult {
   const packer = PACKERS[pass.packerKind](pass);
@@ -372,7 +373,7 @@ type PlaceOptions = {
 function placeAllParts(
   config: Config,
   parts: PartToCut[],
-  stock: AnyStock[],
+  stock: Stock[],
   packer: Packer<PartToCut>,
   algorithm: Exclude<Algorithm, 'auto'>,
   options: PlaceOptions,
@@ -401,7 +402,7 @@ function placeAllParts(
 }
 
 interface OpenBoard {
-  stock: AnyStock;
+  stock: Stock;
   binState: unknown;
   placements: Rectangle<PartToCut>[];
 }
@@ -409,7 +410,7 @@ interface OpenBoard {
 function placeAllPartsWithLookback(
   config: Config,
   parts: PartToCut[],
-  stock: AnyStock[],
+  stock: Stock[],
   packer: Packer<PartToCut>,
   algorithm: Exclude<Algorithm, 'auto'>,
   options: PlaceOptions,
@@ -433,7 +434,7 @@ function placeAllPartsWithLookback(
     // Try every already-opened board first.
     let placed = false;
     for (const board of openBoards) {
-      if (!isValidAnyStock(board.stock, part, config.precision)) continue;
+      if (!isValidStock(board.stock, part, config.precision)) continue;
       const placement = tryPlaceInBinState(
         board.binState,
         makePartRect(part, algorithm, board.stock),
@@ -447,7 +448,7 @@ function placeAllPartsWithLookback(
     }
     if (placed) continue;
 
-    const board = stock.find((s) => isValidAnyStock(s, part, config.precision));
+    const board = stock.find((s) => isValidStock(s, part, config.precision));
     if (!board) {
       leftovers.push(part);
       continue;
@@ -477,7 +478,7 @@ function placeAllPartsWithLookback(
   };
 }
 
-function makeBoardRect(board: AnyStock, margin: number): Rectangle<AnyStock> {
+function makeBoardRect(board: Stock, margin: number): Rectangle<Stock> {
   if (isLinearStock(board)) {
     // Linear bin: width = cross-section, height = stick length minus end margins.
     // Start at (0, margin) so the bin's bottom is at the margin (matches sheet).
@@ -501,7 +502,7 @@ function makeBoardRect(board: AnyStock, margin: number): Rectangle<AnyStock> {
 function makePartRect(
   part: PartToCut,
   algorithm: Exclude<Algorithm, 'auto'>,
-  stock?: AnyStock,
+  stock?: Stock,
 ): Rectangle<PartToCut> {
   if (algorithm === 'linear' && stock != null && isLinearStock(stock)) {
     // Linear: cross-section on X (must equal stock cross-section width),
@@ -611,7 +612,7 @@ function getStableRandomValue(seed: number, part: PartToCut): number {
 function minimizeLayoutStock(
   config: Config,
   originalLayout: PotentialBoardLayout,
-  stock: AnyStock[],
+  stock: Stock[],
   packer: Packer<PartToCut>,
   packerOptions: PackOptions<PartToCut>,
 ): PotentialBoardLayout {
@@ -619,7 +620,7 @@ function minimizeLayoutStock(
 
   // Get alternative stock, smaller (length for linear, area for sheet) first.
   const altStock = stock
-    .filter((s) => isValidAnyStock(originalLayout.stock, s, config.precision))
+    .filter((s) => isValidStock(originalLayout.stock, s, config.precision))
     .toSorted((a, b) => stockSortMetric(a) - stockSortMetric(b));
 
   for (const smallerStock of altStock) {
@@ -639,7 +640,7 @@ function minimizeLayoutStock(
 
 interface StockGroup {
   parts: PartToCut[];
-  stock: AnyStock[];
+  stock: Stock[];
 }
 
 /**
@@ -650,13 +651,13 @@ interface StockGroup {
  */
 function groupPartsByStock(
   parts: PartToCut[],
-  stock: AnyStock[],
+  stock: Stock[],
   precision: number,
 ): StockGroup[] {
   // Collect unique stock types: sheet types group by ~thickness; linear
   // types group by ~(crossSectionWidth, crossSectionThickness) in either
   // orientation.
-  const stockTypes: AnyStock[][] = [];
+  const stockTypes: Stock[][] = [];
   for (const s of stock) {
     const match = stockTypes.find((t) =>
       isCompatibleStockType(t[0], s, precision),
@@ -665,12 +666,12 @@ function groupPartsByStock(
     else stockTypes.push([s]);
   }
 
-  const grouped = new Map<AnyStock[], PartToCut[]>();
+  const grouped = new Map<Stock[], PartToCut[]>();
   const unmatched: PartToCut[] = [];
 
   for (const part of parts) {
     const type = stockTypes.find((t) =>
-      t.some((s) => isValidAnyStock(s, part, precision)),
+      t.some((s) => isValidStock(s, part, precision)),
     );
     if (type) {
       let group = grouped.get(type);
@@ -697,11 +698,7 @@ function groupPartsByStock(
   return result;
 }
 
-function isCompatibleStockType(
-  a: AnyStock,
-  b: AnyStock,
-  precision: number,
-): boolean {
+function isCompatibleStockType(a: Stock, b: Stock, precision: number): boolean {
   if (a.material !== b.material) return false;
   if (isLinearStock(a)) {
     return isLinearStock(b) && isCompatibleLinearStock(a, b, precision);
@@ -722,7 +719,7 @@ function getPackerOptions(config: Config): PackOptions<PartToCut> {
 function serializeBoardLayoutRectangles(
   layout: PotentialBoardLayout,
   marginM: number,
-): AnyBoardLayout {
+): BoardLayout {
   if (isLinearStock(layout.stock)) {
     return serializeLinearLayout(layout, layout.stock, marginM);
   }
@@ -731,10 +728,11 @@ function serializeBoardLayoutRectangles(
 
 function serializeSheetLayout(
   layout: PotentialBoardLayout,
-  stock: Stock,
+  stock: SheetStock,
   marginM: number,
-): BoardLayout {
+): SheetBoardLayout {
   return {
+    kind: 'sheet',
     placements: layout.placements.map(serializePartToCutPlacement),
     stock: {
       material: stock.material,
@@ -744,7 +742,7 @@ function serializeSheetLayout(
       color: stock.color,
     },
     marginM,
-    algorithm: layout.algorithm,
+    algorithm: layout.algorithm as SheetBoardLayout['algorithm'],
   };
 }
 
@@ -790,7 +788,7 @@ function serializeLinearLayout(
 
 function serializePartToCutPlacement(
   placement: Rectangle<PartToCut>,
-): BoardLayoutPlacement {
+): SheetBoardLayoutPlacement {
   return {
     instanceNumber: placement.data.instanceNumber,
     partNumber: placement.data.partNumber,

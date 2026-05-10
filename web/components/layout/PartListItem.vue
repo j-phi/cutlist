@@ -1,8 +1,8 @@
 <script lang="ts" setup>
-import { M_PER_IN, type BoardLayoutPlacement } from 'cutlist';
+import { M_PER_IN, type SheetBoardLayoutPlacement } from 'cutlist';
 
 const props = defineProps<{
-  placement: BoardLayoutPlacement;
+  placement: SheetBoardLayoutPlacement;
   index: number;
 }>();
 

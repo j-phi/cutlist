@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   generateBoardLayouts,
   isLinearBoardLayout,
-  type AnyBoardLayout,
   type BoardLayout,
   type Config,
   type PartToCut,
+  type SheetBoardLayout,
 } from '..';
 
-function asSheet(layout: AnyBoardLayout): BoardLayout {
+function asSheet(layout: BoardLayout): SheetBoardLayout {
   if (isLinearBoardLayout(layout))
     throw new Error('expected sheet board layout, got linear');
   return layout;

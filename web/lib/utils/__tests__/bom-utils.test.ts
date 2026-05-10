@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { groupPartsByNumber } from '../bom-utils';
-import type { BoardLayoutLeftover, BoardLayoutPlacement } from '../../types';
+import type {
+  BoardLayoutLeftover,
+  SheetBoardLayoutPlacement,
+} from '../../types';
 
 // Helpers to build minimal fixture objects
 function makeLeftover(
@@ -21,7 +24,7 @@ function makeLeftover(
 function makePlacement(
   partNumber: number,
   instanceNumber: number,
-): BoardLayoutPlacement {
+): SheetBoardLayoutPlacement {
   return {
     ...makeLeftover(partNumber, instanceNumber),
     leftM: 0,
