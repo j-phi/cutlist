@@ -10,103 +10,7 @@ import {
   importProjectFromFile,
   parseProjectExport,
 } from '..';
-
-function makePayload(overrides?: any) {
-  const now = new Date().toISOString();
-  return {
-    version: SCHEMA_VERSION,
-    exportedAt: now,
-    project: {
-      id: 'proj-1',
-      name: 'Test Project',
-      colorMap: { '#aaa': 'Plywood' },
-      excludedColors: ['#bbb'],
-      stock: 'stock yaml',
-      distanceUnit: 'mm' as const,
-      bladeWidth: 3,
-      margin: 0,
-      defaultAlgorithm: 'auto' as const,
-      showPartNumbers: true,
-      createdAt: now,
-      updatedAt: now,
-    },
-    models: [
-      {
-        id: 'model-1',
-        projectId: 'proj-1',
-        filename: 'test.glb',
-        source: 'gltf' as const,
-        parts: [
-          {
-            partNumber: 1,
-            instanceNumber: 1,
-            name: 'Panel',
-            colorKey: '#aaa',
-            size: { width: 0.3, length: 0.5, thickness: 0.018 },
-          },
-        ],
-        enabled: true,
-        rawSource: { asset: { version: '2.0' } },
-        partOverrides: { '1': { grainLock: 'length' } },
-        createdAt: now,
-      },
-    ],
-    buildDoc: {
-      projectId: 'proj-1',
-      title: 'Test Project',
-      doc: {
-        type: 'doc',
-        content: [
-          {
-            type: 'paragraph',
-            content: [{ type: 'text', text: 'Cut to size' }],
-          },
-        ],
-      },
-      updatedAt: now,
-    },
-    ...overrides,
-  };
-}
-
-function makeIdbMock() {
-  const calls = {
-    createProject: [] as any[],
-    updateProject: [] as any[],
-    createModel: [] as any[],
-    putBuildDoc: [] as any[],
-    createScene: [] as any[],
-    createAnnotation: [] as any[],
-    putAsset: [] as any[],
-  };
-  return {
-    calls,
-    db: {
-      async createProject(name: string, opts?: any) {
-        calls.createProject.push({ name, opts });
-        return { id: 'new-proj' };
-      },
-      async updateProject(id: string, patch: any) {
-        calls.updateProject.push({ id, patch });
-      },
-      async createModel(model: any) {
-        calls.createModel.push(model);
-      },
-      async putBuildDoc(doc: any) {
-        calls.putBuildDoc.push(doc);
-      },
-      async createScene(scene: any) {
-        calls.createScene.push(scene);
-      },
-      async createAnnotation(annotation: any) {
-        calls.createAnnotation.push(annotation);
-      },
-      async putAsset(asset: any) {
-        calls.putAsset.push(asset);
-      },
-    },
-  };
-}
+import { makePayload, makeIdbMock, FIXTURE_NEW_PROJECT_ID } from './_helpers';
 
 describe('parseProjectExport edge cases', () => {
   it('rejects a boolean', () => {
@@ -114,7 +18,6 @@ describe('parseProjectExport edge cases', () => {
   });
 
   it('rejects an unversioned array as legacy', () => {
-    // Array is typeof 'object', has no version → falls into the legacy guard.
     expect(() => parseProjectExport([1, 2, 3])).toThrow(
       'older version of Cutlist',
     );
@@ -122,6 +25,7 @@ describe('parseProjectExport edge cases', () => {
 
   it('handles model with partOverrides preserved', () => {
     const payload = makePayload();
+    payload.models[0].partOverrides = { '1': { grainLock: 'length' } };
     const parsed = parseProjectExport(payload);
     expect(parsed.models[0].partOverrides).toMatchObject({
       '1': { grainLock: 'length' },
@@ -130,7 +34,7 @@ describe('parseProjectExport edge cases', () => {
 
   it('handles payload with no buildDoc field', () => {
     const payload = makePayload();
-    delete (payload as any).buildDoc;
+    delete (payload as { buildDoc?: unknown }).buildDoc;
     const parsed = parseProjectExport(payload);
     expect(parsed.buildDoc).toBeUndefined();
   });
@@ -149,13 +53,29 @@ describe('parseProjectExport edge cases', () => {
 
   it('rejects payload with negative partNumber', () => {
     const payload = makePayload();
-    payload.models[0].parts[0].partNumber = -1;
+    payload.models[0].parts = [
+      {
+        partNumber: -1,
+        instanceNumber: 1,
+        name: 'Bad',
+        colorKey: '#aaa',
+        size: { width: 0.3, length: 0.5, thickness: 0.018 },
+      },
+    ] as never;
     expect(() => parseProjectExport(payload)).toThrow('Invalid project file');
   });
 
   it('rejects payload with NaN size', () => {
     const payload = makePayload();
-    payload.models[0].parts[0].size.width = NaN;
+    payload.models[0].parts = [
+      {
+        partNumber: 1,
+        instanceNumber: 1,
+        name: 'Bad',
+        colorKey: '#aaa',
+        size: { width: NaN, length: 0.5, thickness: 0.018 },
+      },
+    ] as never;
     expect(() => parseProjectExport(payload)).toThrow('Invalid project file');
   });
 
@@ -171,8 +91,9 @@ describe('parseProjectExport edge cases', () => {
 describe('importProjectData remapping', () => {
   it('preserves excludedColors on import', async () => {
     const payload = makePayload();
+    payload.project.excludedColors = ['#bbb'];
     const { db, calls } = makeIdbMock();
-    await importProjectData(payload as any, db as any);
+    await importProjectData(payload as never, db as never);
     expect(calls.updateProject[0].patch.excludedColors).toEqual(['#bbb']);
   });
 
@@ -183,12 +104,11 @@ describe('importProjectData remapping', () => {
       id: 'model-2',
     });
     const { db, calls } = makeIdbMock();
-    await importProjectData(payload as any, db as any);
+    await importProjectData(payload as never, db as never);
 
-    const modelIds = calls.createModel.map((m: any) => m.id);
+    const modelIds = calls.createModel.map((m) => m.id);
     expect(modelIds).toHaveLength(2);
     expect(modelIds[0]).not.toBe(modelIds[1]);
-    // Neither should be the original IDs
     expect(modelIds[0]).not.toBe('model-1');
     expect(modelIds[1]).not.toBe('model-2');
   });
@@ -196,38 +116,22 @@ describe('importProjectData remapping', () => {
   it('imports the build doc with the new project ID', async () => {
     const payload = makePayload();
     const { db, calls } = makeIdbMock();
-    await importProjectData(payload as any, db as any);
+    await importProjectData(payload as never, db as never);
 
     expect(calls.putBuildDoc).toHaveLength(1);
-    expect(calls.putBuildDoc[0].projectId).toBe('new-proj');
+    expect(calls.putBuildDoc[0].projectId).toBe(FIXTURE_NEW_PROJECT_ID);
     expect(calls.putBuildDoc[0].title).toBe('Test Project');
-    expect(calls.putBuildDoc[0].doc).toMatchObject({
-      type: 'doc',
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: 'Cut to size' }] },
-      ],
-    });
   });
 });
 
 describe('importProjectFromFile corrupt data', () => {
-  // Note: Tests for empty/binary file rejection and plain JSON fallback are
-  // covered in projectImport.test.ts. The DecompressionStream error path
-  // crashes Bun's internal stream handling in test mode, so we test the
-  // validation layer directly here instead.
-
   it('rejects unversioned gzipped JSON as legacy', async () => {
     const gz = gzipSync(JSON.stringify({ random: 'garbage' }));
     const file = new File([new Uint8Array(gz)], 'bad.cutlist');
     const { db } = makeIdbMock();
-    let caught: Error | null = null;
-    try {
-      await importProjectFromFile(file, db as any);
-    } catch (e) {
-      caught = e as Error;
-    }
-    expect(caught).not.toBeNull();
-    expect(caught!.message).toContain('older version of Cutlist');
+    await expect(importProjectFromFile(file, db as never)).rejects.toThrow(
+      'older version of Cutlist',
+    );
   });
 
   it('accepts valid gzipped export', async () => {
@@ -235,7 +139,7 @@ describe('importProjectFromFile corrupt data', () => {
     const gz = gzipSync(JSON.stringify(payload));
     const file = new File([new Uint8Array(gz)], 'valid.cutlist');
     const { db, calls } = makeIdbMock();
-    await importProjectFromFile(file, db as any);
+    await importProjectFromFile(file, db as never);
     expect(calls.createProject).toHaveLength(1);
     expect(calls.createModel).toHaveLength(1);
   });
@@ -244,12 +148,12 @@ describe('importProjectFromFile corrupt data', () => {
 describe('round-trip fidelity', () => {
   it('preserves part overrides through parse -> import', async () => {
     const payload = makePayload();
+    payload.models[0].partOverrides = { '1': { grainLock: 'length' } };
     const parsed = parseProjectExport(payload);
     const { db, calls } = makeIdbMock();
-    await importProjectData(parsed, db as any);
+    await importProjectData(parsed, db as never);
 
-    const importedModel = calls.createModel[0];
-    expect(importedModel.partOverrides).toMatchObject({
+    expect(calls.createModel[0].partOverrides).toMatchObject({
       '1': { grainLock: 'length' },
     });
   });
@@ -259,10 +163,11 @@ describe('round-trip fidelity', () => {
     payload.project.stock = 'custom stock yaml';
     payload.project.distanceUnit = 'in';
     const { db, calls } = makeIdbMock();
-    await importProjectData(payload as any, db as any);
+    await importProjectData(payload as never, db as never);
 
-    expect(calls.createProject[0].opts.stock).toBe('custom stock yaml');
-    expect(calls.createProject[0].opts.distanceUnit).toBe('in');
+    const opts = calls.createProject[0].opts as Record<string, unknown>;
+    expect(opts.stock).toBe('custom stock yaml');
+    expect(opts.distanceUnit).toBe('in');
   });
 
   it('passes packing settings through to createProject', async () => {
@@ -272,20 +177,21 @@ describe('round-trip fidelity', () => {
     payload.project.defaultAlgorithm = 'cnc';
     payload.project.showPartNumbers = false;
     const { db, calls } = makeIdbMock();
-    await importProjectData(payload as any, db as any);
+    await importProjectData(payload as never, db as never);
 
-    expect(calls.createProject[0].opts.bladeWidth).toBe(5);
-    expect(calls.createProject[0].opts.margin).toBe(2);
-    expect(calls.createProject[0].opts.defaultAlgorithm).toBe('cnc');
-    expect(calls.createProject[0].opts.showPartNumbers).toBe(false);
+    const opts = calls.createProject[0].opts as Record<string, unknown>;
+    expect(opts.bladeWidth).toBe(5);
+    expect(opts.margin).toBe(2);
+    expect(opts.defaultAlgorithm).toBe('cnc');
+    expect(opts.showPartNumbers).toBe(false);
   });
 
-  it('fills defaults when legacy export omits packing settings', async () => {
+  it('fills defaults when legacy export omits packing settings', () => {
     const payload = makePayload();
-    delete (payload.project as any).bladeWidth;
-    delete (payload.project as any).margin;
-    delete (payload.project as any).defaultAlgorithm;
-    delete (payload.project as any).showPartNumbers;
+    delete (payload.project as Record<string, unknown>).bladeWidth;
+    delete (payload.project as Record<string, unknown>).margin;
+    delete (payload.project as Record<string, unknown>).defaultAlgorithm;
+    delete (payload.project as Record<string, unknown>).showPartNumbers;
     const parsed = parseProjectExport(payload);
     expect(parsed.project.bladeWidth).toBeDefined();
     expect(parsed.project.margin).toBeDefined();
@@ -297,10 +203,10 @@ describe('round-trip fidelity', () => {
     const payload = makePayload();
     payload.models[0].colors = [
       { key: '#aaa', rgb: [0.5, 0.5, 0.5], count: 1 },
-    ];
+    ] as never;
     payload.models[0].nodePartMap = [
       { nodeIndex: 0, partNumber: 1, colorHex: '#aaa' },
-    ];
+    ] as never;
     const parsed = parseProjectExport(payload);
     expect(parsed.models[0].colors).toHaveLength(1);
     expect(parsed.models[0].nodePartMap).toHaveLength(1);

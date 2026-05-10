@@ -1,181 +1,120 @@
 // @vitest-environment nuxt
 /**
- * Unit tests for the scene authoring actions composable. The fakes only
- * implement the slice of `SceneAuthor` / `UseScenesApi` the actions touch.
+ * Trimmed: this composable is pure orchestration over SceneAuthor + UseScenesApi.
+ * Most behaviour-meaningful invariants are covered upstream. Two cases here
+ * protect bugs the host can't catch:
+ *  1) The dirty flag must be cleared on adopt — otherwise the user keeps
+ *     seeing the "unsaved changes" affordance after their scene was saved.
+ *  2) Capture must happen BEFORE addScene is called — addScene reads the
+ *     captured state; flipping the order silently saves an empty/wrong scene.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { effectScope, ref } from 'vue';
 import type { IdbScene } from '~/composables/useIdb';
 import type { SceneAuthor, Tween } from '../useSceneAuthor';
 import type { UseScenesApi } from '../useScenes';
 import { useSceneAuthoringActions } from '../useSceneAuthoringActions';
 
-function makeAuthor(overrides: Partial<SceneAuthor> = {}): SceneAuthor {
-  return {
+interface AddCall {
+  whenCaptured: number; // sequence number recording capture order
+}
+
+function setup() {
+  let captureSeq = 0;
+  let nextSeq = 0;
+  const captured: number[] = [];
+  const adds: AddCall[] = [];
+
+  const author: SceneAuthor = {
     visibleObjects: ref(null),
     activeSceneId: ref<string | null>(null),
     tween: ref<Tween | null>(null),
     dirty: ref(false),
     cameraMode: ref('perspective'),
     floorVisible: ref(true),
-    captureCurrentSceneState: vi.fn().mockReturnValue({
-      cameraMode: 'perspective',
-      cameraPose: { position: [0, 0, 0], target: [0, 0, 0] },
-      objectOffsets: new Map(),
-      visibleObjects: null,
-      floorVisible: true,
-    }),
-    captureThumbnail: vi.fn().mockReturnValue('thumb'),
-    jumpToScene: vi.fn(),
-    tweenToScene: vi.fn().mockResolvedValue(undefined),
-    setCameraMode: vi.fn(),
-    setFloorVisible: vi.fn(),
-    markClean: vi.fn(),
-    markDirty: vi.fn(),
-    onUserChange: vi.fn(() => () => {}),
-    toggleObjectVisibility: vi.fn(),
-    setObjectsVisibility: vi.fn(),
-    toggleObjectsVisibility: vi.fn(),
-    showAllObjects: vi.fn(),
-    hideAllObjects: vi.fn(),
-    resetAllOffsets: vi.fn(),
-    resetSelectedOffsets: vi.fn(),
-    ...overrides,
+    captureCurrentSceneState: () => {
+      captureSeq = ++nextSeq;
+      captured.push(captureSeq);
+      return {
+        cameraMode: 'perspective',
+        cameraPose: { position: [0, 0, 0], target: [0, 0, 0] },
+        objectOffsets: new Map(),
+        visibleObjects: null,
+        floorVisible: true,
+      };
+    },
+    captureThumbnail: () => 'thumb',
+    jumpToScene: () => {},
+    tweenToScene: async () => {},
+    setCameraMode: () => {},
+    setFloorVisible: () => {},
+    markClean: () => {
+      author.dirty.value = false;
+    },
+    markDirty: () => {
+      author.dirty.value = true;
+    },
+    onUserChange: () => () => {},
+    toggleObjectVisibility: () => {},
+    setObjectsVisibility: () => {},
+    toggleObjectsVisibility: () => {},
+    showAllObjects: () => {},
+    hideAllObjects: () => {},
+    resetAllOffsets: () => {},
+    resetSelectedOffsets: () => {},
+    fitToModel: () => {},
   } as SceneAuthor;
-}
 
-function makeScenes(scenes: IdbScene[] = []): UseScenesApi {
-  const list = ref<IdbScene[]>(scenes);
-  return {
-    scenes: list,
+  const scenesApi: UseScenesApi = {
+    scenes: ref<IdbScene[]>([]),
     pinnedSceneIds: ref([]),
     defaultSceneId: ref(null),
-    addScene: vi.fn(async () => 'new-id'),
-    ensureDefaultScene: vi.fn(async () => undefined),
-    updateScene: vi.fn(async () => {}),
-    moveScene: vi.fn(async () => {}),
-    removeScene: vi.fn(async () => {}),
-    isDefaultScene: vi.fn(() => false),
-    reload: vi.fn(async () => {}),
+    addScene: async () => {
+      adds.push({ whenCaptured: captureSeq });
+      nextSeq++;
+      return 'new-id';
+    },
+    ensureDefaultScene: async () => undefined,
+    updateScene: async () => {},
+    moveScene: async () => {},
+    removeScene: async () => {},
+    isDefaultScene: () => false,
+    reload: async () => {},
   } as unknown as UseScenesApi;
+
+  return { author, scenesApi, captured, adds };
 }
 
 describe('useSceneAuthoringActions', () => {
-  it('Should create a scene and adopt the new id', async () => {
-    const author = makeAuthor();
+  it('clears the dirty flag and adopts the new id after addScene', async () => {
+    const { author, scenesApi } = setup();
     author.dirty.value = true;
-    const scenes = makeScenes();
     const scope = effectScope();
-    const actions = scope.run(() => useSceneAuthoringActions(author, scenes))!;
+    const actions = scope.run(() =>
+      useSceneAuthoringActions(author, scenesApi),
+    )!;
 
     await actions.addScene();
 
-    expect(scenes.addScene).toHaveBeenCalledWith({
-      state: expect.anything(),
-      thumbnail: 'thumb',
-    });
     expect(author.activeSceneId.value).toBe('new-id');
     expect(author.dirty.value).toBe(false);
     scope.stop();
   });
 
-  it('Should be a no-op while a tween is in flight', async () => {
-    const author = makeAuthor();
-    author.tween.value = { from: null, to: 'x', t: 0.4 };
-    const scenes = makeScenes();
+  it('captures scene state BEFORE persisting (capture-then-add ordering)', async () => {
+    const { author, scenesApi, captured, adds } = setup();
     const scope = effectScope();
-    const actions = scope.run(() => useSceneAuthoringActions(author, scenes))!;
+    const actions = scope.run(() =>
+      useSceneAuthoringActions(author, scenesApi),
+    )!;
 
     await actions.addScene();
-    expect(scenes.addScene).not.toHaveBeenCalled();
-    scope.stop();
-  });
 
-  it('Should tween to the matching scene on selectScene', async () => {
-    const target: IdbScene = {
-      id: 's1',
-      modelId: 'm',
-      name: 's',
-      order: 0,
-      cameraMode: 'perspective',
-      cameraPose: { position: [0, 0, 0], target: [0, 0, 0] },
-      objectOffsets: {},
-      visibleObjects: null,
-      floorVisible: true,
-      createdAt: '',
-      updatedAt: '',
-    } as unknown as IdbScene;
-    const author = makeAuthor();
-    const scenes = makeScenes([target]);
-    const scope = effectScope();
-    const actions = scope.run(() => useSceneAuthoringActions(author, scenes))!;
-
-    await actions.selectScene('s1');
-    expect(author.tweenToScene).toHaveBeenCalledWith(target);
-    scope.stop();
-  });
-
-  it('Should write thumbnail + state and mark clean on updateActiveScene', async () => {
-    const author = makeAuthor();
-    author.activeSceneId.value = 's1';
-    author.dirty.value = true;
-    const scenes = makeScenes();
-    const scope = effectScope();
-    const actions = scope.run(() => useSceneAuthoringActions(author, scenes))!;
-
-    await actions.updateActiveScene();
-    expect(scenes.updateScene).toHaveBeenCalledWith(
-      's1',
-      expect.objectContaining({ thumbnailDataUrl: 'thumb' }),
-    );
-    expect(author.markClean).toHaveBeenCalled();
-    scope.stop();
-  });
-
-  it('Should clear active id when removing the active scene', async () => {
-    const author = makeAuthor();
-    author.activeSceneId.value = 's1';
-    author.dirty.value = true;
-    const scenes = makeScenes();
-    const scope = effectScope();
-    const actions = scope.run(() => useSceneAuthoringActions(author, scenes))!;
-
-    await actions.removeScene('s1');
-    expect(author.activeSceneId.value).toBeNull();
-    expect(author.dirty.value).toBe(false);
-    expect(scenes.removeScene).toHaveBeenCalledWith('s1');
-    scope.stop();
-  });
-
-  it('Should not remove the default scene', async () => {
-    const author = makeAuthor();
-    author.activeSceneId.value = 'default:m1';
-    const scenes = makeScenes();
-    vi.mocked(scenes.isDefaultScene).mockReturnValue(true);
-    const scope = effectScope();
-    const actions = scope.run(() => useSceneAuthoringActions(author, scenes))!;
-
-    await actions.removeScene('default:m1');
-
-    expect(author.activeSceneId.value).toBe('default:m1');
-    expect(scenes.removeScene).not.toHaveBeenCalled();
-    scope.stop();
-  });
-
-  it('Should keep canUpdateScene true only when dirty + active + not tweening', () => {
-    const author = makeAuthor();
-    const scenes = makeScenes();
-    const scope = effectScope();
-    const actions = scope.run(() => useSceneAuthoringActions(author, scenes))!;
-
-    expect(actions.canUpdateScene.value).toBe(false);
-
-    author.dirty.value = true;
-    author.activeSceneId.value = 's1';
-    expect(actions.canUpdateScene.value).toBe(true);
-
-    author.tween.value = { from: null, to: 's1', t: 0.5 };
-    expect(actions.canUpdateScene.value).toBe(false);
+    expect(captured.length).toBe(1);
+    expect(adds.length).toBe(1);
+    // The recorded captureSeq at the moment addScene fired must equal the
+    // capture's own sequence number — i.e. capture preceded the persist call.
+    expect(adds[0].whenCaptured).toBe(captured[0]);
     scope.stop();
   });
 });

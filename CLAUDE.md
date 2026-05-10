@@ -173,15 +173,28 @@ The app is always dark. The **mist palette** (cool blue-gray ramp) is the single
 
 ## Testing
 
-**Every feature or behavioral change must ship with tests.** This includes new composable methods, new component interactions (emits, confirm flows), new IDB operations, and new utility functions. When modifying existing behavior, update the corresponding tests to match. Run `bun run test` before considering any task complete.
+**Every feature or behavioral change must ship with tests.** New composable methods, component interactions (emits, confirm flows), IDB operations, utility functions. When modifying existing behavior, update the tests to match. Run `bun run test` before considering any task complete.
 
-When a feature touches multiple layers (e.g. a new IDB operation wired through a composable to a component), test each layer:
+When a feature touches multiple layers, test each layer that has non-trivial logic — but only those layers. A composable that's pure delegation doesn't need its own test if the layers it delegates to are covered.
 
-- **IDB/data layer** — verify the operation works against a real (fake) IndexedDB
-- **Composable layer** — if it has non-trivial logic beyond delegation, test it
-- **Component layer** — verify emits, confirm flows, and conditional rendering
+- **IDB/data layer** — verify against fake-indexeddb
+- **Composable layer** — if it has non-trivial logic beyond delegation
+- **Component layer** — emits, confirm flows, conditional rendering
 
-Tests use [Vitest](https://vitest.dev) with `@nuxt/test-utils` for component tests. Test files live alongside source in `__tests__/` subdirectories:
+### The tautology check (MUST apply before writing or keeping a test)
+
+Before adding an assertion, ask: **"what real, user-visible bug class would slip through if this assertion vanished?"** If you can't name one, don't write the test — or delete it.
+
+Common tautologies (do NOT write these):
+
+- **Mock-shape introspection** — `expect(myMock).toHaveBeenCalledWith(...)` where the mock was set up to return data the test then asserts on. You're testing the mock, not the code.
+- **Vue template forwarding** — asserting that a parent passes a prop or emits an event that the template literally writes (`<Child :foo="foo" @bar="onBar" />`). Vue guarantees this; testing it just makes prop renames painful.
+- **Type-checker duplicates** — asserting that a default-fill function fills the field it's typed to fill, or that a function returns the type it's typed to return.
+- **Object-spread tautologies** — "preserves existing values" cases on `applyDefaults`-style helpers. They just verify `{...x, defaults}` works.
+- **Copy-edit smoke** — asserting that a help popover contains the strings `'Right-drag'`, `'Mid-drag'`, etc. Rewards itself for typo-catching but rots on every copy edit.
+- **Lifecycle no-ops** — "should not throw when disposed before init", "renders default slot content". These are framework guarantees.
+
+Test files live alongside source in `__tests__/` subdirectories:
 
 - `web/lib/__tests__/` — packing algorithm tests
 - `web/lib/packers/__tests__/` — individual packer unit tests
@@ -195,13 +208,32 @@ Tests use [Vitest](https://vitest.dev) with `@nuxt/test-utils` for component tes
 - `web/components/*/__tests__/` — component interaction tests
 - `web/middleware/__tests__/` — route middleware tests
 
-**Outcome-based assertions, not mock metadata.** Viewer module tests use real `THREE.*` math, real `EventBus`, real `ObjectRegistry`, and stub only what genuinely needs DOM/WebGL (e.g. `TransformControls`, `BatchedMesh`'s GPU-instanced raycast). For Vue components, prefer `wrapper.emitted()` over mocked event handlers. For composables that record calls, prefer plain functions pushing into typed arrays over `vi.fn()` + `toHaveBeenCalled` introspection. See `web/lib/viewer/modules/__tests__/GizmoController.test.ts` and `MarqueeSelector.test.ts` as canonical examples.
+### Outcome-based assertions, not mock metadata
 
-Config lives in [web/vitest.config.ts](web/vitest.config.ts). The default environment is `happy-dom` (fast, no Nuxt boot). [web/test-setup.ts](web/test-setup.ts) is loaded as a `setupFiles` entry: it installs `fake-indexeddb` and runs a global `beforeEach` that calls `__resetDbForTests()` (dynamic import so Dexie does not load before `fake-indexeddb/auto`) then `indexedDB.deleteDatabase('cutlist-db')`. **Every test starts with an empty IndexedDB** — do not rely on data from other tests or on test order.
+Viewer module tests use real `THREE.*` math, real `EventBus`, real `ObjectRegistry`, and stub only what genuinely needs DOM/WebGL (e.g. `TransformControls`, `BatchedMesh`'s GPU-instanced raycast). Canonical examples: `web/lib/viewer/modules/__tests__/GizmoController.test.ts`, `MarqueeSelector.test.ts`.
+
+For Vue components, prefer `wrapper.emitted()` over mocked event handlers.
+
+For composables that need to record calls into a fake dependency, prefer **plain functions pushing into typed arrays** over `vi.fn()` + `toHaveBeenCalled` introspection. The typed-array pattern asserts on what was recorded (an outcome) rather than how the mock was wired (an implementation detail). Example: `useSceneAuthoringActions.test.ts` uses `captured: number[]` and `adds: AddCall[]` to verify capture-then-add ordering.
+
+### Shared test utilities
+
+- **Component stubs** — `web/test-utils/stubs.ts` exports stable stubs for Nuxt UI primitives (`UButtonStub`, `UInputStub`, `UModalStub`, etc.). Import these instead of inlining stub definitions in each test file. The inline-stub pattern is drift-prone: when the real component gains a prop, the per-file stubs silently lose coverage.
+- **Migration / import fixtures** — `web/utils/projectImport/__tests__/_helpers.ts` exports `makePayload(overrides?)` and `makeIdbMock({ newProjectId? })`. Use these for any test exercising the import pipeline; do not duplicate the payload shape.
+
+### Test config
+
+[web/vitest.config.ts](web/vitest.config.ts) — default environment `happy-dom` (fast, no Nuxt boot). [web/test-setup.ts](web/test-setup.ts) installs `fake-indexeddb` and runs a global `beforeEach` that calls `__resetDbForTests()` (dynamic import so Dexie does not load before `fake-indexeddb/auto`) then `indexedDB.deleteDatabase('cutlist-db')`. **Every test starts with an empty IndexedDB** — do not rely on data from other tests or on test order.
 
 For component tests that need Nuxt auto-imports / `mountSuspended`, opt-in to the Nuxt environment per file with `// @vitest-environment nuxt` at the top.
 
-When adding a test for a component that already has a test file with stubs/mocks, update those stubs to include any new emits, props, or mock functions so the existing tests don't drift out of sync with the real component API.
+### Benchmarks
+
+`web/lib/benchmarks/benchmark.test.ts` is an observability harness, not a regression test. It's excluded from `bun run test`. Run it deliberately with `bun run bench` (uses [web/vitest.bench.config.ts](web/vitest.bench.config.ts)) when comparing before/after on packing-engine changes.
+
+### When you find a bloated test file
+
+Trim it. Apply the tautology check to every `it()`. If the file has 5 near-duplicate render-state cases, collapse them into one `it.each` or one well-chosen case. If a 600-LOC test file exists for a 200-LOC composable, the test is probably over-fitted to implementation. Bias toward fewer sharper tests over many shallow ones.
 
 ## Data Model (`web/composables/useIdb/`)
 

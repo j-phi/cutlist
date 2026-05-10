@@ -13,6 +13,7 @@
     "check": "cd web && vue-tsc --noEmit",
     "test": "cd web && vitest run",
     "test:watch": "cd web && vitest",
+    "bench": "cd web && vitest run --config vitest.bench.config.ts",
     "postinstall": "nuxt prepare web",
     "prepare": "simple-git-hooks"
   },

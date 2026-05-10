@@ -5,7 +5,7 @@ export default defineVitestConfig({
     globals: false,
     environment: 'happy-dom',
     setupFiles: ['./test-setup.ts'],
-    include: ['**/__tests__/**/*.test.ts'],
-    exclude: ['**/node_modules/**', '**/benchmarks/**'],
+    include: ['lib/benchmarks/**/*.test.ts'],
+    exclude: ['**/node_modules/**'],
   },
 });

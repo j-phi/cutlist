@@ -5,50 +5,121 @@ description: Write or update Cutlist frontend tests with Vitest, TypeScript, Nux
 
 # Write Tests
 
-Write or update tests for the target file in the Cutlist app. Read the source before writing tests, then choose the narrowest test shape that proves the behavior.
+Write or update tests for the target file in the Cutlist app. Read the source before writing tests, then choose the narrowest test shape that proves the behaviour. **Fewer sharper tests beat many shallow ones.**
 
-## Step 1 - Identify The Module Type
+## Step 0 — Apply the tautology check
 
-- **Pure helper / utility** - deterministic TypeScript with no browser API or IndexedDB, usually in `web/utils/`, `web/lib/utils/`, or `web/lib/geometry/`.
-- **Packing engine / packer** - board layout, rectangle, stock, scoring, or packer code in `web/lib/`.
-- **Parser / import / export / migration** - GLTF, COLLADA, stock YAML, PDF export, project import, schema defaults, or version migration code.
-- **IDB-backed module** - code using `useIdb`, Dexie records, project/model/build-step persistence, or write batching.
-- **Composable** - Vue reactive state or behavior in `web/composables/`; this app does not use Vuex or Pinia.
-- **Worker / browser API module** - `Worker`, file APIs, URL APIs, Sentry, Nuxt UI toast, or other globals.
-- **Nuxt route / middleware / page / component** - `.vue`, `web/pages/`, `web/middleware/`, or code that needs Nuxt auto-imports/plugins.
+Before writing OR keeping any test, ask:
 
-## Step 2 - Read Context Files
+> **What real, user-visible bug class would slip through if this assertion vanished?**
+
+If you can't name one, don't write it (or delete it if it exists). This is the most important rule in this skill.
+
+### Anti-patterns to refuse
+
+Do NOT write any of these — they are pure tautologies that generate maintenance load without preventing user-visible bugs:
+
+- **Mock-shape introspection.** `expect(mock).toHaveBeenCalledWith(...)` where the mock returns data the test then asserts on. Tests the mock, not the code.
+- **Vue template forwarding.** Asserting that a parent passes a prop or emits an event the template literally writes (`<Child :foo="foo" @bar="onBar" />`). Vue guarantees this; the test only fires on rename pain.
+- **Type-checker duplicates.** Asserting that a default-fill function fills the field it's typed to fill, or that a function returns its declared return type.
+- **Object-spread tautologies.** "Preserves existing values" cases on `applyDefaults`-style helpers. Pure verification of `{...x, defaults}`.
+- **Copy-edit smoke.** `expect(text).toContain('Right-drag')`. Rewards typo-catching, rots on copy edits.
+- **Lifecycle no-ops.** "Should not throw when disposed before init", "renders default slot content". Framework guarantees.
+- **Stable-API surface checks.** `expect(typeof result.foo).toBe('function')`. The type checker does this for free.
+
+When trimming an existing test file, run every `it()` through the tautology check. Trim aggressively. Bloated test files are technical debt.
+
+## Step 1 — Identify the module type
+
+- **Pure helper / utility** — deterministic TypeScript, no browser API or IndexedDB; usually `web/utils/`, `web/lib/utils/`, `web/lib/geometry/`.
+- **Packing engine / packer** — board layout, rectangle, stock, scoring, packers in `web/lib/`.
+- **Parser / import / export / migration** — GLTF, COLLADA, stock YAML, PDF export, project import, schema defaults, version migration.
+- **IDB-backed module** — code using `useIdb`, Dexie records, project/model/build-doc persistence, write batching.
+- **Composable** — Vue reactive state in `web/composables/`. (No Pinia.)
+- **Worker / browser API module** — `Worker`, file APIs, URL APIs, Sentry, Nuxt UI toast, other globals.
+- **Nuxt route / middleware / page / component** — `.vue`, `web/pages/`, `web/middleware/`, code that needs Nuxt auto-imports/plugins.
+
+## Step 2 — Read context
 
 Before writing tests, read:
 
 1. The source file being tested.
-2. The existing test file, if present.
-3. Imported collaborators that need mocks or real setup.
-4. `web/test-setup.ts` and `web/vitest.config.ts` if the test needs IndexedDB, Nuxt, globals, or unusual environment behavior.
+2. The existing test file, if any.
+3. Imported collaborators that need fakes or real setup.
+4. Peer test files that may already cover the same ground (avoid duplicating coverage between layers).
+5. `web/test-setup.ts` and `web/vitest.config.ts` only if the test needs IndexedDB, Nuxt, globals, or unusual environment behaviour.
 
-## Project Test Basics
+## Project test basics
 
-- Tests are TypeScript files named `*.test.ts` under a sibling `__tests__/` directory. Examples: `web/utils/foo.ts` -> `web/utils/__tests__/foo.test.ts`; `web/lib/packers/FooPacker.ts` -> `web/lib/packers/__tests__/FooPacker.test.ts`.
-- Vitest globals are disabled. Always import what you use from `vitest`: `describe`, `it`, `expect`, `beforeEach`, `afterEach`, `vi`.
-- The default environment is `happy-dom`. Add `// @vitest-environment nuxt` at the top only when a test needs Nuxt runtime behavior, Nuxt auto-imports, plugins, or `mountSuspended`.
-- `web/test-setup.ts` installs `fake-indexeddb` and resets the Cutlist DB before every test. Do not depend on test order or records created by another test.
-- Import Vue primitives explicitly (`ref`, `nextTick`, `effectScope`, etc.) even if the app source relies on Nuxt auto-imports.
-- Prefer existing aliases: `~` for `web/` and `cutlist` for `web/lib`.
+- Test files are TypeScript named `*.test.ts` under sibling `__tests__/` directories. Examples: `web/utils/foo.ts` → `web/utils/__tests__/foo.test.ts`.
+- Vitest globals are disabled — always import `describe`, `it`, `expect`, `beforeEach`, `afterEach`, `vi` from `vitest`.
+- Default environment is `happy-dom`. Add `// @vitest-environment nuxt` only when a test needs Nuxt runtime, plugins, auto-imports, or `mountSuspended`.
+- `web/test-setup.ts` installs `fake-indexeddb` and resets the Cutlist DB before every test. Don't depend on test order.
+- Import Vue primitives explicitly (`ref`, `nextTick`, `effectScope`, etc.) even when source relies on Nuxt auto-imports.
+- Aliases: `~` for `web/`, `cutlist` for `web/lib`.
 
-## General Rules
+## Outcome over mock-shape
 
-- Test public behavior: return values, thrown errors, emitted events, DOM output, persisted records, worker messages, and calls to mocked boundaries.
-- Do not test private helpers that are not exported, implementation order that users cannot observe, Nuxt UI internals, or Dexie internals.
-- For new or substantially rewritten suites, name tests with `Should ...`. For small updates to an existing suite, preserve local naming unless rewriting the block.
-- Group by exported function, public method, lifecycle behavior, or rendered section. Put input validation/error cases before success cases; put integration and edge cases after basic behavior.
+Test public behaviour: return values, thrown errors, emitted events, DOM output, persisted records, worker messages, observable state changes. Do NOT test private helpers, implementation order users can't see, Nuxt UI internals, or Dexie internals.
+
+For composables that need to record interactions with a fake dependency, prefer **plain functions pushing into typed arrays** over `vi.fn()` + `toHaveBeenCalled`. The typed-array pattern asserts on what was recorded (an outcome) rather than the mock's wiring.
+
+```ts
+// Good — outcome assertion
+const adds: AddCall[] = [];
+const captured: number[] = [];
+const author = {
+  captureCurrentSceneState: () => {
+    captureSeq = ++nextSeq;
+    captured.push(captureSeq);
+    return /* ... */;
+  },
+  // ...
+};
+const scenesApi = {
+  addScene: async () => {
+    adds.push({ whenCaptured: captureSeq });
+    return 'new-id';
+  },
+  // ...
+};
+// ... run the code under test
+expect(adds[0].whenCaptured).toBe(captured[0]); // capture preceded persist
+```
+
+```ts
+// Avoid — mock-shape introspection
+const captureMock = vi.fn();
+const addMock = vi.fn();
+expect(captureMock).toHaveBeenCalled();
+expect(addMock).toHaveBeenCalledWith(/* repeating the call args */);
+```
+
+For Vue components, prefer `wrapper.emitted()` over mocked event handlers.
+
+Canonical examples in the repo:
+
+- `web/lib/viewer/modules/__tests__/GizmoController.test.ts`
+- `web/lib/viewer/modules/__tests__/MarqueeSelector.test.ts`
+- `web/composables/__tests__/useSceneAuthoringActions.test.ts`
+
+## Shared test utilities — use these, don't reinvent
+
+- **Component stubs** — `web/test-utils/stubs.ts` exports `UButtonStub`, `UInputStub`, `UModalStub`, `USelectStub`, `UFormFieldStub`, etc. Use these instead of inlining stubs in each test file. Inline stubs drift silently when the real component gains a prop.
+- **Migration / import fixtures** — `web/utils/projectImport/__tests__/_helpers.ts` exports `makePayload(overrides?)` and `makeIdbMock({ newProjectId? })`. Use them for any test exercising the project-import pipeline.
+
+## General rules
+
+- Group tests by exported function, public method, lifecycle behaviour, or rendered section.
+- Put input validation/error cases before success cases; integration and edge cases after basic behaviour.
+- For new or substantially rewritten suites, name tests with `Should …`. For small updates, preserve local naming.
 - Keep setup close to the tests. Use `beforeEach` only when several tests genuinely share setup.
-- Use small typed factory helpers such as `makePart`, `makeProject`, `makeStock`, or `makeConfig` instead of large fixtures.
-- Prefer exact assertions: `toBe`, `toEqual`, `toMatchObject`, `toBeCloseTo`, `resolves`, and `rejects`. Avoid broad `toContain` text checks and snapshots unless the structure is intentionally stable.
-- Use `vi.restoreAllMocks()` in `afterEach` when using `vi.spyOn`. Use `mockClear()` for reusable `vi.fn()` mocks. Do not add mock cleanup that is not needed.
+- Use small typed factory helpers (`makePart`, `makeProject`, `makeStock`, `makeConfig`) instead of large inline fixtures.
+- Prefer exact assertions: `toBe`, `toEqual`, `toMatchObject`, `toBeCloseTo`, `resolves`, `rejects`. Avoid broad `toContain` text checks unless asserting a stable contract.
+- Avoid snapshots unless the structure is intentionally stable.
+- Use `vi.restoreAllMocks()` in `afterEach` when using `vi.spyOn`. Use `mockClear()` for reusable `vi.fn()` mocks. Don't add cleanup that isn't needed.
 
-## Pure Helper / Utility Tests
-
-Pattern:
+## Pure helper / utility tests
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -67,23 +138,19 @@ describe('myHelper', () => {
 });
 ```
 
-Rules:
+- One `describe('#name')` per exported function/method when the module has multiple exports.
+- Cover invalid inputs first, then representative successes, then edges.
+- Don't mock HTTP, IDB, Vue, or Nuxt for pure modules.
 
-- One `describe('#name')` per exported function or class method when the module has multiple exports.
-- Cover invalid inputs first, then representative successes, then edge cases.
-- Do not mock HTTP, IndexedDB, Vue, or Nuxt for pure modules.
+## Packing engine / packer tests
 
-## Packing Engine / Packer Tests
-
-Use real geometry and real packer inputs. Focus on invariants that matter to wood-cutting behavior:
+Use real geometry. Focus on invariants that matter to wood-cutting:
 
 - Empty inputs return empty placements and leftovers.
 - Oversize parts become leftovers.
-- Placements stay inside the board, account for margin/kerf, and do not overlap.
-- Rotation, grain lock, orientation, grouping, and scoring rules are observable in the result.
-- Similar inputs produce deterministic output where the algorithm promises determinism.
-
-Pattern:
+- Placements stay inside the board, account for margin/kerf, do not overlap.
+- Rotation, grain lock, orientation, grouping, scoring rules are observable in the result.
+- Determinism where the algorithm promises it.
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -99,40 +166,33 @@ describe('StripPacker', () => {
       gap: 0,
       precision: 0,
     });
-
     expect(result.placements).toEqual([]);
     expect(result.leftovers).toEqual(['too-wide']);
   });
 });
 ```
 
-Rules:
+- Use `toBeCloseTo` for floating-point geometry / unit conversion.
+- Assert behaviour, not full layout arrays, unless the exact layout is the contract.
+- Include no-overlap and inside-board checks for new packers.
 
-- Use `toBeCloseTo` for floating-point geometry or unit conversion.
-- Assert behavior, not a full layout array, unless the exact layout is the contract.
-- Include no-overlap and inside-board checks for new packers or layout algorithms.
-
-## Parser / Import / Export / Migration Tests
+## Parser / import / export / migration tests
 
 Cover both accepted and rejected data:
 
 - Valid minimal input.
-- Invalid or malformed input with a useful thrown error.
+- Invalid/malformed input with a useful thrown error.
 - Missing optional fields and defaults.
-- Current-version no-op behavior and future-version rejection.
+- Current-version no-op behaviour and future-version rejection.
 - Preservation of user data and unknown fields where the import path promises it.
 
-Rules:
+For the project-import pipeline specifically, use the shared `makePayload()` / `makeIdbMock()` from `web/utils/projectImport/__tests__/_helpers.ts`. Don't duplicate the payload shape — it's defined once.
 
-- Keep fixtures as small inline strings/objects unless a real format fixture is required.
-- For schema changes, test both IDB defaults and project export migrations.
-- When adding a stored field, add or update tests for `applyDefaults`, export-file migration, and new-record creation.
+When adding a stored field that bumps `SCHEMA_VERSION`, add tests for: the per-version migration file, IDB defaults if added there, the import-flow round-trip.
 
-## IDB-Backed Module Tests
+## IDB-backed module tests
 
-Use the real `useIdb()` API with fake IndexedDB. Every test starts with an empty DB via global setup.
-
-Pattern:
+Use the real `useIdb()` API with fake IndexedDB. Every test starts with an empty DB.
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -143,7 +203,6 @@ const idb = useIdb();
 describe('project CRUD', () => {
   it('Should create a project with defaults', async () => {
     const project = await idb.createProject('Test Project');
-
     expect(project.id).toBeDefined();
     expect(project.name).toBe('Test Project');
     expect(project.colorMap).toEqual({});
@@ -151,18 +210,14 @@ describe('project CRUD', () => {
 });
 ```
 
-Rules:
-
 - Prefer real IDB records over faking persistence.
-- After model write batching, call `await idb.flushPendingModelWrites()` before reading back persisted data.
-- Test cascade behavior and read-path defaults by reading through public APIs such as `getProjectWithModels`.
-- Do not manually delete IndexedDB unless the test is specifically about reset behavior.
+- After model write batching, call `await idb.flushPendingModelWrites()` before reading back.
+- Test cascade behaviour and read-path defaults via public APIs (`getProjectWithModels`).
+- Don't manually delete IndexedDB unless the test is specifically about reset behaviour.
 
-## Composable Tests
+## Composable tests
 
-For composables with injected dependencies, pass real refs and small mocks. For reactive watchers, use `effectScope()` and stop it in `afterEach`.
-
-Pattern:
+For composables with injected dependencies, pass real refs and small fakes (typed-array pattern, not `vi.fn()` introspection). For reactive watchers, use `effectScope()` and stop it in `afterEach`.
 
 ```ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -184,26 +239,21 @@ describe('useMyComposable', () => {
   it('Should react when the source ref changes', async () => {
     const source = ref('a');
     const result = scope.run(() => useMyComposable(source))!;
-
     source.value = 'b';
     await nextTick();
-
     expect(result.value.value).toBe('b');
   });
 });
 ```
 
-Rules:
+- Use `nextTick()` for Vue updates. `flushPromises()` only when promises are the thing being flushed.
+- Use fake timers only for debounce/intervals/timeouts; restore real timers.
+- Reset module-level caches with exported test helpers (`__resetForTests()`) when present.
+- **For thin orchestration composables** (single caller, mostly delegation): consider whether the composable earns its keep before writing tests for it. If it's a candidate to be inlined, the test is short-lived too.
 
-- Use `nextTick()` for Vue reactive updates. Use `flushPromises()` only when promises are the thing being flushed.
-- Use fake timers only for debounce, intervals, or timeouts; always restore real timers.
-- Reset module-level caches with exported test helpers such as `__resetForTests()` when present.
+## Worker / browser API tests
 
-## Worker / Browser API Tests
-
-When a module touches globals at import time, set globals and mocks before importing the module. Use dynamic `await import(...)` after setup.
-
-Pattern:
+Set globals and mocks before importing the module. Use dynamic `await import(...)` after setup.
 
 ```ts
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -219,9 +269,7 @@ class FakeWorker {
 
 (globalThis as any).Worker = FakeWorker;
 
-vi.mock('../useAppErrors', () => ({
-  reportError: vi.fn(),
-}));
+vi.mock('../useAppErrors', () => ({ reportError: vi.fn() }));
 
 const { computeLayouts, __resetForTests } =
   await import('../useComputationWorker');
@@ -231,22 +279,17 @@ beforeEach(() => {
 });
 ```
 
-Rules:
+- Drive fake browser APIs manually and assert captured messages/state.
+- Keep fake classes minimal and typed enough that intent is clear.
+- Use `vi.hoisted` when a `vi.mock` factory needs shared state initialised before imports.
 
-- Drive fake browser APIs manually and assert captured messages/calls.
-- Keep fake classes minimal and typed enough to make test intent clear.
-- Use `vi.hoisted` when a `vi.mock` factory needs shared mock state initialized before imports.
-
-## Nuxt / Vue Component Tests
-
-Component tests are still a clean slate in this repo. Prefer user-visible behavior and accessible selectors over implementation details.
-
-Pattern for components that need Nuxt runtime:
+## Nuxt / Vue component tests
 
 ```ts
 // @vitest-environment nuxt
 import { describe, expect, it } from 'vitest';
 import { mountSuspended } from '@nuxt/test-utils/runtime';
+import { UButtonStub, UInputStub } from '~/test-utils/stubs';
 import MyComponent from '../MyComponent.vue';
 
 describe('MyComponent', () => {
@@ -254,51 +297,56 @@ describe('MyComponent', () => {
     props: Partial<InstanceType<typeof MyComponent>['$props']> = {},
   ) {
     return mountSuspended(MyComponent, {
-      props: {
-        requiredProp: 'default',
-        ...props,
-      },
+      props: { requiredProp: 'default', ...props },
+      global: { stubs: { UButton: UButtonStub, UInput: UInputStub } },
     });
   }
 
-  describe('Rendering', () => {
-    it('Should render the primary action', async () => {
-      const component = await getComponent();
-      expect(component.find('[aria-label="Add part"]').exists()).toBe(true);
-    });
+  it('Should emit save when the user submits', async () => {
+    const component = await getComponent();
+    await component.find('input').setValue('hello');
+    await component.find('button').trigger('click');
+    expect(component.emitted('save')?.[0]).toEqual(['hello']);
   });
 });
 ```
 
-Rules:
+- Use `mountSuspended` for components needing auto-imports, routing, Nuxt UI, plugins, or async setup.
+- Use `shallowMount` for plain Vue components that don't need Nuxt runtime.
+- Import shared stubs from `~/test-utils/stubs` (don't inline).
+- Selector preference: accessible text/labels (when stable) → `data-testid` → component names for stubbed children.
+- Don't assert Nuxt UI internals. Assert: emitted events, visible text, disabled/loading states, public callback calls.
+- Suggested block order: `Initialization`, `Props`, `Watchers`, public methods, `Rendering`, then nested `On <event>` blocks.
 
-- Use `mountSuspended` for Nuxt pages/components that rely on auto-imports, routing, Nuxt UI, plugins, or async setup.
-- Use `shallowMount` from `@vue/test-utils` for plain Vue components that do not need Nuxt runtime.
-- Put default required props first, then spread overrides.
-- Prefer selectors in this order: accessible text/labels when stable, `data-testid` when available, then component names for intentionally stubbed child components.
-- Do not assert Nuxt UI internals. Assert the props you pass, emitted events, visible text, disabled/loading states, and calls to public callbacks.
-- Suggested block order: `Initialization`, `Props`, `Watchers`, public methods/actions, `Rendering`, then nested `On <event>` blocks for interactions.
+## When you find a bloated test file
+
+Trim it. For each `it()`:
+
+1. Tautology check — what bug class would slip through if this vanished?
+2. If you can't name one, delete the test.
+3. If multiple cases test the same code path with slightly different fixtures, collapse into `it.each` or one well-chosen case.
+
+A 600-LOC test file for a 200-LOC composable is over-fitted to implementation. Bias toward fewer sharper tests over many shallow ones. The audit at `audit/synthesis.md` documents which files were trimmed and which patterns drove the trims.
 
 ## Verification
 
 After writing or updating tests:
 
-1. Run the targeted test file from `web/`:
+1. Run the targeted file:
 
    ```bash
    cd web && vitest run path/to/__tests__/file.test.ts
    ```
 
-2. If types, Vue components, or mocks changed, run:
+2. If types, components, or fakes changed:
 
    ```bash
    bun run check
    ```
 
-3. If files were created or formatting changed, run:
-
+3. If files were created or formatting changed:
    ```bash
    bun run lint
    ```
 
-Fix failures before considering the test work complete. If a command cannot be run, say why and list the remaining risk.
+Fix failures before considering the work complete. If a command can't be run, say why and list remaining risk.

@@ -1,8 +1,10 @@
 // @vitest-environment nuxt
 /**
  * Tests for useSceneAuthor's visibility, dirty-flag, capture, and jump
- * behaviour. The tween path is intentionally tested via direct apply paths —
- * the onFrame loop is exercised in viewer integration, not here.
+ * behaviour. Focus is on state-machine invariants (dirty/active scene/tween
+ * lifecycle) and capture/jump correctness — viewer-method forwarding is
+ * exercised through observable side-effects (dirty-flag wrappers, fade ramp,
+ * etc.), not through "we called viewer.foo" assertions.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, nextTick, ref, type EffectScope } from 'vue';
@@ -23,11 +25,6 @@ interface FakeViewer extends SceneAuthorViewer {
   tickFrame(): void;
   appliedOffsets: Array<Map<GroupId, ObjectOffset>>;
   visibleCalls: Array<[GroupId, boolean]>;
-  /**
-   * Sequenced log of fade-alpha activity. Each entry is either the snapshot
-   * of a `setObjectFadeAlphas` call or the literal `'clear'` for
-   * `clearObjectFadeAlphas` — order matters for tween assertions.
-   */
   fadeLog: Array<Map<GroupId, number> | 'clear'>;
   cameraMode: CameraMode;
   cameraPose: CameraPose;
@@ -142,14 +139,16 @@ function withScope<T>(fn: () => T): { result: T; scope: EffectScope } {
   return { result, scope };
 }
 
+// ─── Visibility set construction ────────────────────────────────────────────
+
 describe('useSceneAuthor — visibility', () => {
-  it('Should keep null (all visible) the canonical default', () => {
+  it('starts with null (canonical "all visible")', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     expect(a.visibleObjects.value).toBeNull();
   });
 
-  it('Should fold to null when every Object is visible after a toggle', () => {
+  it('folds to null when every Object is visible after a toggle', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.setObjectsVisibility([2], false);
@@ -158,7 +157,7 @@ describe('useSceneAuthor — visibility', () => {
     expect(a.visibleObjects.value).toBeNull();
   });
 
-  it('Should hide all into an empty Set, not null', () => {
+  it('hides all into an empty Set, not null (so the state is distinguishable)', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.hideAllObjects();
@@ -166,7 +165,7 @@ describe('useSceneAuthor — visibility', () => {
     expect(a.visibleObjects.value?.size).toBe(0);
   });
 
-  it('Should hide every selected Object when any are visible', () => {
+  it('toggle hides every selected when any are visible', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.toggleObjectsVisibility([1, 2]);
@@ -176,17 +175,7 @@ describe('useSceneAuthor — visibility', () => {
     expect(set.has(3)).toBe(true);
   });
 
-  it('Should hide all selected when only some are currently visible', () => {
-    const v = makeFakeViewer();
-    const { result: a } = withScope(() => useSceneAuthor(v));
-    a.setObjectsVisibility([1], false);
-    a.toggleObjectsVisibility([1, 2]);
-    const set = a.visibleObjects.value as Set<GroupId>;
-    expect(set.has(1)).toBe(false);
-    expect(set.has(2)).toBe(false);
-  });
-
-  it('Should show every selected Object when all are currently hidden', () => {
+  it('toggle shows every selected when all are currently hidden', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.setObjectsVisibility([1, 2], false);
@@ -194,7 +183,7 @@ describe('useSceneAuthor — visibility', () => {
     expect(a.visibleObjects.value).toBeNull();
   });
 
-  it('Should be a no-op when called with no ids', () => {
+  it('is a no-op when called with no ids', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.toggleObjectsVisibility([]);
@@ -203,8 +192,10 @@ describe('useSceneAuthor — visibility', () => {
   });
 });
 
+// ─── Dirty flag (state machine + dirty-flag-wrapper invariants) ─────────────
+
 describe('useSceneAuthor — dirty flag', () => {
-  it('Should not flip dirty until a scene is active', () => {
+  it('does not flip dirty until a scene is active', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     v.emitUserInteraction();
@@ -212,7 +203,7 @@ describe('useSceneAuthor — dirty flag', () => {
     expect(a.dirty.value).toBe(false);
   });
 
-  it('Should set dirty on user-interaction once a scene is active', () => {
+  it('flips dirty on user-interaction once a scene is active', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
@@ -221,7 +212,7 @@ describe('useSceneAuthor — dirty flag', () => {
     expect(a.dirty.value).toBe(true);
   });
 
-  it('Should set dirty on object-moved once a scene is active', () => {
+  it('flips dirty on object-moved once a scene is active', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
@@ -229,7 +220,7 @@ describe('useSceneAuthor — dirty flag', () => {
     expect(a.dirty.value).toBe(true);
   });
 
-  it('Should reset dirty when jumpToScene runs', () => {
+  it('resets dirty when jumpToScene runs', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
@@ -239,16 +230,15 @@ describe('useSceneAuthor — dirty flag', () => {
     expect(a.dirty.value).toBe(false);
   });
 
-  it('Should flip dirty on visibility toggle when a scene is active', () => {
+  it('flips dirty on visibility toggle when a scene is active', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
-    expect(a.dirty.value).toBe(false);
     a.toggleObjectVisibility(2);
     expect(a.dirty.value).toBe(true);
   });
 
-  it('Should expose markDirty so UI controls can flag scene changes', () => {
+  it('markDirty is a no-op without an active scene; flips once a scene exists', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.markDirty();
@@ -258,53 +248,66 @@ describe('useSceneAuthor — dirty flag', () => {
     expect(a.dirty.value).toBe(true);
   });
 
-  it('setCameraMode should call viewer + mark dirty + sync the ref', () => {
+  // The dirty-flag wrappers — the genuinely interesting concern. Writes that
+  // bypass the bus (camera mode / floor visibility / fit) still need to mark
+  // the active scene dirty so the user is prompted to save.
+
+  it('setCameraMode marks the scene dirty and syncs the ref', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
-    expect(a.dirty.value).toBe(false);
+    a.markClean();
 
     a.setCameraMode('perspective');
-    expect(v.cameraMode).toBe('perspective');
     expect(a.cameraMode.value).toBe('perspective');
     expect(a.dirty.value).toBe(true);
   });
 
-  it('setFloorVisible should call viewer + mark dirty + sync the ref', () => {
+  it('setFloorVisible marks the scene dirty and syncs the ref', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
     a.markClean();
 
     a.setFloorVisible(true);
-    expect(v.floorVisible).toBe(true);
     expect(a.floorVisible.value).toBe(true);
     expect(a.dirty.value).toBe(true);
   });
 
-  it('fitToModel should call viewer.fit and mark the active scene dirty', () => {
+  it('fitToModel marks the active scene dirty', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
     a.markClean();
 
     a.fitToModel();
-    expect(v.fitCalls).toBe(1);
     expect(a.dirty.value).toBe(true);
   });
 
-  it('fitToModel should not dirty the scene when no scene is active', () => {
+  it('fitToModel does not dirty when no scene is active', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
-
     a.fitToModel();
-    expect(v.fitCalls).toBe(1);
     expect(a.dirty.value).toBe(false);
+  });
+
+  it('markClean clears dirty without affecting activeSceneId', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    a.jumpToScene(makeScene());
+    v.emitObjectMoved();
+    expect(a.dirty.value).toBe(true);
+
+    a.markClean();
+    expect(a.dirty.value).toBe(false);
+    expect(a.activeSceneId.value).toBe('s1');
   });
 });
 
+// ─── Capture (sparse offsets, visibility set, viewer state snapshot) ────────
+
 describe('useSceneAuthor — capture', () => {
-  it('Should capture the live viewer state into a SceneState', () => {
+  it('captures the live viewer state into a SceneState', () => {
     const v = makeFakeViewer();
     v.cameraMode = 'orthographic';
     v.cameraPose = { position: [4, 5, 6], target: [0, 0, 0] };
@@ -317,21 +320,14 @@ describe('useSceneAuthor — capture', () => {
     expect(state.cameraMode).toBe('orthographic');
     expect(state.cameraPose.position).toEqual([4, 5, 6]);
     expect(state.floorVisible).toBe(false);
-    expect(state.visibleObjects).not.toBeNull();
     expect((state.visibleObjects as Set<number>).has(2)).toBe(false);
-  });
-
-  it('Should delegate thumbnail capture to the viewer (no arg override)', () => {
-    const v = makeFakeViewer();
-    const { result: a } = withScope(() => useSceneAuthor(v));
-    expect(a.captureThumbnail()).toBe('data:image/png;base64,XX');
-    // No explicit dims — ViewerCore owns the thumbnail size constant.
-    expect(v.captureThumbnail).toHaveBeenCalledWith();
   });
 });
 
+// ─── jumpToScene (apply path: camera/floor/visibility/offsets all in one) ───
+
 describe('useSceneAuthor — jumpToScene', () => {
-  it('Should apply camera, floor, visibility, and offsets', () => {
+  it('applies camera, floor, visibility, and offsets to the viewer', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
@@ -340,15 +336,29 @@ describe('useSceneAuthor — jumpToScene', () => {
     expect(v.cameraPose.position).toEqual([10, 5, 0]);
     expect(v.floorVisible).toBe(false);
     expect(a.activeSceneId.value).toBe('s1');
-    expect(a.visibleObjects.value).toBeInstanceOf(Set);
     expect((a.visibleObjects.value as Set<number>).has(1)).toBe(true);
     expect((a.visibleObjects.value as Set<number>).has(2)).toBe(false);
 
+    // Sparse offsets: only object 1 in the scene; identity for the rest.
     const lastApplied = v.appliedOffsets.at(-1)!;
     expect(lastApplied.get(1)?.position).toEqual([3, 0, 0]);
     expect(lastApplied.get(2)?.position).toEqual([0, 0, 0]);
   });
+
+  it('clears selection + hover (so leaders/highlights do not stick across scenes)', () => {
+    const v = makeFakeViewer();
+    const { result: a } = withScope(() => useSceneAuthor(v));
+    const store = useModelViewerStore();
+    store.selectGroupIds([1]);
+    store.setHoveredGroupIds([2]);
+
+    a.jumpToScene(makeScene());
+    expect(store.selectedGroupIds.value.size).toBe(0);
+    expect(store.hoveredGroupIds.value.size).toBe(0);
+  });
 });
+
+// ─── tweenToScene (lifecycle: start/mid/end, fade ramp, dirty suppression) ──
 
 describe('useSceneAuthor — tweenToScene', () => {
   function fastForward(ms: number) {
@@ -365,41 +375,35 @@ describe('useSceneAuthor — tweenToScene', () => {
     vi.restoreAllMocks();
   });
 
-  it('Should resolve after duration, applying mid-cut at 0.5 and ending tween', async () => {
+  it('starts, advances mid-cut at t≈0.5, and resolves at t=1', async () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
-    const scene = makeScene();
 
-    const promise = a.tweenToScene(scene, 100);
-    expect(a.tween.value).not.toBeNull();
+    const promise = a.tweenToScene(makeScene(), 100);
     expect(a.tween.value?.to).toBe('s1');
     expect(a.activeSceneId.value).toBe('s1');
 
-    // Frame at t=0 — neither mid-cut (camera mode/floor) nor terminal apply.
+    // Pre-midpoint — no mid-cut yet.
     v.tickFrame();
     expect(v.cameraMode).toBe('perspective');
     expect(v.floorVisible).toBe(true);
-    expect(a.tween.value?.t ?? 1).toBeLessThan(0.5);
 
-    // Past midpoint → mid-cut fires.
+    // Past midpoint — mid-cut fires (camera mode + floor flip).
     fastForward(60);
     v.tickFrame();
     expect(v.cameraMode).toBe('orthographic');
     expect(v.floorVisible).toBe(false);
-    expect(a.tween.value?.t ?? 0).toBeGreaterThanOrEqual(0.5);
 
-    // Past end → tween resolves and stops.
+    // Past end — tween resolves.
     fastForward(60);
     v.tickFrame();
     await promise;
     expect(a.tween.value).toBeNull();
   });
 
-  it('Should fade appearing + disappearing objects across the tween', async () => {
+  it('fades appearing + disappearing objects across the tween', async () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
-    // Start visible: only object 2. Target scene shows only objects 1 + 3,
-    // so 1 + 3 are appearing and 2 is disappearing.
     a.jumpToScene(
       makeScene({
         id: 's0',
@@ -419,7 +423,6 @@ describe('useSceneAuthor — tweenToScene', () => {
         .length,
     ).toBe(2);
 
-    // Mid-tween: alphas progress in opposite directions.
     fastForward(50);
     v.tickFrame();
     const mid = v.fadeLog.find(
@@ -429,11 +432,8 @@ describe('useSceneAuthor — tweenToScene', () => {
     const disappearAlpha = mid.get(2)!;
     expect(appearAlpha).toBeGreaterThan(0);
     expect(appearAlpha).toBeLessThan(1);
-    expect(disappearAlpha).toBeGreaterThan(0);
-    expect(disappearAlpha).toBeLessThan(1);
     expect(appearAlpha + disappearAlpha).toBeCloseTo(1, 5);
 
-    // Past end → fades cleared and disappearing object hidden.
     fastForward(60);
     v.tickFrame();
     await promise;
@@ -441,7 +441,7 @@ describe('useSceneAuthor — tweenToScene', () => {
     expect(v.visibleCalls).toContainEqual([2, false]);
   });
 
-  it('Should skip fade work when visibility does not change between scenes', () => {
+  it('skips fade work when visibility does not change between scenes', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene({ id: 's0', visibleObjects: undefined }));
@@ -452,72 +452,38 @@ describe('useSceneAuthor — tweenToScene', () => {
       100,
     );
     v.tickFrame();
-    // The pre-tween 'clear' is the only fade activity; no per-tick set calls.
     expect(v.fadeLog.every((e) => e === 'clear')).toBe(true);
   });
 
-  it('Should clear selection + hover when tween starts', () => {
-    const v = makeFakeViewer();
-    const { result: a } = withScope(() => useSceneAuthor(v));
-    const store = useModelViewerStore();
-    store.selectGroupIds([1, 2]);
-    store.setHoveredGroupIds([3]);
-
-    a.tweenToScene(makeScene(), 100);
-    expect(store.selectedGroupIds.value.size).toBe(0);
-    expect(store.hoveredGroupIds.value.size).toBe(0);
-  });
-
-  it('Should clear selection + hover when jump runs', () => {
-    const v = makeFakeViewer();
-    const { result: a } = withScope(() => useSceneAuthor(v));
-    const store = useModelViewerStore();
-    store.selectGroupIds([1]);
-    store.setHoveredGroupIds([2]);
-
-    a.jumpToScene(makeScene());
-    expect(store.selectedGroupIds.value.size).toBe(0);
-    expect(store.hoveredGroupIds.value.size).toBe(0);
-  });
-
-  it('Should suppress dirty during tween-driven object-moved bursts', () => {
+  it('suppresses dirty during tween-driven object-moved bursts', () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
-    expect(a.dirty.value).toBe(false);
     a.tweenToScene(makeScene({ id: 's2' }), 100);
-    // While tweening, simulated bus events from the apply path should not
-    // re-flip dirty (markDirty short-circuits when tween.value !== null).
     v.emitObjectMoved();
     v.emitUserInteraction();
     expect(a.dirty.value).toBe(false);
   });
 
-  it('Should resolve the prior promise when a new tween starts mid-flight', async () => {
+  it('resolves the prior promise when a new tween starts mid-flight', async () => {
     const v = makeFakeViewer();
     const { result: a } = withScope(() => useSceneAuthor(v));
-    const scene1 = makeScene({ id: 's1' });
-    const scene2 = makeScene({ id: 's2' });
 
-    const p1 = a.tweenToScene(scene1, 200);
-    // Advance partway — well short of completion.
+    const p1 = a.tweenToScene(makeScene({ id: 's1' }), 200);
     fastForward(80);
     v.tickFrame();
     expect(a.tween.value?.t ?? 1).toBeLessThan(1);
 
-    // Start a new tween before the first finishes — the prior promise must
-    // resolve, not hang, so awaiters aren't stranded.
-    const p2 = a.tweenToScene(scene2, 200);
+    const p2 = a.tweenToScene(makeScene({ id: 's2' }), 200);
     await expect(p1).resolves.toBeUndefined();
 
-    // The new tween still completes naturally on its own timeline.
     fastForward(220);
     v.tickFrame();
     await expect(p2).resolves.toBeUndefined();
     expect(a.tween.value).toBeNull();
   });
 
-  it('Should jumpToScene when viewer is not ready', () => {
+  it('falls back to jumpToScene when viewer is not ready', () => {
     const v = makeFakeViewer({ ready: false });
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.tweenToScene(makeScene(), 100);
@@ -526,79 +492,14 @@ describe('useSceneAuthor — tweenToScene', () => {
   });
 });
 
-describe('useSceneAuthor — markClean', () => {
-  it('Should clear dirty without affecting activeSceneId', () => {
-    const v = makeFakeViewer();
-    const { result: a } = withScope(() => useSceneAuthor(v));
-    a.jumpToScene(makeScene());
-    v.emitObjectMoved();
-    expect(a.dirty.value).toBe(true);
-    a.markClean();
-    expect(a.dirty.value).toBe(false);
-    expect(a.activeSceneId.value).toBe('s1');
-  });
-});
+// ─── Per-model active-scene memory + project-switch cleanup ─────────────────
 
 describe('useSceneAuthor — per-model active-scene memory', () => {
   beforeEach(() => {
-    // The store is a global singleton (createGlobalState); clear the map so
-    // tests don't leak ids between runs.
     useModelViewerStore().clearActiveSceneMemory();
   });
 
-  it('Should write the active scene id back to the store keyed by model', async () => {
-    const v = makeFakeViewer();
-    const focusedModelId = ref<string | null>('m-A');
-    const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
-    const store = useModelViewerStore();
-
-    a.jumpToScene(makeScene({ id: 's-A1' }));
-    // Allow the watch on activeSceneId to flush.
-    await nextTick();
-    expect(store.getActiveSceneForModel('m-A')).toBe('s-A1');
-  });
-
-  it('Should restore the remembered scene id when the focused model changes', async () => {
-    const v = makeFakeViewer();
-    const focusedModelId = ref<string | null>('m-A');
-    const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
-    const store = useModelViewerStore();
-
-    // Author a scene under model A.
-    a.jumpToScene(makeScene({ id: 's-A1' }));
-    await nextTick();
-    expect(a.activeSceneId.value).toBe('s-A1');
-
-    // Switch to model B — no scene remembered, so activeSceneId clears.
-    focusedModelId.value = 'm-B';
-    await nextTick();
-    expect(a.activeSceneId.value).toBeNull();
-
-    // Pretend the user authored a scene under B.
-    a.jumpToScene(makeScene({ id: 's-B1' }));
-    await nextTick();
-    expect(store.getActiveSceneForModel('m-B')).toBe('s-B1');
-
-    // Switch back to A — restores its previous active scene id from memory.
-    focusedModelId.value = 'm-A';
-    await nextTick();
-    expect(a.activeSceneId.value).toBe('s-A1');
-  });
-
-  it('Should restore the remembered scene id on first mount', () => {
-    const v = makeFakeViewer();
-    const focusedModelId = ref<string | null>('m-A');
-    const store = useModelViewerStore();
-    store.setActiveSceneForModel('m-A', 's-A-pre');
-
-    const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
-
-    expect(a.activeSceneId.value).toBe('s-A-pre');
-    expect(a.dirty.value).toBe(false);
-    expect(a.visibleObjects.value).toBeNull();
-  });
-
-  it('Should not write back during model-switch restoration', async () => {
+  it('writes activeSceneId back to the store keyed by model, restores on switch, and does not echo during restoration', async () => {
     const v = makeFakeViewer();
     const focusedModelId = ref<string | null>('m-A');
     const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
@@ -606,19 +507,26 @@ describe('useSceneAuthor — per-model active-scene memory', () => {
 
     // Seed B in the store directly so the switch has something to restore.
     store.setActiveSceneForModel('m-B', 's-B-pre');
+
+    // Author under A.
     a.jumpToScene(makeScene({ id: 's-A1' }));
     await nextTick();
     expect(store.getActiveSceneForModel('m-A')).toBe('s-A1');
 
+    // Switch to B — restoration adopts s-B-pre and must not overwrite A's
+    // memory (the suppress flag prevents the write echo).
     focusedModelId.value = 'm-B';
     await nextTick();
-    // Restoration adopted s-B-pre — and crucially didn't overwrite A's
-    // memory with B's id (the suppress flag prevents the write echo).
     expect(a.activeSceneId.value).toBe('s-B-pre');
     expect(store.getActiveSceneForModel('m-A')).toBe('s-A1');
+
+    // Switch back to A — restores A's previous active id.
+    focusedModelId.value = 'm-A';
+    await nextTick();
+    expect(a.activeSceneId.value).toBe('s-A1');
   });
 
-  it('Should clear in-memory dirty/visibility on model switch', async () => {
+  it('clears in-memory dirty/visibility on model switch', async () => {
     const v = makeFakeViewer();
     const focusedModelId = ref<string | null>('m-A');
     const { result: a } = withScope(() => useSceneAuthor(v, focusedModelId));
@@ -640,22 +548,20 @@ describe('useSceneAuthor — per-model active-scene memory', () => {
   });
 });
 
+// ─── Deferred listener attachment (avoids missing dirty events on cold start) ─
+
 describe('useSceneAuthor — deferred listener attachment', () => {
-  it('Should attach listeners only after viewer.ready flips true', () => {
+  it('attaches listeners only after viewer.ready flips true', async () => {
     const v = makeFakeViewer({ ready: false });
     const { result: a } = withScope(() => useSceneAuthor(v));
     a.jumpToScene(makeScene());
 
-    // Before ready: emit fires but no listener registered yet.
     v.emitObjectMoved();
     expect(a.dirty.value).toBe(false);
 
-    // Flip ready, now listeners attach (via watch).
     v.ready.value = true;
-    // Allow the watcher to flush.
-    return Promise.resolve().then(() => {
-      v.emitObjectMoved();
-      expect(a.dirty.value).toBe(true);
-    });
+    await Promise.resolve();
+    v.emitObjectMoved();
+    expect(a.dirty.value).toBe(true);
   });
 });

@@ -3,7 +3,6 @@
  * Outcome-based tests for ProjectTopBar. The component invokes composable
  * methods directly (no emits), so we observe behaviour by recording the
  * args passed to each method via plain arrays inside `mockNuxtImport`.
- * No vi.fn / toHaveBeenCalled introspection.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
@@ -11,6 +10,7 @@ import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
 import ProjectTopBar from '../ProjectTopBar.vue';
+import { UButtonStub } from '~/test-utils/stubs';
 
 // ── Recording stand-ins for composable methods ───────────────────────────────
 
@@ -70,14 +70,7 @@ mockNuxtImport('useImportProject', () => () => ({
 
 // ── Stubs ────────────────────────────────────────────────────────────────────
 
-const UButtonStub = {
-  // Let attrs (including onClick) inherit naturally onto the button so a
-  // click fires the parent's listener exactly once.
-  props: ['label'],
-  template: '<button type="button"><slot />{{ label }}</button>',
-};
-
-// Stub TabListItem so we can drive its emits via DOM events.
+// TabListItem stub: drive emits through DOM events / direct vm.$emit.
 const TabListItemStub = {
   props: ['name', 'active', 'editing', 'draggable'],
   emits: [
@@ -103,28 +96,11 @@ const TabListItemStub = {
   `,
 };
 
-const TabListStub = {
-  template: '<ul role="tablist"><slot /></ul>',
-};
-
 const ProjectHistoryMenuStub = {
   name: 'ProjectHistoryMenu',
   props: ['archived'],
   emits: ['restore', 'permanently-delete', 'clear', 'reset'],
-  template: `
-    <div
-      data-testid="history-menu-stub"
-      :data-archived-count="archived.length"
-    >
-      <button class="emit-restore" @click="$emit('restore', 'a1')">restore</button>
-      <button
-        class="emit-permanently-delete"
-        @click="$emit('permanently-delete', 'a1')"
-      >delete</button>
-      <button class="emit-clear" @click="$emit('clear')">clear</button>
-      <button class="emit-reset" @click="$emit('reset')">reset</button>
-    </div>
-  `,
+  template: `<div data-testid="history-menu-stub" :data-archived-count="archived.length" />`,
 };
 
 const stubs = {
@@ -135,7 +111,7 @@ const stubs = {
     template:
       '<section :data-modal-open="open ? \'true\' : \'false\'"><slot name="content" /></section>',
   },
-  TabList: TabListStub,
+  TabList: { template: '<ul role="tablist"><slot /></ul>' },
   TabListItem: TabListItemStub,
   ProjectHistoryMenu: ProjectHistoryMenuStub,
   NewProjectDialog: true,
@@ -147,8 +123,9 @@ function getComponent() {
 }
 
 function findTab(component: ReturnType<typeof getComponent>, name: string) {
-  const tabs = component.findAll('[data-tab-name]');
-  return tabs.find((t) => t.attributes('data-tab-name') === name);
+  return component
+    .findAll('[data-tab-name]')
+    .find((t) => t.attributes('data-tab-name') === name);
 }
 
 beforeEach(() => {
@@ -174,27 +151,18 @@ afterEach(() => {
 
 describe('ProjectTopBar', () => {
   describe('On close confirm flow', () => {
-    it('Should open the confirm modal with the project name', async () => {
+    it('Should open the named confirm modal and call closeProject only on confirm', async () => {
       const component = getComponent();
-      const alpha = findTab(component, 'Alpha')!;
-
-      await alpha.get('button.close').trigger('click');
+      await findTab(component, 'Beta')!.get('button.close').trigger('click');
 
       const modal = component.find('[data-modal-open="true"]');
       expect(modal.exists()).toBe(true);
-      expect(modal.text()).toContain('Alpha');
-    });
-
-    it('Should call closeProject(id) when the user confirms', async () => {
-      const component = getComponent();
-      await findTab(component, 'Beta')!.get('button.close').trigger('click');
+      expect(modal.text()).toContain('Beta');
 
       const confirmBtn = component
         .findAll('button')
         .find((b) => b.text() === 'Close project');
-      expect(confirmBtn).toBeTruthy();
       await confirmBtn!.trigger('click');
-
       expect(closeCalls).toEqual(['p2']);
     });
 
@@ -202,143 +170,122 @@ describe('ProjectTopBar', () => {
       const component = getComponent();
       await findTab(component, 'Alpha')!.get('button.close').trigger('click');
 
-      const cancelBtn = component
+      await component
         .findAll('button')
-        .find((b) => b.text() === 'Cancel');
-      await cancelBtn!.trigger('click');
+        .find((b) => b.text() === 'Cancel')!
+        .trigger('click');
 
       expect(closeCalls).toEqual([]);
     });
   });
 
   describe('On rename', () => {
-    it('Should renameProject when the new name differs from the original', async () => {
-      const component = getComponent();
-      const alpha = findTab(component, 'Alpha')!;
-
-      // Double-click to enter edit mode.
-      await alpha.get('button.dbl').trigger('dblclick');
-      // Now drive the rename emit directly via the inner stub event.
-      const stub = alpha.findComponent(TabListItemStub);
-      stub.vm.$emit('rename', 'Renamed');
-      await component.vm.$nextTick();
-
-      expect(renameCalls).toEqual([{ id: 'p1', name: 'Renamed' }]);
-    });
-
-    it('Should not call renameProject when the rename value matches the original', async () => {
+    it.each([
+      {
+        scenario: 'renames when the new name differs',
+        emitted: 'Renamed',
+        expected: [{ id: 'p1', name: 'Renamed' }],
+      },
+      {
+        scenario: 'skips when the rename value matches the original',
+        emitted: 'Alpha',
+        expected: [],
+      },
+    ])('$scenario', async ({ emitted, expected }) => {
       const component = getComponent();
       const alpha = findTab(component, 'Alpha')!;
 
       await alpha.get('button.dbl').trigger('dblclick');
       const stub = alpha.findComponent(TabListItemStub);
-      // Escape behavior in TabListItem emits the original name back.
-      stub.vm.$emit('rename', 'Alpha');
+      stub.vm.$emit('rename', emitted);
       await component.vm.$nextTick();
 
-      expect(renameCalls).toEqual([]);
+      expect(renameCalls).toEqual(expected);
     });
   });
 
-  describe('On drag reorder', () => {
-    it('Should call reorderProjects with the new id order on drop', async () => {
-      const component = getComponent();
-      const alpha = findTab(component, 'Alpha')!;
-      const beta = findTab(component, 'Beta')!;
+  it('Should call reorderProjects with the new id order on drag-drop', async () => {
+    const component = getComponent();
+    const alpha = findTab(component, 'Alpha')!;
+    const beta = findTab(component, 'Beta')!;
 
-      const alphaStub = alpha.findComponent(TabListItemStub);
-      alphaStub.vm.$emit('dragstart', {
-        dataTransfer: { effectAllowed: 'move' },
-      });
-
-      const betaStub = beta.findComponent(TabListItemStub);
-      betaStub.vm.$emit('dragover', { preventDefault: () => {} });
-      betaStub.vm.$emit('drop');
-      await component.vm.$nextTick();
-
-      // Alpha was moved to Beta's position; Beta moves earlier.
-      expect(reorderCalls).toEqual([['p2', 'p1', 'p3']]);
+    alpha.findComponent(TabListItemStub).vm.$emit('dragstart', {
+      dataTransfer: { effectAllowed: 'move' },
     });
+    const betaStub = beta.findComponent(TabListItemStub);
+    betaStub.vm.$emit('dragover', { preventDefault: () => {} });
+    betaStub.vm.$emit('drop');
+    await component.vm.$nextTick();
+
+    expect(reorderCalls).toEqual([['p2', 'p1', 'p3']]);
   });
 
   describe('On history menu', () => {
-    it('Should render the history menu with the archived list when opened', async () => {
+    async function openHistory() {
+      const component = getComponent();
+      await component
+        .get('button[aria-label="Project history"]')
+        .trigger('click');
+      return component;
+    }
+
+    it('Should pass the archived list through to the menu', async () => {
       archivedList.value = [
         { id: 'a1', name: 'Old Cabinet', archivedAt: new Date().toISOString() },
         { id: 'a2', name: 'Older', archivedAt: new Date().toISOString() },
       ];
-      const component = getComponent();
-
-      await component
-        .get('button[aria-label="Project history"]')
-        .trigger('click');
-
+      const component = await openHistory();
       const stub = component.findComponent(ProjectHistoryMenuStub);
-      expect(stub.exists()).toBe(true);
       expect(stub.props('archived')).toHaveLength(2);
       expect(stub.props('archived')[0].name).toBe('Old Cabinet');
     });
 
-    it('Should call restoreProject when the menu emits restore', async () => {
-      archivedList.value = [
-        { id: 'a1', name: 'Old', archivedAt: new Date().toISOString() },
-      ];
-      const component = getComponent();
+    // Each menu emit invokes a distinct composable method. Single it.each
+    // covers the wiring; the per-method semantics are tested in
+    // useProjects/* tests.
+    it.each([
+      { event: 'restore', payload: 'a1', sink: restoreCalls, expected: ['a1'] },
+      {
+        event: 'permanently-delete',
+        payload: 'a1',
+        sink: permanentlyDeleteCalls,
+        expected: ['a1'],
+      },
+      {
+        event: 'clear',
+        payload: undefined,
+        sink: clearHistoryCalls,
+        expected: 1,
+      },
+      {
+        event: 'reset',
+        payload: undefined,
+        sink: resetDatabaseCalls,
+        expected: 1,
+      },
+    ])(
+      'Should forward $event to the composable',
+      async ({ event, payload, sink, expected }) => {
+        archivedList.value = [
+          { id: 'a1', name: 'Old', archivedAt: new Date().toISOString() },
+        ];
+        const component = await openHistory();
 
-      await component
-        .get('button[aria-label="Project history"]')
-        .trigger('click');
-      await component
-        .findComponent(ProjectHistoryMenuStub)
-        .vm.$emit('restore', 'a1');
+        const args = payload === undefined ? [event] : [event, payload];
+        await component
+          .findComponent(ProjectHistoryMenuStub)
+          .vm.$emit(...(args as [string, ...unknown[]]));
 
-      expect(restoreCalls).toEqual(['a1']);
-    });
-
-    it('Should call permanentlyDeleteProject when the menu emits permanently-delete', async () => {
-      archivedList.value = [
-        { id: 'a1', name: 'Old', archivedAt: new Date().toISOString() },
-      ];
-      const component = getComponent();
-
-      await component
-        .get('button[aria-label="Project history"]')
-        .trigger('click');
-      await component
-        .findComponent(ProjectHistoryMenuStub)
-        .vm.$emit('permanently-delete', 'a1');
-
-      expect(permanentlyDeleteCalls).toEqual(['a1']);
-    });
-
-    it('Should call clearHistory when the menu emits clear', async () => {
-      archivedList.value = [
-        { id: 'a1', name: 'Old', archivedAt: new Date().toISOString() },
-      ];
-      const component = getComponent();
-
-      await component
-        .get('button[aria-label="Project history"]')
-        .trigger('click');
-      await component.findComponent(ProjectHistoryMenuStub).vm.$emit('clear');
-
-      expect(clearHistoryCalls).toHaveLength(1);
-    });
-
-    it('Should call resetDatabase when the menu emits reset', async () => {
-      const component = getComponent();
-
-      await component
-        .get('button[aria-label="Project history"]')
-        .trigger('click');
-      await component.findComponent(ProjectHistoryMenuStub).vm.$emit('reset');
-
-      expect(resetDatabaseCalls).toHaveLength(1);
-    });
+        if (typeof expected === 'number') {
+          expect(sink).toHaveLength(expected);
+        } else {
+          expect(sink).toEqual(expected);
+        }
+      },
+    );
   });
 });
 
 // TODO(test): mobile menu — duplicates desktop flows in a different DOM branch.
 // TODO(test): export/import buttons — pure delegation to mocked composables.
 // TODO(test): goHome / new project dialog open — delegation only.
-// TODO(test): scroll buttons in TabList — covered by component-internal logic.

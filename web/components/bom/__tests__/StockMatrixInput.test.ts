@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { computed, defineComponent, h, ref, nextTick } from 'vue';
+import { computed, defineComponent, ref, nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import YAML from 'js-yaml';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
@@ -7,6 +7,7 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { DEFAULT_INCH_PRECISION, DEFAULT_MM_PRECISION } from 'cutlist';
 
 import StockMatrixInput from '../StockMatrixInput.vue';
+import { UButtonStub, UInputStub, USelectStub } from '~/test-utils/stubs';
 
 const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
 const precision = computed(() =>
@@ -36,54 +37,6 @@ vi.mock('cutlist', async (importOriginal) => {
       return (actual.reduceStockMatrix as (m: unknown) => unknown)(m);
     },
   };
-});
-
-const UButtonStub = {
-  inheritAttrs: false,
-  template:
-    '<button type="button" v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>',
-};
-
-const UInputStub = defineComponent({
-  props: {
-    modelValue: { type: [String, Number], default: '' },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h('input', {
-        ...attrs,
-        value: props.modelValue ?? '',
-        onInput: (event: Event) =>
-          emit('update:modelValue', (event.target as HTMLInputElement).value),
-      });
-  },
-});
-
-const USelectStub = defineComponent({
-  props: {
-    modelValue: { type: [String, Number], default: '' },
-    items: { type: Array, default: () => [] },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h(
-        'select',
-        {
-          ...attrs,
-          value: String(props.modelValue),
-          onChange: (event: Event) =>
-            emit(
-              'update:modelValue',
-              (event.target as HTMLSelectElement).value,
-            ),
-        },
-        (props.items as Array<{ label: string; value: string }>).map((it) =>
-          h('option', { value: it.value }, it.label),
-        ),
-      );
-  },
 });
 
 const MaterialColorPickerStub = defineComponent({
@@ -126,8 +79,25 @@ function makeWrapper(initial: string = VALID_YAML) {
 }
 
 function getInner(host: ReturnType<typeof makeWrapper>) {
-  // The first (and only) StockMatrixInput child component.
   return host.findComponent(StockMatrixInput);
+}
+
+type InnerVm = {
+  newThickness: Record<string, string>;
+  newSizeWidth: Record<number, string>;
+  newSizeLength: Record<number, string>;
+  addThickness: (m: number, s: number) => void;
+  addSize: (i: number) => void;
+  addMaterial: () => void;
+  removeMaterial: (i: number) => void;
+  commit: () => boolean;
+  matrix: Array<{
+    sizes: Array<{ width: number; length: number; thickness: number[] }>;
+  }>;
+};
+
+function vmOf(host: ReturnType<typeof makeWrapper>): InnerVm {
+  return getInner(host).vm as unknown as InnerVm;
 }
 
 describe('StockMatrixInput', () => {
@@ -136,115 +106,84 @@ describe('StockMatrixInput', () => {
       const host = makeWrapper();
 
       expect(host.findAll('.color-picker')).toHaveLength(1);
-      // Material name input has the "Plywood" value
-      const inputs = host.findAll('input');
-      const named = inputs.find(
-        (i) => (i.element as HTMLInputElement).value === 'Plywood',
-      );
+      const named = host
+        .findAll('input')
+        .find((i) => (i.element as HTMLInputElement).value === 'Plywood');
       expect(named).toBeTruthy();
     });
 
     it('Should display an error message for invalid YAML', () => {
-      // Top-level not an array -> Zod array parse fails.
       const host = makeWrapper('foo: not-a-list');
       expect(host.text()).toMatch(/error|Error|expected|invalid/i);
     });
   });
 
-  describe('Watchers', () => {
-    it('Should re-serialize through update:modelValue when addMaterial mutates the matrix', async () => {
-      const host = makeWrapper();
-      const inner = getInner(host);
+  it('Should re-serialize through update:modelValue when addMaterial mutates the matrix', async () => {
+    const host = makeWrapper();
+    vmOf(host).addMaterial();
+    await nextTick();
 
-      (inner.vm as unknown as { addMaterial: () => void }).addMaterial();
-      await nextTick();
-
-      const value = (host.vm as unknown as { value: string }).value;
-      const parsed = YAML.load(value) as Array<{ material: string }>;
-      expect(parsed).toHaveLength(2);
-      expect(parsed[1].material).toBe('New Material');
-    });
+    const value = (host.vm as unknown as { value: string }).value;
+    const parsed = YAML.load(value) as Array<{ material: string }>;
+    expect(parsed).toHaveLength(2);
+    expect(parsed[1].material).toBe('New Material');
   });
 
   describe('#addThickness', () => {
-    function call(
-      inner: ReturnType<typeof getInner>,
-      mat: number,
-      size: number,
-      raw: string | undefined,
-    ) {
-      const vm = inner.vm as unknown as {
-        newThickness: Record<string, string>;
-        addThickness: (m: number, s: number) => void;
-        matrix: Array<{ sizes: Array<{ thickness: number[] }> }>;
-      };
-      const key = `${mat}-${size}`;
-      if (raw !== undefined) vm.newThickness[key] = raw;
-      vm.addThickness(mat, size);
-      return vm.matrix[mat].sizes[size].thickness;
-    }
-
-    it('Should reject non-positive or non-finite values', () => {
+    it.each([
+      { input: '0', label: 'zero' },
+      { input: '-1', label: 'negative' },
+      { input: 'abc', label: 'non-numeric' },
+      { input: '', label: 'empty' },
+    ])('Should reject $label values', ({ input }) => {
       const host = makeWrapper();
-      const inner = getInner(host);
-
-      expect(call(inner, 0, 0, '0')).toEqual([18]);
-      expect(call(inner, 0, 0, '-1')).toEqual([18]);
-      expect(call(inner, 0, 0, 'abc')).toEqual([18]);
-      expect(call(inner, 0, 0, '')).toEqual([18]);
+      const vm = vmOf(host);
+      vm.newThickness['0-0'] = input;
+      vm.addThickness(0, 0);
+      expect(vm.matrix[0].sizes[0].thickness).toEqual([18]);
     });
 
-    it('Should append a positive number and clear the input', async () => {
+    it('Should append a positive number and clear the input', () => {
       const host = makeWrapper();
-      const inner = getInner(host);
-      const vm = inner.vm as unknown as {
-        newThickness: Record<string, string>;
-      };
+      const vm = vmOf(host);
+      vm.newThickness['0-0'] = '12';
+      vm.addThickness(0, 0);
 
-      expect(call(inner, 0, 0, '12')).toEqual([18, 12]);
+      expect(vm.matrix[0].sizes[0].thickness).toEqual([18, 12]);
       expect(vm.newThickness['0-0']).toBe('');
     });
   });
 
   describe('#addSize', () => {
-    function call(
-      inner: ReturnType<typeof getInner>,
-      matIndex: number,
-      width: string,
-      length: string,
-    ) {
-      const vm = inner.vm as unknown as {
-        newSizeWidth: Record<number, string>;
-        newSizeLength: Record<number, string>;
-        addSize: (i: number) => void;
-        matrix: Array<{ sizes: unknown[] }>;
-      };
-      vm.newSizeWidth[matIndex] = width;
-      vm.newSizeLength[matIndex] = length;
-      vm.addSize(matIndex);
-      return vm.matrix[matIndex].sizes;
-    }
+    it.each([
+      { width: '0', length: '100' },
+      { width: '100', length: '0' },
+      { width: '-5', length: '100' },
+      { width: 'NaN', length: '100' },
+    ])(
+      'Should reject ($width, $length) — both must be > 0',
+      ({ width, length }) => {
+        const host = makeWrapper();
+        const vm = vmOf(host);
+        const before = vm.matrix[0].sizes.length;
 
-    it('Should require both width and length to be > 0', () => {
-      const host = makeWrapper();
-      const inner = getInner(host);
+        vm.newSizeWidth[0] = width;
+        vm.newSizeLength[0] = length;
+        vm.addSize(0);
 
-      const before = call(inner, 0, '', '');
-      const beforeLen = before.length;
-
-      expect(call(inner, 0, '0', '100').length).toBe(beforeLen);
-      expect(call(inner, 0, '100', '0').length).toBe(beforeLen);
-      expect(call(inner, 0, '-5', '100').length).toBe(beforeLen);
-      expect(call(inner, 0, 'NaN', '100').length).toBe(beforeLen);
-    });
+        expect(vm.matrix[0].sizes.length).toBe(before);
+      },
+    );
 
     it('Should append a size when both inputs are positive numbers', () => {
       const host = makeWrapper();
-      const inner = getInner(host);
+      const vm = vmOf(host);
+      vm.newSizeWidth[0] = '600';
+      vm.newSizeLength[0] = '900';
+      vm.addSize(0);
 
-      const sizes = call(inner, 0, '600', '900');
-      expect(sizes).toHaveLength(2);
-      expect(sizes[1]).toMatchObject({
+      expect(vm.matrix[0].sizes).toHaveLength(2);
+      expect(vm.matrix[0].sizes[1]).toMatchObject({
         width: 600,
         length: 900,
         thickness: [],
@@ -252,34 +191,22 @@ describe('StockMatrixInput', () => {
     });
   });
 
-  describe('#removeMaterial', () => {
-    it('Should splice the matrix at the given index', () => {
-      const host = makeWrapper();
-      const inner = getInner(host);
-      const vm = inner.vm as unknown as {
-        addMaterial: () => void;
-        removeMaterial: (i: number) => void;
-        matrix: Array<unknown>;
-      };
-
-      vm.addMaterial();
-      expect(vm.matrix).toHaveLength(2);
-      vm.removeMaterial(0);
-      expect(vm.matrix).toHaveLength(1);
-    });
+  it('Should splice the matrix at the given index on removeMaterial', () => {
+    const host = makeWrapper();
+    const vm = vmOf(host);
+    vm.addMaterial();
+    expect(vm.matrix).toHaveLength(2);
+    vm.removeMaterial(0);
+    expect(vm.matrix).toHaveLength(1);
   });
 
   describe('Project unit', () => {
-    it('Should not render the per-row unit selector', () => {
-      const host = makeWrapper();
-      expect(host.findAll('select')).toHaveLength(0);
-    });
-
-    it('Should add new materials without a unit field (storage is mm)', () => {
+    it('Should not render per-row unit selectors and should add new materials without a unit field (storage is mm)', () => {
       distanceUnit.value = 'in';
       const host = makeWrapper('[]');
-      const inner = getInner(host);
-      (inner.vm as unknown as { addMaterial: () => void }).addMaterial();
+      expect(host.findAll('select')).toHaveLength(0);
+
+      vmOf(host).addMaterial();
       const value = (host.vm as unknown as { value: string }).value;
       const parsed = YAML.load(value) as Array<Record<string, unknown>>;
       expect('unit' in parsed[0]).toBe(false);
@@ -287,71 +214,38 @@ describe('StockMatrixInput', () => {
   });
 
   describe('Imperial input (storage is mm)', () => {
-    it('Should accept fractions for thickness and store mm', () => {
+    it('Should accept fractions for thickness and mixed-number sizes, all converted to mm at storage', () => {
       distanceUnit.value = 'in';
       const host = makeWrapper();
-      const inner = getInner(host);
-      const vm = inner.vm as unknown as {
-        newThickness: Record<string, string>;
-        addThickness: (m: number, s: number) => void;
-        matrix: Array<{ sizes: Array<{ thickness: number[] }> }>;
-      };
+      const vm = vmOf(host);
+
+      // 1/2" thickness → 12.7 mm.
       vm.newThickness['0-0'] = '1/2';
       vm.addThickness(0, 0);
       const t = vm.matrix[0].sizes[0].thickness;
-      // 1/2 in = 12.7 mm
       expect(t[t.length - 1]).toBeCloseTo(12.7, 5);
-    });
 
-    it('Should accept mixed-number sizes and convert to mm', () => {
-      distanceUnit.value = 'in';
-      const host = makeWrapper();
-      const inner = getInner(host);
-      const vm = inner.vm as unknown as {
-        newSizeWidth: Record<number, string>;
-        newSizeLength: Record<number, string>;
-        addSize: (i: number) => void;
-        matrix: Array<{
-          sizes: Array<{ width: number; length: number; thickness: number[] }>;
-        }>;
-      };
+      // 1 1/2" wide × 4ft long → 38.1 mm × 1219.2 mm.
       vm.newSizeWidth[0] = '1 1/2';
       vm.newSizeLength[0] = '4ft';
       vm.addSize(0);
       const last = vm.matrix[0].sizes[vm.matrix[0].sizes.length - 1];
-      expect(last.width).toBeCloseTo(38.1, 5); // 1.5 in
-      expect(last.length).toBeCloseTo(1219.2, 5); // 48 in
+      expect(last.width).toBeCloseTo(38.1, 5);
+      expect(last.length).toBeCloseTo(1219.2, 5);
     });
   });
 
   describe('#commit', () => {
-    it('Should return true and clear errors for a valid matrix', () => {
+    it('Should return true for a valid matrix and false when the reducer throws', () => {
       const host = makeWrapper();
-      const inner = getInner(host);
-      const vm = inner.vm as unknown as {
-        commit: () => boolean;
-        err: { value?: unknown };
-      };
-
+      const vm = vmOf(host);
       expect(vm.commit()).toBe(true);
-    });
-
-    it('Should return false when reduceStockMatrix throws', () => {
-      const host = makeWrapper();
-      const inner = getInner(host);
-      const vm = inner.vm as unknown as { commit: () => boolean };
 
       reduceStockMatrixSpy.mockImplementationOnce(() => {
         throw new Error('matrix invalid');
       });
-
       expect(vm.commit()).toBe(false);
-
       reduceStockMatrixSpy.mockReset();
     });
   });
 });
-
-// TODO(test): scrollToBottom — exercises raw DOM scrollTo, not behavioral.
-// TODO(test): incoming v-model change while typing — covered indirectly by mount-time parse.
-// TODO(test): UI keydown.enter on size/thickness inputs — wiring is one-line @keydown.enter.

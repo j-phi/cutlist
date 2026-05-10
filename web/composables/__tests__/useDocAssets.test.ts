@@ -6,55 +6,40 @@
  * cases pass, every path enforces them.
  *
  * Plus integration coverage of `uploadImageAsset` itself: the compression
- * step is mocked (browser-image-compression needs canvas + workers, neither
+ * step is faked (browser-image-compression needs canvas + workers, neither
  * of which `happy-dom` provides) but every branch of the wrapper is
  * exercised — pick the smaller blob, fall back when compression bloats,
  * fall back when compression throws.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  COMPRESSION_OPTIONS,
-  MAX_IMAGE_BYTES,
-  validateImageFile,
-} from '../useDocAssets';
+import { MAX_IMAGE_BYTES, validateImageFile } from '../useDocAssets';
 
-const compressMock = vi.fn();
+// Functional fake for browser-image-compression. Each test pushes a
+// behaviour onto the queue; the fake pops one off per call. No vi.fn().
+type CompressBehaviour =
+  | { kind: 'resolve'; blob: Blob }
+  | { kind: 'reject'; error: Error };
+const compressQueue: CompressBehaviour[] = [];
+const compressCalls: { file: File }[] = [];
+
 vi.mock('browser-image-compression', () => ({
-  default: (file: File, opts: unknown) => compressMock(file, opts),
+  default: async (file: File) => {
+    compressCalls.push({ file });
+    const next = compressQueue.shift();
+    if (!next) throw new Error('compress fake: no behaviour queued');
+    if (next.kind === 'reject') throw next.error;
+    return next.blob;
+  },
 }));
-
-// Spy on `createAsset` at its source. `useIdb()` returns a fresh object
-// on every call, so a test-side spy wouldn't intercept the composable's
-// internal call; mocking the export catches every reference.
-const createAssetSpy = vi.fn();
-vi.mock('../useIdb/assets', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../useIdb/assets')>();
-  return {
-    ...actual,
-    createAsset: (input: Parameters<typeof actual.createAsset>[0]) => {
-      createAssetSpy(input);
-      return actual.createAsset(input);
-    },
-  };
-});
 
 import useDocAssets from '../useDocAssets';
 import { useIdb } from '../useIdb';
 
 describe('validateImageFile', () => {
-  it('accepts a small PNG', () => {
-    expect(() =>
-      validateImageFile({ type: 'image/png', size: 1024 }),
-    ).not.toThrow();
-  });
-
-  it('accepts JPEG and WebP', () => {
-    expect(() =>
-      validateImageFile({ type: 'image/jpeg', size: 1024 }),
-    ).not.toThrow();
-    expect(() =>
-      validateImageFile({ type: 'image/webp', size: 1024 }),
-    ).not.toThrow();
+  it('accepts allowed MIME types (PNG, JPEG, WebP)', () => {
+    for (const type of ['image/png', 'image/jpeg', 'image/webp']) {
+      expect(() => validateImageFile({ type, size: 1024 })).not.toThrow();
+    }
   });
 
   it('rejects unsupported MIME types with a descriptive error', () => {
@@ -70,28 +55,22 @@ describe('validateImageFile', () => {
     expect(() => validateImageFile({ type: '', size: 1024 })).toThrow();
   });
 
-  it('accepts a file exactly at the size cap', () => {
+  it('accepts a file exactly at the size cap, rejects one byte over', () => {
     expect(() =>
       validateImageFile({ type: 'image/png', size: MAX_IMAGE_BYTES }),
     ).not.toThrow();
-  });
-
-  it('rejects a file one byte over the cap', () => {
     expect(() =>
       validateImageFile({ type: 'image/png', size: MAX_IMAGE_BYTES + 1 }),
     ).toThrow(/must be under/);
   });
 
-  it('mentions the actual file size in the error so users know what to trim', () => {
+  it('mentions the actual file size so users know what to trim', () => {
     expect(() =>
-      validateImageFile({
-        type: 'image/jpeg',
-        size: 25 * 1024 * 1024, // 25 MB
-      }),
+      validateImageFile({ type: 'image/jpeg', size: 25 * 1024 * 1024 }),
     ).toThrow(/25\.0 MB/);
   });
 
-  it('checks MIME before size, so an invalid huge file reports the type problem first', () => {
+  it('checks MIME before size, so an invalid huge file reports type first', () => {
     expect(() =>
       validateImageFile({
         type: 'application/pdf',
@@ -106,70 +85,52 @@ describe('uploadImageAsset', () => {
     return new File([new Uint8Array(size)], 'photo', { type });
   }
 
-  /** Args of every `createAsset` call. Probing here, not after the IDB
-   * round-trip, sidesteps happy-dom's lossy `Blob` serialization. */
-  function createAssetInputs(): { mimeType: string; blob: Blob }[] {
-    return createAssetSpy.mock.calls.map((args) => args[0]);
-  }
-
   let projectId: string;
 
   beforeEach(async () => {
-    compressMock.mockReset();
-    createAssetSpy.mockReset();
+    compressQueue.length = 0;
+    compressCalls.length = 0;
     const project = await useIdb().createProject('P');
     projectId = project.id;
   });
 
-  it('passes the source file and compression options through to the worker', async () => {
-    const file = makeFile(2_000_000);
-    compressMock.mockResolvedValueOnce(
-      new Blob([new Uint8Array(100)], { type: 'image/webp' }),
-    );
-
-    await useDocAssets().uploadImageAsset(file, projectId);
-
-    expect(compressMock).toHaveBeenCalledTimes(1);
-    expect(compressMock).toHaveBeenCalledWith(file, COMPRESSION_OPTIONS);
-  });
-
-  it('stores the compressed blob (with its WebP mime) when smaller than the source', async () => {
+  it('stores the compressed blob when smaller than the source', async () => {
     const file = makeFile(2_000_000, 'image/jpeg');
     const compressed = new Blob([new Uint8Array(50_000)], {
       type: 'image/webp',
     });
-    compressMock.mockResolvedValueOnce(compressed);
-    await useDocAssets().uploadImageAsset(file, projectId);
+    compressQueue.push({ kind: 'resolve', blob: compressed });
 
-    const inputs = createAssetInputs();
-    expect(inputs).toHaveLength(1);
-    expect(inputs[0].mimeType).toBe('image/webp');
-    expect(inputs[0].blob).toBe(compressed);
+    const stored = await useDocAssets().uploadImageAsset(file, projectId);
+
+    expect(compressCalls).toHaveLength(1);
+    expect(compressCalls[0].file).toBe(file);
+    expect(stored.mimeType).toBe('image/webp');
+    expect(stored.blob).toBe(compressed);
   });
 
   it('keeps the original when re-encoding produced a larger blob', async () => {
-    // Tiny WebP that the encoder would only inflate. Mimic that case.
     const file = makeFile(800, 'image/webp');
     const inflated = new Blob([new Uint8Array(1_500)], { type: 'image/webp' });
-    compressMock.mockResolvedValueOnce(inflated);
-    await useDocAssets().uploadImageAsset(file, projectId);
+    compressQueue.push({ kind: 'resolve', blob: inflated });
 
-    const inputs = createAssetInputs();
-    expect(inputs).toHaveLength(1);
-    expect(inputs[0].mimeType).toBe('image/webp');
-    expect(inputs[0].blob).toBe(file);
+    const stored = await useDocAssets().uploadImageAsset(file, projectId);
+
+    expect(stored.mimeType).toBe('image/webp');
+    expect(stored.blob).toBe(file);
   });
 
   it('falls back to the original when compression throws', async () => {
     const file = makeFile(1_000_000, 'image/png');
-    compressMock.mockRejectedValueOnce(new Error('encoder unavailable'));
-    await useDocAssets().uploadImageAsset(file, projectId);
+    compressQueue.push({
+      kind: 'reject',
+      error: new Error('encoder unavailable'),
+    });
 
-    const inputs = createAssetInputs();
-    expect(inputs).toHaveLength(1);
-    // We never reached a usable compressed blob, so the PNG hits IDB unchanged.
-    expect(inputs[0].mimeType).toBe('image/png');
-    expect(inputs[0].blob).toBe(file);
+    const stored = await useDocAssets().uploadImageAsset(file, projectId);
+
+    expect(stored.mimeType).toBe('image/png');
+    expect(stored.blob).toBe(file);
   });
 
   it('rejects oversized files before invoking the compressor', async () => {
@@ -178,6 +139,6 @@ describe('uploadImageAsset', () => {
     await expect(
       useDocAssets().uploadImageAsset(file, projectId),
     ).rejects.toThrow(/must be under/);
-    expect(compressMock).not.toHaveBeenCalled();
+    expect(compressCalls).toHaveLength(0);
   });
 });

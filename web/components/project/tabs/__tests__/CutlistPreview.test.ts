@@ -1,10 +1,11 @@
 // @vitest-environment nuxt
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent, h, nextTick, ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
 import CutlistPreview from '../CutlistPreview.vue';
+import { USelectStub } from '~/test-utils/stubs';
 
 type LayoutResult = {
   layouts: Array<{
@@ -55,33 +56,6 @@ mockNuxtImport(
     m == null ? '' : `${Math.round(m * 1000)}mm`,
 );
 
-const USelectStub = defineComponent({
-  props: {
-    modelValue: { type: [String, Number], default: '' },
-    items: { type: Array, default: () => [] },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h(
-        'select',
-        {
-          ...attrs,
-          'data-testid': 'stock-filter',
-          value: String(props.modelValue),
-          onChange: (event: Event) =>
-            emit(
-              'update:modelValue',
-              (event.target as HTMLSelectElement).value,
-            ),
-        },
-        (props.items as Array<{ label: string; value: string }>).map((it) =>
-          h('option', { value: it.value }, it.label),
-        ),
-      );
-  },
-});
-
 function makeLayout(
   material: string,
   thicknessM: number,
@@ -99,92 +73,97 @@ function makeLeftover(
   return { material, thicknessM, partNumber };
 }
 
-const UButtonStub = defineComponent({
-  props: { icon: { type: String, default: '' } },
+// CutlistPreview's only meaningful UButton usage is the configure-stock CTA.
+// We tag it with a testid so the click target is unambiguous; falls back to
+// the shared stub's surface otherwise.
+const TaggedUButton = {
+  inheritAttrs: false,
+  template:
+    '<button data-testid="configure-stock-button" type="button" v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>',
   emits: ['click'],
-  setup(_, { emit, slots }) {
-    return () =>
-      h(
-        'button',
-        {
-          'data-testid': 'configure-stock-button',
-          onClick: () => emit('click'),
+};
+
+function getComponent() {
+  return shallowMount(CutlistPreview, {
+    global: {
+      stubs: {
+        UIcon: true,
+        USelect: USelectStub,
+        UButton: TaggedUButton,
+        LayoutList: {
+          template:
+            '<div data-testid="layout-list" :data-count="layouts.length" />',
+          props: ['layouts'],
         },
-        slots.default?.(),
-      );
-  },
+        PreviewToolbar: true,
+        RulerToggle: true,
+        ScaleController: true,
+        ExportPdfButton: true,
+      },
+    },
+  });
+}
+
+beforeEach(() => {
+  data.value = undefined;
+  isComputing.value = false;
+  error.value = null;
+  partCountWarning.value = null;
+  scale.value = 1;
+  tab.value = 'layout';
+  resetZoom.mockClear();
+  zoomIn.mockClear();
+  zoomOut.mockClear();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('CutlistPreview', () => {
-  function getComponent() {
-    return shallowMount(CutlistPreview, {
-      global: {
-        stubs: {
-          UIcon: true,
-          USelect: USelectStub,
-          UButton: UButtonStub,
-          LayoutList: {
-            template:
-              '<div data-testid="layout-list" :data-count="layouts.length" />',
-            props: ['layouts'],
-          },
-          PreviewToolbar: true,
-          RulerToggle: true,
-          ScaleController: true,
-          ExportPdfButton: true,
+  describe('State rendering', () => {
+    it.each([
+      {
+        scenario: 'error overrides everything',
+        setup: () => {
+          error.value = 'Boom';
         },
+        expect: (text: string) => {
+          expect(text).toContain('Boom');
+        },
+        layoutListVisible: false,
       },
-    });
-  }
-
-  beforeEach(() => {
-    data.value = undefined;
-    isComputing.value = false;
-    error.value = null;
-    partCountWarning.value = null;
-    scale.value = 1;
-    tab.value = 'layout';
-    resetZoom.mockClear();
-    zoomIn.mockClear();
-    zoomOut.mockClear();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  describe('Rendering', () => {
-    it('Should render the error message when error is set', () => {
-      error.value = 'Boom';
+      {
+        scenario: 'computing indicator when no data and busy',
+        setup: () => {
+          isComputing.value = true;
+        },
+        expect: (text: string) => {
+          expect(text).toContain('Computing layouts');
+        },
+        layoutListVisible: false,
+      },
+      {
+        scenario: 'no-parts empty state when no layouts and no leftovers',
+        setup: () => {
+          data.value = { layouts: [], leftovers: [] };
+        },
+        expect: (text: string) => {
+          expect(text).toContain('No board layouts yet');
+          expect(text).toContain('Add parts in the BOM tab');
+        },
+        layoutListVisible: false,
+      },
+    ])('$scenario', ({ setup, expect: assert, layoutListVisible }) => {
+      setup();
       const component = getComponent();
-
-      expect(component.text()).toContain('Boom');
+      assert(component.text());
       expect(component.find('[data-testid="layout-list"]').exists()).toBe(
-        false,
+        layoutListVisible,
       );
     });
 
-    it('Should render the computing indicator when data is null and isComputing is true', () => {
-      data.value = undefined;
-      isComputing.value = true;
-      const component = getComponent();
-
-      expect(component.text()).toContain('Computing layouts');
-    });
-
-    it('Should render the no-parts empty state when there are no layouts and no leftovers', () => {
-      data.value = { layouts: [], leftovers: [] };
-      const component = getComponent();
-
-      expect(component.text()).toContain('No board layouts yet');
-      expect(component.text()).toContain('Add parts in the BOM tab');
-      // Configure-stock CTA does not apply here.
-      expect(
-        component.find('[data-testid="configure-stock-button"]').exists(),
-      ).toBe(false);
-    });
-
-    it('Should render the no-matching-stock empty state when parts exist but no layouts were produced', () => {
+    it('Should render the no-matching-stock empty state with a configure-stock CTA when parts exist but no layouts were produced, and suppress the leftover banner', () => {
       data.value = {
         layouts: [],
         leftovers: [makeLeftover('Plywood', 0.018, 1)],
@@ -198,16 +177,7 @@ describe('CutlistPreview', () => {
       expect(
         component.find('[data-testid="configure-stock-button"]').exists(),
       ).toBe(true);
-    });
-
-    it('Should suppress the leftover banner when the empty state is showing', () => {
-      data.value = {
-        layouts: [],
-        leftovers: [makeLeftover('Plywood', 0.018, 1)],
-      };
-      const component = getComponent();
-
-      // Empty-state CTA shows once; the redundant leftover banner does not.
+      // Empty-state CTA shows once; redundant leftover banner does not.
       expect(component.text()).not.toContain('could not be placed on');
     });
 
@@ -216,56 +186,30 @@ describe('CutlistPreview', () => {
         layouts: [makeLayout('Plywood', 0.018)],
         leftovers: [makeLeftover('MDF', 0.012, 1)],
       };
-      const component = getComponent();
-
-      expect(component.text()).toContain(
+      expect(getComponent().text()).toContain(
         'could not be placed on matching stock',
       );
     });
+  });
 
-    it('Should not render the stock filter when only one stock option is present', () => {
-      data.value = {
+  describe('Stock filter', () => {
+    it.each([
+      {
+        scenario: 'hidden when only one stock option is present',
         layouts: [makeLayout('Plywood', 0.018)],
-        leftovers: [],
-      };
-      const component = getComponent();
-
-      expect(component.find('[data-testid="stock-filter"]').exists()).toBe(
-        false,
-      );
-    });
-
-    it('Should render the stock filter when multiple distinct stocks exist', () => {
-      data.value = {
+        visible: false,
+      },
+      {
+        scenario: 'visible when multiple distinct stocks exist',
         layouts: [makeLayout('Plywood', 0.018), makeLayout('MDF', 0.012)],
-        leftovers: [],
-      };
-      const component = getComponent();
-
-      expect(component.find('[data-testid="stock-filter"]').exists()).toBe(
-        true,
-      );
+        visible: true,
+      },
+    ])('$scenario', ({ layouts, visible }) => {
+      data.value = { layouts, leftovers: [] };
+      expect(getComponent().find('select').exists()).toBe(visible);
     });
-  });
 
-  describe('Configure stock CTA', () => {
-    it('Should switch to the boards tab when clicked', async () => {
-      data.value = {
-        layouts: [],
-        leftovers: [makeLeftover('Plywood', 0.018, 1)],
-      };
-      const component = getComponent();
-
-      await component
-        .get('[data-testid="configure-stock-button"]')
-        .trigger('click');
-
-      expect(tab.value).toBe('boards');
-    });
-  });
-
-  describe('On stock filter change', () => {
-    it('Should filter layouts by stock key', async () => {
+    it('Should filter layouts by stock key on change and reset to __all__ when the selected option disappears', async () => {
       data.value = {
         layouts: [makeLayout('Plywood', 0.018), makeLayout('MDF', 0.012)],
         leftovers: [],
@@ -273,52 +217,40 @@ describe('CutlistPreview', () => {
       const component = getComponent();
       await nextTick();
 
-      const select = component.get('[data-testid="stock-filter"]');
-      // Plywood key = "Plywood__0.018__1.22__2.44"
-      await select.setValue('Plywood__0.018__1.22__2.44');
+      const select = component.get('select');
+      await select.setValue('MDF__0.012__1.22__2.44');
       await nextTick();
 
       const list = component.get('[data-testid="layout-list"]');
       expect(list.attributes('data-count')).toBe('1');
-    });
-  });
 
-  describe('Watchers', () => {
-    it('Should reset selectedStock to __all__ when its option disappears', async () => {
-      data.value = {
-        layouts: [makeLayout('Plywood', 0.018), makeLayout('MDF', 0.012)],
-        leftovers: [],
-      };
-      const component = getComponent();
+      // Drop MDF; selection must reset.
+      data.value = { layouts: [makeLayout('Plywood', 0.018)], leftovers: [] };
       await nextTick();
+      // With one option remaining, dropdown is hidden.
+      expect(component.find('select').exists()).toBe(false);
 
-      const select = component.get('[data-testid="stock-filter"]');
-      await select.setValue('MDF__0.012__1.22__2.44');
-      await nextTick();
-
-      // Now drop MDF from the layout set.
-      data.value = {
-        layouts: [makeLayout('Plywood', 0.018)],
-        leftovers: [],
-      };
-      await nextTick();
-      // The stockOptions watcher should reset selection to __all__.
-      // With only one option remaining, the filter dropdown is hidden.
-      expect(component.find('[data-testid="stock-filter"]').exists()).toBe(
-        false,
-      );
-      // Restore two stocks; selection should be __all__.
       data.value = {
         layouts: [makeLayout('Plywood', 0.018), makeLayout('Birch', 0.018)],
         leftovers: [],
       };
       await nextTick();
-      const restored = component.get('[data-testid="stock-filter"]');
+      const restored = component.get('select');
       expect((restored.element as HTMLSelectElement).value).toBe('__all__');
     });
   });
-});
 
-// TODO(test): partCountWarning banner — straightforward v-if pass-through.
-// TODO(test): pan/zoom controls — handlers wired by props to ScaleController stub.
-// TODO(test): canvas-grid + canvas-plane styling — not behavioral.
+  it('Should switch to the boards tab when the configure-stock CTA is clicked', async () => {
+    data.value = {
+      layouts: [],
+      leftovers: [makeLeftover('Plywood', 0.018, 1)],
+    };
+    const component = getComponent();
+
+    await component
+      .get('[data-testid="configure-stock-button"]')
+      .trigger('click');
+
+    expect(tab.value).toBe('boards');
+  });
+});

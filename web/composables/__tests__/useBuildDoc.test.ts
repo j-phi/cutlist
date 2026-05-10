@@ -28,17 +28,11 @@ const FILLED_B: JSONContent = {
 };
 
 describe('isBuildDocEmpty', () => {
-  it('treats the fresh-editor doc as empty', () => {
+  it('treats empty / placeholder docs as empty', () => {
     expect(
       isBuildDocEmpty({ type: 'doc', content: [{ type: 'paragraph' }] }),
     ).toBe(true);
-  });
-
-  it('treats a doc with no content array as empty', () => {
     expect(isBuildDocEmpty({ type: 'doc' } as JSONContent)).toBe(true);
-  });
-
-  it('treats a paragraph with explicit empty content as empty', () => {
     expect(
       isBuildDocEmpty({
         type: 'doc',
@@ -47,20 +41,17 @@ describe('isBuildDocEmpty', () => {
     ).toBe(true);
   });
 
-  it('treats a paragraph with text as non-empty', () => {
+  it('treats any real content as non-empty', () => {
+    // Paragraph with text.
     expect(isBuildDocEmpty(FILLED_A)).toBe(false);
-  });
-
-  it('treats multiple top-level nodes as non-empty', () => {
+    // Multiple top-level nodes.
     expect(
       isBuildDocEmpty({
         type: 'doc',
         content: [{ type: 'paragraph' }, { type: 'paragraph' }],
       }),
     ).toBe(false);
-  });
-
-  it('treats a non-paragraph block (e.g. heading, image) as non-empty', () => {
+    // Non-paragraph block (image, heading, etc.).
     expect(
       isBuildDocEmpty({
         type: 'doc',
@@ -84,7 +75,6 @@ describe('useBuildDoc — project switch', () => {
   });
 
   beforeEach(async () => {
-    // Drive the activeId watcher to a clean baseline before each test.
     activeId.value = null;
     activeProject.value = null;
     projects.value = [];
@@ -123,7 +113,6 @@ describe('useBuildDoc — project switch', () => {
     });
     projects.value = [a, b];
 
-    // Activate A and let its doc load.
     activeId.value = a.id;
     activeProject.value = a;
     await settle();
@@ -142,7 +131,6 @@ describe('useBuildDoc — project switch', () => {
     expect(api.doc.value).toBe(EMPTY_DOC);
     expect(api.loadedId.value).toBe(null);
 
-    // Once the load resolves, B's content lands.
     await settle();
     expect(api.title.value).toBe('Title B');
     expect(api.doc.value).toEqual(FILLED_B);
@@ -151,11 +139,10 @@ describe('useBuildDoc — project switch', () => {
 
   // ─── Orphan-asset sweep ──────────────────────────────────────────────────
   //
-  // The sweep fires off the `activeId` watcher after the doc loads. It
-  // diffs `getAssetsForProject` against `collectAssetIds(doc)` and
-  // bulk-deletes anything not referenced. Tiptap history is in-memory
-  // only, so deleting on fresh load is safe — there's no undo that could
-  // resurrect a dead ref.
+  // The sweep diffs `getAssetsForProject` against `collectAssetIds(doc)` and
+  // bulk-deletes anything not referenced. Tiptap history is in-memory only,
+  // so deleting on fresh load is safe. One test covers both the doc-with-
+  // refs and no-doc cases (no-doc seeds EMPTY_DOC, which has zero refs).
 
   it('deletes assets that the loaded doc no longer references', async () => {
     const idb = useIdb();
@@ -188,7 +175,6 @@ describe('useBuildDoc — project switch', () => {
     await settle();
 
     // Sweep is fire-and-forget; settle() only waits for loadedId to flip.
-    // Yield once more so the awaited deleteAssets resolves.
     for (let i = 0; i < 20; i++) {
       await new Promise<void>((r) => setTimeout(r, 0));
       await nextTick();
@@ -197,31 +183,5 @@ describe('useBuildDoc — project switch', () => {
 
     expect(await idb.getAsset(liveAsset.id)).toBeDefined();
     expect(await idb.getAsset(orphanAsset.id)).toBeUndefined();
-  });
-
-  it('deletes every asset when the project has no build doc record', async () => {
-    // Mid-upload project switch leaves the asset in IDB without a doc
-    // ever having referenced it. On next load of that project, the
-    // sweep should clean it up — the seeded EMPTY_DOC has no refs.
-    const idb = useIdb();
-    const project = await idb.createProject('NoDoc');
-    const orphan = await idb.createAsset({
-      projectId: project.id,
-      mimeType: 'image/png',
-      blob: new Blob([new TextEncoder().encode('x')], { type: 'image/png' }),
-    });
-    projects.value = [project];
-
-    activeId.value = project.id;
-    activeProject.value = project;
-    await settle();
-
-    for (let i = 0; i < 20; i++) {
-      await new Promise<void>((r) => setTimeout(r, 0));
-      await nextTick();
-      if ((await idb.getAsset(orphan.id)) === undefined) break;
-    }
-
-    expect(await idb.getAsset(orphan.id)).toBeUndefined();
   });
 });

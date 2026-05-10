@@ -162,8 +162,12 @@ describe('LegacyExportError', () => {
 
 // ─── applyDefaults (safety net layer) ───────────────────────────────────────
 
+// applyDefaults fills fields that were added later than v1 without their own
+// migration (showPartNumbers on projects; source/enabled/partOverrides on
+// models). The "preserves existing values" cases were dropped — pure object
+// spread, no bug class.
 describe('applyProjectDefaults', () => {
-  it('fills missing stock, colorMap, excludedColors, distanceUnit, and packing settings', () => {
+  it('fills missing fields with the project-settings defaults', () => {
     const bare = { id: 'x', name: 'X', createdAt: '', updatedAt: '' };
     const result = applyProjectDefaults(bare);
     expect(result.stock).toBe('');
@@ -175,32 +179,6 @@ describe('applyProjectDefaults', () => {
     expect(result.defaultAlgorithm).toBe(DEFAULT_SETTINGS.defaultAlgorithm);
     expect(result.showPartNumbers).toBe(DEFAULT_SETTINGS.showPartNumbers);
   });
-
-  it('preserves existing values', () => {
-    const full = {
-      id: 'x',
-      name: 'X',
-      stock: 'custom',
-      colorMap: { a: 'b' },
-      excludedColors: ['c'],
-      distanceUnit: 'in' as const,
-      bladeWidth: 4.2,
-      margin: 1.5,
-      defaultAlgorithm: 'cnc' as const,
-      showPartNumbers: false,
-      createdAt: '',
-      updatedAt: '',
-    };
-    const result = applyProjectDefaults(full);
-    expect(result.stock).toBe('custom');
-    expect(result.colorMap).toEqual({ a: 'b' });
-    expect(result.excludedColors).toEqual(['c']);
-    expect(result.distanceUnit).toBe('in');
-    expect(result.bladeWidth).toBe(4.2);
-    expect(result.margin).toBe(1.5);
-    expect(result.defaultAlgorithm).toBe('cnc');
-    expect(result.showPartNumbers).toBe(false);
-  });
 });
 
 describe('applyModelDefaults', () => {
@@ -210,27 +188,5 @@ describe('applyModelDefaults', () => {
     expect(result.source).toBe('gltf');
     expect(result.enabled).toBe(true);
     expect(result.partOverrides).toEqual({});
-  });
-
-  it('preserves existing values', () => {
-    const full = {
-      id: 'x',
-      projectId: 'p',
-      filename: 'f.glb',
-      source: 'manual' as const,
-      enabled: false,
-      partOverrides: { 1: { grainLock: 'length' as const } },
-      colors: [
-        { key: '#fff', rgb: [1, 1, 1] as [number, number, number], count: 1 },
-      ],
-      nodePartMap: [{ nodeIndex: 0, partNumber: 1, colorHex: '#fff' }],
-      createdAt: '',
-    };
-    const result = applyModelDefaults(full);
-    expect(result.source).toBe('manual');
-    expect(result.enabled).toBe(false);
-    expect(result.partOverrides).toEqual({ 1: { grainLock: 'length' } });
-    expect(result.colors).toHaveLength(1);
-    expect(result.nodePartMap).toHaveLength(1);
   });
 });

@@ -5,7 +5,7 @@
  * can compare before/after on the same machine when iterating on the
  * packing engine.
  *
- * Run with:  cd web && vitest run __tests__/benchmark
+ * Run from repo root with:  bun run bench
  */
 import { describe, it } from 'vitest';
 import {

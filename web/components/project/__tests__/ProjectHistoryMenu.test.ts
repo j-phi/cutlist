@@ -3,18 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 
 import ProjectHistoryMenu from '../ProjectHistoryMenu.vue';
+import { UButtonStub } from '~/test-utils/stubs';
 
-const UButtonStub = {
-  // Inherit attrs (including onClick) onto the rendered button so a click on
-  // the button fires the parent handler exactly once.
-  props: ['label'],
-  template: '<button type="button"><slot />{{ label }}</button>',
-};
-
-const stubs = {
-  UButton: UButtonStub,
-  UIcon: true,
-};
+const stubs = { UButton: UButtonStub, UIcon: true };
 
 function makeArchived(overrides: Partial<{ id: string; name: string }> = {}) {
   return {
@@ -29,20 +20,25 @@ function getComponent(
   props: Partial<InstanceType<typeof ProjectHistoryMenu>['$props']> = {},
 ) {
   return shallowMount(ProjectHistoryMenu, {
-    props: {
-      archived: [],
-      ...props,
-    },
+    props: { archived: [], ...props },
     global: { stubs },
   });
 }
 
+function findButton(
+  component: ReturnType<typeof getComponent>,
+  predicate: (b: ReturnType<typeof component.findAll>[number]) => boolean,
+) {
+  return component.findAll('button').find(predicate);
+}
+
 describe('ProjectHistoryMenu', () => {
   describe('Rendering', () => {
-    it('Should render the empty state when archived is empty', () => {
+    it('Should render the empty state when archived is empty (no list, no clear footer)', () => {
       const component = getComponent({ archived: [] });
       expect(component.text()).toContain('No closed projects');
       expect(component.find('ul').exists()).toBe(false);
+      expect(component.text()).not.toContain('Clear history');
     });
 
     it('Should render one row per archived item', () => {
@@ -57,11 +53,6 @@ describe('ProjectHistoryMenu', () => {
       expect(rows[0].text()).toContain('Alpha');
       expect(rows[1].text()).toContain('Beta');
     });
-
-    it('Should not render the clear-history footer when empty', () => {
-      const component = getComponent({ archived: [] });
-      expect(component.text()).not.toContain('Clear history');
-    });
   });
 
   describe('On restore', () => {
@@ -70,203 +61,100 @@ describe('ProjectHistoryMenu', () => {
         archived: [makeArchived({ id: 'a1' })],
       });
 
-      const reopenBtn = component
-        .findAll('button')
-        .find((b) => b.attributes('title') === 'Reopen');
-      expect(reopenBtn).toBeTruthy();
+      const reopenBtn = findButton(
+        component,
+        (b) => b.attributes('title') === 'Reopen',
+      );
       await reopenBtn!.trigger('click');
 
       expect(component.emitted('restore')).toEqual([['a1']]);
     });
   });
 
-  describe('On delete (two-click confirm)', () => {
-    it('Should reveal the confirm row on first click and not emit', async () => {
-      const component = getComponent({
-        archived: [makeArchived({ id: 'a1' })],
-      });
+  // Three near-identical confirm flows (per-item delete, reset database, clear
+  // history). Same shape: trigger click → confirm row appears + no emit yet,
+  // confirm click → emit, cancel click → row hidden + no emit.
+  describe.each([
+    {
+      kind: 'permanently-delete' as const,
+      archived: [makeArchived({ id: 'a1' })],
+      triggerLabel: 'Delete permanently',
+      triggerKind: 'title' as const,
+      confirmText: 'Delete',
+      revealedText: undefined,
+      payload: 'a1',
+    },
+    {
+      kind: 'reset' as const,
+      archived: [],
+      triggerLabel: 'Reset database',
+      triggerKind: 'text' as const,
+      confirmText: 'Confirm',
+      revealedText: 'Delete everything?',
+      payload: undefined,
+    },
+    {
+      kind: 'clear' as const,
+      archived: [makeArchived({ id: 'a1' })],
+      triggerLabel: 'Clear history',
+      triggerKind: 'text' as const,
+      confirmText: 'Confirm',
+      revealedText: 'Delete all?',
+      payload: undefined,
+    },
+  ])('On $kind (two-click confirm)', (c) => {
+    function clickTrigger(component: ReturnType<typeof getComponent>) {
+      const trigger = findButton(component, (b) =>
+        c.triggerKind === 'title'
+          ? b.attributes('title') === c.triggerLabel
+          : b.text() === c.triggerLabel,
+      );
+      expect(trigger).toBeTruthy();
+      return trigger!.trigger('click');
+    }
 
-      const trashBtn = component
-        .findAll('button')
-        .find((b) => b.attributes('title') === 'Delete permanently');
-      await trashBtn!.trigger('click');
+    it(`Should reveal the confirm row on first click and not emit ${c.kind}`, async () => {
+      const component = getComponent({ archived: c.archived });
+      await clickTrigger(component);
 
-      const confirmDelete = component
-        .findAll('button')
-        .find((b) => b.text() === 'Delete');
-      expect(confirmDelete).toBeTruthy();
-      expect(component.emitted('permanently-delete')).toBeUndefined();
+      expect(
+        findButton(component, (b) => b.text() === c.confirmText),
+      ).toBeTruthy();
+      if (c.revealedText) expect(component.text()).toContain(c.revealedText);
+      expect(component.emitted(c.kind)).toBeUndefined();
     });
 
-    it('Should emit permanently-delete with the id on the second click', async () => {
-      const component = getComponent({
-        archived: [makeArchived({ id: 'a1' })],
-      });
+    it(`Should emit ${c.kind} on confirm click`, async () => {
+      const component = getComponent({ archived: c.archived });
+      await clickTrigger(component);
+      await findButton(component, (b) => b.text() === c.confirmText)!.trigger(
+        'click',
+      );
 
-      const trashBtn = component
-        .findAll('button')
-        .find((b) => b.attributes('title') === 'Delete permanently');
-      await trashBtn!.trigger('click');
-
-      const confirmDelete = component
-        .findAll('button')
-        .find((b) => b.text() === 'Delete');
-      await confirmDelete!.trigger('click');
-
-      expect(component.emitted('permanently-delete')).toEqual([['a1']]);
+      const expected = c.payload === undefined ? [[]] : [[c.payload]];
+      expect(component.emitted(c.kind)).toEqual(expected);
     });
 
-    it('Should hide the confirm row when cancel is clicked', async () => {
-      const component = getComponent({
-        archived: [makeArchived({ id: 'a1' })],
-      });
+    it(`Should hide the confirm row on cancel and not emit ${c.kind}`, async () => {
+      const component = getComponent({ archived: c.archived });
+      await clickTrigger(component);
+      await findButton(component, (b) => b.text() === 'Cancel')!.trigger(
+        'click',
+      );
 
-      const trashBtn = component
-        .findAll('button')
-        .find((b) => b.attributes('title') === 'Delete permanently');
-      await trashBtn!.trigger('click');
-
-      const cancelBtn = component
-        .findAll('button')
-        .find((b) => b.text() === 'Cancel');
-      expect(cancelBtn).toBeTruthy();
-      await cancelBtn!.trigger('click');
-
-      // Reopen button is back, Delete confirm gone.
-      const reopen = component
-        .findAll('button')
-        .find((b) => b.attributes('title') === 'Reopen');
-      expect(reopen).toBeTruthy();
-      const confirmDelete = component
-        .findAll('button')
-        .find((b) => b.text() === 'Delete');
-      expect(confirmDelete).toBeFalsy();
-      expect(component.emitted('permanently-delete')).toBeUndefined();
+      if (c.revealedText)
+        expect(component.text()).not.toContain(c.revealedText);
+      expect(
+        findButton(component, (b) => b.text() === c.confirmText),
+      ).toBeFalsy();
+      expect(component.emitted(c.kind)).toBeUndefined();
     });
   });
 
-  describe('On reset database', () => {
-    it('Should always render the Reset database button, even with no archived items', () => {
-      const component = getComponent({ archived: [] });
-      const resetBtn = component
-        .findAll('button')
-        .find((b) => b.text() === 'Reset database');
-      expect(resetBtn).toBeTruthy();
-    });
-
-    it('Should reveal the Delete-everything confirm row on first click and not emit', async () => {
-      const component = getComponent({ archived: [] });
-
-      const resetBtn = component
-        .findAll('button')
-        .find((b) => b.text() === 'Reset database');
-      expect(resetBtn).toBeTruthy();
-      await resetBtn!.trigger('click');
-
-      expect(component.text()).toContain('Delete everything?');
-      const confirmBtn = component
-        .findAll('button')
-        .find((b) => b.text() === 'Confirm');
-      expect(confirmBtn).toBeTruthy();
-      expect(component.emitted('reset')).toBeUndefined();
-    });
-
-    it('Should emit reset when the user confirms', async () => {
-      const component = getComponent({ archived: [] });
-
-      await component
-        .findAll('button')
-        .find((b) => b.text() === 'Reset database')!
-        .trigger('click');
-      await component
-        .findAll('button')
-        .find((b) => b.text() === 'Confirm')!
-        .trigger('click');
-
-      expect(component.emitted('reset')).toEqual([[]]);
-    });
-
-    it('Should revert to the Reset database button when cancel is clicked', async () => {
-      const component = getComponent({ archived: [] });
-
-      await component
-        .findAll('button')
-        .find((b) => b.text() === 'Reset database')!
-        .trigger('click');
-
-      const cancelBtn = component
-        .findAll('button')
-        .find((b) => b.text() === 'Cancel');
-      expect(cancelBtn).toBeTruthy();
-      await cancelBtn!.trigger('click');
-
-      expect(component.text()).not.toContain('Delete everything?');
-      expect(
-        component.findAll('button').find((b) => b.text() === 'Reset database'),
-      ).toBeTruthy();
-      expect(component.emitted('reset')).toBeUndefined();
-    });
-  });
-
-  describe('On clear history', () => {
-    it('Should reveal the Delete-all confirm row on first click and not emit', async () => {
-      const component = getComponent({
-        archived: [makeArchived({ id: 'a1' })],
-      });
-
-      const clearBtn = component
-        .findAll('button')
-        .find((b) => b.text() === 'Clear history');
-      expect(clearBtn).toBeTruthy();
-      await clearBtn!.trigger('click');
-
-      expect(component.text()).toContain('Delete all?');
-      const confirmBtn = component
-        .findAll('button')
-        .find((b) => b.text() === 'Confirm');
-      expect(confirmBtn).toBeTruthy();
-      expect(component.emitted('clear')).toBeUndefined();
-    });
-
-    it('Should emit clear when the user confirms', async () => {
-      const component = getComponent({
-        archived: [makeArchived({ id: 'a1' })],
-      });
-
-      await component
-        .findAll('button')
-        .find((b) => b.text() === 'Clear history')!
-        .trigger('click');
-      await component
-        .findAll('button')
-        .find((b) => b.text() === 'Confirm')!
-        .trigger('click');
-
-      expect(component.emitted('clear')).toEqual([[]]);
-    });
-
-    it('Should revert to the Clear history button when cancel is clicked', async () => {
-      const component = getComponent({
-        archived: [makeArchived({ id: 'a1' })],
-      });
-
-      await component
-        .findAll('button')
-        .find((b) => b.text() === 'Clear history')!
-        .trigger('click');
-
-      // Cancel inside the clear-history confirm row (a <button>, not UButton).
-      const cancelBtn = component
-        .findAll('button')
-        .find((b) => b.text() === 'Cancel');
-      expect(cancelBtn).toBeTruthy();
-      await cancelBtn!.trigger('click');
-
-      expect(component.text()).not.toContain('Delete all?');
-      expect(
-        component.findAll('button').find((b) => b.text() === 'Clear history'),
-      ).toBeTruthy();
-      expect(component.emitted('clear')).toBeUndefined();
-    });
+  it('Should always render the Reset database button, even with no archived items', () => {
+    const component = getComponent({ archived: [] });
+    expect(
+      findButton(component, (b) => b.text() === 'Reset database'),
+    ).toBeTruthy();
   });
 });

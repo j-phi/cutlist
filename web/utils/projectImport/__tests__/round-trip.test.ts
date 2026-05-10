@@ -8,41 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { SCHEMA_VERSION } from '../../versions';
 import { importProjectData, parseProjectExport } from '..';
 import type { ProjectExport } from '~/composables/useExportProject';
-
-function makeIdbMock() {
-  const calls = {
-    createProject: [] as any[],
-    updateProject: [] as any[],
-    createModel: [] as any[],
-    createBuildStep: [] as any[],
-    createScene: [] as any[],
-    createAnnotation: [] as any[],
-  };
-  return {
-    calls,
-    db: {
-      async createProject(name: string, opts?: any) {
-        calls.createProject.push({ name, opts });
-        return { id: 'new-proj' };
-      },
-      async updateProject(id: string, patch: any) {
-        calls.updateProject.push({ id, patch });
-      },
-      async createModel(model: any) {
-        calls.createModel.push(model);
-      },
-      async createBuildStep(step: any) {
-        calls.createBuildStep.push(step);
-      },
-      async createScene(scene: any) {
-        calls.createScene.push(scene);
-      },
-      async createAnnotation(annotation: any) {
-        calls.createAnnotation.push(annotation);
-      },
-    },
-  };
-}
+import { makeIdbMock } from './_helpers';
 
 function makePayload(): ProjectExport {
   const now = '2026-04-29T10:00:00.000Z';
@@ -171,19 +137,19 @@ describe('Spec 00 — scenes & annotations round-trip', () => {
     expect(parsed.annotations).toHaveLength(4);
 
     const { db, calls } = makeIdbMock();
-    await importProjectData(parsed, db as any);
+    await importProjectData(parsed, db as never);
 
     // Two scenes were imported with new IDs. modelId is remapped to the
     // freshly-assigned model id (every imported model gets a new UUID).
     expect(calls.createScene).toHaveLength(2);
-    const sceneIds = calls.createScene.map((s: any) => s.id);
+    const sceneIds = calls.createScene.map((s) => s.id);
     expect(new Set(sceneIds).size).toBe(2);
     expect(calls.createModel).toHaveLength(1);
     const newModelId = calls.createModel[0].id;
     expect(newModelId).not.toBe('model-1');
     for (const s of calls.createScene) {
       expect(s.modelId).toBe(newModelId);
-      expect((s as any).projectId).toBeUndefined();
+      expect((s as Record<string, unknown>).projectId).toBeUndefined();
       expect(s.id).not.toBe('scene-1');
       expect(s.id).not.toBe('scene-2');
     }
@@ -195,7 +161,7 @@ describe('Spec 00 — scenes & annotations round-trip', () => {
     const newSceneIdByOld = new Map<string, string>();
     for (let i = 0; i < calls.createScene.length; i++) {
       const oldId = original.scenes![i].id;
-      newSceneIdByOld.set(oldId, calls.createScene[i].id);
+      newSceneIdByOld.set(oldId, calls.createScene[i].id as string);
     }
     for (let i = 0; i < calls.createAnnotation.length; i++) {
       const ann = calls.createAnnotation[i];
@@ -210,10 +176,10 @@ describe('Spec 00 — scenes & annotations round-trip', () => {
     // Annotations on scene-1 stay attached to the new scene-1 id.
     const newScene1Id = newSceneIdByOld.get('scene-1')!;
     const onScene1 = calls.createAnnotation.filter(
-      (a: any) => a.sceneId === newScene1Id,
+      (a) => a.sceneId === newScene1Id,
     );
     expect(onScene1).toHaveLength(2);
-    expect(onScene1.map((a: any) => a.kind).sort()).toEqual([
+    expect(onScene1.map((a) => a.kind).sort()).toEqual([
       'callout',
       'dimension',
     ]);
@@ -226,10 +192,12 @@ describe('Spec 00 — scenes & annotations round-trip', () => {
 
     const parsed = parseProjectExport(JSON.parse(JSON.stringify(original)));
     const { db, calls } = makeIdbMock();
-    await importProjectData(parsed, db as any);
+    await importProjectData(parsed, db as never);
 
     expect(calls.createProject).toHaveLength(1);
-    expect(calls.createProject[0].opts.precision).toEqual({
+    expect(
+      (calls.createProject[0].opts as Record<string, unknown>).precision,
+    ).toEqual({
       kind: 'fraction',
       denominator: 16,
     });
@@ -252,12 +220,12 @@ describe('Spec 00 — scenes & annotations round-trip', () => {
 
     const parsed = parseProjectExport(JSON.parse(JSON.stringify(payload)));
     const { db, calls } = makeIdbMock();
-    await importProjectData(parsed, db as any);
+    await importProjectData(parsed, db as never);
 
     // 4 valid + 1 orphan in the payload, only 4 imported.
     expect(calls.createAnnotation).toHaveLength(4);
     expect(
-      calls.createAnnotation.find((a: any) => a.text === 'lost'),
+      calls.createAnnotation.find((a) => a.text === 'lost'),
     ).toBeUndefined();
   });
 
@@ -268,7 +236,7 @@ describe('Spec 00 — scenes & annotations round-trip', () => {
 
     const parsed = parseProjectExport(JSON.parse(JSON.stringify(payload)));
     const { db, calls } = makeIdbMock();
-    await importProjectData(parsed, db as any);
+    await importProjectData(parsed, db as never);
 
     expect(calls.createScene).toHaveLength(0);
     expect(calls.createAnnotation).toHaveLength(0);

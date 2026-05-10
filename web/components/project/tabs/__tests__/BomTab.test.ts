@@ -13,11 +13,12 @@
  * `mock.calls[0][0]` introspection.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { computed, defineComponent, h, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
 import BomTab from '../BomTab.vue';
+import { UButtonStub, UInputStub, UModalStub } from '~/test-utils/stubs';
 
 // ── Recording stand-ins for parsers ──────────────────────────────────────────
 //
@@ -170,32 +171,12 @@ mockNuxtImport('usePersistedSplitPanel', () => () => ({
 
 // ── Stubs ────────────────────────────────────────────────────────────────────
 
-const UButtonStub = {
-  inheritAttrs: false,
-  template:
-    '<button type="button" v-bind="$attrs" @click="$emit(\'click\', $event)"><slot />{{ label }}</button>',
-  props: ['label'],
-};
-const UInputStub = defineComponent({
-  props: { modelValue: { type: [String, Number], default: '' } },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h('input', {
-        ...attrs,
-        value: props.modelValue ?? '',
-        onInput: (event: Event) =>
-          emit('update:modelValue', (event.target as HTMLInputElement).value),
-      });
-  },
-});
-
 const stubs = {
   UButton: UButtonStub,
   UInput: UInputStub,
   UIcon: true,
   UCheckbox: true,
-  UModal: { template: '<section><slot name="content" /></section>' },
+  UModal: UModalStub,
   Transition: false,
   ManualPartRow: true,
   ColorMappingPanel: true,

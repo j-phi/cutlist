@@ -1,8 +1,10 @@
 /**
- * Tests the worker module's project-scoped request tracking.
+ * Project-scoped request tracking for the layout worker.
  *
  * Bun's test runner has no Web Worker, so a FakeWorker captures posted
- * messages and drives responses manually.
+ * messages and drives responses manually. Asserts target what consumers
+ * observe — promise resolution and the `computingProjects` reactive flag —
+ * not postMessage call shapes.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -85,7 +87,7 @@ beforeEach(() => {
 });
 
 describe('computeLayouts', () => {
-  it('rejects synchronously when part count exceeds the hard limit', async () => {
+  it('rejects synchronously without spawning a worker when over the hard limit', async () => {
     const tooMany = makeParts(PART_COUNT_HARD_LIMIT + 1);
     await expect(
       computeLayouts('proj-a', tooMany, '', CONFIG),
@@ -104,7 +106,7 @@ describe('computeLayouts', () => {
     expect(isComputing('proj-a')).toBe(false);
   });
 
-  it('clears the flag on reject too', async () => {
+  it('propagates worker errors and clears the computing flag', async () => {
     const promise = computeLayouts('proj-a', makeParts(1), '', CONFIG);
     expect(isComputing('proj-a')).toBe(true);
 
@@ -136,32 +138,24 @@ describe('project isolation', () => {
 });
 
 describe('superseding within the same project', () => {
-  it('stays computing until the latest request resolves, even if older ones land first', async () => {
+  // Single test covers both directions: the "computing" flag tracks the
+  // *latest* request id, so neither an early-resolving older request nor a
+  // late-resolving stale one should flip the flag prematurely or back on.
+  it('clears computing only when the latest request resolves, regardless of order', async () => {
     const first = computeLayouts('proj-a', makeParts(1), '', CONFIG);
     const second = computeLayouts('proj-a', makeParts(2), '', CONFIG);
     expect(isComputing('proj-a')).toBe(true);
 
     const [postFirst, postSecond] = workerInstance!.posts;
+
+    // Older request lands first — flag stays on (latest is still pending).
     workerInstance!.respond(postFirst.id, emptyResult());
     await first;
     expect(isComputing('proj-a')).toBe(true);
 
+    // Latest lands — flag clears.
     workerInstance!.respond(postSecond.id, emptyResult());
     await second;
-    expect(isComputing('proj-a')).toBe(false);
-  });
-
-  it('does not flip back on when a stale request resolves after the latest one', async () => {
-    const first = computeLayouts('proj-a', makeParts(1), '', CONFIG);
-    const second = computeLayouts('proj-a', makeParts(2), '', CONFIG);
-
-    const [postFirst, postSecond] = workerInstance!.posts;
-    workerInstance!.respond(postSecond.id, emptyResult());
-    await second;
-    expect(isComputing('proj-a')).toBe(false);
-
-    workerInstance!.respond(postFirst.id, emptyResult());
-    await first;
     expect(isComputing('proj-a')).toBe(false);
   });
 });

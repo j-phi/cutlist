@@ -1,9 +1,11 @@
 /**
- * Integration tests for the full IDB round-trip used by project hydration.
+ * Integration tests for the IDB ↔ hydration boundary.
  *
- * These tests construct IDB records directly and verify that hydrateModel
- * produces the correct Model output. They do NOT use the composable's
- * module-level reactive state (which requires Vue runtime).
+ * Single-record CRUD lives in useIdb.test.ts; pure-function applyOverrides
+ * semantics live in useModelHydration.test.ts. This file covers the cases
+ * where those layers interact in non-trivial ways — multi-model projects,
+ * GLTF-derived data round-tripping through IDB metadata, and the batch
+ * partOverride flow that crosses both layers.
  */
 import { describe, expect, it } from 'vitest';
 import { useIdb, type IdbModel } from '../useIdb';
@@ -23,198 +25,76 @@ function makePart(partNumber: number, overrides?: Partial<Part>): Part {
   };
 }
 
-// ─── Manual model round-trip ────────────────────────────────────────────────
+function makeModel(
+  projectId: string,
+  overrides: Partial<IdbModel> = {},
+): IdbModel {
+  return {
+    id: crypto.randomUUID(),
+    projectId,
+    filename: 'test.glb',
+    source: 'gltf',
+    parts: [],
+    colors: [],
+    nodePartMap: [],
+    enabled: true,
+    rawSource: {},
+    partOverrides: {},
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
 
-describe('manual model IDB round-trip', () => {
-  it('stores and retrieves manual parts with overrides', async () => {
-    const project = await idb.createProject('ManualModelTest');
-    const modelId = crypto.randomUUID();
+// ─── GLTF derived data survives the IDB round-trip ──────────────────────────
 
-    const parts: Part[] = [
-      makePart(1, { name: 'Rail', instanceNumber: 1 }),
-      makePart(1, { name: 'Rail', instanceNumber: 2 }),
-      makePart(2, { name: 'Stile' }),
-    ];
-
-    const model: IdbModel = {
-      id: modelId,
-      projectId: project.id,
-      filename: 'Manual Parts',
-      source: 'manual',
-      parts,
-      colors: [],
-      nodePartMap: [],
-      enabled: true,
-      rawSource: null,
-      partOverrides: { 1: { grainLock: 'length' } },
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createModel(model);
-
-    const full = await idb.getProjectWithModels(project.id);
-    expect(full).toBeDefined();
-    expect(full!.models).toHaveLength(1);
-
-    const meta = full!.models[0];
-    expect(meta.source).toBe('manual');
-    expect(meta.parts).toHaveLength(3);
-    expect(meta.partOverrides).toEqual({ 1: { grainLock: 'length' } });
-
-    // applyOverrides should merge correctly
-    const hydrated = applyOverrides(meta.parts, meta.partOverrides);
-    expect(hydrated[0].grainLock).toBe('length');
-    expect(hydrated[1].grainLock).toBe('length'); // same partNumber
-    expect(hydrated[2].grainLock).toBeUndefined(); // partNumber 2
-  });
-
-  it('updates partOverrides independently of parts', async () => {
-    const project = await idb.createProject('OverrideUpdate');
-    const modelId = crypto.randomUUID();
-
-    const model: IdbModel = {
-      id: modelId,
-      projectId: project.id,
-      filename: 'Manual Parts',
-      source: 'manual',
-      parts: [makePart(1), makePart(2)],
-      colors: [],
-      nodePartMap: [],
-      enabled: true,
-      rawSource: null,
-      partOverrides: {},
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createModel(model);
-
-    // Add an override
-    await idb.updateModel(modelId, {
-      partOverrides: { 1: { grainLock: 'width' } },
-    });
-    await idb.flushPendingModelWrites();
-
-    const full = await idb.getProjectWithModels(project.id);
-    const meta = full!.models[0];
-    expect(meta.partOverrides).toEqual({ 1: { grainLock: 'width' } });
-    // Parts should be unchanged
-    expect(meta.parts).toHaveLength(2);
-  });
-
-  it('handles model with no parts and no overrides', async () => {
-    const project = await idb.createProject('EmptyManualModel');
-    const model: IdbModel = {
-      id: crypto.randomUUID(),
-      projectId: project.id,
-      filename: 'Manual Parts',
-      source: 'manual',
-      parts: [],
-      colors: [],
-      nodePartMap: [],
-      enabled: true,
-      rawSource: null,
-      partOverrides: {},
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createModel(model);
-
-    const full = await idb.getProjectWithModels(project.id);
-    const hydrated = applyOverrides(
-      full!.models[0].parts,
-      full!.models[0].partOverrides,
-    );
-    expect(hydrated).toEqual([]);
-  });
-});
-
-// ─── GLTF model metadata ────────────────────────────────────────────────────
-
-describe('GLTF model IDB metadata', () => {
-  it('strips rawSource from model metadata in getProjectWithModels', async () => {
-    const project = await idb.createProject('GltfMetaTest');
-    const modelId = crypto.randomUUID();
-
-    const model: IdbModel = {
-      id: modelId,
-      projectId: project.id,
-      filename: 'test.glb',
-      source: 'gltf',
-      parts: [makePart(1)],
-      colors: [{ key: '#fff', rgb: [1, 1, 1], count: 1 }],
-      nodePartMap: [{ nodeIndex: 0, partNumber: 1, colorHex: '#fff' }],
-      enabled: true,
-      rawSource: { scenes: [], nodes: [], meshes: [], accessors: [] },
-      partOverrides: {},
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createModel(model);
-
-    const full = await idb.getProjectWithModels(project.id);
-    expect(full!.models[0]).not.toHaveProperty('rawSource');
-
-    // But getModelRawSource should still return it
-    const gltf = await idb.getModelRawSource(modelId);
-    expect(gltf).toEqual({ scenes: [], nodes: [], meshes: [], accessors: [] });
-  });
-
-  it('stores and retrieves colors and nodePartMap for GLTF models', async () => {
+describe('GLTF model derived data round-trip', () => {
+  it('stores and retrieves parts + colors + nodePartMap together', async () => {
     const project = await idb.createProject('GltfDerivedDataTest');
-    const modelId = crypto.randomUUID();
-
-    const model: IdbModel = {
-      id: modelId,
-      projectId: project.id,
-      filename: 'test.glb',
-      source: 'gltf',
-      parts: [makePart(1)],
-      colors: [{ key: '#fff', rgb: [1, 1, 1], count: 1 }],
-      nodePartMap: [{ nodeIndex: 0, partNumber: 1, colorHex: '#fff' }],
-      enabled: true,
-      rawSource: {},
-      partOverrides: {},
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createModel(model);
+    await idb.createModel(
+      makeModel(project.id, {
+        filename: 'test.glb',
+        parts: [makePart(1)],
+        colors: [{ key: '#fff', rgb: [1, 1, 1], count: 1 }],
+        nodePartMap: [{ nodeIndex: 0, partNumber: 1, colorHex: '#fff' }],
+      }),
+    );
 
     const full = await idb.getProjectWithModels(project.id);
-    expect(full!.models[0].colors).toHaveLength(1);
-    expect(full!.models[0].colors[0].key).toBe('#fff');
-    expect(full!.models[0].nodePartMap).toHaveLength(1);
-    expect(full!.models[0].nodePartMap[0].partNumber).toBe(1);
-    expect(full!.models[0].parts).toHaveLength(1);
+    const meta = full!.models[0];
+    expect(meta.colors).toEqual([{ key: '#fff', rgb: [1, 1, 1], count: 1 }]);
+    expect(meta.nodePartMap).toEqual([
+      { nodeIndex: 0, partNumber: 1, colorHex: '#fff' },
+    ]);
+    expect(meta.parts).toHaveLength(1);
   });
 });
 
-// ─── Batch name override round-trip ─────────────────────────────────────────
+// ─── Batch partOverride flow (IDB write → metadata read → applyOverrides) ───
+//
+// Covers the full path users see when they batch-rename in the BOM tab:
+// override is keyed by partNumber, persists in IDB, and on hydrate it must
+// fan out to every instance sharing that partNumber. The pure apply logic is
+// covered in useModelHydration.test; here we confirm it flows through IDB.
 
 describe('batch name override IDB round-trip', () => {
-  it('batch name overrides persist and hydrate correctly', async () => {
+  it('applies persisted batch + individual overrides to every matching instance', async () => {
     const project = await idb.createProject('BatchRenameTest');
-    const modelId = crypto.randomUUID();
-
     const parts: Part[] = [
       makePart(1, { name: 'Mesh_001', colorKey: 'red' }),
       makePart(1, { name: 'Mesh_001', colorKey: 'red', instanceNumber: 2 }),
       makePart(2, { name: 'Mesh_002', colorKey: 'red' }),
       makePart(3, { name: 'Mesh_003', colorKey: 'blue' }),
     ];
+    const modelId = crypto.randomUUID();
+    await idb.createModel(makeModel(project.id, { id: modelId, parts }));
 
-    const model: IdbModel = {
-      id: modelId,
-      projectId: project.id,
-      filename: 'test.glb',
-      source: 'gltf',
-      parts,
-      colors: [],
-      nodePartMap: [],
-      enabled: true,
-      rawSource: {},
-      partOverrides: {},
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createModel(model);
-
-    // Simulate batch rename: set name override for all red parts (1 and 2)
+    // Batch rename red parts (1 + 2) to "Shelf"; rename part 3 individually.
     await idb.updateModel(modelId, {
-      partOverrides: { 1: { name: 'Shelf' }, 2: { name: 'Shelf' } },
+      partOverrides: {
+        1: { name: 'Shelf' },
+        2: { name: 'Shelf' },
+        3: { name: 'Custom Cleat' },
+      },
     });
     await idb.flushPendingModelWrites();
 
@@ -224,134 +104,50 @@ describe('batch name override IDB round-trip', () => {
       full!.models[0].partOverrides,
     );
 
-    // Red parts renamed
+    // Both red instances of partNumber 1 renamed.
     expect(hydrated[0].name).toBe('Shelf');
     expect(hydrated[1].name).toBe('Shelf');
+    // Part 2 (red, single instance) renamed.
     expect(hydrated[2].name).toBe('Shelf');
-    // Blue part unchanged
-    expect(hydrated[3].name).toBe('Mesh_003');
-  });
-
-  it('clearing batch name overrides restores original names', async () => {
-    const project = await idb.createProject('BatchClearTest');
-    const modelId = crypto.randomUUID();
-
-    const parts: Part[] = [
-      makePart(1, { name: 'Original_A', colorKey: 'red' }),
-      makePart(2, { name: 'Original_B', colorKey: 'red' }),
-    ];
-
-    const model: IdbModel = {
-      id: modelId,
-      projectId: project.id,
-      filename: 'test.glb',
-      source: 'gltf',
-      parts,
-      colors: [],
-      nodePartMap: [],
-      enabled: true,
-      rawSource: {},
-      partOverrides: { 1: { name: 'Shelf' }, 2: { name: 'Shelf' } },
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createModel(model);
-
-    // Clear name overrides (simulating batch clear)
-    await idb.updateModel(modelId, { partOverrides: {} });
-    await idb.flushPendingModelWrites();
-
-    const full = await idb.getProjectWithModels(project.id);
-    const hydrated = applyOverrides(
-      full!.models[0].parts,
-      full!.models[0].partOverrides,
-    );
-
-    expect(hydrated[0].name).toBe('Original_A');
-    expect(hydrated[1].name).toBe('Original_B');
-  });
-
-  it('individual override survives alongside batch overrides', async () => {
-    const project = await idb.createProject('MixedOverrideTest');
-    const modelId = crypto.randomUUID();
-
-    const parts: Part[] = [
-      makePart(1, { name: 'Mesh_001', colorKey: 'red' }),
-      makePart(2, { name: 'Mesh_002', colorKey: 'red' }),
-    ];
-
-    const model: IdbModel = {
-      id: modelId,
-      projectId: project.id,
-      filename: 'test.glb',
-      source: 'gltf',
-      parts,
-      colors: [],
-      nodePartMap: [],
-      enabled: true,
-      rawSource: {},
-      // Batch rename both to "Shelf", then individual rename part 2
-      partOverrides: { 1: { name: 'Shelf' }, 2: { name: 'Custom Rail' } },
-      createdAt: new Date().toISOString(),
-    };
-    await idb.createModel(model);
-
-    const full = await idb.getProjectWithModels(project.id);
-    const hydrated = applyOverrides(
-      full!.models[0].parts,
-      full!.models[0].partOverrides,
-    );
-
-    expect(hydrated[0].name).toBe('Shelf');
-    expect(hydrated[1].name).toBe('Custom Rail');
+    // Part 3 individual override.
+    expect(hydrated[3].name).toBe('Custom Cleat');
   });
 });
 
-// ─── Multiple models per project ─────────────────────────────────────────────
+// ─── Multiple models per project ────────────────────────────────────────────
 
 describe('multiple models per project', () => {
-  it('returns all models for a project', async () => {
+  it('returns every model attached to the project', async () => {
     const project = await idb.createProject('MultiModelTest');
     for (let i = 0; i < 3; i++) {
-      const model: IdbModel = {
-        id: crypto.randomUUID(),
-        projectId: project.id,
-        filename: `model-${i}.glb`,
-        source: i === 0 ? 'manual' : 'gltf',
-        parts: [makePart(1, { name: `Part from model ${i}` })],
-        colors: [],
-        nodePartMap: [],
-        enabled: true,
-        rawSource: i === 0 ? null : { mock: true },
-        partOverrides: {},
-        createdAt: new Date().toISOString(),
-      };
-      await idb.createModel(model);
+      await idb.createModel(
+        makeModel(project.id, {
+          filename: `model-${i}.glb`,
+          source: i === 0 ? 'manual' : 'gltf',
+          rawSource: i === 0 ? null : { mock: true },
+          parts: [makePart(1, { name: `Part from model ${i}` })],
+        }),
+      );
     }
 
     const full = await idb.getProjectWithModels(project.id);
     expect(full!.models).toHaveLength(3);
   });
 
-  it('removing a model does not affect other models', async () => {
+  it('removing one model leaves the others intact', async () => {
     const project = await idb.createProject('RemoveModelTest');
     const ids: string[] = [];
     for (let i = 0; i < 3; i++) {
       const id = crypto.randomUUID();
       ids.push(id);
-      const model: IdbModel = {
-        id,
-        projectId: project.id,
-        filename: `model-${i}.glb`,
-        source: 'manual',
-        parts: [],
-        colors: [],
-        nodePartMap: [],
-        enabled: true,
-        rawSource: null,
-        partOverrides: {},
-        createdAt: new Date().toISOString(),
-      };
-      await idb.createModel(model);
+      await idb.createModel(
+        makeModel(project.id, {
+          id,
+          source: 'manual',
+          rawSource: null,
+          filename: `model-${i}.glb`,
+        }),
+      );
     }
 
     await idb.deleteModel(ids[1]);

@@ -6,99 +6,19 @@ import {
   importProjectFromFile,
   parseProjectExport,
 } from '..';
-
-function makePayload() {
-  const now = new Date().toISOString();
-  return {
-    version: SCHEMA_VERSION,
-    exportedAt: now,
-    project: {
-      id: 'old-project-id',
-      name: 'Demo',
-      colorMap: { '#abc123': 'Plywood' },
-      excludedColors: [],
-      stock:
-        '- material: Plywood\n  unit: mm\n  thickness: [18]\n  sizes: [{ width: 1220, length: 2440 }]\n',
-      distanceUnit: 'mm' as const,
-      bladeWidth: 3,
-      margin: 0,
-      defaultAlgorithm: 'auto' as const,
-      showPartNumbers: true,
-      createdAt: now,
-      updatedAt: now,
-    },
-    models: [
-      {
-        id: 'old-model-id',
-        projectId: 'old-project-id',
-        filename: 'demo.gltf',
-        source: 'gltf' as const,
-        parts: [],
-        enabled: true,
-        rawSource: { asset: { version: '2.0' } },
-        partOverrides: {},
-        createdAt: now,
-      },
-    ],
-    buildDoc: {
-      projectId: 'old-project-id',
-      title: 'Demo',
-      doc: {
-        type: 'doc',
-        content: [
-          { type: 'paragraph', content: [{ type: 'text', text: 'Desc' }] },
-        ],
-      },
-      updatedAt: now,
-    },
-  };
-}
-
-function makeIdbMock() {
-  const calls = {
-    createProject: [] as any[],
-    updateProject: [] as any[],
-    createModel: [] as any[],
-    putBuildDoc: [] as any[],
-    createScene: [] as any[],
-    createAnnotation: [] as any[],
-    putAsset: [] as any[],
-  };
-  return {
-    calls,
-    db: {
-      async createProject(name: string, opts?: any) {
-        calls.createProject.push({ name, opts });
-        return { id: 'new-project-id' };
-      },
-      async updateProject(id: string, patch: any) {
-        calls.updateProject.push({ id, patch });
-      },
-      async createModel(model: any) {
-        calls.createModel.push(model);
-      },
-      async putBuildDoc(doc: any) {
-        calls.putBuildDoc.push(doc);
-      },
-      async createScene(scene: any) {
-        calls.createScene.push(scene);
-      },
-      async createAnnotation(annotation: any) {
-        calls.createAnnotation.push(annotation);
-      },
-      async putAsset(asset: any) {
-        calls.putAsset.push(asset);
-      },
-    },
-  };
-}
+import {
+  makePayload,
+  makeIdbMock,
+  FIXTURE_MODEL_ID,
+  FIXTURE_NEW_PROJECT_ID,
+} from './_helpers';
 
 // ─── Validation ─────────────────────────────────────────────────────────────
 
 describe('parseProjectExport validation', () => {
   it('validates expected shape', () => {
     const parsed = parseProjectExport(makePayload());
-    expect(parsed.project.name).toBe('Demo');
+    expect(parsed.project.name).toBe('Test Project');
     expect(parsed.models).toHaveLength(1);
   });
 
@@ -119,7 +39,6 @@ describe('parseProjectExport validation', () => {
   it('Should reject an empty project name with a human-readable message', () => {
     const payload = makePayload();
     payload.project.name = '';
-
     expect(() => parseProjectExport(payload)).toThrow(
       'Project name cannot be empty',
     );
@@ -127,7 +46,7 @@ describe('parseProjectExport validation', () => {
 
   it('rejects payloads missing the version field as legacy', () => {
     const payload = makePayload();
-    delete (payload as any).version;
+    delete (payload as { version?: number }).version;
     expect(() => parseProjectExport(payload)).toThrow(
       'older version of Cutlist',
     );
@@ -135,7 +54,7 @@ describe('parseProjectExport validation', () => {
 
   it('rejects models with invalid source enum', () => {
     const payload = makePayload();
-    (payload.models[0] as any).source = 'invalid';
+    (payload.models[0] as Record<string, unknown>).source = 'invalid';
     expect(() => parseProjectExport(payload)).toThrow('Invalid project file');
   });
 
@@ -149,14 +68,14 @@ describe('parseProjectExport validation', () => {
         colorKey: '#fff',
         size: { width: Infinity, length: 0.1, thickness: 0.018 },
       },
-    ] as any;
+    ] as never;
     expect(() => parseProjectExport(payload)).toThrow('Invalid project file');
   });
 
   it('rejects build doc with structurally bad fields', () => {
     const payload = makePayload();
-    (payload as any).buildDoc = {
-      projectId: 'old-project-id',
+    (payload as Record<string, unknown>).buildDoc = {
+      projectId: 'proj-1',
       title: 'x',
       doc: { type: 'doc', content: [{ type: 'paragraph' }] },
       updatedAt: 42, // should be a string
@@ -166,36 +85,37 @@ describe('parseProjectExport validation', () => {
 
   it('rejects rawSource that is not object, string, or null', () => {
     const payload = makePayload();
-    (payload.models[0] as any).rawSource = 42;
+    (payload.models[0] as Record<string, unknown>).rawSource = 42;
     expect(() => parseProjectExport(payload)).toThrow('Invalid project file');
   });
 
   it('accepts rawSource that is a string (COLLADA XML)', () => {
     const payload = makePayload();
-    (payload.models[0] as any).rawSource = '<COLLADA>...</COLLADA>';
-    (payload.models[0] as any).source = 'collada';
+    (payload.models[0] as Record<string, unknown>).rawSource =
+      '<COLLADA>...</COLLADA>';
+    (payload.models[0] as Record<string, unknown>).source = 'collada';
     const parsed = parseProjectExport(payload);
     expect(parsed.models[0].rawSource).toBe('<COLLADA>...</COLLADA>');
   });
 
   it('accepts model with rawSource: null (manual model)', () => {
     const payload = makePayload();
-    (payload.models[0] as any).rawSource = null;
-    (payload.models[0] as any).source = 'manual';
+    (payload.models[0] as Record<string, unknown>).rawSource = null;
+    (payload.models[0] as Record<string, unknown>).source = 'manual';
     const parsed = parseProjectExport(payload);
     expect(parsed.models[0].rawSource).toBeNull();
   });
 
   it('provides human-readable error messages with paths', () => {
     const payload = makePayload();
-    (payload.project as any).name = 123; // Should be string
+    (payload.project as Record<string, unknown>).name = 123;
     try {
       parseProjectExport(payload);
-      expect(true).toBe(false); // Should not reach here
-    } catch (e: any) {
-      expect(e.message).toContain('Invalid project file');
-      // Should mention the path where the error occurred
-      expect(e.message).toContain('project');
+      expect.fail('should have thrown');
+    } catch (e) {
+      const err = e as Error;
+      expect(err.message).toContain('Invalid project file');
+      expect(err.message).toContain('project');
     }
   });
 });
@@ -207,25 +127,25 @@ describe('importProjectData', () => {
     const payload = makePayload();
     const { db, calls } = makeIdbMock();
 
-    const newProjectId = await importProjectData(payload as any, db as any);
-    expect(newProjectId).toBe('new-project-id');
+    const newProjectId = await importProjectData(payload as never, db as never);
+    expect(newProjectId).toBe(FIXTURE_NEW_PROJECT_ID);
 
     expect(calls.createProject).toHaveLength(1);
-    expect(calls.createProject[0].name).toBe('Demo');
+    expect(calls.createProject[0].name).toBe('Test Project');
 
     expect(calls.updateProject).toHaveLength(1);
-    expect(calls.updateProject[0].id).toBe('new-project-id');
+    expect(calls.updateProject[0].id).toBe(FIXTURE_NEW_PROJECT_ID);
     expect(calls.updateProject[0].patch.colorMap).toEqual({
       '#abc123': 'Plywood',
     });
 
     expect(calls.createModel).toHaveLength(1);
-    expect(calls.createModel[0].projectId).toBe('new-project-id');
-    expect(calls.createModel[0].id).not.toBe('old-model-id');
+    expect(calls.createModel[0].projectId).toBe(FIXTURE_NEW_PROJECT_ID);
+    expect(calls.createModel[0].id).not.toBe(FIXTURE_MODEL_ID);
 
     expect(calls.putBuildDoc).toHaveLength(1);
-    expect(calls.putBuildDoc[0].projectId).toBe('new-project-id');
-    expect(calls.putBuildDoc[0].title).toBe('Demo');
+    expect(calls.putBuildDoc[0].projectId).toBe(FIXTURE_NEW_PROJECT_ID);
+    expect(calls.putBuildDoc[0].title).toBe('Test Project');
     expect(calls.putBuildDoc[0].doc).toMatchObject({
       type: 'doc',
       content: [
@@ -245,8 +165,7 @@ describe('importProjectFromFile', () => {
       type: 'application/gzip',
     });
     const { db, calls } = makeIdbMock();
-
-    await importProjectFromFile(file, db as any);
+    await importProjectFromFile(file, db as never);
     expect(calls.createProject).toHaveLength(1);
   });
 
@@ -256,8 +175,7 @@ describe('importProjectFromFile', () => {
       type: 'application/json',
     });
     const { db, calls } = makeIdbMock();
-
-    await importProjectFromFile(file, db as any);
+    await importProjectFromFile(file, db as never);
     expect(calls.createProject).toHaveLength(1);
   });
 
@@ -266,16 +184,9 @@ describe('importProjectFromFile', () => {
       type: 'text/plain',
     });
     const { db } = makeIdbMock();
-
-    let caught: Error | null = null;
-    try {
-      await importProjectFromFile(file, db as any);
-    } catch (e) {
-      caught = e as Error;
-    }
-    expect(caught).not.toBeNull();
-    expect(caught!.message).toContain('Could not parse');
-    expect(caught!.message).toContain('.cutlist');
+    await expect(importProjectFromFile(file, db as never)).rejects.toThrow(
+      /Could not parse.*\.cutlist/,
+    );
   });
 
   it('rejects unversioned JSON as legacy with readable error', async () => {
@@ -284,15 +195,9 @@ describe('importProjectFromFile', () => {
       'bad.cutlist',
     );
     const { db } = makeIdbMock();
-
-    let caught: Error | null = null;
-    try {
-      await importProjectFromFile(file, db as any);
-    } catch (e) {
-      caught = e as Error;
-    }
-    expect(caught).not.toBeNull();
-    expect(caught!.message).toContain('older version of Cutlist');
+    await expect(importProjectFromFile(file, db as never)).rejects.toThrow(
+      'older version of Cutlist',
+    );
   });
 
   it('rejects current-version payload missing required fields with a Zod error', async () => {
@@ -301,57 +206,8 @@ describe('importProjectFromFile', () => {
       'bad.cutlist',
     );
     const { db } = makeIdbMock();
-
-    let caught: Error | null = null;
-    try {
-      await importProjectFromFile(file, db as any);
-    } catch (e) {
-      caught = e as Error;
-    }
-    expect(caught).not.toBeNull();
-    expect(caught!.message).toContain('Invalid project file');
-  });
-});
-
-// ─── Round-trip ─────────────────────────────────────────────────────────────
-
-describe('export -> import round-trip', () => {
-  it('a valid payload round-trips through parse without error', () => {
-    const payload = makePayload();
-    const json = JSON.stringify(payload);
-    const parsed = JSON.parse(json);
-    const validated = parseProjectExport(parsed);
-
-    expect(validated.project.name).toBe('Demo');
-    expect(validated.models).toHaveLength(1);
-    expect(validated.buildDoc?.title).toBe('Demo');
-    expect(validated.buildDoc?.doc.content?.[0]).toMatchObject({
-      type: 'paragraph',
-      content: [{ type: 'text', text: 'Desc' }],
-    });
-  });
-
-  it('payload with parts round-trips correctly', () => {
-    const payload = makePayload();
-    payload.models[0].parts = [
-      {
-        partNumber: 1,
-        instanceNumber: 1,
-        name: 'Side Panel',
-        colorKey: '#abc123',
-        size: { width: 0.5, length: 1.2, thickness: 0.018 },
-      },
-      {
-        partNumber: 1,
-        instanceNumber: 2,
-        name: 'Side Panel',
-        colorKey: '#abc123',
-        size: { width: 0.5, length: 1.2, thickness: 0.018 },
-      },
-    ] as any;
-
-    const json = JSON.stringify(payload);
-    const validated = parseProjectExport(JSON.parse(json));
-    expect(validated.models[0].parts).toHaveLength(2);
+    await expect(importProjectFromFile(file, db as never)).rejects.toThrow(
+      'Invalid project file',
+    );
   });
 });
