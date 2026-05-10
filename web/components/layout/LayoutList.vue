@@ -1,6 +1,10 @@
 <script lang="ts" setup>
-import type { Algorithm, BoardLayout, StockMatrix } from 'cutlist';
-import { Distance } from 'cutlist';
+import {
+  M_PER_IN,
+  type Algorithm,
+  type BoardLayout,
+  type StockMatrix,
+} from 'cutlist';
 import YAML from 'js-yaml';
 import { parseStock } from '~/utils/parseStock';
 
@@ -9,7 +13,7 @@ const props = defineProps<{
 }>();
 
 const getPx = useGetPx();
-const gap = getPx(new Distance('4 in').m);
+const gap = getPx(4 * M_PER_IN);
 const formatDistance = useFormatDistance();
 const { stock, defaultAlgorithm } = useProjectSettings();
 

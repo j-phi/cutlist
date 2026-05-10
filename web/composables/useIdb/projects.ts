@@ -5,7 +5,7 @@
  * single Dexie transaction so partial failures don't leave orphans.
  */
 
-import type { Algorithm } from 'cutlist';
+import type { Algorithm, Precision } from 'cutlist';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
 import { getDb, safeWrite } from './db';
 import { applyProjectDefaults, applyModelDefaults } from './defaults';
@@ -83,6 +83,8 @@ export async function createProject(
   opts?: {
     stock?: string;
     distanceUnit?: 'in' | 'mm';
+    inchPrecision?: Precision;
+    mmPrecision?: Precision;
     bladeWidth?: number;
     margin?: number;
     defaultAlgorithm?: Algorithm;
@@ -98,6 +100,8 @@ export async function createProject(
     excludedColors: [],
     stock: opts?.stock ?? '',
     distanceUnit: opts?.distanceUnit ?? DEFAULT_SETTINGS.distanceUnit,
+    inchPrecision: opts?.inchPrecision ?? DEFAULT_SETTINGS.inchPrecision,
+    mmPrecision: opts?.mmPrecision ?? DEFAULT_SETTINGS.mmPrecision,
     bladeWidth: opts?.bladeWidth ?? DEFAULT_SETTINGS.bladeWidth,
     margin: opts?.margin ?? DEFAULT_SETTINGS.margin,
     defaultAlgorithm:

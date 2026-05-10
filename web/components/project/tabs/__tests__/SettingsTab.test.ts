@@ -3,12 +3,14 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { defineComponent, h, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
+import { DEFAULT_MM_PRECISION } from 'cutlist';
 
 import SettingsTab from '../SettingsTab.vue';
 
 const activeId = ref<string | null>('p1');
 const activeProject = ref<{ name: string } | null>({ name: 'Original' });
 const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
+const precision = ref(DEFAULT_MM_PRECISION);
 const renameProject = vi.fn();
 const closeProject = vi.fn();
 
@@ -18,7 +20,10 @@ mockNuxtImport('useProjects', () => () => ({
   renameProject,
   closeProject,
 }));
-mockNuxtImport('useProjectSettings', () => () => ({ distanceUnit }));
+mockNuxtImport('useProjectSettings', () => () => ({
+  distanceUnit,
+  precision,
+}));
 
 const UFormFieldStub = {
   template: '<div><slot /></div>',

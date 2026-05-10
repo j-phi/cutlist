@@ -15,6 +15,7 @@ import {
 import { Rectangle } from './geometry';
 import { isNearlyEqual } from './utils/floating-point-utils';
 import { isValidStock } from './utils/stock-utils';
+import { mmToM } from './utils/units';
 import {
   compareLayoutScores,
   createCompactPacker,
@@ -167,7 +168,7 @@ export function generateBoardLayouts(
 
   const searchResult = runMultiPassSearch(normalizedConfig, parts, boards);
 
-  const marginM = normalizedConfig.margin / 1000;
+  const marginM = mmToM(normalizedConfig.margin);
   return {
     layouts: searchResult.layouts.map((l) =>
       serializeBoardLayoutRectangles(l, marginM),
@@ -189,9 +190,9 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
     item.sizes.flatMap((size) =>
       size.thickness.map((thickness) => ({
         material: item.material,
-        thickness: thickness / 1000,
-        width: size.width / 1000,
-        length: size.length / 1000,
+        thickness: mmToM(thickness),
+        width: mmToM(size.width),
+        length: mmToM(size.length),
         color: item.color,
         algorithm: item.thicknessAlgorithms?.[String(thickness)],
       })),
@@ -373,7 +374,7 @@ function placeAllPartsWithLookback(
   algorithm: Exclude<Algorithm, 'auto'>,
   options: PlaceOptions,
 ): { layouts: PotentialBoardLayout[]; leftovers: PartToCut[] } {
-  const margin = config.margin / 1000;
+  const margin = mmToM(config.margin);
   const { packerOptions } = options;
   const sortedParts = sortPartsForPlacement(
     parts,
@@ -550,7 +551,7 @@ function minimizeLayoutStock(
   packer: Packer<PartToCut>,
   packerOptions: PackOptions<PartToCut>,
 ): PotentialBoardLayout {
-  const margin = config.margin / 1000;
+  const margin = mmToM(config.margin);
 
   // Get alternative stock, smaller areas first.
   const altStock = stock
@@ -635,7 +636,7 @@ function groupPartsByStock(
 function getPackerOptions(config: Config): PackOptions<PartToCut> {
   return {
     allowRotations: true,
-    gap: config.bladeWidth / 1000,
+    gap: mmToM(config.bladeWidth),
     precision: config.precision,
     canRotateRect: (data: PartToCut) => !data.grainLock,
   };

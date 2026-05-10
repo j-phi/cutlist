@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import {
   convertUnits,
-  formatDimensionForInput,
+  formatValue,
   parseDimension,
   reduceStockMatrix,
 } from 'cutlist';
@@ -12,7 +12,7 @@ import YAML from 'js-yaml';
 
 const value = defineModel<string>({ required: true });
 
-const { distanceUnit } = useProjectSettings();
+const { distanceUnit, precision } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
 const matrix = ref<StockMatrix[]>([]);
@@ -108,6 +108,25 @@ function removeThickness(
 const newSizeWidth = ref<Record<number, string>>({});
 const newSizeLength = ref<Record<number, string>>({});
 
+/** Re-render any in-progress add-row string in the new unit on a flip. */
+function retranslate(
+  bag: Record<string | number, string>,
+  prev: 'mm' | 'in',
+  next: 'mm' | 'in',
+) {
+  for (const k in bag) {
+    const v = parseDimension(bag[k], prev);
+    if (v != null)
+      bag[k] = formatValue(convertUnits(v, prev, next), next, precision.value);
+  }
+}
+
+watch(unit, (next, prev) => {
+  retranslate(newThickness.value, prev, next);
+  retranslate(newSizeWidth.value, prev, next);
+  retranslate(newSizeLength.value, prev, next);
+});
+
 function addSize(matIndex: number) {
   const w = parseDimension(newSizeWidth.value[matIndex], unit.value);
   const l = parseDimension(newSizeLength.value[matIndex], unit.value);
@@ -138,7 +157,7 @@ function removeMaterial(index: number) {
 }
 
 function displayDim(mm: number): string {
-  return formatDimensionForInput(toDisplay(mm), unit.value);
+  return formatValue(toDisplay(mm), unit.value, precision.value);
 }
 
 const scrollContainer = ref<HTMLElement>();

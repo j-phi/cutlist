@@ -202,6 +202,8 @@ describe('buildExportData', () => {
         excludedColors: [],
         stock: '',
         distanceUnit: 'in' as const,
+        inchPrecision: { kind: 'fraction' as const, denominator: 32 as const },
+        mmPrecision: { kind: 'decimal' as const, step: 0.1 },
         bladeWidth: 3,
         margin: 0,
         defaultAlgorithm: 'auto' as const,

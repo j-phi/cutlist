@@ -15,7 +15,7 @@
  *    array form: main line, two witness lines, and tick caps when the
  *    offset is near zero.
  *
- * 3. Pure helpers `snapOffsetToWorldAxis` and `formatLength`.
+ * 3. Pure helper `snapOffsetToWorldAxis`.
  *
  * Snap semantics: the 45° snap is built around the world-axis-aligned
  * orthonormal basis perpendicular to the dimension line. Picking the
@@ -28,7 +28,6 @@
  * on furniture-scale models — invisible to the eye.
  */
 
-import { formatDistance } from 'cutlist';
 import { ref, type Ref } from 'vue';
 import type { PickKindHandler } from '~/composables/useAnnotationAuthor';
 import { PREVIEW_ANNOTATION_ID } from '~/composables/useAnnotationAuthor';
@@ -74,12 +73,6 @@ export interface DimensionViewer {
 }
 
 // ─── Pure helpers ──────────────────────────────────────────────────────────
-
-/**
- * Format a viewer dimension label. Thin alias over `formatDistance` so the
- * viewer matches the BOM, layout, and PDF.
- */
-export const formatLength = formatDistance;
 
 /**
  * Snap a raw cursor-derived perpendicular offset to the nearest 45° around

@@ -3,11 +3,19 @@ import { shallowMount } from '@vue/test-utils';
 import { defineComponent, h, ref } from 'vue';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
+import { DEFAULT_INCH_PRECISION, DEFAULT_MM_PRECISION } from 'cutlist';
+import { computed } from 'vue';
 
 import ManualPartRow from '../ManualPartRow.vue';
 
 const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
-mockNuxtImport('useProjectSettings', () => () => ({ distanceUnit }));
+const precision = computed(() =>
+  distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
+);
+mockNuxtImport('useProjectSettings', () => () => ({
+  distanceUnit,
+  precision,
+}));
 
 beforeEach(() => {
   distanceUnit.value = 'mm';

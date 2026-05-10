@@ -9,7 +9,7 @@
  */
 
 import type { JSONContent } from '@tiptap/core';
-import type { Algorithm } from 'cutlist';
+import type { Algorithm, Precision } from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 import type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
 
@@ -29,6 +29,13 @@ export interface IdbProject {
    * controls what the UI renders and how typed input is parsed.
    */
   distanceUnit: 'in' | 'mm';
+  /**
+   * Display precision for the active distance unit — what fractional or
+   * decimal granularity the BOM, layout, PDF, and edit fields use. Stored
+   * per unit so flipping units restores each one's preferred precision.
+   */
+  inchPrecision: Precision;
+  mmPrecision: Precision;
   /** Saw blade width in millimetres. */
   bladeWidth: number;
   /** Packing margin in millimetres. */

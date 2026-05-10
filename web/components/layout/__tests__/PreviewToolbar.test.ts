@@ -1,7 +1,11 @@
 // @vitest-environment nuxt
 import { describe, expect, it, beforeEach } from 'vitest';
-import type { Algorithm } from 'cutlist';
-import { defineComponent, h, ref } from 'vue';
+import {
+  DEFAULT_INCH_PRECISION,
+  DEFAULT_MM_PRECISION,
+  type Algorithm,
+} from 'cutlist';
+import { computed, defineComponent, h, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
@@ -14,6 +18,9 @@ const defaultAlgorithm = ref<Algorithm | undefined>('auto');
 const showPartNumbers = ref<boolean | undefined>(true);
 const stock = ref<string | undefined>('');
 const isLoading = ref(false);
+const precision = computed(() =>
+  distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
+);
 
 mockNuxtImport('useProjectSettings', () => () => ({
   bladeWidth,
@@ -23,6 +30,7 @@ mockNuxtImport('useProjectSettings', () => () => ({
   showPartNumbers,
   stock,
   isLoading,
+  precision,
 }));
 
 const UInputStub = defineComponent({

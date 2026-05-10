@@ -1,14 +1,21 @@
 // @vitest-environment nuxt
-import { defineComponent, h, ref, nextTick } from 'vue';
+import { computed, defineComponent, h, ref, nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import YAML from 'js-yaml';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
+import { DEFAULT_INCH_PRECISION, DEFAULT_MM_PRECISION } from 'cutlist';
 
 import StockMatrixInput from '../StockMatrixInput.vue';
 
 const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
-mockNuxtImport('useProjectSettings', () => () => ({ distanceUnit }));
+const precision = computed(() =>
+  distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
+);
+mockNuxtImport('useProjectSettings', () => () => ({
+  distanceUnit,
+  precision,
+}));
 
 beforeEach(() => {
   distanceUnit.value = 'mm';

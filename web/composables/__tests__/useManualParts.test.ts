@@ -24,6 +24,8 @@ function makeProject(id: string, models: Project['models'] = []): Project {
     excludedColors: [],
     stock: '',
     distanceUnit: DEFAULT_SETTINGS.distanceUnit,
+    inchPrecision: DEFAULT_SETTINGS.inchPrecision,
+    mmPrecision: DEFAULT_SETTINGS.mmPrecision,
     bladeWidth: DEFAULT_SETTINGS.bladeWidth,
     margin: DEFAULT_SETTINGS.margin,
     defaultAlgorithm: DEFAULT_SETTINGS.defaultAlgorithm,

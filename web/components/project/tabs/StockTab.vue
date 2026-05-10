@@ -22,9 +22,7 @@ const presetItems = STOCK_PRESETS.map((preset) => ({
 
 function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
   if (stock.value == null) return;
-  // Storage is canonical mm; presets are authored in their natural unit
-  // (sheet goods in mm, lumber in inches) and converted at the boundary.
-  const mmStock = JSON.parse(JSON.stringify(presetToMmStock(preset)));
+  const mmStock = presetToMmStock(preset);
   try {
     const current = parseStock(stock.value);
     current.push(mmStock);

@@ -1,7 +1,5 @@
 <script lang="ts" setup>
-import { Distance, type BoardLayoutPlacement } from 'cutlist';
-
-const ONE_INCH_M = new Distance('1in').m;
+import { M_PER_IN, type BoardLayoutPlacement } from 'cutlist';
 
 const props = defineProps<{
   placement: BoardLayoutPlacement;
@@ -31,7 +29,7 @@ const left = computed(() => getPx(props.placement.leftM));
 const bottom = computed(() => getPx(props.placement.bottomM));
 
 const fontSize = computed(() =>
-  getPx(Math.min(props.placement.widthM / 2, ONE_INCH_M)),
+  getPx(Math.min(props.placement.widthM / 2, M_PER_IN)),
 );
 
 /** Icon size scales with the smaller part dimension, clamped 14–28px */

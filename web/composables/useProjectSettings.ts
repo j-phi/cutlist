@@ -8,7 +8,12 @@
  * the UI sees the new value on the next tick, even before persistence lands.
  */
 
-import type { Algorithm } from 'cutlist';
+import {
+  DEFAULT_INCH_PRECISION,
+  DEFAULT_MM_PRECISION,
+  type Algorithm,
+  type Precision,
+} from 'cutlist';
 import type { IdbProject } from '~/composables/useIdb';
 
 const DEBOUNCE_MS = 300;
@@ -115,6 +120,35 @@ export default createSharedComposable(() => {
     },
   });
 
+  /**
+   * The precision applied to whichever unit is currently active. Reads
+   * the matching `inchPrecision` / `mmPrecision` from the project; falls
+   * back to a sensible default when no project is loaded yet (so
+   * formatters and inputs never have to guard for undefined). Writes
+   * route to the matching per-unit field.
+   */
+  const precision = computed<Precision>({
+    get: () => {
+      const project = activeProject.value;
+      const unit = project?.distanceUnit ?? 'mm';
+      const stored =
+        unit === 'in' ? project?.inchPrecision : project?.mmPrecision;
+      return (
+        stored ??
+        (unit === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION)
+      );
+    },
+    set: (value) => {
+      const project = activeProject.value;
+      if (!project) return;
+      queueWrite(
+        project.distanceUnit === 'in'
+          ? { inchPrecision: value }
+          : { mmPrecision: value },
+      );
+    },
+  });
+
   return {
     bladeWidth,
     margin,
@@ -122,6 +156,7 @@ export default createSharedComposable(() => {
     showPartNumbers,
     stock,
     distanceUnit,
+    precision,
     isLoading,
   };
 });

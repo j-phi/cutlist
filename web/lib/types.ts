@@ -2,13 +2,6 @@ import { z } from 'zod';
 import type { Rectangle } from './geometry';
 
 /**
- * A distance in millimetres. Storage and library inputs are mm-only —
- * UI components convert at the display boundary via `convertUnits`.
- */
-const Distance = z.number();
-type Distance = z.infer<typeof Distance>;
-
-/**
  * Per-material packing algorithm choice.
  * - `auto`: Run all guillotine variants (Tidy + Compact passes), score picks.
  * - `tidy`: Two-stage guillotine (rip-first / crosscut-first). Aligns
@@ -60,9 +53,9 @@ export interface Stock {
  * A board size — width × length plus the thicknesses available in that size.
  */
 export const StockSize = z.object({
-  width: Distance,
-  length: Distance,
-  thickness: z.array(Distance),
+  width: z.number(),
+  length: z.number(),
+  thickness: z.array(z.number()),
 });
 export type StockSize = z.infer<typeof StockSize>;
 

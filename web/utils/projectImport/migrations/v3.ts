@@ -1,31 +1,32 @@
 /**
  * v3 schema migration: canonical millimetre storage.
  *
- * Pre-v3, project distances lived in the project's `distanceUnit` (mm or
- * inch) and `StockMatrix` rows carried their own per-row `unit:` field.
- * From v3 onward every stored numeric is millimetres; `distanceUnit` is a
- * pure display preference. This module owns the one-shot transform.
+ * Pre-v3 stored distances in the project's `distanceUnit` and per-row
+ * `unit:` fields on stock; v3 stores mm everywhere and treats
+ * `distanceUnit` as display-only.
  *
- * Defensive contract: this migration runs inside a Dexie transaction, so a
- * thrown error rolls back the entire DB upgrade and leaves the user unable
- * to open the app. To avoid that we never throw on malformed input —
- * malformed rows are dropped, malformed sizes are dropped, malformed
- * thicknesses are filtered out. Output is always Zod-valid (possibly empty).
- *
- * Mirror: `CutlistDB.version(3).upgrade()` calls `migrateProjectToMmStorage`
- * directly; the export-import pipeline registers the same function as a
- * record migration in `./index.ts`. Single transform, two callers.
+ * Defensive contract: runs inside a Dexie transaction — a throw rolls
+ * back the upgrade and locks the user out. Drop unparseable rows /
+ * sizes / thicknesses; never throw. Output is always Zod-valid.
  */
 
-import { convertUnits, parseDimension, StockMatrix } from 'cutlist';
+import {
+  convertUnits,
+  DEFAULT_INCH_PRECISION,
+  DEFAULT_MM_PRECISION,
+  parseDimension,
+  StockMatrix,
+} from 'cutlist';
 import YAML from 'js-yaml';
 import { z } from 'zod';
 import type { IdbRecord, RecordMigration } from './types';
 
 /**
  * Apply the v3 transform to a project record. Idempotent on already-v3
- * data: `bladeWidth` and `margin` are mm-numbers either way; the stock
- * YAML normalizer drops any leftover `unit:` field and re-validates.
+ * data — the stock YAML normaliser drops any leftover `unit:` field.
+ *
+ * Also seeds the new `inchPrecision` / `mmPrecision` fields with
+ * defaults; pre-v3 records had no precision setting.
  */
 export function migrateProjectToMmStorage(record: IdbRecord): IdbRecord {
   const oldUnit: 'mm' | 'in' = record.distanceUnit === 'in' ? 'in' : 'mm';
@@ -39,6 +40,8 @@ export function migrateProjectToMmStorage(record: IdbRecord): IdbRecord {
   if (typeof next.stock === 'string' && next.stock.trim() !== '') {
     next.stock = migrateStockYamlToMm(next.stock, oldUnit);
   }
+  if (next.inchPrecision == null) next.inchPrecision = DEFAULT_INCH_PRECISION;
+  if (next.mmPrecision == null) next.mmPrecision = DEFAULT_MM_PRECISION;
   return next;
 }
 

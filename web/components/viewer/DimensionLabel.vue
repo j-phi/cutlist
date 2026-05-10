@@ -11,7 +11,6 @@
  * exposes a hover-revealed delete affordance.
  */
 import type { IdbDimension } from '~/composables/useIdb';
-import { formatLength } from '~/lib/viewer/annotations/dimension';
 import { useAnnotations } from '~/composables/useAnnotations';
 
 const props = defineProps<{
@@ -28,7 +27,7 @@ const props = defineProps<{
   measuredMeters?: number;
 }>();
 
-const { distanceUnit } = useProjectSettings();
+const formatDistance = useFormatDistance();
 const annotationsApi = useAnnotations();
 
 const measuredM = computed(() => {
@@ -45,8 +44,7 @@ const measuredM = computed(() => {
 const display = computed(() => {
   const override = props.annotation.text;
   if (override && override.length > 0) return override;
-  const unit = distanceUnit.value ?? 'mm';
-  return formatLength(measuredM.value, unit);
+  return formatDistance(measuredM.value) ?? '';
 });
 
 async function onDelete(event: MouseEvent): Promise<void> {

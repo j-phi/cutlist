@@ -8,13 +8,18 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountSuspended, mockNuxtImport } from '@nuxt/test-utils/runtime';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { DEFAULT_INCH_PRECISION, DEFAULT_MM_PRECISION } from 'cutlist';
 import type { IdbDimension } from '~/composables/useIdb';
 
 const distanceUnit = ref<'mm' | 'in'>('mm');
+const precision = computed(() =>
+  distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
+);
 
 mockNuxtImport('useProjectSettings', () => () => ({
   distanceUnit,
+  precision,
   stock: ref(''),
   bladeWidth: ref(0),
   margin: ref(0),
@@ -124,12 +129,14 @@ describe('DimensionLabel — auto-format', () => {
     expect(w.text()).toContain('notch: 1¼ in');
   });
 
-  it('Falls back to mm when no project distance unit is set yet', async () => {
+  it('Renders an empty label until the project loads', async () => {
+    // Pre-project-load: no unit, no precision. Better to show nothing
+    // than a default-unit value that would jump on hydration.
     distanceUnit.value = undefined as unknown as 'mm';
     const w = await mountSuspended(DimensionLabel, {
       props: { annotation: dim([0, 0, 0], [0.05, 0, 0]), draft: false },
     });
-    expect(w.text()).toContain('50mm');
+    expect(w.text().trim()).toBe('');
   });
 });
 

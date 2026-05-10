@@ -300,6 +300,51 @@ Current schema: **v3**. v2 normalised `optimize` → `defaultAlgorithm`; v3 cano
 - **QuotaExceededError**: all mutations (create/update/delete) go through `safeWrite()` which catches quota errors and sets `useIdbErrors().error` so the UI can show a toast.
 - **Import validation**: all `.cutlist.gz` imports are validated against strict Zod schemas in `projectImport/index.ts` before touching IDB.
 
+## Dimensions and units
+
+The app handles distances in three layers, modelled after SketchUp / Fusion / AutoCAD:
+
+| Layer       | Unit                                            | Where                                                                             |
+| ----------- | ----------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Storage** | Millimetres (raw, no rounding)                  | `IdbProject.{bladeWidth, margin}`, stock YAML, `Part.size.*` (after `mmToM` to m) |
+| **Engine**  | Meters                                          | `web/lib/index.ts` and packers — converted at the boundary via `mmToM` / `mToMm`  |
+| **Display** | User's `distanceUnit` rounded to user precision | BOM, layout, PDF, viewer labels, edit-prefill                                     |
+
+Storage stays raw forever. The user's `distanceUnit` (mm or in) and `precision` setting (fractional or decimal) only affect rendering and how typed input is reformatted on blur. Typing `1.95"` stores 49.53 mm; flipping precision to `1/32` displays `1 15/16"`; flipping to `Decimal (0.01")` displays `1.95"`. Storage is unchanged either way.
+
+### The units module — `web/lib/utils/units.ts`
+
+Single source of truth, exported through the `cutlist` library entry:
+
+- **Conversion**: `MM_PER_IN`, `M_PER_IN`, `mmToM(mm)`, `mToMm(m)`, `convertUnits(value, from, to)`. The 25.4 constant lives only in `MM_PER_IN`.
+- **Precision type**: `Precision = { kind: 'fraction', denominator: 8|16|32|64 } | { kind: 'decimal', step: number }`. Defaults: `DEFAULT_INCH_PRECISION = 1/32"`, `DEFAULT_MM_PRECISION = 0.1mm`.
+- **Parsing**: `parseDimension(string, unit)` accepts decimals, fractions (`"3/4"`), mixed numbers (`"1 1/2"`, `"1-1/2"`), feet+inches (`"1' 6\""`, `"1ft 6in"`), and unit glyphs. Returns null on empty or unparseable input.
+- **Formatting**:
+  - `formatValue(value, unit, precision)` — bare number/fraction string, no suffix. Used by edit-prefill.
+  - `formatDistance(meters, unit, precision)` — same plus the unit suffix. Used by every display site (BOM, layout, PDF, viewer labels).
+  - `toFraction(value, denominator)` — internal building block; rounds to nearest `1/denominator` and reduces.
+
+### The settings layer — `web/composables/useProjectSettings.ts`
+
+`distanceUnit` and `precision` are reactive writable computeds. `precision` is `Ref<Precision>` (never undefined — falls back to the default for the active unit when no project is loaded). The setter routes to either `inchPrecision` or `mmPrecision` on the project depending on the active unit.
+
+### The display layer — `web/composables/useFormatDistance.ts`
+
+`useFormatDistance()` returns a function: pass meters, get the formatted string at the user's unit + precision. Every display site goes through this.
+
+### The input layer — `web/composables/useDimensionInput.ts`
+
+`useDimensionInput(mm, unit, precision)` returns `{ input: Ref<string>, commit: () => void }`. Wire `<UInput v-model="input" @blur="commit" />`. Storage is never mutated by formatting; the user types freely and storage updates as they type, but the input string itself isn't reformatted while focused. `commit()` (on blur) reformats from storage to canonical at the active precision — matching SketchUp / Fusion behaviour.
+
+### Adding a new dimension input
+
+1. Hold the value as `Ref<number | null>` (mm).
+2. Wire `useDimensionInput(mm, unit, precision)`.
+3. Bind the returned `input` to a `<UInput type="text">` and `commit` to its `@blur`.
+4. Read `mm.value` for engine / storage purposes.
+
+Never call `formatDistance` for an editable field — the input layer owns the round-trip.
+
 ## Key Config Files
 
 - `web/nuxt.config.ts` — Nuxt config (SSR off, modules)

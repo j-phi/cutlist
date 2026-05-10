@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nuxt';
-import type { Algorithm } from 'cutlist';
+import type { Algorithm, Precision } from 'cutlist';
 import type {
   IdbAnnotation,
   IdbAsset,
@@ -34,6 +34,8 @@ export interface ProjectExport {
     excludedColors: string[];
     stock: string;
     distanceUnit: 'in' | 'mm';
+    inchPrecision: Precision;
+    mmPrecision: Precision;
     bladeWidth: number;
     margin: number;
     defaultAlgorithm: Algorithm;
@@ -122,6 +124,8 @@ export async function buildExportData(
       excludedColors: idbProject.excludedColors,
       stock: idbProject.stock,
       distanceUnit: idbProject.distanceUnit,
+      inchPrecision: idbProject.inchPrecision,
+      mmPrecision: idbProject.mmPrecision,
       bladeWidth: idbProject.bladeWidth,
       margin: idbProject.margin,
       defaultAlgorithm: idbProject.defaultAlgorithm,

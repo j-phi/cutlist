@@ -1,10 +1,19 @@
 import YAML from 'js-yaml';
-import { convertUnits, type Algorithm, type StockMatrix } from 'cutlist';
+import {
+  convertUnits,
+  DEFAULT_INCH_PRECISION,
+  DEFAULT_MM_PRECISION,
+  type Algorithm,
+  type Precision,
+  type StockMatrix,
+} from 'cutlist';
 
 export interface CutlistSettings {
   /** All distance fields are millimetres. `distanceUnit` is display-only. */
   bladeWidth: number;
   distanceUnit: 'in' | 'mm';
+  inchPrecision: Precision;
+  mmPrecision: Precision;
   margin: number;
   defaultAlgorithm: Algorithm;
   showPartNumbers: boolean;
@@ -143,13 +152,13 @@ export const STOCK_PRESETS: StockPreset[] = [
 ];
 
 /**
- * Convert a preset's authored dimensions to the canonical millimetre form
- * used at rest. Imperial presets (`unit: 'in'`) are scaled; metric presets
- * pass through.
+ * Convert a preset's authored dimensions to the canonical mm form used at
+ * rest. Always returns a fresh deep object so callers can mutate the
+ * result without touching the shared module-scope preset.
  */
 export function presetToMmStock(preset: StockPreset): StockMatrix {
-  if (preset.unit === 'mm') return preset.stock;
-  const scale = (n: number) => convertUnits(n, 'in', 'mm');
+  const scale = (n: number) =>
+    preset.unit === 'mm' ? n : convertUnits(n, 'in', 'mm');
   return {
     ...preset.stock,
     sizes: preset.stock.sizes.map((s) => ({
@@ -179,6 +188,8 @@ export const DEFAULT_BLADE_WIDTH_MM = 3.175;
 export const DEFAULT_SETTINGS: CutlistSettings = {
   bladeWidth: DEFAULT_BLADE_WIDTH_MM,
   distanceUnit: 'mm',
+  inchPrecision: DEFAULT_INCH_PRECISION,
+  mmPrecision: DEFAULT_MM_PRECISION,
   margin: 0,
   defaultAlgorithm: 'auto',
   showPartNumbers: true,

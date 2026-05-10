@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-import { convertUnits, formatDimensionForInput, parseDimension } from 'cutlist';
 import type { ManualPartInput } from '~/composables/useProjects';
+import { useDimensionInput } from '~/composables/useDimensionInput';
 import { cycleGrainLock, GRAIN_LABELS } from '~/utils/grain';
 
 const props = defineProps<{
@@ -13,52 +13,42 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
-const { distanceUnit } = useProjectSettings();
+const { distanceUnit, precision } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
-const toMm = (v: number) => convertUnits(v, unit.value, 'mm');
-
-function fromMm(mm: number | undefined): string {
-  if (mm == null) return '';
-  return formatDimensionForInput(
-    convertUnits(mm, 'mm', unit.value),
-    unit.value,
-  );
-}
-
 const name = ref(props.initial?.name ?? '');
-const widthInput = ref(fromMm(props.initial?.widthMm));
-const lengthInput = ref(fromMm(props.initial?.lengthMm));
-const thicknessInput = ref(fromMm(props.initial?.thicknessMm));
+const widthMm = ref<number | null>(props.initial?.widthMm ?? null);
+const lengthMm = ref<number | null>(props.initial?.lengthMm ?? null);
+const thicknessMm = ref<number | null>(props.initial?.thicknessMm ?? null);
 const qty = ref(props.initial?.qty ?? 1);
 const material = ref(props.initial?.material ?? props.materials[0] ?? '');
 const grainLock = ref<'length' | 'width' | undefined>(props.initial?.grainLock);
 
-// When the project's unit changes mid-edit, re-render the inputs in the new
-// unit so the typed values still reflect the same physical dimensions.
-watch(unit, (next, prev) => {
-  for (const r of [widthInput, lengthInput, thicknessInput]) {
-    const v = parseDimension(r.value, prev);
-    if (v != null)
-      r.value = formatDimensionForInput(convertUnits(v, prev, next), next);
-  }
-});
-
-const widthVal = computed(() => parseDimension(widthInput.value, unit.value));
-const lengthVal = computed(() => parseDimension(lengthInput.value, unit.value));
-const thicknessVal = computed(() =>
-  parseDimension(thicknessInput.value, unit.value),
+const { input: widthInput, commit: commitWidth } = useDimensionInput(
+  widthMm,
+  unit,
+  precision,
+);
+const { input: lengthInput, commit: commitLength } = useDimensionInput(
+  lengthMm,
+  unit,
+  precision,
+);
+const { input: thicknessInput, commit: commitThickness } = useDimensionInput(
+  thicknessMm,
+  unit,
+  precision,
 );
 
 const isValid = computed(
   () =>
     name.value.trim() !== '' &&
-    widthVal.value != null &&
-    widthVal.value > 0 &&
-    lengthVal.value != null &&
-    lengthVal.value > 0 &&
-    thicknessVal.value != null &&
-    thicknessVal.value > 0 &&
+    widthMm.value != null &&
+    widthMm.value > 0 &&
+    lengthMm.value != null &&
+    lengthMm.value > 0 &&
+    thicknessMm.value != null &&
+    thicknessMm.value > 0 &&
     qty.value >= 1 &&
     material.value !== '',
 );
@@ -68,25 +58,25 @@ const placeholder = computed(() => (unit.value === 'in' ? 'e.g. 3/4' : '0'));
 function submit() {
   if (
     !isValid.value ||
-    widthVal.value == null ||
-    lengthVal.value == null ||
-    thicknessVal.value == null
+    widthMm.value == null ||
+    lengthMm.value == null ||
+    thicknessMm.value == null
   )
     return;
   emit('save', {
     name: name.value.trim(),
-    widthMm: toMm(widthVal.value),
-    lengthMm: toMm(lengthVal.value),
-    thicknessMm: toMm(thicknessVal.value),
+    widthMm: widthMm.value,
+    lengthMm: lengthMm.value,
+    thicknessMm: thicknessMm.value,
     qty: qty.value,
     material: material.value,
     grainLock: grainLock.value,
   });
   if (!props.initial) {
     name.value = '';
-    widthInput.value = '';
-    lengthInput.value = '';
-    thicknessInput.value = '';
+    widthMm.value = null;
+    lengthMm.value = null;
+    thicknessMm.value = null;
     qty.value = 1;
   }
 }
@@ -122,6 +112,7 @@ function onKeydown(e: KeyboardEvent) {
           type="text"
           size="sm"
           :placeholder="placeholder"
+          @blur="commitWidth"
           @keydown="onKeydown"
         />
       </div>
@@ -135,6 +126,7 @@ function onKeydown(e: KeyboardEvent) {
           type="text"
           size="sm"
           :placeholder="placeholder"
+          @blur="commitLength"
           @keydown="onKeydown"
         />
       </div>
@@ -148,6 +140,7 @@ function onKeydown(e: KeyboardEvent) {
           type="text"
           size="sm"
           :placeholder="placeholder"
+          @blur="commitThickness"
           @keydown="onKeydown"
         />
       </div>

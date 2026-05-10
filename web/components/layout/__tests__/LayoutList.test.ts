@@ -31,6 +31,7 @@ mockNuxtImport('useProjectSettings', () => () => ({
   defaultAlgorithm,
   showPartNumbers: ref(undefined),
   distanceUnit: ref(undefined),
+  precision: ref({ kind: 'decimal', step: 0.1 }),
   isLoading: ref(false),
 }));
 

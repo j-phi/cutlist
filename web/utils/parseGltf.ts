@@ -72,11 +72,8 @@ interface JsonVisit {
  * the mesh-leaf visit-order index (the same value the runtime path uses as
  * `groupId`).
  *
- * Units: glTF 2.0 mandates meters
- * (https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#coordinate-system-and-units),
- * so the accessor min/max we read here are already meters. Stored as-is in
- * `Part.size`, which is the canonical "meters" boundary the rest of the app
- * relies on.
+ * Units: glTF 2.0 mandates meters, so accessor min/max are already
+ * meters and stored as-is in `Part.size`.
  */
 export function deriveFromGltf(gltfJson: object): DeriveResult {
   return groupPartInfos(walkJsonForParts(gltfJson));
