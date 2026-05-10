@@ -116,7 +116,7 @@ const showLeftoverBanner = computed(
             class="canvas-plane"
             :style="`--zoom:${scale ?? 1}`"
           >
-            <div class="flex items-start">
+            <div class="grid grid-flow-col auto-cols-max items-start">
               <LayoutList
                 v-if="filteredSheetLayouts.length > 0"
                 :layouts="filteredSheetLayouts"
