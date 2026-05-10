@@ -114,7 +114,6 @@ const LinearStockInputStub = defineComponent({
     modelValue: { type: Object, required: true },
     distanceUnit: { type: String, required: true },
     precision: { type: Object, required: true },
-    availableLengths: { type: Array, default: undefined },
   },
   emits: ['update:modelValue', 'remove'],
   setup(props, { emit }) {

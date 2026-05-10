@@ -124,29 +124,6 @@ function removeLinear(linearIdx: number) {
   }
   stock.value = YAML.dump(entries, { indent: 2, flowLevel: 3 });
 }
-
-/**
- * For a stored linear entry, find the preset it came from so we can
- * show de-selected lengths as still-tickable checkboxes. Matched by
- * material name; cross-section is a tiebreaker for renamed materials.
- */
-function availableLengthsFor(entry: LinearStockMatrix): number[] {
-  for (const preset of timberPresets) {
-    if (preset.stock.kind !== 'linear') continue;
-    const mm = presetToMmStock(preset);
-    if (mm.kind !== 'linear') continue;
-    const sameCross =
-      Math.abs(mm.size.crossSectionWidth - entry.size.crossSectionWidth) <
-        0.5 &&
-      Math.abs(
-        mm.size.crossSectionThickness - entry.size.crossSectionThickness,
-      ) < 0.5;
-    if (mm.material === entry.material && sameCross) {
-      return mm.size.lengths;
-    }
-  }
-  return entry.size.lengths;
-}
 </script>
 
 <template>
@@ -197,7 +174,6 @@ function availableLengthsFor(entry: LinearStockMatrix): number[] {
         :model-value="entry"
         :distance-unit="unit"
         :precision="precision"
-        :available-lengths="availableLengthsFor(entry)"
         @update:model-value="(next) => updateLinear(idx, next)"
         @remove="removeLinear(idx)"
       />

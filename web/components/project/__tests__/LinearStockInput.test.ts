@@ -14,7 +14,7 @@ const UInputStub = defineComponent({
   props: {
     modelValue: { type: [String, Number], default: '' },
   },
-  emits: ['update:modelValue'],
+  emits: ['update:modelValue', 'blur'],
   setup(props, { attrs, emit }) {
     return () =>
       h('input', {
@@ -22,6 +22,7 @@ const UInputStub = defineComponent({
         value: props.modelValue ?? '',
         onInput: (event: Event) =>
           emit('update:modelValue', (event.target as HTMLInputElement).value),
+        onBlur: (event: FocusEvent) => emit('blur', event),
       });
   },
 });
@@ -40,23 +41,6 @@ const UButtonStub = defineComponent({
         },
         slots.default ? slots.default() : undefined,
       );
-  },
-});
-
-const UCheckboxStub = defineComponent({
-  props: {
-    modelValue: { type: Boolean, default: false },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h('input', {
-        ...attrs,
-        type: 'checkbox',
-        checked: props.modelValue,
-        onChange: (event: Event) =>
-          emit('update:modelValue', (event.target as HTMLInputElement).checked),
-      });
   },
 });
 
@@ -92,17 +76,12 @@ function makeCls(): LinearStockMatrix {
   };
 }
 
-function makeWrapper(
-  modelValue: LinearStockMatrix,
-  unit: 'mm' | 'in' = 'mm',
-  availableLengths?: number[],
-) {
+function makeWrapper(modelValue: LinearStockMatrix, unit: 'mm' | 'in' = 'mm') {
   const Host = defineComponent({
     components: { LinearStockInput },
     props: {
       initial: { type: Object, required: true },
       unit: { type: String, required: true },
-      available: { type: Array, default: undefined },
     },
     setup(props) {
       const value = ref<LinearStockMatrix>(props.initial as LinearStockMatrix);
@@ -115,19 +94,17 @@ function makeWrapper(
       :model-value="value"
       :distance-unit="unit"
       :precision="precision"
-      :available-lengths="available"
       @update:model-value="value = $event"
       @remove="$emit('remove')"
     />`,
   });
 
   return mount(Host, {
-    props: { initial: modelValue, unit, available: availableLengths },
+    props: { initial: modelValue, unit },
     global: {
       stubs: {
         UInput: UInputStub,
         UButton: UButtonStub,
-        UCheckbox: UCheckboxStub,
         UIcon: true,
         MaterialColorPicker: MaterialColorPickerStub,
       },
@@ -137,6 +114,12 @@ function makeWrapper(
 
 function inner(host: ReturnType<typeof makeWrapper>) {
   return host.findComponent(LinearStockInput);
+}
+
+function lengthInputs(host: ReturnType<typeof makeWrapper>) {
+  return host
+    .findAll('[data-testid="linear-length-row"] input')
+    .filter((el) => el.attributes('data-length-mm') != null);
 }
 
 describe('LinearStockInput', () => {
@@ -159,41 +142,20 @@ describe('LinearStockInput', () => {
     });
   });
 
-  describe('Length checkboxes', () => {
-    it('Renders one checkbox per length in modelValue', () => {
+  describe('Length editing', () => {
+    it('Renders one editable row per length in modelValue', () => {
       const host = makeWrapper(makeCls(), 'mm');
-      const boxes = host.findAll('input[type="checkbox"]');
-      expect(boxes).toHaveLength(4);
+      expect(lengthInputs(host)).toHaveLength(4);
     });
 
-    it('Renders all checkboxes ticked when all preset lengths are enabled', () => {
+    it('Removing a row emits update:modelValue without that length', async () => {
       const host = makeWrapper(makeCls(), 'mm');
-      const boxes = host.findAll('input[type="checkbox"]');
-      for (const b of boxes) {
-        expect((b.element as HTMLInputElement).checked).toBe(true);
-      }
-    });
-
-    it('Shows un-enabled preset lengths as unchecked when availableLengths is wider', () => {
-      const entry = makeCls();
-      entry.size.lengths = [2400, 3600];
-      const host = makeWrapper(entry, 'mm', [2400, 3000, 3600, 4800]);
-      const boxes = host.findAll('input[type="checkbox"]');
-      expect(boxes).toHaveLength(4);
-      const checkedCount = boxes.filter(
-        (b) => (b.element as HTMLInputElement).checked,
-      ).length;
-      expect(checkedCount).toBe(2);
-    });
-
-    it('Toggling a length checkbox off emits update:modelValue without that length', async () => {
-      const entry = makeCls();
-      const host = makeWrapper(entry, 'mm');
-      const box = host
-        .findAll('input[type="checkbox"]')
-        .find((b) => b.attributes('data-length-mm') === '3000');
-      expect(box).toBeDefined();
-      await box!.setValue(false);
+      const removeButtons = host.findAll(
+        '[data-testid="linear-length-remove"]',
+      );
+      expect(removeButtons).toHaveLength(4);
+      // Second row corresponds to 3000mm (lengths are sorted asc).
+      await removeButtons[1].trigger('click');
 
       const events = inner(host).emitted('update:modelValue');
       expect(events).toBeTruthy();
@@ -201,36 +163,76 @@ describe('LinearStockInput', () => {
       expect(next.size.lengths).toEqual([2400, 3600, 4800]);
     });
 
-    it('Toggling a length checkbox on emits update:modelValue with that length added', async () => {
-      const entry = makeCls();
-      entry.size.lengths = [2400, 3600];
-      const host = makeWrapper(entry, 'mm', [2400, 3000, 3600, 4800]);
-      const box = host
-        .findAll('input[type="checkbox"]')
-        .find((b) => b.attributes('data-length-mm') === '3000');
-      expect(box).toBeDefined();
-      await box!.setValue(true);
+    it('Adding a length appends a copy of the longest length the user can then edit', async () => {
+      const host = makeWrapper(makeCls(), 'mm');
+      await host.find('[data-testid="linear-length-add"]').trigger('click');
 
       const events = inner(host).emitted('update:modelValue');
       expect(events).toBeTruthy();
       const next = (events as unknown[][])[0][0] as LinearStockMatrix;
-      expect(next.size.lengths).toEqual([2400, 3000, 3600]);
+      // 4800 duplicated (it was already the max).
+      expect(next.size.lengths).toEqual([2400, 3000, 3600, 4800, 4800]);
     });
 
-    it('Re-formats length labels when distanceUnit flips without changing checked state', async () => {
+    it('Adding a length to an empty list seeds 96″ in inch mode', async () => {
+      const empty = makeCls();
+      empty.size.lengths = [];
+      const host = makeWrapper(empty, 'in');
+      await host.find('[data-testid="linear-length-add"]').trigger('click');
+
+      const events = inner(host).emitted('update:modelValue');
+      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
+      expect(next.size.lengths).toHaveLength(1);
+      // 96″ = 2438.4 mm.
+      expect(next.size.lengths[0]).toBeCloseTo(2438.4, 1);
+    });
+
+    it('Adding a length to an empty list seeds 2400mm in metric mode', async () => {
+      const empty = makeCls();
+      empty.size.lengths = [];
+      const host = makeWrapper(empty, 'mm');
+      await host.find('[data-testid="linear-length-add"]').trigger('click');
+
+      const events = inner(host).emitted('update:modelValue');
+      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
+      expect(next.size.lengths).toEqual([2400]);
+    });
+
+    it('Editing a length and committing on blur emits the parsed mm value', async () => {
+      const host = makeWrapper(makeCls(), 'mm');
+      const inputs = lengthInputs(host);
+      // Type "2500" into the second row, then blur.
+      await inputs[1].setValue('2500');
+      await inputs[1].trigger('blur');
+
+      const events = inner(host).emitted('update:modelValue');
+      expect(events).toBeTruthy();
+      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
+      // 3000 replaced with 2500; result re-sorted ascending.
+      expect(next.size.lengths).toEqual([2400, 2500, 3600, 4800]);
+    });
+
+    it('Editing in inches commits the converted mm value', async () => {
       const host = makeWrapper(makePine24(), 'in');
-      const labelsIn = host.findAll('label').map((l) => l.text());
-      expect(labelsIn.some((t) => t.includes('ft'))).toBe(true);
+      const inputs = lengthInputs(host);
+      await inputs[0].setValue('100');
+      await inputs[0].trigger('blur');
 
-      await host.setProps({ unit: 'mm' });
+      const events = inner(host).emitted('update:modelValue');
+      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
+      // 100″ = 2540mm. Lengths re-sorted.
+      const sorted = [...next.size.lengths].sort((a, b) => a - b);
+      expect(sorted[0]).toBeCloseTo(2540, 1);
+    });
 
-      const labelsMm = host.findAll('label').map((l) => l.text());
-      expect(labelsMm.some((t) => t.includes('mm'))).toBe(true);
+    it('Invalid input on commit discards the draft (does not emit)', async () => {
+      const host = makeWrapper(makeCls(), 'mm');
+      const inputs = lengthInputs(host);
+      await inputs[0].setValue('not a number');
+      await inputs[0].trigger('blur');
 
-      const boxes = host.findAll('input[type="checkbox"]');
-      for (const b of boxes) {
-        expect((b.element as HTMLInputElement).checked).toBe(true);
-      }
+      // Nothing was emitted for the bad commit.
+      expect(inner(host).emitted('update:modelValue')).toBeFalsy();
     });
   });
 

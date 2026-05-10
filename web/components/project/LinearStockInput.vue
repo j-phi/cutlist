@@ -2,6 +2,7 @@
 import {
   convertUnits,
   formatValue,
+  parseDimension,
   type LinearStockMatrix,
   type Precision,
 } from 'cutlist';
@@ -10,7 +11,6 @@ const props = defineProps<{
   modelValue: LinearStockMatrix;
   distanceUnit: 'in' | 'mm';
   precision: Precision;
-  availableLengths?: number[];
 }>();
 
 const emit = defineEmits<{
@@ -21,6 +21,8 @@ const emit = defineEmits<{
 const unit = computed(() => props.distanceUnit);
 
 const toDisplay = (mm: number) => convertUnits(mm, 'mm', unit.value);
+const fromDisplay = (display: number) =>
+  convertUnits(display, unit.value, 'mm');
 
 function displayDim(mm: number): string {
   return formatValue(toDisplay(mm), unit.value, props.precision);
@@ -33,14 +35,64 @@ const crossSectionLabel = computed(() => {
   return `${t}${suffix} × ${w}${suffix}`;
 });
 
-const lengthOptions = computed(() => {
-  const enabled = new Set(props.modelValue.size.lengths);
-  const merged = new Set<number>(props.availableLengths ?? []);
-  for (const mm of props.modelValue.size.lengths) merged.add(mm);
-  return [...merged]
-    .sort((a, b) => a - b)
-    .map((mm) => ({ mm, checked: enabled.has(mm) }));
-});
+// Local draft state for each length row, keyed by index. Lets the user type a
+// freeform string (e.g. "8 ft", "120", "2.4m") without us thrashing the YAML
+// on every keystroke. We commit on blur or Enter.
+const drafts = ref<Record<number, string>>({});
+
+function draftFor(idx: number, mm: number): string {
+  return drafts.value[idx] ?? displayDim(mm);
+}
+
+function onDraft(idx: number, raw: string) {
+  drafts.value[idx] = raw;
+}
+
+function commit(idx: number) {
+  const raw = drafts.value[idx];
+  if (raw == null) return;
+  const parsed = parseDimension(raw, unit.value);
+  if (parsed == null || parsed <= 0) {
+    // Invalid: drop the draft so the input reverts to the canonical value.
+    delete drafts.value[idx];
+    return;
+  }
+  const mm = fromDisplay(parsed);
+  delete drafts.value[idx];
+  const next = [...props.modelValue.size.lengths];
+  next[idx] = mm;
+  next.sort((a, b) => a - b);
+  emit('update:modelValue', {
+    ...props.modelValue,
+    size: { ...props.modelValue.size, lengths: next },
+  });
+}
+
+function removeLength(idx: number) {
+  delete drafts.value[idx];
+  const next = props.modelValue.size.lengths.filter((_, i) => i !== idx);
+  emit('update:modelValue', {
+    ...props.modelValue,
+    size: { ...props.modelValue.size, lengths: next },
+  });
+}
+
+function addLength() {
+  // Append a sensible default the user can immediately edit: a copy of the
+  // longest current length, or 96″ / 2400mm if the list is empty.
+  const existing = props.modelValue.size.lengths;
+  const defaultMm =
+    existing.length > 0
+      ? Math.max(...existing)
+      : unit.value === 'in'
+        ? convertUnits(96, 'in', 'mm')
+        : 2400;
+  const next = [...existing, defaultMm].sort((a, b) => a - b);
+  emit('update:modelValue', {
+    ...props.modelValue,
+    size: { ...props.modelValue.size, lengths: next },
+  });
+}
 
 function emitNext(patch: Partial<LinearStockMatrix>) {
   emit('update:modelValue', { ...props.modelValue, ...patch });
@@ -54,27 +106,14 @@ function onColor(color: string | undefined) {
   emitNext({ color });
 }
 
-function toggleLength(mm: number, checked: boolean) {
-  const current = new Set(props.modelValue.size.lengths);
-  if (checked) current.add(mm);
-  else current.delete(mm);
-  const next = [...current].sort((a, b) => a - b);
-  emit('update:modelValue', {
-    ...props.modelValue,
-    size: { ...props.modelValue.size, lengths: next },
-  });
-}
-
-function lengthLabel(mm: number): string {
-  if (unit.value === 'in') {
-    const inches = toDisplay(mm);
-    if (inches >= 12 && Math.abs(inches % 12) < 0.05) {
-      const feet = Math.round(inches / 12);
-      return `${feet} ft  (${displayDim(mm)}")`;
-    }
-    return `${displayDim(mm)}"`;
+/** Pretty side-label for foot-multiple inches: "(8 ft)". */
+function footLabel(mm: number): string {
+  if (unit.value !== 'in') return '';
+  const inches = toDisplay(mm);
+  if (inches >= 12 && Math.abs(inches - Math.round(inches / 12) * 12) < 0.05) {
+    return `${Math.round(inches / 12)} ft`;
   }
-  return `${displayDim(mm)} mm`;
+  return '';
 }
 </script>
 
@@ -125,23 +164,48 @@ function lengthLabel(mm: number): string {
         Available lengths
       </label>
       <div class="flex flex-col gap-1">
-        <label
-          v-for="opt in lengthOptions"
-          :key="opt.mm"
-          class="flex items-center gap-2 rounded border border-subtle bg-elevated px-3 py-1.5 cursor-pointer hover:border-default transition-colors"
+        <div
+          v-for="(mm, idx) in modelValue.size.lengths"
+          :key="idx"
+          class="flex items-center gap-2"
+          data-testid="linear-length-row"
         >
-          <UCheckbox
-            :model-value="opt.checked"
-            :data-length-mm="opt.mm"
-            @update:model-value="
-              (v: boolean | 'indeterminate') => toggleLength(opt.mm, v === true)
-            "
+          <UInput
+            :model-value="draftFor(idx, mm)"
+            class="flex-1 font-mono"
+            :placeholder="unit === 'in' ? 'e.g. 96” or 8ft' : 'e.g. 2400'"
+            :data-length-mm="mm"
+            @update:model-value="(v: string) => onDraft(idx, v)"
+            @blur="commit(idx)"
+            @keydown.enter="commit(idx)"
           />
-          <span class="text-[13px] text-body font-mono">
-            {{ lengthLabel(opt.mm) }}
+          <span
+            v-if="footLabel(mm)"
+            class="text-xs text-dim font-mono min-w-[3rem] text-right"
+          >
+            {{ footLabel(mm) }}
           </span>
-        </label>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-trash-2"
+            size="xs"
+            data-testid="linear-length-remove"
+            @click="removeLength(idx)"
+          />
+        </div>
       </div>
+      <UButton
+        color="neutral"
+        variant="soft"
+        size="xs"
+        icon="i-lucide-plus"
+        class="self-start mt-1"
+        data-testid="linear-length-add"
+        @click="addLength"
+      >
+        Add length
+      </UButton>
     </div>
   </div>
 </template>
