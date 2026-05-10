@@ -4,12 +4,10 @@ import type { LinearBoardLayout } from 'cutlist';
 const props = defineProps<{
   layout: LinearBoardLayout;
   boardIndex: number;
-  /** Longest stick in the same material group, used to scale this stick's
-   *  rendered width so different stock lengths read at relative size. */
-  maxLengthM: number;
 }>();
 
 const formatDistance = useFormatDistance();
+const getPx = useGetPx();
 
 const colors = computed(() => getMaterialColor(props.layout.stock.color));
 
@@ -20,18 +18,14 @@ const wasteLabel = computed(() =>
     : '',
 );
 
-const stickStyle = computed(() => {
-  const widthPct =
-    props.maxLengthM > 0
-      ? (props.layout.stock.lengthM / props.maxLengthM) * 100
-      : 100;
-  return [
+const stickStyle = computed(() =>
+  [
     `background:${colors.value.board}`,
     `--chip-color:${colors.value.part}`,
     `--chip-text:${colors.value.text}`,
-    `width:${widthPct}%`,
-  ].join(';');
-});
+    `width:${getPx(props.layout.stock.lengthM)}`,
+  ].join(';'),
+);
 
 const cutCount = computed(() => props.layout.placements.length);
 

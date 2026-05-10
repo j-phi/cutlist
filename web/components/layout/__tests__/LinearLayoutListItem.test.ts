@@ -20,6 +20,8 @@ mockNuxtImport('getMaterialColor', () => (_hex: string | undefined) => ({
   textHover: '#aa0005',
   grain: '#aa0006',
 }));
+// Match the production scale (PX_PER_M = 500) so width assertions are stable.
+mockNuxtImport('useGetPx', () => () => (m: number) => `${m * 500}px`);
 
 function makePlacement(
   overrides: Partial<LinearBoardLayoutPlacement> = {},
@@ -58,13 +60,9 @@ function makeLayout(
 }
 
 describe('LinearLayoutListItem', () => {
-  function getComponent(
-    layout: LinearBoardLayout,
-    boardIndex = 0,
-    maxLengthM = layout.stock.lengthM,
-  ) {
+  function getComponent(layout: LinearBoardLayout, boardIndex = 0) {
     return shallowMount(LinearLayoutListItem, {
-      props: { layout, boardIndex, maxLengthM },
+      props: { layout, boardIndex },
     });
   }
 
@@ -163,18 +161,17 @@ describe('LinearLayoutListItem', () => {
     expect(style).toContain('--chip-text: #aa0004');
   });
 
-  it('scales the stick width relative to maxLengthM so shorter sticks read at relative size', () => {
-    // A 96″ stick in a group whose longest member is 192″ should render at
-    // half width. Without scaling, every stick fills its container and the
-    // 96″ and 192″ sticks look identical, which is misleading.
-    const shortStick = makeLayout({
+  it('renders the stick at absolute pixel scale matching the sheet renderer', () => {
+    // The on-screen scale must match LayoutListItem's px-per-mm so a 192″
+    // stick and a 96″ sheet sit at correct relative size in the canvas.
+    // PX_PER_M = 500 → a 96″ (2.4384m) stick is 1219.2px wide.
+    const stick = makeLayout({
       stock: { ...makeLayout().stock, lengthM: 2.4384 },
     });
-    const longestM = 4.8768;
     const component = shallowMount(LinearLayoutListItem, {
-      props: { layout: shortStick, boardIndex: 0, maxLengthM: longestM },
+      props: { layout: stick, boardIndex: 0 },
     });
     const style = component.find('.stick-bar').attributes('style') ?? '';
-    expect(style).toContain('width: 50%');
+    expect(style).toContain('width: 1219.2px');
   });
 });
