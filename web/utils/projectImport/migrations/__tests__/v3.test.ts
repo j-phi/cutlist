@@ -247,32 +247,40 @@ describe('migrateProjectToMmStorage (v3)', () => {
     expect(parsed).toEqual([]);
   });
 
-  it('seeds default precision settings when missing', () => {
-    const v3 = migrateProjectToMmStorage({
+  it('seeds the unit-appropriate default precision when missing', () => {
+    const inchProject = migrateProjectToMmStorage({
       id: 'p',
       distanceUnit: 'in',
       bladeWidth: 0.125,
       margin: 0,
       stock: '',
     });
-    expect(v3.inchPrecision).toEqual({ kind: 'fraction', denominator: 32 });
-    expect(v3.mmPrecision).toEqual({ kind: 'decimal', step: 0.1 });
-  });
+    expect(inchProject.precision).toEqual({
+      kind: 'fraction',
+      denominator: 32,
+    });
 
-  it('preserves existing precision settings (idempotent)', () => {
-    const customInch = { kind: 'fraction', denominator: 16 };
-    const customMm = { kind: 'decimal', step: 0.5 };
-    const v3 = migrateProjectToMmStorage({
+    const mmProject = migrateProjectToMmStorage({
       id: 'p',
       distanceUnit: 'mm',
       bladeWidth: 3,
       margin: 0,
       stock: '',
-      inchPrecision: customInch,
-      mmPrecision: customMm,
     });
-    expect(v3.inchPrecision).toEqual(customInch);
-    expect(v3.mmPrecision).toEqual(customMm);
+    expect(mmProject.precision).toEqual({ kind: 'decimal', step: 0.1 });
+  });
+
+  it('preserves an existing precision setting (idempotent)', () => {
+    const custom = { kind: 'fraction', denominator: 16 };
+    const v3 = migrateProjectToMmStorage({
+      id: 'p',
+      distanceUnit: 'in',
+      bladeWidth: 3.175,
+      margin: 0,
+      stock: '',
+      precision: custom,
+    });
+    expect(v3.precision).toEqual(custom);
   });
 
   it('is idempotent on already-v3 data', () => {

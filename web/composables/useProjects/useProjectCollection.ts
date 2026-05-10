@@ -57,8 +57,7 @@ export default function useProjectCollection() {
           excludedColors: [],
           stock: '',
           distanceUnit: DEFAULT_SETTINGS.distanceUnit,
-          inchPrecision: DEFAULT_SETTINGS.inchPrecision,
-          mmPrecision: DEFAULT_SETTINGS.mmPrecision,
+          precision: DEFAULT_SETTINGS.precision,
           bladeWidth: DEFAULT_SETTINGS.bladeWidth,
           margin: DEFAULT_SETTINGS.margin,
           defaultAlgorithm: DEFAULT_SETTINGS.defaultAlgorithm,
@@ -74,18 +73,10 @@ export default function useProjectCollection() {
     unit: 'mm' | 'in',
     precision?: Precision,
   ) {
-    // The project stores precision per-unit; we set the one matching the
-    // chosen unit and let the other take its default.
-    const precisionPatch =
-      precision == null
-        ? {}
-        : unit === 'in'
-          ? { inchPrecision: precision }
-          : { mmPrecision: precision };
     const project = await idb.createProject(name, {
       distanceUnit: unit,
+      precision,
       stock: getDefaultStockYaml(unit),
-      ...precisionPatch,
     });
     projectList.value = [
       ...projectList.value,

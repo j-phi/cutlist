@@ -30,12 +30,11 @@ export interface IdbProject {
    */
   distanceUnit: 'in' | 'mm';
   /**
-   * Display precision for the active distance unit — what fractional or
-   * decimal granularity the BOM, layout, PDF, and edit fields use. Stored
-   * per unit so flipping units restores each one's preferred precision.
+   * Display precision — fractional or decimal granularity for the BOM,
+   * layout, PDF, and edit fields. Resets to the unit's default whenever
+   * `distanceUnit` changes.
    */
-  inchPrecision: Precision;
-  mmPrecision: Precision;
+  precision: Precision;
   /** Saw blade width in millimetres. */
   bladeWidth: number;
   /** Packing margin in millimetres. */

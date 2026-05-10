@@ -326,7 +326,7 @@ Single source of truth, exported through the `cutlist` library entry:
 
 ### The settings layer — `web/composables/useProjectSettings.ts`
 
-`distanceUnit` and `precision` are reactive writable computeds. `precision` is `Ref<Precision>` (never undefined — falls back to the default for the active unit when no project is loaded). The setter routes to either `inchPrecision` or `mmPrecision` on the project depending on the active unit.
+`distanceUnit` and `precision` are reactive writable computeds. `precision` is `Ref<Precision>` (never undefined — falls back to the unit's default when no project is loaded). Flipping `distanceUnit` resets `precision` to that unit's default in the same write — fractional precision in mm and decimal-mm steps in inches are nonsense, so we don't try to carry one across.
 
 ### The display layer — `web/composables/useFormatDistance.ts`
 

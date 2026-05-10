@@ -25,8 +25,8 @@ import type { IdbRecord, RecordMigration } from './types';
  * Apply the v3 transform to a project record. Idempotent on already-v3
  * data — the stock YAML normaliser drops any leftover `unit:` field.
  *
- * Also seeds the new `inchPrecision` / `mmPrecision` fields with
- * defaults; pre-v3 records had no precision setting.
+ * Also seeds the `precision` field (added in v3) with the unit-appropriate
+ * default; pre-v3 records had no precision setting.
  */
 export function migrateProjectToMmStorage(record: IdbRecord): IdbRecord {
   const oldUnit: 'mm' | 'in' = record.distanceUnit === 'in' ? 'in' : 'mm';
@@ -40,8 +40,10 @@ export function migrateProjectToMmStorage(record: IdbRecord): IdbRecord {
   if (typeof next.stock === 'string' && next.stock.trim() !== '') {
     next.stock = migrateStockYamlToMm(next.stock, oldUnit);
   }
-  if (next.inchPrecision == null) next.inchPrecision = DEFAULT_INCH_PRECISION;
-  if (next.mmPrecision == null) next.mmPrecision = DEFAULT_MM_PRECISION;
+  if (next.precision == null) {
+    next.precision =
+      oldUnit === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION;
+  }
   return next;
 }
 

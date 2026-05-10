@@ -33,9 +33,8 @@ export interface Project {
   stock: string;
   /** Display preference for distances; storage is always mm. */
   distanceUnit: 'in' | 'mm';
-  /** Display precision for inch / mm modes. */
-  inchPrecision: Precision;
-  mmPrecision: Precision;
+  /** Display precision — resets to the unit's default on unit flip. */
+  precision: Precision;
   /** Saw blade width in mm. */
   bladeWidth: number;
   /** Packing margin in mm. */

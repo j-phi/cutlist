@@ -34,8 +34,7 @@ export interface ProjectExport {
     excludedColors: string[];
     stock: string;
     distanceUnit: 'in' | 'mm';
-    inchPrecision: Precision;
-    mmPrecision: Precision;
+    precision: Precision;
     bladeWidth: number;
     margin: number;
     defaultAlgorithm: Algorithm;
@@ -124,8 +123,7 @@ export async function buildExportData(
       excludedColors: idbProject.excludedColors,
       stock: idbProject.stock,
       distanceUnit: idbProject.distanceUnit,
-      inchPrecision: idbProject.inchPrecision,
-      mmPrecision: idbProject.mmPrecision,
+      precision: idbProject.precision,
       bladeWidth: idbProject.bladeWidth,
       margin: idbProject.margin,
       defaultAlgorithm: idbProject.defaultAlgorithm,

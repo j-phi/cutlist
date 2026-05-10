@@ -8,12 +8,8 @@
  * the UI sees the new value on the next tick, even before persistence lands.
  */
 
-import {
-  DEFAULT_INCH_PRECISION,
-  DEFAULT_MM_PRECISION,
-  type Algorithm,
-  type Precision,
-} from 'cutlist';
+import { type Algorithm, type Precision } from 'cutlist';
+import { defaultPrecisionForUnit } from '~/utils/settings';
 import type { IdbProject } from '~/composables/useIdb';
 
 const DEBOUNCE_MS = 300;
@@ -112,40 +108,34 @@ export default createSharedComposable(() => {
     },
   });
 
+  /**
+   * Setting `distanceUnit` resets `precision` to the new unit's default —
+   * fractional precision doesn't make sense in mm and decimal-mm steps
+   * don't make sense in inches. Users almost never flip mid-project, so
+   * "lose the precision" is the right tradeoff for a simpler model.
+   */
   const distanceUnit = computed<'in' | 'mm' | undefined>({
     get: () => activeProject.value?.distanceUnit,
     set: (value) => {
       if (value == null) return;
-      queueWrite({ distanceUnit: value });
+      queueWrite({
+        distanceUnit: value,
+        precision: defaultPrecisionForUnit(value),
+      });
     },
   });
 
   /**
-   * The precision applied to whichever unit is currently active. Reads
-   * the matching `inchPrecision` / `mmPrecision` from the project; falls
-   * back to a sensible default when no project is loaded yet (so
-   * formatters and inputs never have to guard for undefined). Writes
-   * route to the matching per-unit field.
+   * Display precision. Falls back to the unit's default when no project
+   * is loaded so formatters never have to guard for undefined.
    */
   const precision = computed<Precision>({
-    get: () => {
-      const project = activeProject.value;
-      const unit = project?.distanceUnit ?? 'mm';
-      const stored =
-        unit === 'in' ? project?.inchPrecision : project?.mmPrecision;
-      return (
-        stored ??
-        (unit === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION)
-      );
-    },
+    get: () =>
+      activeProject.value?.precision ??
+      defaultPrecisionForUnit(activeProject.value?.distanceUnit ?? 'mm'),
     set: (value) => {
-      const project = activeProject.value;
-      if (!project) return;
-      queueWrite(
-        project.distanceUnit === 'in'
-          ? { inchPrecision: value }
-          : { mmPrecision: value },
-      );
+      if (!activeProject.value) return;
+      queueWrite({ precision: value });
     },
   });
 

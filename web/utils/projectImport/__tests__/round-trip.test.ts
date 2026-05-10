@@ -56,8 +56,7 @@ function makePayload(): ProjectExport {
       excludedColors: [],
       stock: 'stock yaml',
       distanceUnit: 'mm',
-      inchPrecision: { kind: 'fraction', denominator: 32 },
-      mmPrecision: { kind: 'decimal', step: 0.1 },
+      precision: { kind: 'decimal', step: 0.1 },
       bladeWidth: 3,
       margin: 0,
       defaultAlgorithm: 'auto',
@@ -222,21 +221,17 @@ describe('Spec 00 — scenes & annotations round-trip', () => {
 
   it('preserves user-customized precision through the round-trip', async () => {
     const original = makePayload();
-    original.project.inchPrecision = { kind: 'fraction', denominator: 16 };
-    original.project.mmPrecision = { kind: 'decimal', step: 0.5 };
+    original.project.distanceUnit = 'in';
+    original.project.precision = { kind: 'fraction', denominator: 16 };
 
     const parsed = parseProjectExport(JSON.parse(JSON.stringify(original)));
     const { db, calls } = makeIdbMock();
     await importProjectData(parsed, db as any);
 
     expect(calls.createProject).toHaveLength(1);
-    expect(calls.createProject[0].opts.inchPrecision).toEqual({
+    expect(calls.createProject[0].opts.precision).toEqual({
       kind: 'fraction',
       denominator: 16,
-    });
-    expect(calls.createProject[0].opts.mmPrecision).toEqual({
-      kind: 'decimal',
-      step: 0.5,
     });
   });
 

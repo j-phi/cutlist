@@ -12,12 +12,16 @@ export interface CutlistSettings {
   /** All distance fields are millimetres. `distanceUnit` is display-only. */
   bladeWidth: number;
   distanceUnit: 'in' | 'mm';
-  inchPrecision: Precision;
-  mmPrecision: Precision;
+  precision: Precision;
   margin: number;
   defaultAlgorithm: Algorithm;
   showPartNumbers: boolean;
   stock: string;
+}
+
+/** Default display precision for the given unit. */
+export function defaultPrecisionForUnit(unit: 'mm' | 'in'): Precision {
+  return unit === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION;
 }
 
 /**
@@ -188,8 +192,7 @@ export const DEFAULT_BLADE_WIDTH_MM = 3.175;
 export const DEFAULT_SETTINGS: CutlistSettings = {
   bladeWidth: DEFAULT_BLADE_WIDTH_MM,
   distanceUnit: 'mm',
-  inchPrecision: DEFAULT_INCH_PRECISION,
-  mmPrecision: DEFAULT_MM_PRECISION,
+  precision: DEFAULT_MM_PRECISION,
   margin: 0,
   defaultAlgorithm: 'auto',
   showPartNumbers: true,

@@ -212,8 +212,7 @@ const ProjectExportSchema = z.object({
     excludedColors: z.array(z.string()).default([]),
     stock: z.string(),
     distanceUnit: z.enum(['in', 'mm']).default(DEFAULT_SETTINGS.distanceUnit),
-    inchPrecision: PrecisionSchema.default(DEFAULT_SETTINGS.inchPrecision),
-    mmPrecision: PrecisionSchema.default(DEFAULT_SETTINGS.mmPrecision),
+    precision: PrecisionSchema.default(DEFAULT_SETTINGS.precision),
     bladeWidth: z.number().finite().default(DEFAULT_SETTINGS.bladeWidth),
     margin: z.number().finite().default(DEFAULT_SETTINGS.margin),
     defaultAlgorithm: z
@@ -242,8 +241,7 @@ export interface ProjectImportDb {
     opts?: {
       stock?: string;
       distanceUnit?: 'in' | 'mm';
-      inchPrecision?: Precision;
-      mmPrecision?: Precision;
+      precision?: Precision;
       bladeWidth?: number;
       margin?: number;
       defaultAlgorithm?: 'auto' | 'tidy' | 'compact' | 'cnc';
@@ -308,8 +306,7 @@ export async function importProjectData(
   const newProject = await idb.createProject(data.project.name, {
     stock: data.project.stock,
     distanceUnit: data.project.distanceUnit,
-    inchPrecision: data.project.inchPrecision,
-    mmPrecision: data.project.mmPrecision,
+    precision: data.project.precision,
     bladeWidth: data.project.bladeWidth,
     margin: data.project.margin,
     defaultAlgorithm: data.project.defaultAlgorithm,

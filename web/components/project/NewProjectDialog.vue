@@ -1,9 +1,6 @@
 <script lang="ts" setup>
-import {
-  DEFAULT_INCH_PRECISION,
-  DEFAULT_MM_PRECISION,
-  type Precision,
-} from 'cutlist';
+import type { Precision } from 'cutlist';
+import { defaultPrecisionForUnit } from '~/utils/settings';
 
 const open = defineModel<boolean>('open', { default: false });
 
@@ -11,7 +8,7 @@ const { addProject } = useProjects();
 const toast = useToast();
 const projectName = ref('');
 const unit = ref<'mm' | 'in'>('mm');
-const precision = ref<Precision>(DEFAULT_MM_PRECISION);
+const precision = ref<Precision>(defaultPrecisionForUnit('mm'));
 
 interface PrecisionOption {
   label: string;
@@ -58,18 +55,19 @@ const precisionModel = computed<string>({
   },
 });
 
-// Reset to defaults when the modal opens, and reset precision to the new
-// unit's default whenever the user flips units.
+// Reset to defaults when the modal opens. When the user flips units, the
+// precision resets too — fractional precision in mm and decimal-mm steps
+// in inches are nonsense, so we don't try to carry one across.
 watch(open, (v) => {
   if (v) {
     projectName.value = '';
     unit.value = 'mm';
-    precision.value = DEFAULT_MM_PRECISION;
+    precision.value = defaultPrecisionForUnit('mm');
   }
 });
 
 watch(unit, (u) => {
-  precision.value = u === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION;
+  precision.value = defaultPrecisionForUnit(u);
 });
 
 async function createProject() {
