@@ -1,9 +1,11 @@
 <script lang="ts" setup>
 import YAML from 'js-yaml';
+import type { LinearStockMatrix, StockMatrix } from 'cutlist';
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
 import { parseStock } from '~/utils/parseStock';
 
-const { stock } = useProjectSettings();
+const { stock, distanceUnit, precision } = useProjectSettings();
+const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
 interface StockMatrixInputExpose {
   commit: () => boolean;
@@ -13,12 +15,29 @@ interface StockMatrixInputExpose {
 
 const stockInput = ref<StockMatrixInputExpose>();
 
-const presetItems = STOCK_PRESETS.map((preset) => ({
-  label: preset.label,
-  onSelect() {
-    addPreset(preset);
-  },
-}));
+const sheetPresets = STOCK_PRESETS.filter((p) => p.stock.kind === 'sheet');
+const timberPresets = STOCK_PRESETS.filter((p) => p.stock.kind === 'linear');
+
+const presetItems = [
+  [
+    { label: 'Sheet', type: 'label' as const },
+    ...sheetPresets.map((preset) => ({
+      label: preset.label,
+      onSelect() {
+        addPreset(preset);
+      },
+    })),
+  ],
+  [
+    { label: 'Timber', type: 'label' as const },
+    ...timberPresets.map((preset) => ({
+      label: preset.label,
+      onSelect() {
+        addPreset(preset);
+      },
+    })),
+  ],
+];
 
 function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
   if (stock.value == null) return;
@@ -33,11 +52,105 @@ function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
     stockInput.value?.scrollToBottom();
   }
 }
+
+/**
+ * Parse the full stock list (both kinds). Returns an empty list if YAML
+ * is invalid — child components own error display for their own slice.
+ */
+const allEntries = computed<StockMatrix[]>(() => {
+  if (stock.value == null) return [];
+  try {
+    return parseStock(stock.value);
+  } catch {
+    return [];
+  }
+});
+
+const linearEntries = computed<LinearStockMatrix[]>(() =>
+  allEntries.value.filter((m): m is LinearStockMatrix => m.kind === 'linear'),
+);
+
+/**
+ * Slice of the YAML containing only sheet rows. Linear rows are
+ * preserved across StockMatrixInput's own serialise cycle by merging
+ * back here on each write.
+ */
+const sheetYaml = computed<string>({
+  get() {
+    const sheets = allEntries.value.filter((m) => m.kind === 'sheet');
+    return YAML.dump(sheets, { indent: 2, flowLevel: 3 });
+  },
+  set(next: string) {
+    let sheetParsed: StockMatrix[];
+    try {
+      sheetParsed = parseStock(next);
+    } catch {
+      stock.value = next;
+      return;
+    }
+    const merged = [...sheetParsed, ...linearEntries.value];
+    stock.value = YAML.dump(merged, { indent: 2, flowLevel: 3 });
+  },
+});
+
+/**
+ * Replace the linear entry at the given index (relative to the linear
+ * subset) and re-serialise the full list.
+ */
+function updateLinear(linearIdx: number, next: LinearStockMatrix) {
+  const entries = allEntries.value.slice();
+  let seen = 0;
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].kind !== 'linear') continue;
+    if (seen === linearIdx) {
+      entries[i] = next;
+      break;
+    }
+    seen++;
+  }
+  stock.value = YAML.dump(entries, { indent: 2, flowLevel: 3 });
+}
+
+function removeLinear(linearIdx: number) {
+  const entries = allEntries.value.slice();
+  let seen = 0;
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].kind !== 'linear') continue;
+    if (seen === linearIdx) {
+      entries.splice(i, 1);
+      break;
+    }
+    seen++;
+  }
+  stock.value = YAML.dump(entries, { indent: 2, flowLevel: 3 });
+}
+
+/**
+ * For a stored linear entry, find the preset it came from so we can
+ * show de-selected lengths as still-tickable checkboxes. Matched by
+ * material name; cross-section is a tiebreaker for renamed materials.
+ */
+function availableLengthsFor(entry: LinearStockMatrix): number[] {
+  for (const preset of timberPresets) {
+    if (preset.stock.kind !== 'linear') continue;
+    const mm = presetToMmStock(preset);
+    if (mm.kind !== 'linear') continue;
+    const sameCross =
+      Math.abs(mm.size.crossSectionWidth - entry.size.crossSectionWidth) <
+        0.5 &&
+      Math.abs(
+        mm.size.crossSectionThickness - entry.size.crossSectionThickness,
+      ) < 0.5;
+    if (mm.material === entry.material && sameCross) {
+      return mm.size.lengths;
+    }
+  }
+  return entry.size.lengths;
+}
 </script>
 
 <template>
   <div class="absolute inset-0 flex flex-col p-4 gap-4 overflow-y-auto">
-    <!-- Top bar: explainer + actions -->
     <div
       class="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
     >
@@ -72,6 +185,22 @@ function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
       </div>
     </div>
 
-    <StockMatrixInput v-if="stock != null" ref="stockInput" v-model="stock" />
+    <div
+      v-if="stock != null"
+      class="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto"
+    >
+      <StockMatrixInput ref="stockInput" v-model="sheetYaml" />
+
+      <LinearStockInput
+        v-for="(entry, idx) in linearEntries"
+        :key="`linear-${idx}-${entry.material}`"
+        :model-value="entry"
+        :distance-unit="unit"
+        :precision="precision"
+        :available-lengths="availableLengthsFor(entry)"
+        @update:model-value="(next) => updateLinear(idx, next)"
+        @remove="removeLinear(idx)"
+      />
+    </div>
   </div>
 </template>
