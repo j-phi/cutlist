@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount, shallowMount } from '@vue/test-utils';
 import AnnotationLabels from '../AnnotationLabels.vue';
-import { AnnotationProjector } from '~/lib/viewer/modules/AnnotationProjector';
+import { AnnotationProjector } from '~/lib/viewer/annotations/projector';
 import type { IdbCallout, IdbDimension } from '~/composables/useIdb';
 
 function callout(id: string, sceneId: string): IdbCallout {

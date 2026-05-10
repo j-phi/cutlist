@@ -11,8 +11,8 @@
  */
 
 import type { Ref } from 'vue';
-import type { ProjectorViewer } from '~/lib/viewer/modules/AnnotationProjector';
-import { AnnotationProjector } from '~/lib/viewer/modules/AnnotationProjector';
+import type { ProjectorViewer } from '~/lib/viewer/annotations/projector';
+import { AnnotationProjector } from '~/lib/viewer/annotations/projector';
 import type {
   AnnotationAuthor,
   AnnotationAuthorViewer,

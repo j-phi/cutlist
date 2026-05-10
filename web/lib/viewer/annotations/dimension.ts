@@ -32,7 +32,7 @@ import { ref, type Ref } from 'vue';
 import type { PickKindHandler } from '~/composables/useAnnotationAuthor';
 import { PREVIEW_ANNOTATION_ID } from '~/composables/useAnnotationAuthor';
 import type { UseAnnotationsApi } from '~/composables/useAnnotations';
-import type { KindHooks } from '~/lib/viewer/modules/AnnotationProjector';
+import type { KindHooks } from './projector';
 import type { RenderedLeaderSpec, SnapTarget } from '~/lib/viewer/types';
 import type { IdbAnnotation, IdbDimension } from '~/composables/useIdb';
 import type { GroupId } from '~/utils/types';

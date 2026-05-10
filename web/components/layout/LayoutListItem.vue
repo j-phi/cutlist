@@ -115,6 +115,9 @@ const hoveredPlacement = computed<BoardLayoutPlacement | null>(() =>
     ? (props.layout.placements[hoveredIndex.value] ?? null)
     : null,
 );
+
+// Tooltip tracks the mouse cursor (teleported to body, fixed position).
+const { x: mouseX, y: mouseY } = useMouse();
 </script>
 
 <template>
@@ -157,11 +160,17 @@ const hoveredPlacement = computed<BoardLayoutPlacement | null>(() =>
       />
     </div>
     <Teleport to="body">
-      <PartDetailsTooltip
-        v-if="hoveredPlacement"
-        :part="hoveredPlacement"
-        class="pointer-events-none"
-      />
+      <div
+        v-if="hoveredPlacement && (mouseX != 0 || mouseY != 0)"
+        class="fixed w-px h-px z-50 pointer-events-none"
+        :style="`left:${mouseX}px;top:${mouseY}px`"
+      >
+        <PartDetails
+          class="translate-x-[-50%] translate-y-8 p-2 bg-elevated border border-default rounded shadow-xl w-max min-w-[256px] text-white"
+          :part="hoveredPlacement"
+          :placement="hoveredPlacement"
+        />
+      </div>
     </Teleport>
   </li>
 </template>

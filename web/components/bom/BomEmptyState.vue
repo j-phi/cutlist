@@ -3,30 +3,6 @@ defineEmits<{
   pickFile: [];
   addManualPart: [];
 }>();
-
-const importGuides = [
-  {
-    value: 'onshape',
-    label: 'From Onshape (.gltf)',
-    icon: 'i-lucide-box',
-    slot: 'onshape' as const,
-    content: ' ',
-  },
-  {
-    value: 'sketchup',
-    label: 'From SketchUp (.dae)',
-    icon: 'i-lucide-pentagon',
-    slot: 'sketchup' as const,
-    content: ' ',
-  },
-  {
-    value: 'other',
-    label: 'Other 3D tools',
-    icon: 'i-lucide-blocks',
-    slot: 'other' as const,
-    content: ' ',
-  },
-];
 </script>
 
 <template>
@@ -74,80 +50,6 @@ const importGuides = [
       </div>
     </div>
 
-    <!-- Export guides -->
-    <UAccordion
-      :items="importGuides"
-      type="single"
-      collapsible
-      :ui="{
-        item: 'border border-subtle rounded-lg mb-2 overflow-hidden last:border-b last:border-b-subtle',
-        trigger:
-          'px-4 py-2.5 hover:bg-mist-900 transition-colors data-[state=open]:bg-mist-900',
-        content: 'border-t border-subtle',
-        body: 'px-4 py-3',
-        label: 'text-sm font-medium text-body',
-        leadingIcon: 'text-teal-400',
-      }"
-    >
-      <template #onshape-body>
-        <ol
-          class="space-y-2 list-decimal list-inside text-sm text-muted leading-relaxed"
-        >
-          <li>
-            Model each part at real-world dimensions. Assign a
-            <strong class="text-body">unique colour</strong> per material.
-          </li>
-          <li>
-            <strong class="text-body">File &rarr; Export</strong>, set format to
-            <span class="font-mono text-dim">GLTF</span>, and download.
-          </li>
-          <li>
-            Drag the <span class="font-mono text-dim">.gltf</span> file here or
-            click <strong class="text-body">Import Model</strong>.
-          </li>
-        </ol>
-        <img
-          src="/onshape-export.png"
-          alt="Onshape export dialog showing GLTF format selected"
-          class="mt-3 rounded-lg border border-subtle w-full"
-        />
-      </template>
-
-      <template #sketchup-body>
-        <ol
-          class="space-y-2 list-decimal list-inside text-sm text-muted leading-relaxed"
-        >
-          <li>
-            Model each part as a
-            <strong class="text-body">separate component</strong>. Apply a
-            different material/colour per wood type.
-          </li>
-          <li>
-            <strong class="text-body">File &rarr; Export &rarr; 3D Model</strong
-            >, choose <span class="font-mono text-dim">COLLADA (.dae)</span>.
-          </li>
-          <li>
-            Drag the <span class="font-mono text-dim">.dae</span> file here or
-            click <strong class="text-body">Import Model</strong>.
-          </li>
-        </ol>
-      </template>
-
-      <template #other-body>
-        <div class="text-sm text-muted leading-relaxed space-y-2">
-          <p>
-            Any tool that exports
-            <strong class="text-body">GLTF</strong> or
-            <strong class="text-body">COLLADA (.dae)</strong> will work &mdash;
-            including Fusion 360, Blender, FreeCAD, and SolidWorks.
-          </p>
-          <p>
-            Assign
-            <strong class="text-body">distinct colours per material</strong>
-            so the importer can tell your wood types apart.
-          </p>
-        </div>
-      </template>
-    </UAccordion>
+    <ImportGuidesAccordion :show-manual="false" dense />
   </div>
 </template>

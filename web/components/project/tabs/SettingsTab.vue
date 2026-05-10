@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { Precision } from 'cutlist';
-
 const { activeProject, activeId, renameProject, closeProject } = useProjects();
 const { distanceUnit, precision } = useProjectSettings();
 
@@ -19,50 +17,9 @@ function saveProjectName() {
   renameProject(activeId.value, name);
 }
 
-interface PrecisionOption {
-  label: string;
-  value: Precision;
-}
-
-const inchPrecisionOptions: PrecisionOption[] = [
-  { label: '1/8"', value: { kind: 'fraction', denominator: 8 } },
-  { label: '1/16"', value: { kind: 'fraction', denominator: 16 } },
-  { label: '1/32"', value: { kind: 'fraction', denominator: 32 } },
-  { label: '1/64"', value: { kind: 'fraction', denominator: 64 } },
-  { label: 'Decimal (0.01")', value: { kind: 'decimal', step: 0.01 } },
-];
-
-const mmPrecisionOptions: PrecisionOption[] = [
-  { label: '1 mm', value: { kind: 'decimal', step: 1 } },
-  { label: '0.5 mm', value: { kind: 'decimal', step: 0.5 } },
-  { label: '0.1 mm', value: { kind: 'decimal', step: 0.1 } },
-  { label: '0.01 mm', value: { kind: 'decimal', step: 0.01 } },
-];
-
-const precisionOptions = computed<PrecisionOption[]>(() =>
-  distanceUnit.value === 'in' ? inchPrecisionOptions : mmPrecisionOptions,
-);
-
-function precisionKey(p: Precision | undefined): string {
-  if (!p) return '';
-  return p.kind === 'fraction' ? `f:${p.denominator}` : `d:${p.step}`;
-}
-
-const precisionModel = computed<string>({
-  get: () => precisionKey(precision.value),
-  set: (key: string) => {
-    const match = precisionOptions.value.find(
-      (o) => precisionKey(o.value) === key,
-    );
-    if (match) precision.value = match.value;
-  },
-});
-
-const precisionItems = computed(() =>
-  precisionOptions.value.map((o) => ({
-    label: o.label,
-    value: precisionKey(o.value),
-  })),
+const { precisionModel, precisionItems } = usePrecisionField(
+  precision,
+  () => distanceUnit.value ?? 'mm',
 );
 
 const showDeleteConfirm = ref(false);

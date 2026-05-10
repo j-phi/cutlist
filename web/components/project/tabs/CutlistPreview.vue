@@ -181,14 +181,39 @@ const showLeftoverBanner = computed(
       <RulerToggle
         class="bg-overlay backdrop-blur border border-subtle rounded-lg"
       />
-      <ScaleController
+      <div
         v-if="scale != null"
-        class="bg-overlay backdrop-blur border border-subtle rounded-lg px-1"
-        :scale="scale"
-        @reset-zoom="resetZoom"
-        @zoom-in="zoomIn"
-        @zoom-out="zoomOut"
-      />
+        class="bg-overlay backdrop-blur border border-subtle rounded-lg px-1 flex gap-1"
+      >
+        <UButton
+          title="Zoom out"
+          square
+          size="lg"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-minus"
+          @click="zoomOut"
+        />
+        <UButton
+          :title="`${Math.round(scale * 100)}% - Click to reset to 100%`"
+          class="w-20 justify-center text-teal-400"
+          size="lg"
+          color="neutral"
+          variant="ghost"
+          @click="resetZoom"
+        >
+          {{ Math.round(scale * 100) }}%
+        </UButton>
+        <UButton
+          title="Zoom in"
+          square
+          size="lg"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-plus"
+          @click="zoomIn"
+        />
+      </div>
     </div>
   </div>
 </template>

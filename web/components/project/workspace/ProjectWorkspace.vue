@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 const tab = useProjectTab();
 const { activeProject } = useProjects();
+const { showConfirm, pendingGrainLock, confirmChange, cancelChange } =
+  useGrainLockConfirm();
 </script>
 
 <template>
@@ -27,6 +29,11 @@ const { activeProject } = useProjects();
       </template>
     </div>
 
-    <ProjectWorkspaceModals />
+    <GrainLockConfirmModal
+      :open="showConfirm"
+      :grain-lock="pendingGrainLock"
+      @confirm="confirmChange"
+      @cancel="cancelChange"
+    />
   </div>
 </template>

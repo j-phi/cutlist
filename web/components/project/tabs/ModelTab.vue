@@ -12,7 +12,6 @@ import ModelEmptyState from '~/components/viewer/ModelEmptyState.vue';
 import ModelSwitcher from '~/components/viewer/ModelSwitcher.vue';
 import AnnotationToolbar from '~/components/viewer/AnnotationToolbar.vue';
 import ViewerControlsHelp from '~/components/viewer/ViewerControlsHelp.vue';
-import ViewerStatusBar from '~/components/viewer/ViewerStatusBar.vue';
 import ViewerSidePanel from '~/components/viewer/ViewerSidePanel.vue';
 import { useSceneAuthor } from '~/composables/useSceneAuthor';
 import { useScenes } from '~/composables/useScenes';
@@ -491,11 +490,30 @@ watch(
         @update-active="updateActiveScene"
       />
 
-      <ViewerStatusBar
+      <!-- Bottom status bar: part readout or idle hint. -->
+      <div
         v-if="canShowViewerControls"
-        class="col-span-full"
-        :part="infoPart ?? null"
-      />
+        class="col-span-full bg-overlay backdrop-blur border-t border-subtle px-3 py-1.5 flex items-center gap-3 text-xs min-h-[32px]"
+      >
+        <div
+          v-if="infoPart"
+          class="text-xs text-hi flex items-baseline gap-2 whitespace-nowrap"
+        >
+          <span class="text-teal-400 font-semibold">
+            #{{ infoPart.partNumber }} {{ infoPart.name }}
+          </span>
+          <span class="text-muted">
+            {{ useFormatDistance()(infoPart.lengthM) }}
+            ×
+            {{ useFormatDistance()(infoPart.widthM) }}
+            ×
+            {{ useFormatDistance()(infoPart.thicknessM) }}
+          </span>
+        </div>
+        <span v-else class="text-dim italic">
+          Hover or select a part to view its dimensions.
+        </span>
+      </div>
     </div>
   </ClientOnly>
 </template>

@@ -25,7 +25,7 @@
 import type { Component } from 'vue';
 import type { AnnotationKind, IdbAnnotation } from '~/composables/useIdb';
 import type { Tween } from '~/composables/useSceneAuthor';
-import type { AnnotationProjector } from '~/lib/viewer/modules/AnnotationProjector';
+import type { AnnotationProjector } from '~/lib/viewer/annotations/projector';
 
 const props = defineProps<{
   annotations: IdbAnnotation[];

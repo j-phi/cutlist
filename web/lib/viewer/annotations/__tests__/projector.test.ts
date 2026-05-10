@@ -7,10 +7,7 @@
  * allocating a new one each frame.
  */
 import { describe, expect, it, vi } from 'vitest';
-import {
-  AnnotationProjector,
-  type ProjectorViewer,
-} from '../AnnotationProjector';
+import { AnnotationProjector, type ProjectorViewer } from '../projector';
 import type {
   IdbAnnotation,
   IdbCallout,

@@ -32,10 +32,7 @@ import { ref, type Ref } from 'vue';
 import type { PickKindHandler } from '~/composables/useAnnotationAuthor';
 import { PREVIEW_ANNOTATION_ID } from '~/composables/useAnnotationAuthor';
 import type { UseAnnotationsApi } from '~/composables/useAnnotations';
-import type {
-  KindHooks,
-  ObjectLocalToWorld,
-} from '~/lib/viewer/modules/AnnotationProjector';
+import type { KindHooks, ObjectLocalToWorld } from './projector';
 import type {
   PickResult,
   RenderedLeaderSpec,

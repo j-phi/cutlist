@@ -12,50 +12,7 @@ const unit = ref<'mm' | 'in'>('mm');
 // rejects Vue reactive proxies (DataCloneError on put).
 const precision = shallowRef<Precision>(defaultPrecisionForUnit('mm'));
 
-interface PrecisionOption {
-  label: string;
-  value: Precision;
-}
-
-const inchPrecisionOptions: PrecisionOption[] = [
-  { label: '1/8"', value: { kind: 'fraction', denominator: 8 } },
-  { label: '1/16"', value: { kind: 'fraction', denominator: 16 } },
-  { label: '1/32"', value: { kind: 'fraction', denominator: 32 } },
-  { label: '1/64"', value: { kind: 'fraction', denominator: 64 } },
-  { label: 'Decimal (0.01")', value: { kind: 'decimal', step: 0.01 } },
-];
-
-const mmPrecisionOptions: PrecisionOption[] = [
-  { label: '1 mm', value: { kind: 'decimal', step: 1 } },
-  { label: '0.5 mm', value: { kind: 'decimal', step: 0.5 } },
-  { label: '0.1 mm', value: { kind: 'decimal', step: 0.1 } },
-  { label: '0.01 mm', value: { kind: 'decimal', step: 0.01 } },
-];
-
-const precisionOptions = computed(() =>
-  unit.value === 'in' ? inchPrecisionOptions : mmPrecisionOptions,
-);
-
-function precisionKey(p: Precision): string {
-  return p.kind === 'fraction' ? `f:${p.denominator}` : `d:${p.step}`;
-}
-
-const precisionItems = computed(() =>
-  precisionOptions.value.map((o) => ({
-    label: o.label,
-    value: precisionKey(o.value),
-  })),
-);
-
-const precisionModel = computed<string>({
-  get: () => precisionKey(precision.value),
-  set: (key: string) => {
-    const match = precisionOptions.value.find(
-      (o) => precisionKey(o.value) === key,
-    );
-    if (match) precision.value = match.value;
-  },
-});
+const { precisionModel, precisionItems } = usePrecisionField(precision, unit);
 
 // Reset to defaults when the modal opens. When the user flips units, the
 // precision resets too — fractional precision in mm and decimal-mm steps
