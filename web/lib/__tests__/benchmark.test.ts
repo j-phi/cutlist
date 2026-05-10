@@ -55,17 +55,15 @@ function repeat<T>(n: number, fn: (i: number) => T): T[] {
 
 const PLY_18MM_FULL: StockMatrix = {
   material: 'Plywood',
-  unit: 'mm',
-  sizes: [{ width: '1220mm', length: '2440mm', thickness: ['18mm'] }],
+  sizes: [{ width: 1220, length: 2440, thickness: [18] }],
 };
 
 const PLY_18MM_MULTI: StockMatrix = {
   material: 'Plywood',
-  unit: 'mm',
   sizes: [
-    { width: '1220mm', length: '2440mm', thickness: ['18mm'] },
-    { width: '600mm', length: '2400mm', thickness: ['18mm'] },
-    { width: '600mm', length: '1200mm', thickness: ['18mm'] },
+    { width: 1220, length: 2440, thickness: [18] },
+    { width: 600, length: 2400, thickness: [18] },
+    { width: 600, length: 1200, thickness: [18] },
   ],
 };
 
@@ -218,8 +216,8 @@ function fmt(m: Metrics): string {
 
 function runOnce(fixture: Fixture): Metrics {
   const config: ConfigInput = {
-    bladeWidth: '3.175mm',
-    margin: '0mm',
+    bladeWidth: 3.175,
+    margin: 0,
     defaultAlgorithm: 'auto',
     precision: 1e-5,
     ...fixture.config,
@@ -236,8 +234,8 @@ function runWithPasses(
   passes: ConfigInput['searchPasses'],
 ): Metrics {
   const config: ConfigInput = {
-    bladeWidth: '3.175mm',
-    margin: '0mm',
+    bladeWidth: 3.175,
+    margin: 0,
     defaultAlgorithm: 'auto',
     precision: 1e-5,
     ...fixture.config,

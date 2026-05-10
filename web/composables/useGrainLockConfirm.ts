@@ -1,4 +1,4 @@
-import { reduceStockMatrix, Distance, type Stock } from 'cutlist';
+import { reduceStockMatrix, type Stock } from 'cutlist';
 import { parseStock } from '~/utils/parseStock';
 import type { GrainLock } from '~/utils/grain';
 import { cycleGrainLock } from '~/utils/grain';
@@ -12,7 +12,7 @@ import { canFitOnAnyBoard } from '~/utils/canFitOnAnyBoard';
  */
 export const useGrainLockConfirm = createSharedComposable(() => {
   const { activeId, updatePartGrainLock } = useProjects();
-  const { stock, margin, distanceUnit } = useProjectSettings();
+  const { stock, margin } = useProjectSettings();
 
   const parsedStock = computed<Stock[]>(() => {
     if (!stock.value) return [];
@@ -23,10 +23,8 @@ export const useGrainLockConfirm = createSharedComposable(() => {
     }
   });
 
-  const marginM = computed(() => {
-    if (margin.value == null || distanceUnit.value == null) return 0;
-    return new Distance(margin.value + distanceUnit.value).m;
-  });
+  /** Margin is stored as mm; reducer outputs are meters, so we convert here. */
+  const marginM = computed(() => (margin.value ?? 0) / 1000);
 
   // Confirmation modal state
   const showConfirm = ref(false);

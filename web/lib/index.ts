@@ -15,7 +15,6 @@ import {
 import { Rectangle } from './geometry';
 import { isNearlyEqual } from './utils/floating-point-utils';
 import { isValidStock } from './utils/stock-utils';
-import { Distance } from './utils/units';
 import {
   compareLayoutScores,
   createCompactPacker,
@@ -168,7 +167,7 @@ export function generateBoardLayouts(
 
   const searchResult = runMultiPassSearch(normalizedConfig, parts, boards);
 
-  const marginM = new Distance(normalizedConfig.margin).m;
+  const marginM = normalizedConfig.margin / 1000;
   return {
     layouts: searchResult.layouts.map((l) =>
       serializeBoardLayoutRectangles(l, marginM),
@@ -178,34 +177,26 @@ export function generateBoardLayouts(
 }
 
 /**
- * Convert a dimension to meters. String dimensions carry their own unit
- * (`"18mm"`); plain numbers use the material's `unit` field.
- */
-function dimToMeters(dim: number | string, unit: 'mm' | 'in'): number {
-  if (typeof dim === 'string') return new Distance(dim).m;
-  return new Distance(dim + unit).m;
-}
-
-/**
  * Expand a stock matrix into individual boards. Per-(material, thickness)
  * `algorithm` overrides (`thicknessAlgorithms[key]`) flow through to each
  * board's `Stock.algorithm`; the engine falls back to
  * `Config.defaultAlgorithm` when unset.
+ *
+ * Inputs are millimetres; outputs are meters (the engine's internal unit).
  */
 export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
-  return matrix.flatMap((item) => {
-    const unit = item.unit ?? 'mm';
-    return item.sizes.flatMap((size) =>
+  return matrix.flatMap((item) =>
+    item.sizes.flatMap((size) =>
       size.thickness.map((thickness) => ({
         material: item.material,
-        thickness: dimToMeters(thickness, unit),
-        width: dimToMeters(size.width, unit),
-        length: dimToMeters(size.length, unit),
+        thickness: thickness / 1000,
+        width: size.width / 1000,
+        length: size.length / 1000,
         color: item.color,
         algorithm: item.thicknessAlgorithms?.[String(thickness)],
       })),
-    );
-  });
+    ),
+  );
 }
 
 export const PACKERS: Record<
@@ -382,7 +373,7 @@ function placeAllPartsWithLookback(
   algorithm: Exclude<Algorithm, 'auto'>,
   options: PlaceOptions,
 ): { layouts: PotentialBoardLayout[]; leftovers: PartToCut[] } {
-  const margin = new Distance(config.margin).m;
+  const margin = config.margin / 1000;
   const { packerOptions } = options;
   const sortedParts = sortPartsForPlacement(
     parts,
@@ -559,7 +550,7 @@ function minimizeLayoutStock(
   packer: Packer<PartToCut>,
   packerOptions: PackOptions<PartToCut>,
 ): PotentialBoardLayout {
-  const margin = new Distance(config.margin).m;
+  const margin = config.margin / 1000;
 
   // Get alternative stock, smaller areas first.
   const altStock = stock
@@ -644,7 +635,7 @@ function groupPartsByStock(
 function getPackerOptions(config: Config): PackOptions<PartToCut> {
   return {
     allowRotations: true,
-    gap: new Distance(config.bladeWidth).m,
+    gap: config.bladeWidth / 1000,
     precision: config.precision,
     canRotateRect: (data: PartToCut) => !data.grainLock,
   };

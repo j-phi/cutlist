@@ -1,5 +1,4 @@
 import {
-  Distance,
   type BoardLayout,
   type BoardLayoutLeftover,
   type ConfigInput,
@@ -34,8 +33,7 @@ const EMPTY_RESULT: LayoutResult = { layouts: [], leftovers: [] };
 export default createSharedComposable(() => {
   const { activeProject, activeId, enabledModels, projectLoading } =
     useProjects();
-  const { bladeWidth, defaultAlgorithm, margin, distanceUnit, stock } =
-    useProjectSettings();
+  const { bladeWidth, defaultAlgorithm, margin, stock } = useProjectSettings();
 
   const parts = computed<PartToCut[] | undefined>(() => {
     const project = activeProject.value;
@@ -70,15 +68,14 @@ export default createSharedComposable(() => {
     const bw = bladeWidth.value;
     const alg = defaultAlgorithm.value;
     const mg = margin.value;
-    const du = distanceUnit.value;
     const st = stock.value;
     if (!pid || partsVal == null) return undefined;
-    if (bw == null || alg == null || mg == null || du == null || st == null) {
+    if (bw == null || alg == null || mg == null || st == null) {
       return undefined;
     }
     const config: ConfigInput = {
-      bladeWidth: new Distance(bw + du).m,
-      margin: new Distance(mg + du).m,
+      bladeWidth: bw,
+      margin: mg,
       defaultAlgorithm: alg,
       precision: 1e-5,
     };

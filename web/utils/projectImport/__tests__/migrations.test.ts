@@ -5,7 +5,13 @@ import {
   LegacyExportError,
   MIN_SUPPORTED_EXPORT_VERSION,
 } from '../../versions';
-import { migrations, migrateRecord, migrateExport } from '../migrations';
+import {
+  migrations,
+  migrateRecord,
+  migrateExport,
+  migrateProjectToMmStorage,
+} from '../migrations';
+import YAML from 'js-yaml';
 import { DEFAULT_SETTINGS } from '../../settings';
 import {
   applyProjectDefaults,
@@ -45,6 +51,132 @@ describe('migrateRecord', () => {
     const v1Record = { id: 'p', name: 'Old' };
     const result = migrateRecord('projects', v1Record, 1);
     expect(result.defaultAlgorithm).toBe('auto');
+  });
+});
+
+// ─── v3: canonical mm storage ─────────────────────────────────────────────
+
+describe('migrateProjectToMmStorage (v3)', () => {
+  it('converts an inch-mode project to mm', () => {
+    const stockYaml = YAML.dump([
+      {
+        material: 'Plywood',
+        unit: 'in',
+        sizes: [{ width: 48, length: 96, thickness: [0.75] }],
+      },
+    ]);
+    const v2 = {
+      id: 'p',
+      distanceUnit: 'in',
+      bladeWidth: 0.125,
+      margin: 0.25,
+      stock: stockYaml,
+    };
+    const v3 = migrateProjectToMmStorage(v2);
+
+    expect(v3.bladeWidth).toBeCloseTo(3.175, 5);
+    expect(v3.margin).toBeCloseTo(6.35, 5);
+
+    const parsed = YAML.load(v3.stock as string) as Array<{
+      unit?: string;
+      sizes: Array<{ width: number; length: number; thickness: number[] }>;
+    }>;
+    expect(parsed[0].unit).toBeUndefined();
+    expect(parsed[0].sizes[0].width).toBeCloseTo(1219.2, 3);
+    expect(parsed[0].sizes[0].length).toBeCloseTo(2438.4, 3);
+    expect(parsed[0].sizes[0].thickness[0]).toBeCloseTo(19.05, 3);
+  });
+
+  it('leaves an mm-mode project unchanged', () => {
+    const stockYaml = YAML.dump([
+      {
+        material: 'MDF',
+        unit: 'mm',
+        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      },
+    ]);
+    const v2 = {
+      id: 'p',
+      distanceUnit: 'mm',
+      bladeWidth: 3,
+      margin: 0,
+      stock: stockYaml,
+    };
+    const v3 = migrateProjectToMmStorage(v2);
+
+    expect(v3.bladeWidth).toBe(3);
+    expect(v3.margin).toBe(0);
+    const parsed = YAML.load(v3.stock as string) as Array<{
+      unit?: string;
+      sizes: Array<{ width: number; thickness: number[] }>;
+    }>;
+    expect(parsed[0].unit).toBeUndefined();
+    expect(parsed[0].sizes[0].width).toBe(1220);
+    expect(parsed[0].sizes[0].thickness[0]).toBe(18);
+  });
+
+  it('honours per-row unit when it disagrees with project unit', () => {
+    const stockYaml = YAML.dump([
+      {
+        material: 'Plywood',
+        unit: 'in',
+        sizes: [{ width: 48, length: 96, thickness: [0.75] }],
+      },
+      {
+        material: 'MDF',
+        unit: 'mm',
+        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      },
+    ]);
+    const v3 = migrateProjectToMmStorage({
+      id: 'p',
+      distanceUnit: 'in',
+      bladeWidth: 0.125,
+      margin: 0,
+      stock: stockYaml,
+    });
+
+    const parsed = YAML.load(v3.stock as string) as Array<{
+      sizes: Array<{ width: number; thickness: number[] }>;
+    }>;
+    expect(parsed[0].sizes[0].width).toBeCloseTo(1219.2, 3);
+    expect(parsed[1].sizes[0].width).toBe(1220);
+  });
+
+  it('migrates legacy string-distance dimensions in the YAML', () => {
+    const stockYaml = `- material: Mix
+  unit: mm
+  sizes:
+    - width: '48in'
+      length: '96in'
+      thickness: ['3/4in', '12mm']
+`;
+    const v3 = migrateProjectToMmStorage({
+      id: 'p',
+      distanceUnit: 'mm',
+      bladeWidth: 3,
+      margin: 0,
+      stock: stockYaml,
+    });
+    const parsed = YAML.load(v3.stock as string) as Array<{
+      sizes: Array<{ width: number; length: number; thickness: number[] }>;
+    }>;
+    expect(parsed[0].sizes[0].width).toBeCloseTo(1219.2, 3);
+    expect(parsed[0].sizes[0].length).toBeCloseTo(2438.4, 3);
+    expect(parsed[0].sizes[0].thickness[0]).toBeCloseTo(19.05, 3);
+    expect(parsed[0].sizes[0].thickness[1]).toBe(12);
+  });
+
+  it('leaves an empty stock string alone', () => {
+    const v3 = migrateProjectToMmStorage({
+      id: 'p',
+      distanceUnit: 'in',
+      bladeWidth: 0.125,
+      margin: 0,
+      stock: '',
+    });
+    expect(v3.stock).toBe('');
+    expect(v3.bladeWidth).toBeCloseTo(3.175, 5);
   });
 });
 

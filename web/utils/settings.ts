@@ -1,7 +1,8 @@
 import YAML from 'js-yaml';
-import type { Algorithm, StockMatrix } from 'cutlist';
+import { convertUnits, type Algorithm, type StockMatrix } from 'cutlist';
 
 export interface CutlistSettings {
+  /** All distance fields are millimetres. `distanceUnit` is display-only. */
   bladeWidth: number;
   distanceUnit: 'in' | 'mm';
   margin: number;
@@ -10,12 +11,17 @@ export interface CutlistSettings {
   stock: string;
 }
 
+/**
+ * A stock preset, authored in whichever unit reads naturally for that
+ * material (sheet goods in mm, North-American lumber in inches). Converted
+ * to mm before being added to a project — the catalog is human-facing, the
+ * stored matrix is canonical mm.
+ */
 interface StockPreset {
-  /** Display label in the preset dropdown. */
   label: string;
-  /** If true, this preset is auto-added to new projects. */
+  /** If true, this preset is auto-added to new projects matching `unit`. */
   default: boolean;
-  /** The stock matrix definition. */
+  unit: 'mm' | 'in';
   stock: StockMatrix;
 }
 
@@ -24,9 +30,9 @@ export const STOCK_PRESETS: StockPreset[] = [
   {
     label: 'Plywood (mm)',
     default: true,
+    unit: 'mm',
     stock: {
       material: 'Plywood',
-      unit: 'mm',
       color: '#d2b996',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9, 6] }],
     },
@@ -34,9 +40,9 @@ export const STOCK_PRESETS: StockPreset[] = [
   {
     label: 'MDF (mm)',
     default: true,
+    unit: 'mm',
     stock: {
       material: 'MDF',
-      unit: 'mm',
       color: '#b09078',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9, 6, 3] }],
     },
@@ -44,9 +50,9 @@ export const STOCK_PRESETS: StockPreset[] = [
   {
     label: 'Particle Board (mm)',
     default: false,
+    unit: 'mm',
     stock: {
       material: 'Particle Board',
-      unit: 'mm',
       color: '#c8b48c',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 16, 12] }],
     },
@@ -54,9 +60,9 @@ export const STOCK_PRESETS: StockPreset[] = [
   {
     label: 'Melamine (mm)',
     default: false,
+    unit: 'mm',
     stock: {
       material: 'Melamine',
-      unit: 'mm',
       color: '#ebe6de',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 16] }],
     },
@@ -64,9 +70,9 @@ export const STOCK_PRESETS: StockPreset[] = [
   {
     label: 'OSB (mm)',
     default: false,
+    unit: 'mm',
     stock: {
       material: 'OSB',
-      unit: 'mm',
       color: '#c3a050',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9] }],
     },
@@ -74,9 +80,9 @@ export const STOCK_PRESETS: StockPreset[] = [
   {
     label: 'Hardboard (mm)',
     default: false,
+    unit: 'mm',
     stock: {
       material: 'Hardboard',
-      unit: 'mm',
       color: '#694123',
       sizes: [{ width: 1220, length: 2440, thickness: [6, 3] }],
     },
@@ -85,9 +91,9 @@ export const STOCK_PRESETS: StockPreset[] = [
   {
     label: 'Plywood (in)',
     default: true,
+    unit: 'in',
     stock: {
       material: 'Plywood',
-      unit: 'in',
       color: '#d2b996',
       sizes: [{ width: 48, length: 96, thickness: [0.75, 0.5, 0.25] }],
     },
@@ -95,9 +101,9 @@ export const STOCK_PRESETS: StockPreset[] = [
   {
     label: 'MDF (in)',
     default: false,
+    unit: 'in',
     stock: {
       material: 'MDF',
-      unit: 'in',
       color: '#b09078',
       sizes: [{ width: 48, length: 96, thickness: [0.75, 0.5, 0.25] }],
     },
@@ -108,9 +114,9 @@ export const STOCK_PRESETS: StockPreset[] = [
     // users who do buy standardized board widths (1×6, 1×8, 1×12 S4S).
     label: 'Hardwood Lumber (in)',
     default: false,
+    unit: 'in',
     stock: {
       material: 'Hardwood',
-      unit: 'in',
       color: '#a5784a',
       sizes: [
         { width: 6, length: 96, thickness: [0.75, 1, 1.5] },
@@ -122,9 +128,9 @@ export const STOCK_PRESETS: StockPreset[] = [
   {
     label: 'Softwood Lumber (in)',
     default: false,
+    unit: 'in',
     stock: {
       material: 'Softwood',
-      unit: 'in',
       color: '#dcc391',
       sizes: [
         { width: 3.5, length: 96, thickness: [0.75, 1.5] },
@@ -136,23 +142,42 @@ export const STOCK_PRESETS: StockPreset[] = [
   },
 ];
 
-/** Default stock presets for a given unit system (only `default: true` entries). */
-export function getStockYamlForUnit(unit: 'mm' | 'in'): string {
-  const presets = STOCK_PRESETS.filter(
-    (p) => p.default && p.stock.unit === unit,
-  ).map((p) => p.stock);
+/**
+ * Convert a preset's authored dimensions to the canonical millimetre form
+ * used at rest. Imperial presets (`unit: 'in'`) are scaled; metric presets
+ * pass through.
+ */
+export function presetToMmStock(preset: StockPreset): StockMatrix {
+  if (preset.unit === 'mm') return preset.stock;
+  const scale = (n: number) => convertUnits(n, 'in', 'mm');
+  return {
+    ...preset.stock,
+    sizes: preset.stock.sizes.map((s) => ({
+      width: scale(s.width),
+      length: scale(s.length),
+      thickness: s.thickness.map(scale),
+    })),
+  };
+}
+
+/**
+ * Default stock YAML seeded into a new project. The user's display unit
+ * picks which presets are *default-selected*; storage is always mm.
+ */
+export function getDefaultStockYaml(unit: 'mm' | 'in'): string {
+  const presets = STOCK_PRESETS.filter((p) => p.default && p.unit === unit).map(
+    presetToMmStock,
+  );
   return presets.length > 0
     ? YAML.dump(presets, { indent: 2, flowLevel: 2 })
     : '';
 }
 
-/** Blade width default for a unit system: 3 mm or 1/8 in. */
-export function getBladeWidthForUnit(unit: 'mm' | 'in'): number {
-  return unit === 'mm' ? 3 : 0.125;
-}
+/** Default blade width: 3.175 mm (≈1/8"), regardless of project unit. */
+export const DEFAULT_BLADE_WIDTH_MM = 3.175;
 
 export const DEFAULT_SETTINGS: CutlistSettings = {
-  bladeWidth: 3,
+  bladeWidth: DEFAULT_BLADE_WIDTH_MM,
   distanceUnit: 'mm',
   margin: 0,
   defaultAlgorithm: 'auto',

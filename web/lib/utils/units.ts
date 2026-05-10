@@ -71,12 +71,12 @@ const fractionLookupTable = new Map<number, string>([
   [31 / 32, '31/32'],
 ]);
 
-/** Inches per millimeter — single source of truth for the 25.4 constant. */
-const MM_PER_IN = 25.4;
+/** Millimetres per inch — single source of truth for the 25.4 constant. */
+export const MM_PER_IN = 25.4;
 
 /**
- * Convert a distance between mm and inches. Pure number math; the only
- * place in the codebase that hardcodes the inch/mm ratio.
+ * Convert a distance between mm and inches. The 25.4 ratio lives in
+ * `MM_PER_IN`; both this function and `Distance` derive from it.
  */
 export function convertUnits(
   value: number,
@@ -165,6 +165,21 @@ export function formatDimensionForInput(
   return String(Number(value.toFixed(4)));
 }
 
+/**
+ * Pretty-print a meter value for end-user display (BOM, layout, PDF,
+ * dimension labels). Inches snap to nearest 1/32 within the woodworker
+ * threshold; mm renders to 2dp trimmed. The single shared formatter so
+ * one part shows the same string everywhere.
+ */
+export function formatDistance(meters: number, unit: 'mm' | 'in'): string {
+  const d = new Distance(meters);
+  if (unit === 'in')
+    return `${toFraction(d.in, WOODWORKER_FRACTION_THRESHOLD)}"`;
+  return `${Number(d.mm.toFixed(2))}mm`;
+}
+
+const M_PER_FT = (MM_PER_IN * 12) / 1000;
+
 export class Distance {
   readonly m: number;
 
@@ -172,9 +187,9 @@ export class Distance {
     if (typeof v === 'number') {
       this.m = v;
     } else if (v.endsWith('ft')) {
-      this.m = Number(v.replace('ft', '')) * 0.3048;
+      this.m = Number(v.replace('ft', '')) * M_PER_FT;
     } else if (v.endsWith('in') || v.endsWith('"')) {
-      this.m = Number(v.replace(/(in|")/, '')) * 0.0254;
+      this.m = (Number(v.replace(/(in|")/, '')) * MM_PER_IN) / 1000;
     } else if (v.endsWith('mm')) {
       this.m = Number(v.replace('mm', '')) / 1000;
     } else {
@@ -189,9 +204,9 @@ export class Distance {
     return this.m * 1000;
   }
   get in() {
-    return this.m * 39.37008;
+    return (this.m * 1000) / MM_PER_IN;
   }
   get ft() {
-    return this.m * 3.28084;
+    return this.m / M_PER_FT;
   }
 }

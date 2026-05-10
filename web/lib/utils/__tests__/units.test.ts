@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  convertUnits,
   formatDimensionForInput,
   parseDimension,
   toFraction,
@@ -117,6 +118,29 @@ describe('Unit Utils', () => {
     it('returns empty string for null/undefined', () => {
       expect(formatDimensionForInput(null, 'in')).toBe('');
       expect(formatDimensionForInput(undefined, 'mm')).toBe('');
+    });
+  });
+
+  describe('convertUnits', () => {
+    it('returns the same value when from === to', () => {
+      expect(convertUnits(1220, 'mm', 'mm')).toBe(1220);
+      expect(convertUnits(48, 'in', 'in')).toBe(48);
+    });
+
+    it('mm → in scales by 1/25.4', () => {
+      expect(convertUnits(25.4, 'mm', 'in')).toBeCloseTo(1, 10);
+      expect(convertUnits(1219.2, 'mm', 'in')).toBeCloseTo(48, 10);
+    });
+
+    it('in → mm scales by 25.4', () => {
+      expect(convertUnits(1, 'in', 'mm')).toBeCloseTo(25.4, 10);
+      expect(convertUnits(48, 'in', 'mm')).toBeCloseTo(1219.2, 10);
+    });
+
+    it('round-trips losslessly within float precision', () => {
+      const inches = 3 + 7 / 8;
+      const mm = convertUnits(inches, 'in', 'mm');
+      expect(convertUnits(mm, 'mm', 'in')).toBeCloseTo(inches, 10);
     });
   });
 });

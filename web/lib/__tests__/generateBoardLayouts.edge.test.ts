@@ -35,9 +35,8 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '1m', length: '2m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
     ];
     const parts = [
@@ -56,15 +55,13 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '1m', length: '2m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
       {
         material: 'Plywood',
-        unit: 'mm',
 
-        sizes: [{ width: '1m', length: '2m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
     ];
     const parts = [
@@ -87,25 +84,6 @@ describe('generateBoardLayouts edge cases', () => {
     }
   });
 
-  // 3. String distance stock — '18mm' thickness parsed correctly
-  it('parses string distances in stock and matches part thickness', () => {
-    const stock: StockMatrix[] = [
-      {
-        material: 'MDF',
-        unit: 'mm',
-
-        sizes: [{ width: '1000mm', length: '2000mm', thickness: ['18mm'] }],
-      },
-    ];
-    // 0.018m === 18mm
-    const parts = [makePart(1, 0.4, 0.4, 'MDF', 0.018)];
-
-    const result = generateBoardLayouts(parts, stock, baseConfig);
-
-    expect(result.leftovers).toHaveLength(0);
-    expect(result.layouts).toHaveLength(1);
-  });
-
   // 4. margin reduces effective bin — part close to 1m doesn't fit in (1m - 2×margin)
   it('does not place a part that exceeds the effective bin size after margin is applied', () => {
     // Bin is 1m×1m; margin is 10mm → effective area is 0.98m×0.98m
@@ -113,14 +91,13 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '1m', length: '1m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },
     ];
     const configWithMargin: Config = {
       ...baseConfig,
-      margin: 0.01, // 10mm in meters
+      margin: 10, // 10mm
     };
     const parts = [makePart(1, 0.995, 0.995)];
 
@@ -136,26 +113,26 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '1m', length: '1m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },
     ];
-    const margin = 0.05; // 50mm
-    const config: Config = { ...baseConfig, margin };
+    const marginMm = 50;
+    const marginM = marginMm / 1000;
+    const config: Config = { ...baseConfig, margin: marginMm };
     const parts = [makePart(1, 0.3, 0.3), makePart(2, 0.3, 0.3)];
 
     const result = generateBoardLayouts(parts, stock, config);
 
     expect(result.leftovers).toHaveLength(0);
     expect(result.layouts).toHaveLength(1);
-    expect(result.layouts[0].marginM).toBe(margin);
+    expect(result.layouts[0].marginM).toBe(marginM);
 
     for (const p of result.layouts[0].placements) {
-      expect(p.leftM).toBeGreaterThanOrEqual(margin - 1e-9);
-      expect(p.bottomM).toBeGreaterThanOrEqual(margin - 1e-9);
-      expect(p.rightM).toBeLessThanOrEqual(1 - margin + 1e-9);
-      expect(p.topM).toBeLessThanOrEqual(1 - margin + 1e-9);
+      expect(p.leftM).toBeGreaterThanOrEqual(marginM - 1e-9);
+      expect(p.bottomM).toBeGreaterThanOrEqual(marginM - 1e-9);
+      expect(p.rightM).toBeLessThanOrEqual(1 - marginM + 1e-9);
+      expect(p.topM).toBeLessThanOrEqual(1 - marginM + 1e-9);
     }
   });
 
@@ -164,9 +141,8 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '1m', length: '1m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },
     ];
     const parts = [makePart(1, 0.3, 0.3)];
@@ -181,9 +157,8 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '1m', length: '2m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
     ];
 
@@ -208,9 +183,8 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '500mm', length: '500mm', thickness: ['18mm'] }],
+        sizes: [{ width: 500, length: 500, thickness: [18] }],
       },
     ];
     const parts = [makePart(1, 0.4, 0.4), makePart(2, 0.4, 0.4)];
@@ -226,9 +200,8 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '500mm', length: '500mm', thickness: ['18mm'] }],
+        sizes: [{ width: 500, length: 500, thickness: [18] }],
       },
     ];
     // Part is 1m×1m — larger than the 0.5m×0.5m board
@@ -247,9 +220,8 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '1m', length: '3m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 3000, thickness: [18] }],
       },
     ];
     const config: Config = {
@@ -275,15 +247,13 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'Plywood',
-        unit: 'mm',
 
-        sizes: [{ width: '1200mm', length: '2400mm', thickness: ['12mm'] }],
+        sizes: [{ width: 1200, length: 2400, thickness: [12] }],
       },
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '1200mm', length: '2400mm', thickness: ['18mm'] }],
+        sizes: [{ width: 1200, length: 2400, thickness: [18] }],
       },
     ];
 
@@ -331,11 +301,8 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'Plywood',
-        unit: 'mm',
 
-        sizes: [
-          { width: '1200mm', length: '2400mm', thickness: ['18mm', '12mm'] },
-        ],
+        sizes: [{ width: 1200, length: 2400, thickness: [18, 12] }],
       },
     ];
 
@@ -386,14 +353,13 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
 
-        sizes: [{ width: '1m', length: '1m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },
     ];
 
     const noBladeConfig: Config = { ...baseConfig, bladeWidth: 0 };
-    const withBladeConfig: Config = { ...baseConfig, bladeWidth: 0.03 }; // 30mm
+    const withBladeConfig: Config = { ...baseConfig, bladeWidth: 30 };
 
     // 4 parts that tile 2×2 without gaps (each 0.49m × 0.49m)
     const parts = [
@@ -425,8 +391,7 @@ describe('generateBoardLayouts edge cases', () => {
     const stock: StockMatrix[] = [
       {
         material: 'MDF',
-        unit: 'mm',
-        sizes: [{ width: '1m', length: '1m', thickness: ['18mm'] }],
+        sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },
     ];
     const parts = [

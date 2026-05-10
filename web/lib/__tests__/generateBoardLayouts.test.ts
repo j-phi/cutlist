@@ -22,8 +22,7 @@ function createPart(
 const stock = [
   {
     material: 'MDF',
-    unit: 'mm' as const,
-    sizes: [{ width: '1m', length: '3m', thickness: ['0.018m'] }],
+    sizes: [{ width: 1000, length: 3000, thickness: [18] }],
   },
 ];
 
@@ -100,15 +99,13 @@ describe('generateBoardLayouts', () => {
     const mixedStock = [
       {
         material: 'Plywood',
-        unit: 'mm' as const,
-        sizes: [{ width: '1m', length: '3m', thickness: ['0.018m'] }],
-        thicknessAlgorithms: { '0.018m': 'tidy' as const },
+        sizes: [{ width: 1000, length: 3000, thickness: [18] }],
+        thicknessAlgorithms: { 18: 'tidy' as const },
       },
       {
         material: 'MDF',
-        unit: 'mm' as const,
-        sizes: [{ width: '1m', length: '3m', thickness: ['0.018m'] }],
-        thicknessAlgorithms: { '0.018m': 'compact' as const },
+        sizes: [{ width: 1000, length: 3000, thickness: [18] }],
+        thicknessAlgorithms: { 18: 'compact' as const },
       },
     ];
     const plywoodParts = [
@@ -147,9 +144,8 @@ describe('generateBoardLayouts', () => {
     const overrideStock = [
       {
         material: 'MDF',
-        unit: 'mm' as const,
-        sizes: [{ width: '1m', length: '3m', thickness: ['0.018m'] }],
-        thicknessAlgorithms: { '0.018m': 'tidy' as const },
+        sizes: [{ width: 1000, length: 3000, thickness: [18] }],
+        thicknessAlgorithms: { 18: 'tidy' as const },
       },
     ];
     const parts = [
@@ -179,15 +175,13 @@ describe('generateBoardLayouts', () => {
     const stockWithOverrideOnSecondEntry = [
       {
         material: 'Plywood',
-        unit: 'mm' as const,
         // Larger area — will sort first.
-        sizes: [{ width: '2m', length: '3m', thickness: ['0.018m'] }],
+        sizes: [{ width: 2000, length: 3000, thickness: [18] }],
       },
       {
         material: 'Plywood',
-        unit: 'mm' as const,
-        sizes: [{ width: '1m', length: '2m', thickness: ['0.018m'] }],
-        thicknessAlgorithms: { '0.018m': 'tidy' as const },
+        sizes: [{ width: 1000, length: 2000, thickness: [18] }],
+        thicknessAlgorithms: { 18: 'tidy' as const },
       },
     ];
     const parts = [

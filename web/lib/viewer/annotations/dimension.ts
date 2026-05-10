@@ -28,7 +28,7 @@
  * on furniture-scale models — invisible to the eye.
  */
 
-import { Distance, toFraction, WOODWORKER_FRACTION_THRESHOLD } from 'cutlist';
+import { formatDistance } from 'cutlist';
 import { ref, type Ref } from 'vue';
 import type { PickKindHandler } from '~/composables/useAnnotationAuthor';
 import { PREVIEW_ANNOTATION_ID } from '~/composables/useAnnotationAuthor';
@@ -76,18 +76,10 @@ export interface DimensionViewer {
 // ─── Pure helpers ──────────────────────────────────────────────────────────
 
 /**
- * Format a viewer dimension label. Matches `useFormatDistance` so a part
- * shows the same string in the BOM, on the model viewer, and in the PDF.
+ * Format a viewer dimension label. Thin alias over `formatDistance` so the
+ * viewer matches the BOM, layout, and PDF.
  */
-export function formatLength(
-  meters: number,
-  distanceUnit: 'mm' | 'in',
-): string {
-  const d = new Distance(meters);
-  if (distanceUnit === 'in')
-    return `${toFraction(d.in, WOODWORKER_FRACTION_THRESHOLD)}"`;
-  return `${Number(d.mm.toFixed(2))}mm`;
-}
+export const formatLength = formatDistance;
 
 /**
  * Snap a raw cursor-derived perpendicular offset to the nearest 45° around

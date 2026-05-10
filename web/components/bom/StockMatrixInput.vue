@@ -21,47 +21,21 @@ const err = ref<unknown>();
 let lastSerialized = value.value;
 let updating = false;
 
-// String dimensions (`"18mm"`) carry their own unit per the schema; the UI
-// only ever produces numbers, so we leave strings untouched here and let
-// the cutlist library interpret them downstream.
-function convertDim(dim: number | string, from: 'mm' | 'in', to: 'mm' | 'in') {
-  if (typeof dim === 'string' || from === to) return dim;
-  return Number(convertUnits(dim, from, to).toFixed(to === 'in' ? 5 : 3));
-}
-
-function normalizeRow(row: StockMatrix, target: 'mm' | 'in'): StockMatrix {
-  const from = row.unit ?? 'mm';
-  if (from === target) return { ...row, unit: target };
-  return {
-    ...row,
-    unit: target,
-    sizes: row.sizes.map((size) => ({
-      width: convertDim(size.width, from, target),
-      length: convertDim(size.length, from, target),
-      thickness: size.thickness.map((t) => convertDim(t, from, target)),
-    })),
-  };
-}
+/** Storage is mm; the UI displays in `unit.value` and parses back to mm. */
+const toDisplay = (mm: number) => convertUnits(mm, 'mm', unit.value);
+const fromDisplay = (display: number) =>
+  convertUnits(display, unit.value, 'mm');
 
 function parseAndSet(yaml: string) {
   updating = true;
-  let normalizedAny = false;
   try {
-    const raw = parseStock(yaml);
-    const target = unit.value;
-    matrix.value = raw.map((r) => {
-      if ((r.unit ?? 'mm') !== target) normalizedAny = true;
-      return normalizeRow(r, target);
-    });
+    matrix.value = parseStock(yaml);
     err.value = undefined;
   } catch (e) {
     err.value = e;
   } finally {
     updating = false;
   }
-  // If the incoming YAML was in a different unit than the project, persist
-  // the normalized form back through v-model so storage matches the UI.
-  if (normalizedAny && !err.value) serialize();
 }
 
 parseAndSet(value.value);
@@ -93,12 +67,6 @@ watch(
   { deep: true, flush: 'sync' },
 );
 
-// When the project unit flips, convert every row in place. The deep watcher
-// above re-serializes through v-model so the persisted YAML stays in sync.
-watch(unit, (target) => {
-  matrix.value = matrix.value.map((r) => normalizeRow(r, target));
-});
-
 function commit() {
   try {
     reduceStockMatrix(JSON.parse(JSON.stringify(matrix.value)));
@@ -122,10 +90,9 @@ function tKey(matIndex: number, sizeIndex: number) {
 
 function addThickness(matIndex: number, sizeIndex: number) {
   const key = tKey(matIndex, sizeIndex);
-  const raw = newThickness.value[key];
-  const num = parseDimension(raw, unit.value);
-  if (num == null || num <= 0) return;
-  matrix.value[matIndex].sizes[sizeIndex].thickness.push(num);
+  const display = parseDimension(newThickness.value[key], unit.value);
+  if (display == null || display <= 0) return;
+  matrix.value[matIndex].sizes[sizeIndex].thickness.push(fromDisplay(display));
   newThickness.value[key] = '';
 }
 
@@ -145,7 +112,11 @@ function addSize(matIndex: number) {
   const w = parseDimension(newSizeWidth.value[matIndex], unit.value);
   const l = parseDimension(newSizeLength.value[matIndex], unit.value);
   if (w == null || w <= 0 || l == null || l <= 0) return;
-  matrix.value[matIndex].sizes.push({ width: w, length: l, thickness: [] });
+  matrix.value[matIndex].sizes.push({
+    width: fromDisplay(w),
+    length: fromDisplay(l),
+    thickness: [],
+  });
   newSizeWidth.value[matIndex] = '';
   newSizeLength.value[matIndex] = '';
 }
@@ -157,7 +128,6 @@ function removeSize(matIndex: number, sizeIndex: number) {
 function addMaterial() {
   matrix.value.push({
     material: 'New Material',
-    unit: unit.value,
     sizes: [],
     color: FALLBACK_PALETTE[matrix.value.length % FALLBACK_PALETTE.length],
   });
@@ -167,9 +137,8 @@ function removeMaterial(index: number) {
   matrix.value.splice(index, 1);
 }
 
-function displayDim(dim: number | string): string {
-  if (typeof dim === 'string') return dim;
-  return formatDimensionForInput(dim, unit.value);
+function displayDim(mm: number): string {
+  return formatDimensionForInput(toDisplay(mm), unit.value);
 }
 
 const scrollContainer = ref<HTMLElement>();

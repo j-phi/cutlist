@@ -55,19 +55,16 @@ const parsedMatrix = computed<StockMatrix[]>(() => {
 
 /**
  * Match a layout's `thicknessM` back to the YAML thickness key on a single
- * `StockMatrix` row. Keys in `thicknessAlgorithms` use the as-written
- * representation, e.g. `"18"` for `18mm` or `"0.75"` for `0.75in`.
+ * `StockMatrix` row. Stock thicknesses are mm; the key is the mm value
+ * stringified (e.g. `"18"` for 18mm, `"19.05"` for 3/4").
  */
 function findThicknessKeyOnItem(
   item: StockMatrix,
   thicknessM: number,
 ): string | undefined {
-  const unit = item.unit ?? 'mm';
   for (const size of item.sizes) {
     for (const t of size.thickness) {
-      const inMeters =
-        typeof t === 'string' ? new Distance(t).m : new Distance(t + unit).m;
-      if (Math.abs(inMeters - thicknessM) < 1e-5) return String(t);
+      if (Math.abs(t / 1000 - thicknessM) < 1e-5) return String(t);
     }
   }
   return undefined;

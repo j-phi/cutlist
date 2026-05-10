@@ -19,6 +19,8 @@
  *  - New required fields must have a sensible default.
  */
 
+import { convertUnits, parseDimension } from 'cutlist';
+import YAML from 'js-yaml';
 import {
   FutureSchemaError,
   LegacyExportError,
@@ -58,7 +60,92 @@ export const migrations: RecordMigration[] = [
       return next;
     },
   },
+
+  // v3: canonical mm at rest. `bladeWidth`, `margin`, and every numeric in
+  // the stock YAML are converted from the project's old `distanceUnit` to
+  // mm (per-row `unit:` honoured first when present). Mirror of the Dexie
+  // .version(3).upgrade() in `~/composables/useIdb/db`.
+  {
+    version: 3,
+    store: 'projects',
+    migrate: (record) => migrateProjectToMmStorage(record),
+  },
 ];
+
+/**
+ * v3 transform: project numerics → mm, drop per-row `unit` from stock YAML.
+ * Exported so the Dexie upgrade callback runs the same logic — a single
+ * source for the migration.
+ */
+export function migrateProjectToMmStorage(record: IdbRecord): IdbRecord {
+  const oldUnit = (record.distanceUnit === 'in' ? 'in' : 'mm') as 'mm' | 'in';
+  const next: IdbRecord = { ...record };
+  if (typeof next.bladeWidth === 'number') {
+    next.bladeWidth = convertUnits(next.bladeWidth, oldUnit, 'mm');
+  }
+  if (typeof next.margin === 'number') {
+    next.margin = convertUnits(next.margin, oldUnit, 'mm');
+  }
+  if (typeof next.stock === 'string' && next.stock.trim() !== '') {
+    next.stock = migrateStockYamlToMm(next.stock, oldUnit);
+  }
+  return next;
+}
+
+interface OldStockSize {
+  width: number | string;
+  length: number | string;
+  thickness: Array<number | string>;
+}
+interface OldStockMatrix {
+  material: string;
+  unit?: 'mm' | 'in';
+  sizes: OldStockSize[];
+  color?: string;
+  thicknessAlgorithms?: Record<string, string>;
+}
+
+function migrateStockYamlToMm(yaml: string, projectUnit: 'mm' | 'in'): string {
+  let parsed: unknown;
+  try {
+    parsed = YAML.load(yaml);
+  } catch {
+    return yaml;
+  }
+  if (!Array.isArray(parsed)) return yaml;
+
+  const migrated = (parsed as OldStockMatrix[]).map((row) => {
+    const rowUnit = row.unit ?? projectUnit;
+    const next: Record<string, unknown> = { ...row };
+    delete next.unit;
+    next.sizes = row.sizes.map((s) => ({
+      width: dimToMm(s.width, rowUnit),
+      length: dimToMm(s.length, rowUnit),
+      thickness: s.thickness.map((t) => dimToMm(t, rowUnit)),
+    }));
+    return next;
+  });
+  return YAML.dump(migrated, { indent: 2, flowLevel: 2 });
+}
+
+/**
+ * Convert a legacy stock dimension to mm. Numbers use the row's unit;
+ * strings either carry their own suffix (`"18mm"`, `"3/4in"`, `"4ft"`) or
+ * are parsed as the row's unit. Pre-v3 YAML used the union shape — this
+ * function handles both branches so the migration is a one-shot.
+ */
+function dimToMm(dim: number | string, rowUnit: 'mm' | 'in'): number {
+  if (typeof dim === 'number') return convertUnits(dim, rowUnit, 'mm');
+  const s = dim.trim();
+  if (/mm$/i.test(s)) return Number(s.slice(0, -2));
+  if (/(in|"|″)$/i.test(s) || /'/.test(s) || /ft$/i.test(s)) {
+    const inches = parseDimension(s, 'in');
+    return inches == null ? NaN : convertUnits(inches, 'in', 'mm');
+  }
+  // Untagged string — interpret as the row's unit.
+  const v = parseDimension(s, rowUnit);
+  return v == null ? NaN : convertUnits(v, rowUnit, 'mm');
+}
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */
 export function migrateRecord(

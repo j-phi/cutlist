@@ -1,19 +1,11 @@
-import { Distance, toFraction, WOODWORKER_FRACTION_THRESHOLD } from 'cutlist';
+import { formatDistance } from 'cutlist';
 
 export default function () {
   const { distanceUnit } = useProjectSettings();
 
   return (m: number | undefined | null) => {
-    if (m == null || toValue(distanceUnit) == null) return;
-
-    const distance = new Distance(m);
-    if (toValue(distanceUnit) === 'in') {
-      return `${toFraction(distance.in, WOODWORKER_FRACTION_THRESHOLD)}"`;
-    }
-    return `${roundMetric(distance.mm, 2)}mm`;
+    const unit = toValue(distanceUnit);
+    if (m == null || unit == null) return;
+    return formatDistance(m, unit);
   };
-}
-
-function roundMetric(value: number, precision = 3) {
-  return String(Number(value.toFixed(precision)));
 }

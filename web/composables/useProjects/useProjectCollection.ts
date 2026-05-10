@@ -8,11 +8,7 @@
  */
 import { computed } from 'vue';
 import * as Sentry from '@sentry/nuxt';
-import {
-  DEFAULT_SETTINGS,
-  getBladeWidthForUnit,
-  getStockYamlForUnit,
-} from '~/utils/settings';
+import { DEFAULT_SETTINGS, getDefaultStockYaml } from '~/utils/settings';
 import { useIdb } from '~/composables/useIdb';
 import { resetDatabase as idbResetDatabase } from '~/composables/useIdb/db';
 import {
@@ -73,8 +69,7 @@ export default function useProjectCollection() {
   async function addProject(name: string, unit: 'mm' | 'in') {
     const project = await idb.createProject(name, {
       distanceUnit: unit,
-      bladeWidth: getBladeWidthForUnit(unit),
-      stock: getStockYamlForUnit(unit),
+      stock: getDefaultStockYaml(unit),
     });
     projectList.value = [
       ...projectList.value,

@@ -86,7 +86,6 @@ const MaterialColorPickerStub = defineComponent({
 });
 
 const VALID_YAML = `- material: Plywood
-  unit: mm
   color: '#aabbcc'
   sizes:
     - width: 1220
@@ -269,54 +268,19 @@ describe('StockMatrixInput', () => {
       expect(host.findAll('select')).toHaveLength(0);
     });
 
-    it('Should label new materials with the project distance unit', () => {
+    it('Should add new materials without a unit field (storage is mm)', () => {
       distanceUnit.value = 'in';
       const host = makeWrapper('[]');
       const inner = getInner(host);
       (inner.vm as unknown as { addMaterial: () => void }).addMaterial();
       const value = (host.vm as unknown as { value: string }).value;
-      const parsed = YAML.load(value) as Array<{ unit: string }>;
-      expect(parsed[0].unit).toBe('in');
-    });
-
-    it('Should normalize incoming rows that disagree with the project unit', async () => {
-      distanceUnit.value = 'in';
-      const host = makeWrapper();
-      await nextTick();
-      const value = (host.vm as unknown as { value: string }).value;
-      const parsed = YAML.load(value) as Array<{
-        unit: string;
-        sizes: Array<{
-          width: number;
-          length: number;
-          thickness: number[];
-        }>;
-      }>;
-      expect(parsed[0].unit).toBe('in');
-      // 1220mm ≈ 48.031in, 2440mm ≈ 96.063in, 18mm ≈ 0.709in.
-      expect(parsed[0].sizes[0].width).toBeCloseTo(48.031, 2);
-      expect(parsed[0].sizes[0].length).toBeCloseTo(96.063, 2);
-      expect(parsed[0].sizes[0].thickness[0]).toBeCloseTo(0.709, 2);
-    });
-
-    it('Should convert in place when the project unit changes', async () => {
-      const host = makeWrapper();
-      distanceUnit.value = 'in';
-      await nextTick();
-      const inner = getInner(host);
-      const vm = inner.vm as unknown as {
-        matrix: Array<{
-          unit: string;
-          sizes: Array<{ thickness: number[] }>;
-        }>;
-      };
-      expect(vm.matrix[0].unit).toBe('in');
-      expect(vm.matrix[0].sizes[0].thickness[0]).toBeCloseTo(0.709, 2);
+      const parsed = YAML.load(value) as Array<Record<string, unknown>>;
+      expect('unit' in parsed[0]).toBe(false);
     });
   });
 
-  describe('Imperial input', () => {
-    it('Should accept fractions for thickness', () => {
+  describe('Imperial input (storage is mm)', () => {
+    it('Should accept fractions for thickness and store mm', () => {
       distanceUnit.value = 'in';
       const host = makeWrapper();
       const inner = getInner(host);
@@ -328,10 +292,11 @@ describe('StockMatrixInput', () => {
       vm.newThickness['0-0'] = '1/2';
       vm.addThickness(0, 0);
       const t = vm.matrix[0].sizes[0].thickness;
-      expect(t[t.length - 1]).toBe(0.5);
+      // 1/2 in = 12.7 mm
+      expect(t[t.length - 1]).toBeCloseTo(12.7, 5);
     });
 
-    it('Should accept mixed-number sizes', () => {
+    it('Should accept mixed-number sizes and convert to mm', () => {
       distanceUnit.value = 'in';
       const host = makeWrapper();
       const inner = getInner(host);
@@ -347,8 +312,8 @@ describe('StockMatrixInput', () => {
       vm.newSizeLength[0] = '4ft';
       vm.addSize(0);
       const last = vm.matrix[0].sizes[vm.matrix[0].sizes.length - 1];
-      expect(last.width).toBeCloseTo(1.5, 5);
-      expect(last.length).toBeCloseTo(48, 5);
+      expect(last.width).toBeCloseTo(38.1, 5); // 1.5 in
+      expect(last.length).toBeCloseTo(1219.2, 5); // 48 in
     });
   });
 
