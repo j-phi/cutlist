@@ -54,11 +54,13 @@ function repeat<T>(n: number, fn: (i: number) => T): T[] {
 }
 
 const PLY_18MM_FULL: StockMatrix = {
+  kind: 'sheet',
   material: 'Plywood',
   sizes: [{ width: 1220, length: 2440, thickness: [18] }],
 };
 
 const PLY_18MM_MULTI: StockMatrix = {
+  kind: 'sheet',
   material: 'Plywood',
   sizes: [
     { width: 1220, length: 2440, thickness: [18] },

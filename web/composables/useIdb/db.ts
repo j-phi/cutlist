@@ -15,7 +15,10 @@
 import { ref, readonly } from 'vue';
 import Dexie, { type Table } from 'dexie';
 import { FutureSchemaError, SCHEMA_VERSION } from '~/utils/versions';
-import { migrateProjectToMmStorage } from '~/utils/projectImport/migrations';
+import {
+  migrateProjectToMmStorage,
+  migrateStockToV4,
+} from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
   IdbModel,
@@ -83,6 +86,20 @@ export class CutlistDB extends Dexie {
           .toCollection()
           .modify((p: Record<string, unknown>) => {
             Object.assign(p, migrateProjectToMmStorage(p));
+          });
+      });
+
+    // v4 — stock-YAML rows gain an explicit `kind: 'sheet' | 'linear'`
+    // discriminator. Pre-v4 rows are implicitly sheet; the migration stamps
+    // the field so the discriminated `StockMatrix` union parses them.
+    this.version(4)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateStockToV4(p));
           });
       });
   }

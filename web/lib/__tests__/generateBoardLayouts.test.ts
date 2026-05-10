@@ -21,6 +21,7 @@ function createPart(
 
 const stock = [
   {
+    kind: 'sheet' as const,
     material: 'MDF',
     sizes: [{ width: 1000, length: 3000, thickness: [18] }],
   },
@@ -98,11 +99,13 @@ describe('generateBoardLayouts', () => {
     // runs its own tournament — verify Plywood ends up column-aligned.
     const mixedStock = [
       {
+        kind: 'sheet' as const,
         material: 'Plywood',
         sizes: [{ width: 1000, length: 3000, thickness: [18] }],
         thicknessAlgorithms: { 18: 'tidy' as const },
       },
       {
+        kind: 'sheet' as const,
         material: 'MDF',
         sizes: [{ width: 1000, length: 3000, thickness: [18] }],
         thicknessAlgorithms: { 18: 'compact' as const },
@@ -143,6 +146,7 @@ describe('generateBoardLayouts', () => {
     // per-thickness override forces 'tidy' for this stock entry.
     const overrideStock = [
       {
+        kind: 'sheet' as const,
         material: 'MDF',
         sizes: [{ width: 1000, length: 3000, thickness: [18] }],
         thicknessAlgorithms: { 18: 'tidy' as const },
@@ -174,11 +178,13 @@ describe('generateBoardLayouts', () => {
     // row sorts first by area.
     const stockWithOverrideOnSecondEntry = [
       {
+        kind: 'sheet' as const,
         material: 'Plywood',
         // Larger area — will sort first.
         sizes: [{ width: 2000, length: 3000, thickness: [18] }],
       },
       {
+        kind: 'sheet' as const,
         material: 'Plywood',
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
         thicknessAlgorithms: { 18: 'tidy' as const },

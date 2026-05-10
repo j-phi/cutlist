@@ -15,11 +15,30 @@ import {
   DEFAULT_INCH_PRECISION,
   DEFAULT_MM_PRECISION,
   parseDimension,
-  StockMatrix,
+  Algorithm,
 } from 'cutlist';
 import YAML from 'js-yaml';
 import { z } from 'zod';
 import type { IdbRecord, RecordMigration } from './types';
+
+/**
+ * Schema as it stood at v3 — sheet-only, no `kind` discriminator. The
+ * current `StockMatrix` lives in v4+ and rejects rows lacking `kind`, so we
+ * keep a frozen v3 shape here to validate the migration's output against
+ * the contract that existed when v3 shipped.
+ */
+const V3StockMatrix = z.object({
+  material: z.string(),
+  sizes: z.array(
+    z.object({
+      width: z.number(),
+      length: z.number(),
+      thickness: z.array(z.number()),
+    }),
+  ),
+  color: z.string().optional(),
+  thicknessAlgorithms: z.record(z.string(), Algorithm).optional(),
+});
 
 /**
  * Apply the v3 transform to a project record. Idempotent on already-v3
@@ -86,7 +105,7 @@ function migrateStockYamlToMm(yaml: string, projectUnit: 'mm' | 'in'): string {
   }
   if (!Array.isArray(parsed)) return YAML.dump([], { indent: 2, flowLevel: 2 });
 
-  const Schema = z.array(StockMatrix);
+  const Schema = z.array(V3StockMatrix);
   const cleaned: unknown[] = [];
   for (const raw of parsed as OldStockMatrix[]) {
     const next = convertRow(raw, projectUnit);

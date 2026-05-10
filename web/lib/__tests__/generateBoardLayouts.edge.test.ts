@@ -34,6 +34,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('puts all parts in leftovers when material is not in stock', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
@@ -54,11 +55,13 @@ describe('generateBoardLayouts edge cases', () => {
   it('places parts on the correct stock when multiple materials are present', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
       {
+        kind: 'sheet',
         material: 'Plywood',
 
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
@@ -90,6 +93,7 @@ describe('generateBoardLayouts edge cases', () => {
     // Part is 0.995m×0.995m which fits the raw board but not the reduced area
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
@@ -112,6 +116,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('insets placements from all board edges by the margin', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
@@ -140,6 +145,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('sets marginM to 0 when no margin is configured', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
@@ -156,6 +162,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('returns empty layouts and leftovers for an empty parts list', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
@@ -182,6 +189,7 @@ describe('generateBoardLayouts edge cases', () => {
     // Board is 0.5m×0.5m; each part is 0.4m×0.4m — two parts cannot share one board
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 500, length: 500, thickness: [18] }],
@@ -199,6 +207,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('puts a part that is larger than every stock board into leftovers', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 500, length: 500, thickness: [18] }],
@@ -219,6 +228,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('produces a deterministic result when searchPasses is set to a single pass', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 3000, thickness: [18] }],
@@ -246,11 +256,13 @@ describe('generateBoardLayouts edge cases', () => {
   it('does not change layouts for material B when grain lock changes on material A', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'Plywood',
 
         sizes: [{ width: 1200, length: 2400, thickness: [12] }],
       },
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1200, length: 2400, thickness: [18] }],
@@ -300,6 +312,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('does not change 18mm layouts when grain lock changes on 12mm of the same material', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'Plywood',
 
         sizes: [{ width: 1200, length: 2400, thickness: [18, 12] }],
@@ -352,6 +365,7 @@ describe('generateBoardLayouts edge cases', () => {
     // and the 3rd / 4th part must spill onto a second board.
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
@@ -390,6 +404,7 @@ describe('generateBoardLayouts edge cases', () => {
     // boards.
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },

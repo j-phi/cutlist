@@ -184,10 +184,14 @@ export function generateBoardLayouts(
  * `Config.defaultAlgorithm` when unset.
  *
  * Inputs are millimetres; outputs are meters (the engine's internal unit).
+ *
+ * Linear stock entries are skipped here — they're routed through the linear
+ * lane in a later stage. This keeps the 2D engine path sheet-only.
  */
 export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
-  return matrix.flatMap((item) =>
-    item.sizes.flatMap((size) =>
+  return matrix.flatMap((item) => {
+    if (item.kind !== 'sheet') return [];
+    return item.sizes.flatMap((size) =>
       size.thickness.map((thickness) => ({
         material: item.material,
         thickness: mmToM(thickness),
@@ -196,8 +200,8 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
         color: item.color,
         algorithm: item.thicknessAlgorithms?.[String(thickness)],
       })),
-    ),
-  );
+    );
+  });
 }
 
 export const PACKERS: Record<

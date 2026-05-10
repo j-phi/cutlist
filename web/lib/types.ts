@@ -9,8 +9,10 @@ import type { Rectangle } from './geometry';
  * - `compact`: Free-rect n-stage guillotine. Maximum yield within a
  *   guillotine constraint, at the cost of a zigzag cut sequence.
  * - `cnc`: Non-guillotine bottom-left. Maximum yield, requires a CNC router.
+ * - `linear`: 1D first-fit-decreasing for linear timber stock (sticks). Only
+ *   valid for `LinearStock` materials; ignored for sheet stock.
  */
-export const Algorithm = z.enum(['auto', 'tidy', 'compact', 'cnc']);
+export const Algorithm = z.enum(['auto', 'tidy', 'compact', 'cnc', 'linear']);
 export type Algorithm = z.infer<typeof Algorithm>;
 
 export const SearchPass = z.union([
@@ -50,12 +52,41 @@ export interface Stock {
 }
 
 /**
- * For a material, define board sizes and the thicknesses available in each.
+ * Engine-side linear stock: a single stick at a single length.
  *
- * All numeric dimensions are millimetres. The user's display preference
- * (`distanceUnit`) is applied in the UI only.
+ * Cross-section dimensions distinguish this from `Stock`'s panel `width` /
+ * `thickness` pair so callers can't accidentally feed a linear stick into a
+ * 2D packer. All numbers are meters (engine internal unit).
  */
-export const StockMatrix = z.object({
+export interface LinearStock {
+  kind: 'linear';
+  material: string;
+  /** Cross-section width in METERS. */
+  crossSectionWidth: number;
+  /** Cross-section thickness in METERS. */
+  crossSectionThickness: number;
+  /** Stick length in METERS. */
+  length: number;
+  color?: string;
+  algorithm?: Algorithm;
+}
+
+/** Engine-side stock union — sheet panels or linear sticks. */
+export type AnyStock = Stock | LinearStock;
+
+export const isLinearStock = (s: AnyStock): s is LinearStock =>
+  'kind' in s && s.kind === 'linear';
+
+/**
+ * Sheet stock matrix: a material sold as 2D panels (plywood, MDF, melamine).
+ *
+ * The discriminator defaults to `'sheet'` so freshly-authored literals (UI
+ * forms, presets) round-trip without callers having to type the field. By
+ * the time YAML reaches `parseStock`, the v4 migration has stamped explicit
+ * `kind: 'sheet'` on every legacy row.
+ */
+const SheetStockMatrixSchema = z.object({
+  kind: z.literal('sheet').default('sheet'),
   material: z.string(),
   /**
    * Available board sizes. Each entry is a width × length pair with its
@@ -78,7 +109,60 @@ export const StockMatrix = z.object({
    */
   thicknessAlgorithms: z.record(z.string(), Algorithm).optional(),
 });
+
+/**
+ * A linear stock cross-section: a single fixed width × thickness sold in
+ * one or more standard lengths (e.g. a 2×4 in 8 ft / 10 ft / 12 ft).
+ */
+export const LinearStockSize = z.object({
+  /** Cross-section width in millimetres (the wider face). */
+  crossSectionWidth: z.number(),
+  /** Cross-section thickness in millimetres (the narrower face). */
+  crossSectionThickness: z.number(),
+  /** Available stock lengths in millimetres. */
+  lengths: z.array(z.number()),
+});
+export type LinearStockSize = z.infer<typeof LinearStockSize>;
+
+/**
+ * Linear stock matrix: a material sold as 1D sticks (dimensional lumber,
+ * trim, dowels). Cross-section is fixed; only length varies.
+ */
+const LinearStockMatrixSchema = z.object({
+  kind: z.literal('linear'),
+  material: z.string(),
+  size: LinearStockSize,
+  /** Display color for board previews (hex string). */
+  color: z.string().optional(),
+  /**
+   * Optional per-material algorithm override. Falls back to
+   * `Config.defaultAlgorithm` when omitted; only `'linear'` is meaningful
+   * for this kind.
+   */
+  algorithm: Algorithm.optional(),
+});
+
+/**
+ * For a material, define stock dimensions. A material is *either* sheet
+ * *or* linear — never both. The packer routes per material based on the
+ * `kind` discriminator.
+ *
+ * Modeled as `z.union` rather than `z.discriminatedUnion` so the sheet
+ * variant's `kind` default fills in for legacy YAML rows authored before
+ * v4. The v4 migration also stamps `kind: 'sheet'` explicitly, but the
+ * default keeps `parseStock` forgiving of any path that bypasses migration
+ * (e.g. seed presets defined in code).
+ *
+ * All numeric dimensions are millimetres. The user's display preference
+ * (`distanceUnit`) is applied in the UI only.
+ */
+export const StockMatrix = z.union([
+  SheetStockMatrixSchema,
+  LinearStockMatrixSchema,
+]);
 export type StockMatrix = z.infer<typeof StockMatrix>;
+export type SheetStockMatrix = z.infer<typeof SheetStockMatrixSchema>;
+export type LinearStockMatrix = z.infer<typeof LinearStockMatrixSchema>;
 
 /**
  * Part info, material, and size. Everything needed to know how to layout the board on stock.
@@ -187,6 +271,46 @@ export interface BoardLayoutPlacement extends BoardLayoutLeftover {
   topM: number;
   bottomM: number;
 }
+
+export interface LinearBoardLayoutStock {
+  material: string;
+  crossSectionWidthM: number;
+  crossSectionThicknessM: number;
+  lengthM: number;
+  color?: string;
+}
+
+export interface LinearBoardLayoutPlacement {
+  partNumber: number;
+  instanceNumber: number;
+  name: string;
+  material: string;
+  /** Offset from the start of the stick in METERS. */
+  offsetM: number;
+  /** Length of this cut in METERS. */
+  lengthM: number;
+}
+
+/**
+ * Engine output for a single linear stick. The stick view in the UI and the
+ * shopping-list aggregator both consume this shape directly.
+ */
+export interface LinearBoardLayout {
+  kind: 'linear';
+  stock: LinearBoardLayoutStock;
+  placements: LinearBoardLayoutPlacement[];
+  marginM: number;
+  /** Trailing waste left over after the last cut, in METERS. */
+  wasteEndM: number;
+  algorithm: 'linear';
+}
+
+/** Engine output union — sheet board layouts or linear stick layouts. */
+export type AnyBoardLayout = BoardLayout | LinearBoardLayout;
+
+export const isLinearBoardLayout = (
+  l: AnyBoardLayout,
+): l is LinearBoardLayout => 'kind' in l && l.kind === 'linear';
 
 /**
  * Intermediate type for storing the board layout with the rectangle class. Not

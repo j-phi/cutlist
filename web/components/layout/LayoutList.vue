@@ -3,7 +3,7 @@ import {
   M_PER_IN,
   type Algorithm,
   type BoardLayout,
-  type StockMatrix,
+  type SheetStockMatrix,
 } from 'cutlist';
 import YAML from 'js-yaml';
 import { parseStock } from '~/utils/parseStock';
@@ -22,6 +22,7 @@ const ALGORITHM_LABEL: Record<Algorithm, string> = {
   tidy: 'Tidy',
   compact: 'Compact',
   cnc: 'CNC',
+  linear: 'Linear',
 };
 const ALGORITHM_ORDER: Algorithm[] = ['auto', 'tidy', 'compact', 'cnc'];
 
@@ -46,12 +47,20 @@ interface LayoutGroup {
   preference: Algorithm;
 }
 
-/** Single parse of the project's stock YAML; used for picker state. */
-const parsedMatrix = computed<StockMatrix[]>(() => {
+/**
+ * Single parse of the project's stock YAML; used for picker state.
+ *
+ * Linear timber rows are filtered out — the algorithm picker on this view is
+ * sheet-only. Linear stock has its own (single) algorithm and is rendered by
+ * a separate list component.
+ */
+const parsedMatrix = computed<SheetStockMatrix[]>(() => {
   const yaml = stock.value;
   if (!yaml) return [];
   try {
-    return parseStock(yaml);
+    return parseStock(yaml).filter(
+      (m): m is SheetStockMatrix => m.kind === 'sheet',
+    );
   } catch {
     return [];
   }
@@ -59,11 +68,11 @@ const parsedMatrix = computed<StockMatrix[]>(() => {
 
 /**
  * Match a layout's `thicknessM` back to the YAML thickness key on a single
- * `StockMatrix` row. Stock thicknesses are mm; the key is the mm value
+ * `SheetStockMatrix` row. Stock thicknesses are mm; the key is the mm value
  * stringified (e.g. `"18"` for 18mm, `"19.05"` for 3/4").
  */
 function findThicknessKeyOnItem(
-  item: StockMatrix,
+  item: SheetStockMatrix,
   thicknessM: number,
 ): string | undefined {
   for (const size of item.sizes) {
@@ -129,7 +138,7 @@ const groups = computed<LayoutGroup[]>(() => {
 function setOverride(material: string, thicknessM: number, alg: Algorithm) {
   const yaml = stock.value;
   if (!yaml) return;
-  let matrix: StockMatrix[];
+  let matrix;
   try {
     matrix = parseStock(yaml);
   } catch {
@@ -143,6 +152,7 @@ function setOverride(material: string, thicknessM: number, alg: Algorithm) {
   const inherited = defaultAlgorithm.value ?? 'auto';
   let touched = false;
   for (const item of matrix) {
+    if (item.kind !== 'sheet') continue;
     if (item.material !== material) continue;
     const key = findThicknessKeyOnItem(item, thicknessM);
     if (!key) continue;

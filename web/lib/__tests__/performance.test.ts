@@ -77,6 +77,7 @@ function generateLargeFixture(partCount: number): {
   }
 
   const stock: StockMatrix[] = materials.map((material) => ({
+    kind: 'sheet' as const,
     material,
     sizes: [
       {

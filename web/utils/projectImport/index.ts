@@ -216,7 +216,7 @@ const ProjectExportSchema = z.object({
     bladeWidth: z.number().finite().default(DEFAULT_SETTINGS.bladeWidth),
     margin: z.number().finite().default(DEFAULT_SETTINGS.margin),
     defaultAlgorithm: z
-      .enum(['auto', 'tidy', 'compact', 'cnc'])
+      .enum(['auto', 'tidy', 'compact', 'cnc', 'linear'])
       .default(DEFAULT_SETTINGS.defaultAlgorithm),
     showPartNumbers: z.boolean().default(DEFAULT_SETTINGS.showPartNumbers),
     createdAt: z.string(),
@@ -244,7 +244,7 @@ export interface ProjectImportDb {
       precision?: Precision;
       bladeWidth?: number;
       margin?: number;
-      defaultAlgorithm?: 'auto' | 'tidy' | 'compact' | 'cnc';
+      defaultAlgorithm?: 'auto' | 'tidy' | 'compact' | 'cnc' | 'linear';
       showPartNumbers?: boolean;
     },
   ) => Promise<{ id: string }>;

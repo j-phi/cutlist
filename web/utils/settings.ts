@@ -5,7 +5,7 @@ import {
   DEFAULT_MM_PRECISION,
   type Algorithm,
   type Precision,
-  type StockMatrix,
+  type SheetStockMatrix,
 } from 'cutlist';
 
 export interface CutlistSettings {
@@ -35,7 +35,7 @@ interface StockPreset {
   /** If true, this preset is auto-added to new projects matching `unit`. */
   default: boolean;
   unit: 'mm' | 'in';
-  stock: StockMatrix;
+  stock: SheetStockMatrix;
 }
 
 export const STOCK_PRESETS: StockPreset[] = [
@@ -45,6 +45,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: true,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'Plywood',
       color: '#d2b996',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9, 6] }],
@@ -55,6 +56,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: true,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'MDF',
       color: '#b09078',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9, 6, 3] }],
@@ -65,6 +67,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'Particle Board',
       color: '#c8b48c',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 16, 12] }],
@@ -75,6 +78,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'Melamine',
       color: '#ebe6de',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 16] }],
@@ -85,6 +89,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'OSB',
       color: '#c3a050',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9] }],
@@ -95,6 +100,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'Hardboard',
       color: '#694123',
       sizes: [{ width: 1220, length: 2440, thickness: [6, 3] }],
@@ -106,6 +112,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: true,
     unit: 'in',
     stock: {
+      kind: 'sheet',
       material: 'Plywood',
       color: '#d2b996',
       sizes: [{ width: 48, length: 96, thickness: [0.75, 0.5, 0.25] }],
@@ -116,6 +123,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'in',
     stock: {
+      kind: 'sheet',
       material: 'MDF',
       color: '#b09078',
       sizes: [{ width: 48, length: 96, thickness: [0.75, 0.5, 0.25] }],
@@ -129,6 +137,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'in',
     stock: {
+      kind: 'sheet',
       material: 'Hardwood',
       color: '#a5784a',
       sizes: [
@@ -143,6 +152,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'in',
     stock: {
+      kind: 'sheet',
       material: 'Softwood',
       color: '#dcc391',
       sizes: [
@@ -160,7 +170,7 @@ export const STOCK_PRESETS: StockPreset[] = [
  * rest. Always returns a fresh deep object so callers can mutate the
  * result without touching the shared module-scope preset.
  */
-export function presetToMmStock(preset: StockPreset): StockMatrix {
+export function presetToMmStock(preset: StockPreset): SheetStockMatrix {
   const scale = (n: number) =>
     preset.unit === 'mm' ? n : convertUnits(n, 'in', 'mm');
   return {

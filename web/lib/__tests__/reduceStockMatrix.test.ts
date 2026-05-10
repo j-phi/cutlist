@@ -9,6 +9,7 @@ describe('reduceStockMatrix', () => {
   it('converts mm input to meters', () => {
     const result = reduceStockMatrix([
       {
+        kind: 'sheet',
         material: 'MDF',
         sizes: [{ width: 1220, length: 2440, thickness: [18] }],
       },
@@ -22,6 +23,7 @@ describe('reduceStockMatrix', () => {
   it('returns one stock per size × thickness combination', () => {
     const result = reduceStockMatrix([
       {
+        kind: 'sheet',
         material: 'Ply',
         sizes: [
           { width: 600, length: 2440, thickness: [12] },
@@ -37,6 +39,7 @@ describe('reduceStockMatrix', () => {
     // 2 sizes × 3 thicknesses each = 6
     const result = reduceStockMatrix([
       {
+        kind: 'sheet',
         material: 'MDF',
         sizes: [
           { width: 600, length: 1800, thickness: [9, 12, 18] },
@@ -50,6 +53,7 @@ describe('reduceStockMatrix', () => {
   it('supports different thicknesses per size', () => {
     const result = reduceStockMatrix([
       {
+        kind: 'sheet',
         material: 'Ply',
         sizes: [
           { width: 1220, length: 2440, thickness: [18, 12, 9] },
@@ -69,6 +73,7 @@ describe('reduceStockMatrix', () => {
   it('preserves material on all stocks', () => {
     const result = reduceStockMatrix([
       {
+        kind: 'sheet',
         material: 'Oak',
         sizes: [
           { width: 300, length: 1800, thickness: [18] },
@@ -82,10 +87,12 @@ describe('reduceStockMatrix', () => {
   it('combines all stocks from multiple StockMatrix items', () => {
     const result = reduceStockMatrix([
       {
+        kind: 'sheet',
         material: 'MDF',
         sizes: [{ width: 1220, length: 2440, thickness: [18] }],
       },
       {
+        kind: 'sheet',
         material: 'Ply',
         sizes: [{ width: 600, length: 1800, thickness: [12] }],
       },

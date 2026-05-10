@@ -5,7 +5,7 @@ import {
   parseDimension,
   reduceStockMatrix,
 } from 'cutlist';
-import type { StockMatrix } from 'cutlist';
+import type { SheetStockMatrix } from 'cutlist';
 import { parseStock } from '~/utils/parseStock';
 import { FALLBACK_PALETTE } from '~/utils/materialColors';
 import YAML from 'js-yaml';
@@ -15,7 +15,7 @@ const value = defineModel<string>({ required: true });
 const { distanceUnit, precision } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
-const matrix = ref<StockMatrix[]>([]);
+const matrix = ref<SheetStockMatrix[]>([]);
 const err = ref<unknown>();
 
 let lastSerialized = value.value;
@@ -29,7 +29,11 @@ const fromDisplay = (display: number) =>
 function parseAndSet(yaml: string) {
   updating = true;
   try {
-    matrix.value = parseStock(yaml);
+    // Filter to sheet-only here; the Stock tab's "Add timber" path edits
+    // linear rows through a dedicated component in a later stage.
+    matrix.value = parseStock(yaml).filter(
+      (m): m is SheetStockMatrix => m.kind === 'sheet',
+    );
     err.value = undefined;
   } catch (e) {
     err.value = e;
@@ -146,6 +150,7 @@ function removeSize(matIndex: number, sizeIndex: number) {
 
 function addMaterial() {
   matrix.value.push({
+    kind: 'sheet',
     material: 'New Material',
     sizes: [],
     color: FALLBACK_PALETTE[matrix.value.length % FALLBACK_PALETTE.length],
