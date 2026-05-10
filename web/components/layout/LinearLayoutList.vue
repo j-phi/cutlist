@@ -39,7 +39,7 @@ const groups = computed<DisplayGroup[]>(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-16 m-16">
+  <div class="flex items-start gap-16 m-16">
     <section v-for="group in groups" :key="group.key" class="flex flex-col">
       <header class="zoom-stable origin-bottom-left mb-8">
         <h2 class="text-2xl font-bold text-teal-400">

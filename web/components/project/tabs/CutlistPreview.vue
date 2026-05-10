@@ -116,14 +116,16 @@ const showLeftoverBanner = computed(
             class="canvas-plane"
             :style="`--zoom:${scale ?? 1}`"
           >
-            <LayoutList
-              v-if="filteredSheetLayouts.length > 0"
-              :layouts="filteredSheetLayouts"
-            />
-            <LinearLayoutList
-              v-if="linearLayouts.length > 0"
-              :layouts="linearLayouts"
-            />
+            <div class="flex items-start">
+              <LayoutList
+                v-if="filteredSheetLayouts.length > 0"
+                :layouts="filteredSheetLayouts"
+              />
+              <LinearLayoutList
+                v-if="linearLayouts.length > 0"
+                :layouts="linearLayouts"
+              />
+            </div>
           </div>
         </template>
       </template>
