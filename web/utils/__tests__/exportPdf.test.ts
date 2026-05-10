@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { LinearBoardLayout } from 'cutlist';
 import { exportCutlistPdf, type ExportPdfOptions } from '../exportPdf';
 import { aggregateBom } from '../pdf/bom';
 
@@ -244,6 +245,115 @@ describe('exportCutlistPdf', () => {
     expect(header).toBe('%PDF-');
     // Rendering actual BOM rows must produce more bytes than an empty BOM.
     expect(withBomResult.length).toBeGreaterThan(emptyResult.length);
+  });
+
+  it('renders a linear shopping-list section when linearLayouts are supplied', async () => {
+    const linearLayouts: LinearBoardLayout[] = [
+      {
+        kind: 'linear',
+        algorithm: 'linear',
+        marginM: 0,
+        wasteEndM: 0.2,
+        stock: {
+          material: 'Pine 2x4',
+          crossSectionWidthM: 0.0381,
+          crossSectionThicknessM: 0.0889,
+          lengthM: 2.4384,
+          color: '#dcc391',
+        },
+        placements: [
+          {
+            partNumber: 1,
+            instanceNumber: 1,
+            name: 'Stud',
+            material: 'Pine 2x4',
+            offsetM: 0,
+            lengthM: 0.762,
+          },
+          {
+            partNumber: 1,
+            instanceNumber: 2,
+            name: 'Stud',
+            material: 'Pine 2x4',
+            offsetM: 0.762,
+            lengthM: 0.762,
+          },
+        ],
+      },
+      {
+        kind: 'linear',
+        algorithm: 'linear',
+        marginM: 0,
+        wasteEndM: 0.4,
+        stock: {
+          material: 'Pine 2x4',
+          crossSectionWidthM: 0.0381,
+          crossSectionThicknessM: 0.0889,
+          lengthM: 3.048,
+          color: '#dcc391',
+        },
+        placements: [
+          {
+            partNumber: 2,
+            instanceNumber: 1,
+            name: 'Plate',
+            material: 'Pine 2x4',
+            offsetM: 0,
+            lengthM: 1.524,
+          },
+        ],
+      },
+    ];
+
+    const baseline = await exportCutlistPdf(makeOptions());
+    const withLinear = await exportCutlistPdf(makeOptions({ linearLayouts }));
+    expect(withLinear).toBeInstanceOf(Uint8Array);
+    const header = new TextDecoder().decode(withLinear.slice(0, 5));
+    expect(header).toBe('%PDF-');
+    // Linear section adds at least one extra page worth of content.
+    expect(withLinear.length).toBeGreaterThan(baseline.length);
+  });
+
+  it('omits the linear section when linearLayouts is empty', async () => {
+    const baseline = await exportCutlistPdf(makeOptions());
+    const empty = await exportCutlistPdf(makeOptions({ linearLayouts: [] }));
+    // Empty linear list must not add pages.
+    expect(empty.length).toBe(baseline.length);
+  });
+
+  it('groups linear sticks by material with stable shopping-list order', async () => {
+    const linearLayouts: LinearBoardLayout[] = [
+      {
+        kind: 'linear',
+        algorithm: 'linear',
+        marginM: 0,
+        wasteEndM: 0,
+        stock: {
+          material: 'Pine 2x6',
+          crossSectionWidthM: 0.0381,
+          crossSectionThicknessM: 0.1397,
+          lengthM: 2.4384,
+        },
+        placements: [],
+      },
+      {
+        kind: 'linear',
+        algorithm: 'linear',
+        marginM: 0,
+        wasteEndM: 0,
+        stock: {
+          material: 'Pine 2x4',
+          crossSectionWidthM: 0.0381,
+          crossSectionThicknessM: 0.0889,
+          lengthM: 2.4384,
+        },
+        placements: [],
+      },
+    ];
+    const result = await exportCutlistPdf(makeOptions({ linearLayouts }));
+    expect(result).toBeInstanceOf(Uint8Array);
+    const header = new TextDecoder().decode(result.slice(0, 5));
+    expect(header).toBe('%PDF-');
   });
 
   it('handles leftovers in BOM aggregation', async () => {

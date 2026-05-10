@@ -35,6 +35,7 @@ export default function () {
         scale,
         bomRows: bomRows.value,
         layouts: layouts.value?.layouts ?? [],
+        linearLayouts: layouts.value?.linearLayouts ?? [],
         leftovers: layouts.value?.leftovers ?? [],
         formatSize: formatDistance,
         showPartNumbers: !!showPartNumbers.value,
