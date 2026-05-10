@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { mToMm } from 'cutlist';
 import { parseStock } from '~/utils/parseStock';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import { STORAGE_KEYS } from '~/utils/localStorage';
@@ -113,9 +114,9 @@ const manualPartInfoMap = computed(() => {
     result.set(pn, {
       partNumber: pn,
       name: parts[0].name,
-      widthMm: Math.round(parts[0].size.width * 1000),
-      lengthMm: Math.round(parts[0].size.length * 1000),
-      thicknessMm: Math.round(parts[0].size.thickness * 1000),
+      widthMm: mToMm(parts[0].size.width),
+      lengthMm: mToMm(parts[0].size.length),
+      thicknessMm: mToMm(parts[0].size.thickness),
       qty: parts.length,
       material: parts[0].colorKey,
       grainLock: parts[0].grainLock,

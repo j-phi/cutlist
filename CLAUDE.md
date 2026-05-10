@@ -240,21 +240,41 @@ Board layouts are cached per tab in a module-level `Map` inside [web/composables
 
 ### Migrations
 
-**IDB schema** is owned by the `CutlistDB` class in [web/composables/useIdb/db.ts](web/composables/useIdb/db.ts), which uses [Dexie](https://dexie.org). Each schema version is declared with a chained `this.version(N).stores({...}).upgrade(tx => ...)` call. Dexie opens the DB and runs any pending `.upgrade()` callbacks atomically; a mid-upgrade failure rolls the whole transaction back.
+Two paths convert old data to the current schema; both run the same per-version transform.
 
-**Export-file compatibility** is a separate concern, handled by [web/utils/projectImport/migrations.ts](web/utils/projectImport/migrations.ts). A `.cutlist.gz` emitted at schema v(N-1) still needs its record shapes brought up to vN when imported by a newer client — Dexie can't help with that since the file isn't in IDB yet. That module keeps:
+- **Local IDB upgrades**: `CutlistDB` in [web/composables/useIdb/db.ts](web/composables/useIdb/db.ts) declares one `this.version(N).stores({...}).upgrade(tx => ...)` block per schema version. Dexie runs any pending `.upgrade()` callbacks atomically when `db.open()` is called.
+- **Imported `.cutlist.gz` files**: a parallel registry in [web/utils/projectImport/migrations/](web/utils/projectImport/migrations/) applies the same transforms to records that arrive from outside IDB. `migrations/index.ts` is the version-agnostic registry; each `migrations/v<N>.ts` exports a `vNMigration: RecordMigration` plus the pure transform function. `migrateExport()` walks the registry to bring an import up to `SCHEMA_VERSION`.
 
-- **`migrations[]`** — pure, append-only entries applied to raw export records. Mirrors any Dexie `.upgrade()` record transformation.
-- **`migrateExport()`** — runs the above over an imported payload.
+The per-version transform must not throw — a thrown error inside Dexie's `.upgrade()` rolls back the transaction and locks the user out of the DB. Drop unparseable rows; preserve repairable ones (see `migrations/v3.ts` for the canonical defensive shape).
+
+`FutureSchemaError` (in `versions.ts`) is raised when the stored DB or imported file was written by a newer Cutlist than the one running. `LegacyExportError` covers `.cutlist.gz` files older than `MIN_SUPPORTED_EXPORT_VERSION`.
 
 **Read-path safety net**: `applyDefaults` helpers in [web/composables/useIdb/defaults.ts](web/composables/useIdb/defaults.ts) fill missing fields on every record read, so partial records from older writes still hydrate cleanly.
 
-### When adding a new field to a record type
+Current schema: **v3**. v2 normalised `optimize` → `defaultAlgorithm`; v3 canonicalised distance storage to millimetres (see `migrations/v3.ts` for the full shape).
 
-The current schema is a clean v1 baseline. The first real schema bump after this point follows:
+### When adding a new schema version
 
 1. Update the TypeScript interface in `useIdb/types.ts`.
-2. Append a new Dexie version block in `db.ts`:
+2. Create `web/utils/projectImport/migrations/v<N>.ts`:
+
+   ```ts
+   import type { IdbRecord, RecordMigration } from './types';
+
+   export function migrateProjectToVN(record: IdbRecord): IdbRecord {
+     /* defensive transform — never throw */
+   }
+
+   export const vNMigration: RecordMigration = {
+     version: N,
+     store: 'projects',
+     migrate: migrateProjectToVN,
+   };
+   ```
+
+3. Register the entry in `migrations/index.ts` by appending `vNMigration` to `migrations[]`.
+4. Add a matching Dexie block in `db.ts`. Do NOT edit older version blocks.
+
    ```ts
    this.version(N)
      .stores({
@@ -264,21 +284,66 @@ The current schema is a clean v1 baseline. The first real schema bump after this
        await tx
          .table('projects')
          .toCollection()
-         .modify((p) => {
-           p.newField = defaultValue;
+         .modify((p: Record<string, unknown>) => {
+           Object.assign(p, migrateProjectToVN(p));
          });
      });
    ```
-   Do NOT edit the existing v1 block.
-3. Bump `SCHEMA_VERSION` in `versions.ts` and add the matching pure-function entry to `migrations[]` in `projectImport/migrations.ts` for the import path.
-4. Update the relevant `applyDefaults` helper.
-5. Update `createX` to set the field for new records.
-6. Add a test in `utils/projectImport/__tests__/migrations.test.ts`.
+
+5. Bump `SCHEMA_VERSION` in `versions.ts`.
+6. Update the relevant `applyDefaults` helper.
+7. Update `createX` to set the field for new records.
+8. Add tests in `web/utils/projectImport/migrations/__tests__/v<N>.test.ts` (per-version, sibling to the source). Registry-level invariants live in `web/utils/projectImport/__tests__/migrations.test.ts`.
 
 ### IDB error handling
 
 - **QuotaExceededError**: all mutations (create/update/delete) go through `safeWrite()` which catches quota errors and sets `useIdbErrors().error` so the UI can show a toast.
 - **Import validation**: all `.cutlist.gz` imports are validated against strict Zod schemas in `projectImport/index.ts` before touching IDB.
+
+## Dimensions and units
+
+The app handles distances in three layers, modelled after SketchUp / Fusion / AutoCAD:
+
+| Layer       | Unit                                            | Where                                                                             |
+| ----------- | ----------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Storage** | Millimetres (raw, no rounding)                  | `IdbProject.{bladeWidth, margin}`, stock YAML, `Part.size.*` (after `mmToM` to m) |
+| **Engine**  | Meters                                          | `web/lib/index.ts` and packers — converted at the boundary via `mmToM` / `mToMm`  |
+| **Display** | User's `distanceUnit` rounded to user precision | BOM, layout, PDF, viewer labels, edit-prefill                                     |
+
+Storage stays raw forever. The user's `distanceUnit` (mm or in) and `precision` setting (fractional or decimal) only affect rendering and how typed input is reformatted on blur. Typing `1.95"` stores 49.53 mm; flipping precision to `1/32` displays `1 15/16"`; flipping to `Decimal (0.01")` displays `1.95"`. Storage is unchanged either way.
+
+### The units module — `web/lib/utils/units.ts`
+
+Single source of truth, exported through the `cutlist` library entry:
+
+- **Conversion**: `MM_PER_IN`, `M_PER_IN`, `mmToM(mm)`, `mToMm(m)`, `convertUnits(value, from, to)`. The 25.4 constant lives only in `MM_PER_IN`.
+- **Precision type**: `Precision = { kind: 'fraction', denominator: 8|16|32|64 } | { kind: 'decimal', step: number }`. Defaults: `DEFAULT_INCH_PRECISION = 1/32"`, `DEFAULT_MM_PRECISION = 0.1mm`.
+- **Parsing**: `parseDimension(string, unit)` accepts decimals, fractions (`"3/4"`), mixed numbers (`"1 1/2"`, `"1-1/2"`), feet+inches (`"1' 6\""`, `"1ft 6in"`), and unit glyphs. Returns null on empty or unparseable input.
+- **Formatting**:
+  - `formatValue(value, unit, precision)` — bare number/fraction string, no suffix. Used by edit-prefill.
+  - `formatDistance(meters, unit, precision)` — same plus the unit suffix. Used by every display site (BOM, layout, PDF, viewer labels).
+  - `toFraction(value, denominator)` — internal building block; rounds to nearest `1/denominator` and reduces.
+
+### The settings layer — `web/composables/useProjectSettings.ts`
+
+`distanceUnit` and `precision` are reactive writable computeds. `precision` is `Ref<Precision>` (never undefined — falls back to the unit's default when no project is loaded). Flipping `distanceUnit` resets `precision` to that unit's default in the same write — fractional precision in mm and decimal-mm steps in inches are nonsense, so we don't try to carry one across.
+
+### The display layer — `web/composables/useFormatDistance.ts`
+
+`useFormatDistance()` returns a function: pass meters, get the formatted string at the user's unit + precision. Every display site goes through this.
+
+### The input layer — `web/composables/useDimensionInput.ts`
+
+`useDimensionInput(mm, unit, precision)` returns `{ input: Ref<string>, commit: () => void }`. Wire `<UInput v-model="input" @blur="commit" />`. Storage is never mutated by formatting; the user types freely and storage updates as they type, but the input string itself isn't reformatted while focused. `commit()` (on blur) reformats from storage to canonical at the active precision — matching SketchUp / Fusion behaviour.
+
+### Adding a new dimension input
+
+1. Hold the value as `Ref<number | null>` (mm).
+2. Wire `useDimensionInput(mm, unit, precision)`.
+3. Bind the returned `input` to a `<UInput type="text">` and `commit` to its `@blur`.
+4. Read `mm.value` for engine / storage purposes.
+
+Never call `formatDistance` for an editable field — the input layer owns the round-trip.
 
 ## Key Config Files
 

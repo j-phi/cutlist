@@ -23,6 +23,11 @@ export interface ParseColladaResult extends ObjectGraph {
  *
  * SketchUp's exporter quirks (duplicate material groups, per-face normals)
  * are absorbed by `computeObjectEdges` — see `web/lib/viewer/edges.ts`.
+ *
+ * Units: Three.js's ColladaLoader applies the file's `<asset><unit
+ * meter="N"/></asset>` scale factor to the scene before we see it, so
+ * `box.setFromObject(mesh)` already returns meters regardless of
+ * authoring unit. Pinned by `__tests__/parseCollada.test.ts`.
  */
 export async function parseCollada(file: File): Promise<ParseColladaResult> {
   const xmlText = await file.text();

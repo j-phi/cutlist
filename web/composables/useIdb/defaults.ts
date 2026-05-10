@@ -28,6 +28,7 @@ export function applyProjectDefaults(
     colorMap: p.colorMap ?? {},
     excludedColors: p.excludedColors ?? [],
     distanceUnit: p.distanceUnit ?? DEFAULT_SETTINGS.distanceUnit,
+    precision: p.precision ?? DEFAULT_SETTINGS.precision,
     bladeWidth: p.bladeWidth ?? DEFAULT_SETTINGS.bladeWidth,
     margin: p.margin ?? DEFAULT_SETTINGS.margin,
     defaultAlgorithm: p.defaultAlgorithm ?? DEFAULT_SETTINGS.defaultAlgorithm,

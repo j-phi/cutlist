@@ -1,5 +1,10 @@
 <script lang="ts" setup>
-import { reduceStockMatrix } from 'cutlist';
+import {
+  convertUnits,
+  formatValue,
+  parseDimension,
+  reduceStockMatrix,
+} from 'cutlist';
 import type { StockMatrix } from 'cutlist';
 import { parseStock } from '~/utils/parseStock';
 import { FALLBACK_PALETTE } from '~/composables/useMaterialColors';
@@ -7,11 +12,19 @@ import YAML from 'js-yaml';
 
 const value = defineModel<string>({ required: true });
 
+const { distanceUnit, precision } = useProjectSettings();
+const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
+
 const matrix = ref<StockMatrix[]>([]);
 const err = ref<unknown>();
 
 let lastSerialized = value.value;
 let updating = false;
+
+/** Storage is mm; the UI displays in `unit.value` and parses back to mm. */
+const toDisplay = (mm: number) => convertUnits(mm, 'mm', unit.value);
+const fromDisplay = (display: number) =>
+  convertUnits(display, unit.value, 'mm');
 
 function parseAndSet(yaml: string) {
   updating = true;
@@ -77,11 +90,9 @@ function tKey(matIndex: number, sizeIndex: number) {
 
 function addThickness(matIndex: number, sizeIndex: number) {
   const key = tKey(matIndex, sizeIndex);
-  const raw = newThickness.value[key];
-  if (raw == null || raw === '') return;
-  const num = Number(raw);
-  if (!Number.isFinite(num) || num <= 0) return;
-  matrix.value[matIndex].sizes[sizeIndex].thickness.push(num);
+  const display = parseDimension(newThickness.value[key], unit.value);
+  if (display == null || display <= 0) return;
+  matrix.value[matIndex].sizes[sizeIndex].thickness.push(fromDisplay(display));
   newThickness.value[key] = '';
 }
 
@@ -97,11 +108,34 @@ function removeThickness(
 const newSizeWidth = ref<Record<number, string>>({});
 const newSizeLength = ref<Record<number, string>>({});
 
+/** Re-render any in-progress add-row string in the new unit on a flip. */
+function retranslate(
+  bag: Record<string | number, string>,
+  prev: 'mm' | 'in',
+  next: 'mm' | 'in',
+) {
+  for (const k in bag) {
+    const v = parseDimension(bag[k], prev);
+    if (v != null)
+      bag[k] = formatValue(convertUnits(v, prev, next), next, precision.value);
+  }
+}
+
+watch(unit, (next, prev) => {
+  retranslate(newThickness.value, prev, next);
+  retranslate(newSizeWidth.value, prev, next);
+  retranslate(newSizeLength.value, prev, next);
+});
+
 function addSize(matIndex: number) {
-  const w = Number(newSizeWidth.value[matIndex]);
-  const l = Number(newSizeLength.value[matIndex]);
-  if (!Number.isFinite(w) || w <= 0 || !Number.isFinite(l) || l <= 0) return;
-  matrix.value[matIndex].sizes.push({ width: w, length: l, thickness: [] });
+  const w = parseDimension(newSizeWidth.value[matIndex], unit.value);
+  const l = parseDimension(newSizeLength.value[matIndex], unit.value);
+  if (w == null || w <= 0 || l == null || l <= 0) return;
+  matrix.value[matIndex].sizes.push({
+    width: fromDisplay(w),
+    length: fromDisplay(l),
+    thickness: [],
+  });
   newSizeWidth.value[matIndex] = '';
   newSizeLength.value[matIndex] = '';
 }
@@ -113,7 +147,6 @@ function removeSize(matIndex: number, sizeIndex: number) {
 function addMaterial() {
   matrix.value.push({
     material: 'New Material',
-    unit: 'mm',
     sizes: [],
     color: FALLBACK_PALETTE[matrix.value.length % FALLBACK_PALETTE.length],
   });
@@ -121,6 +154,10 @@ function addMaterial() {
 
 function removeMaterial(index: number) {
   matrix.value.splice(index, 1);
+}
+
+function displayDim(mm: number): string {
+  return formatValue(toDisplay(mm), unit.value, precision.value);
 }
 
 const scrollContainer = ref<HTMLElement>();
@@ -145,22 +182,13 @@ function scrollToBottom() {
       :key="matIndex"
       class="rounded-lg border border-default bg-surface p-4 flex flex-col gap-3"
     >
-      <!-- Header: color + name + unit + delete -->
+      <!-- Header: color + name + delete -->
       <div class="flex items-center gap-2">
         <MaterialColorPicker v-model="mat.color" />
         <UInput
           v-model="mat.material"
           class="flex-1"
           placeholder="Material name"
-        />
-        <USelect
-          v-model="mat.unit"
-          :items="[
-            { label: 'mm', value: 'mm' },
-            { label: 'in', value: 'in' },
-          ]"
-          size="sm"
-          class="w-18"
         />
         <UButton
           color="neutral"
@@ -174,7 +202,7 @@ function scrollToBottom() {
       <!-- Board sizes -->
       <div class="flex flex-col gap-2">
         <label class="text-xs font-medium text-muted uppercase tracking-wider">
-          Board sizes
+          Board sizes ({{ unit }})
         </label>
 
         <!-- Existing sizes -->
@@ -186,9 +214,9 @@ function scrollToBottom() {
           <!-- Size dimensions + delete -->
           <div class="flex items-center justify-between">
             <span class="text-[13px] text-teal-300 font-mono">
-              {{ size.width }}{{ mat.unit ?? 'mm' }}
+              {{ displayDim(size.width) }}{{ unit }}
               <span class="text-dim">&times;</span>
-              {{ size.length }}{{ mat.unit ?? 'mm' }}
+              {{ displayDim(size.length) }}{{ unit }}
             </span>
             <button
               class="text-dim hover:text-body leading-none transition-colors"
@@ -205,7 +233,7 @@ function scrollToBottom() {
               :key="i"
               class="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-subtle bg-default text-[12px] text-teal-300/80 font-mono"
             >
-              {{ typeof dim === 'number' ? `${dim}${mat.unit ?? 'mm'}` : dim }}
+              {{ displayDim(dim) }}{{ unit }}
               <button
                 class="text-dim hover:text-body leading-none ml-0.5 transition-colors"
                 @click="removeThickness(matIndex, sizeIndex, i)"
@@ -215,10 +243,8 @@ function scrollToBottom() {
             </span>
             <input
               v-model="newThickness[tKey(matIndex, sizeIndex)]"
-              type="number"
-              min="0"
-              step="any"
-              class="bg-default rounded px-2 py-0.5 text-[12px] text-teal-300/70 font-mono w-16 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              type="text"
+              class="bg-default rounded px-2 py-0.5 text-[12px] text-teal-300/70 font-mono w-16 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
               placeholder="+ thick"
               @keydown.enter.prevent="addThickness(matIndex, sizeIndex)"
               @blur="addThickness(matIndex, sizeIndex)"
@@ -230,20 +256,16 @@ function scrollToBottom() {
         <div class="flex items-center gap-1.5">
           <input
             v-model="newSizeWidth[matIndex]"
-            type="number"
-            min="0"
-            step="any"
-            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            type="text"
+            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
             placeholder="width"
             @keydown.enter.prevent="addSize(matIndex)"
           />
           <span class="text-dim text-sm">&times;</span>
           <input
             v-model="newSizeLength[matIndex]"
-            type="number"
-            min="0"
-            step="any"
-            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            type="text"
+            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
             placeholder="length"
             @keydown.enter.prevent="addSize(matIndex)"
           />

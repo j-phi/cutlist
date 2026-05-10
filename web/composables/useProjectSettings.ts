@@ -8,7 +8,8 @@
  * the UI sees the new value on the next tick, even before persistence lands.
  */
 
-import type { Algorithm } from 'cutlist';
+import { type Algorithm, type Precision } from 'cutlist';
+import { defaultPrecisionForUnit } from '~/utils/settings';
 import type { IdbProject } from '~/composables/useIdb';
 
 const DEBOUNCE_MS = 300;
@@ -107,11 +108,34 @@ export default createSharedComposable(() => {
     },
   });
 
+  /**
+   * Setting `distanceUnit` resets `precision` to the new unit's default —
+   * fractional precision doesn't make sense in mm and decimal-mm steps
+   * don't make sense in inches. Users almost never flip mid-project, so
+   * "lose the precision" is the right tradeoff for a simpler model.
+   */
   const distanceUnit = computed<'in' | 'mm' | undefined>({
     get: () => activeProject.value?.distanceUnit,
     set: (value) => {
       if (value == null) return;
-      queueWrite({ distanceUnit: value });
+      queueWrite({
+        distanceUnit: value,
+        precision: defaultPrecisionForUnit(value),
+      });
+    },
+  });
+
+  /**
+   * Display precision. Falls back to the unit's default when no project
+   * is loaded so formatters never have to guard for undefined.
+   */
+  const precision = computed<Precision>({
+    get: () =>
+      activeProject.value?.precision ??
+      defaultPrecisionForUnit(activeProject.value?.distanceUnit ?? 'mm'),
+    set: (value) => {
+      if (!activeProject.value) return;
+      queueWrite({ precision: value });
     },
   });
 
@@ -122,6 +146,7 @@ export default createSharedComposable(() => {
     showPartNumbers,
     stock,
     distanceUnit,
+    precision,
     isLoading,
   };
 });

@@ -1,10 +1,25 @@
 // @vitest-environment nuxt
-import { defineComponent, h, ref, nextTick } from 'vue';
+import { computed, defineComponent, h, ref, nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import YAML from 'js-yaml';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { mockNuxtImport } from '@nuxt/test-utils/runtime';
+import { DEFAULT_INCH_PRECISION, DEFAULT_MM_PRECISION } from 'cutlist';
 
 import StockMatrixInput from '../StockMatrixInput.vue';
+
+const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
+const precision = computed(() =>
+  distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
+);
+mockNuxtImport('useProjectSettings', () => () => ({
+  distanceUnit,
+  precision,
+}));
+
+beforeEach(() => {
+  distanceUnit.value = 'mm';
+});
 
 // Spy hook for the #commit throw test: when this is set, reduceStockMatrix
 // re-routes through the spy. Tests that don't set it use the real reducer.
@@ -78,7 +93,6 @@ const MaterialColorPickerStub = defineComponent({
 });
 
 const VALID_YAML = `- material: Plywood
-  unit: mm
   color: '#aabbcc'
   sizes:
     - width: 1220
@@ -252,6 +266,61 @@ describe('StockMatrixInput', () => {
       expect(vm.matrix).toHaveLength(2);
       vm.removeMaterial(0);
       expect(vm.matrix).toHaveLength(1);
+    });
+  });
+
+  describe('Project unit', () => {
+    it('Should not render the per-row unit selector', () => {
+      const host = makeWrapper();
+      expect(host.findAll('select')).toHaveLength(0);
+    });
+
+    it('Should add new materials without a unit field (storage is mm)', () => {
+      distanceUnit.value = 'in';
+      const host = makeWrapper('[]');
+      const inner = getInner(host);
+      (inner.vm as unknown as { addMaterial: () => void }).addMaterial();
+      const value = (host.vm as unknown as { value: string }).value;
+      const parsed = YAML.load(value) as Array<Record<string, unknown>>;
+      expect('unit' in parsed[0]).toBe(false);
+    });
+  });
+
+  describe('Imperial input (storage is mm)', () => {
+    it('Should accept fractions for thickness and store mm', () => {
+      distanceUnit.value = 'in';
+      const host = makeWrapper();
+      const inner = getInner(host);
+      const vm = inner.vm as unknown as {
+        newThickness: Record<string, string>;
+        addThickness: (m: number, s: number) => void;
+        matrix: Array<{ sizes: Array<{ thickness: number[] }> }>;
+      };
+      vm.newThickness['0-0'] = '1/2';
+      vm.addThickness(0, 0);
+      const t = vm.matrix[0].sizes[0].thickness;
+      // 1/2 in = 12.7 mm
+      expect(t[t.length - 1]).toBeCloseTo(12.7, 5);
+    });
+
+    it('Should accept mixed-number sizes and convert to mm', () => {
+      distanceUnit.value = 'in';
+      const host = makeWrapper();
+      const inner = getInner(host);
+      const vm = inner.vm as unknown as {
+        newSizeWidth: Record<number, string>;
+        newSizeLength: Record<number, string>;
+        addSize: (i: number) => void;
+        matrix: Array<{
+          sizes: Array<{ width: number; length: number; thickness: number[] }>;
+        }>;
+      };
+      vm.newSizeWidth[0] = '1 1/2';
+      vm.newSizeLength[0] = '4ft';
+      vm.addSize(0);
+      const last = vm.matrix[0].sizes[vm.matrix[0].sizes.length - 1];
+      expect(last.width).toBeCloseTo(38.1, 5); // 1.5 in
+      expect(last.length).toBeCloseTo(1219.2, 5); // 48 in
     });
   });
 

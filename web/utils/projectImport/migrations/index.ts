@@ -1,22 +1,22 @@
 /**
- * Export/import format migration pipeline for `.cutlist` files.
+ * Migration registry + export-import migration pipeline.
  *
- * Scope of this module: transforming record shapes inside imported export
- * files from the version they were written at up to the current
- * `SCHEMA_VERSION`. Does NOT touch IndexedDB — that's Dexie's job, handled
- * by the `.version(N).stores(...).upgrade(...)` chain on `CutlistDB` in
- * `~/composables/useIdb/db`.
+ * This file is the single registry: it imports each per-version transform
+ * from `./v<N>.ts` and exposes the ordered `migrations[]` array. It owns
+ * no version-specific logic — adding a new schema version means a new
+ * `./v<N>.ts` file plus one line here.
  *
- * When adding a schema migration, the same logical transform should be
- * expressed twice:
- *   1. Inside Dexie's `.upgrade(tx => ...)` callback — runs on local IDB.
- *   2. As a pure entry in the `migrations` array below — runs on incoming
- *      `.cutlist` payloads in `migrateExport`.
+ * Mirroring contract: every entry registered here must also be expressed
+ * as a Dexie `.version(N).upgrade()` block on `CutlistDB` in
+ * `~/composables/useIdb/db`. Both paths run the same per-version
+ * transform so local IDB upgrades and `.cutlist` imports converge on the
+ * same final shape.
  *
  * Rules for the `migrations` array:
- *  - Append only; never edit or delete a shipped entry.
- *  - Pure functions (no side effects, no async).
- *  - New required fields must have a sensible default.
+ *   - Append only; never edit or delete a shipped entry.
+ *   - Pure functions (no side effects, no async).
+ *   - Defensive — must not throw on malformed input. A throw inside Dexie
+ *     rolls back the transaction and leaves the user unable to open the DB.
  */
 
 import {
@@ -24,20 +24,12 @@ import {
   LegacyExportError,
   MIN_SUPPORTED_EXPORT_VERSION,
   SCHEMA_VERSION,
-} from '../versions';
+} from '../../versions';
+import type { IdbRecord, RecordMigration, StoreName } from './types';
+import { v3Migration } from './v3';
 
-type StoreName = 'projects' | 'models' | 'buildDoc' | 'scenes' | 'annotations';
-
-/** A loosely-typed export record (string-keyed object with unknown values). */
-export type IdbRecord = Record<string, unknown>;
-
-export interface RecordMigration {
-  /** The version this migration brings records TO. */
-  version: number;
-  store: StoreName;
-  /** Pure function: old record in, patched record out. */
-  migrate: (record: IdbRecord) => IdbRecord;
-}
+export type { IdbRecord, RecordMigration, StoreName } from './types';
+export { migrateProjectToMmStorage } from './v3';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
@@ -58,6 +50,8 @@ export const migrations: RecordMigration[] = [
       return next;
     },
   },
+
+  v3Migration,
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

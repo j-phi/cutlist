@@ -8,11 +8,8 @@
  */
 import { computed } from 'vue';
 import * as Sentry from '@sentry/nuxt';
-import {
-  DEFAULT_SETTINGS,
-  getBladeWidthForUnit,
-  getStockYamlForUnit,
-} from '~/utils/settings';
+import type { Precision } from 'cutlist';
+import { DEFAULT_SETTINGS, getDefaultStockYaml } from '~/utils/settings';
 import { useIdb } from '~/composables/useIdb';
 import { resetDatabase as idbResetDatabase } from '~/composables/useIdb/db';
 import {
@@ -60,6 +57,7 @@ export default function useProjectCollection() {
           excludedColors: [],
           stock: '',
           distanceUnit: DEFAULT_SETTINGS.distanceUnit,
+          precision: DEFAULT_SETTINGS.precision,
           bladeWidth: DEFAULT_SETTINGS.bladeWidth,
           margin: DEFAULT_SETTINGS.margin,
           defaultAlgorithm: DEFAULT_SETTINGS.defaultAlgorithm,
@@ -70,11 +68,15 @@ export default function useProjectCollection() {
     return map;
   });
 
-  async function addProject(name: string, unit: 'mm' | 'in') {
+  async function addProject(
+    name: string,
+    unit: 'mm' | 'in',
+    precision?: Precision,
+  ) {
     const project = await idb.createProject(name, {
       distanceUnit: unit,
-      bladeWidth: getBladeWidthForUnit(unit),
-      stock: getStockYamlForUnit(unit),
+      precision,
+      stock: getDefaultStockYaml(unit),
     });
     projectList.value = [
       ...projectList.value,

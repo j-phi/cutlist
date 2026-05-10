@@ -6,16 +6,15 @@ describe('parseStock', () => {
     const yaml = `
 - material: MDF
   sizes:
-    - width: 1.2
-      length: 2.4
-      thickness: [0.018]
+    - width: 1220
+      length: 2440
+      thickness: [18]
 `;
     const result = parseStock(yaml);
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
       material: 'MDF',
-      unit: 'mm',
-      sizes: [{ width: 1.2, length: 2.4, thickness: [0.018] }],
+      sizes: [{ width: 1220, length: 2440, thickness: [18] }],
     });
   });
 
@@ -23,14 +22,14 @@ describe('parseStock', () => {
     const yaml = `
 - material: MDF
   sizes:
-    - width: 1.2
-      length: 2.4
-      thickness: [0.018]
+    - width: 1220
+      length: 2440
+      thickness: [18]
 - material: Ply
   sizes:
-    - width: 0.6
-      length: 1.8
-      thickness: [0.012]
+    - width: 600
+      length: 1800
+      thickness: [12]
 `;
     const result = parseStock(yaml);
     expect(result).toHaveLength(2);
@@ -38,31 +37,34 @@ describe('parseStock', () => {
     expect(result[1].material).toBe('Ply');
   });
 
-  it('Should parse explicit units, string dimensions, colors, and multiple thicknesses', () => {
+  it('parses colors and multiple thicknesses', () => {
     const yaml = `
 - material: Baltic Birch
-  unit: in
   color: '#d2b996'
   sizes:
-    - width: 48
-      length: 96
-      thickness: [0.5, 0.75]
-    - width: 1220mm
-      length: 2440mm
-      thickness: [18mm]
+    - width: 1220
+      length: 2440
+      thickness: [12, 18]
 `;
 
     expect(parseStock(yaml)).toEqual([
       {
         material: 'Baltic Birch',
-        unit: 'in',
         color: '#d2b996',
-        sizes: [
-          { width: 48, length: 96, thickness: [0.5, 0.75] },
-          { width: '1220mm', length: '2440mm', thickness: ['18mm'] },
-        ],
+        sizes: [{ width: 1220, length: 2440, thickness: [12, 18] }],
       },
     ]);
+  });
+
+  it('rejects string dimensions (mm-only schema)', () => {
+    const yaml = `
+- material: Mix
+  sizes:
+    - width: 1220mm
+      length: 2440mm
+      thickness: [18mm]
+`;
+    expect(() => parseStock(yaml)).toThrow();
   });
 
   it('throws a ZodError for invalid YAML missing required fields', () => {

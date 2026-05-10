@@ -1,90 +1,179 @@
-export function toFraction(value: number, threshold = 1e-5) {
-  const integerPart = Math.floor(value);
-  const decimalPart = value - integerPart;
+/** Millimetres per inch — single source for the 25.4 constant. */
+export const MM_PER_IN = 25.4;
 
-  let minDifference = Infinity;
-  let closestFraction = decimalPart.toString();
-  for (let [fractionDecimal, fractionString] of fractionLookupTable) {
-    let difference = Math.abs(decimalPart - fractionDecimal);
-    if (difference < minDifference) {
-      minDifference = difference;
-      closestFraction = fractionString;
-    }
-  }
+/** Meters per inch — derived; used by viewer / px layout sites. */
+export const M_PER_IN = MM_PER_IN / 1000;
 
-  // If the decimal part is close enough to a fraction, prepare the result with the integer part
-  let result =
-    minDifference <= threshold ? closestFraction : decimalPart.toString();
-  if (integerPart > 0) {
-    result =
-      minDifference <= threshold || decimalPart === 0
-        ? `${integerPart}` + (decimalPart > 0 ? ` ${result}` : '')
-        : Number(value.toFixed(5)).toString();
+/** mm → meters (engine-internal unit). */
+export const mmToM = (mm: number) => mm / 1000;
+
+/** meters → mm (canonical storage unit). */
+export const mToMm = (m: number) => m * 1000;
+
+/**
+ * Display precision. Storage stays raw; precision controls only how
+ * values are rendered (and re-rendered on edit). Modelled the same way
+ * as SketchUp / Fusion / AutoCAD: a per-unit user preference.
+ *
+ * - `fraction`: round to nearest `1/denominator` (inch only).
+ * - `decimal`: round to nearest `step` and render with matching dp.
+ */
+export type Precision =
+  | { kind: 'fraction'; denominator: 8 | 16 | 32 | 64 }
+  | { kind: 'decimal'; step: number };
+
+/** Default precision for inch users — 1/32" matches a tape measure. */
+export const DEFAULT_INCH_PRECISION: Precision = {
+  kind: 'fraction',
+  denominator: 32,
+};
+
+/** Default precision for mm users — 0.1mm is finer than any saw kerf. */
+export const DEFAULT_MM_PRECISION: Precision = { kind: 'decimal', step: 0.1 };
+
+const fractionLookupTable: Record<number, Map<number, string>> = {
+  8: buildFractionTable(8),
+  16: buildFractionTable(16),
+  32: buildFractionTable(32),
+  64: buildFractionTable(64),
+};
+
+function buildFractionTable(denom: number): Map<number, string> {
+  const table = new Map<number, string>();
+  for (let n = 1; n < denom; n++) {
+    // Reduce n/denom to lowest terms.
+    const g = gcd(n, denom);
+    table.set(n / denom, `${n / g}/${denom / g}`);
   }
-  return result;
+  return table;
 }
 
-const fractionLookupTable = new Map<number, string>([
-  [1 / 32, '1/32'],
-  [1 / 16, '1/16'], // Simplified from 2/32
-  [3 / 32, '3/32'],
-  [1 / 8, '1/8'], // Simplified from 4/32
-  [5 / 32, '5/32'],
-  [3 / 16, '3/16'], // Simplified from 6/32
-  [7 / 32, '7/32'],
-  [1 / 4, '1/4'], // Simplified from 8/32
-  [9 / 32, '9/32'],
-  [5 / 16, '5/16'], // Simplified from 10/32
-  [11 / 32, '11/32'],
-  [3 / 8, '3/8'], // Simplified from 12/32
-  [13 / 32, '13/32'],
-  [7 / 16, '7/16'], // Simplified from 14/32
-  [15 / 32, '15/32'],
-  [1 / 2, '1/2'], // Simplified from 16/32
-  [17 / 32, '17/32'],
-  [9 / 16, '9/16'], // Simplified from 18/32
-  [19 / 32, '19/32'],
-  [5 / 8, '5/8'], // Simplified from 20/32
-  [21 / 32, '21/32'],
-  [11 / 16, '11/16'], // Simplified from 22/32
-  [23 / 32, '23/32'],
-  [3 / 4, '3/4'], // Simplified from 24/32
-  [25 / 32, '25/32'],
-  [13 / 16, '13/16'], // Simplified from 26/32
-  [27 / 32, '27/32'],
-  [7 / 8, '7/8'], // Simplified from 28/32
-  [29 / 32, '29/32'],
-  [15 / 16, '15/16'], // Simplified from 30/32
-  [31 / 32, '31/32'],
-]);
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
 
-export class Distance {
-  readonly m: number;
+/**
+ * Render a non-negative decimal as a fraction (e.g. `"3/4"`, `"1 1/2"`).
+ * Always rounds to the nearest `1/denominator` — there's no ambiguity
+ * about whether to snap. Whole numbers come back as `"3"`.
+ */
+export function toFraction(value: number, denominator: number): string {
+  const table = fractionLookupTable[denominator];
+  if (!table)
+    throw new Error(`Unsupported fraction denominator: ${denominator}`);
 
-  constructor(v: number | string) {
-    if (typeof v === 'number') {
-      this.m = v;
-    } else if (v.endsWith('ft')) {
-      this.m = Number(v.replace('ft', '')) * 0.3048;
-    } else if (v.endsWith('in') || v.endsWith('"')) {
-      this.m = Number(v.replace(/(in|")/, '')) * 0.0254;
-    } else if (v.endsWith('mm')) {
-      this.m = Number(v.replace('mm', '')) / 1000;
-    } else {
-      this.m = Number(v.replace('m', ''));
-    }
-    if (isNaN(this.m)) {
-      throw Error('Could not convert to meters: ' + v);
-    }
+  const total = Math.round(value * denominator) / denominator;
+  const integerPart = Math.floor(total);
+  const decimalPart = total - integerPart;
+  if (decimalPart === 0) return String(integerPart);
+  const frac = table.get(decimalPart) ?? '';
+  return integerPart === 0 ? frac : `${integerPart} ${frac}`;
+}
+
+/** Convert a distance between mm and inches. */
+export function convertUnits(
+  value: number,
+  from: 'mm' | 'in',
+  to: 'mm' | 'in',
+): number {
+  if (from === to) return value;
+  return from === 'mm' ? value / MM_PER_IN : value * MM_PER_IN;
+}
+
+/**
+ * Parse a user-entered dimension into a number expressed in `unit`.
+ * Imperial accepts fractions, mixed numbers, feet+inches, and unit
+ * glyphs; metric accepts decimals with optional "mm" suffix. Returns
+ * null on empty / unparseable input; never returns negative or NaN.
+ */
+export function parseDimension(
+  raw: string | null | undefined,
+  unit: 'mm' | 'in',
+): number | null {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (s === '') return null;
+
+  if (unit === 'mm') {
+    const n = Number(s.replace(/\s*mm$/i, ''));
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+  return parseInches(s);
+}
+
+function parseInches(raw: string): number | null {
+  // Strip inch glyphs/suffix; feet glyph stays so the regex below can split.
+  const cleaned = raw
+    .replace(/[″"]/g, '')
+    .replace(/\s*in\b/gi, '')
+    .trim();
+  if (cleaned === '') return null;
+
+  const ft = cleaned.match(/^([\d.]+)\s*(?:ft|')\s*(.*)$/i);
+  const feet = ft ? Number(ft[1]) : 0;
+  const rest = (ft ? ft[2] : cleaned).trim();
+  if (!Number.isFinite(feet)) return null;
+  if (rest === '') return feet * 12;
+
+  const frac = rest.match(/^(?:(\d+)[\s-]+)?(\d+)\/(\d+)$/);
+  if (frac) {
+    const whole = frac[1] ? Number(frac[1]) : 0;
+    const den = Number(frac[3]);
+    if (den === 0) return null;
+    return feet * 12 + whole + Number(frac[2]) / den;
   }
 
-  get mm() {
-    return this.m * 1000;
+  const n = Number(rest);
+  return Number.isFinite(n) && n >= 0 ? feet * 12 + n : null;
+}
+
+/**
+ * Format a value already expressed in `unit` at the user's precision.
+ * Returns a bare number/fraction string with no unit suffix — suitable
+ * for edit-prefill. Display sites should use `formatDistance` (which
+ * appends the unit) or build their own label.
+ *
+ * Storage stays raw; rounding lives only at this formatting boundary.
+ */
+export function formatValue(
+  value: number | null | undefined,
+  unit: 'mm' | 'in',
+  precision: Precision,
+): string {
+  if (value == null || !Number.isFinite(value)) return '';
+  if (precision.kind === 'fraction' && unit === 'in') {
+    return toFraction(value, precision.denominator);
   }
-  get in() {
-    return this.m * 39.37008;
-  }
-  get ft() {
-    return this.m * 3.28084;
-  }
+  // Decimal mode (or fraction mode in mm — graceful fallback).
+  const step =
+    precision.kind === 'decimal' ? precision.step : 1 / precision.denominator;
+  const places = decimalPlaces(step);
+  const rounded = Math.round(value / step) * step;
+  // Trim trailing zeros so 123 reads as `123` not `123.0` — matches
+  // SketchUp / Fusion display behaviour.
+  return Number(rounded.toFixed(places)).toString();
+}
+
+/**
+ * Format a meter value for end-user display (BOM, layout, PDF, viewer
+ * labels). Wraps `formatValue` and appends the unit suffix.
+ */
+export function formatDistance(
+  meters: number,
+  unit: 'mm' | 'in',
+  precision: Precision,
+): string {
+  const value = convertUnits(mToMm(meters), 'mm', unit);
+  const body = formatValue(value, unit, precision);
+  if (body === '') return '';
+  return unit === 'in' ? `${body}"` : `${body}mm`;
+}
+
+function decimalPlaces(step: number): number {
+  if (step >= 1) return 0;
+  // Convert step to a string and count digits after the decimal point;
+  // works for the values we use (1, 0.5, 0.1, 0.01, …).
+  const s = String(step);
+  const dot = s.indexOf('.');
+  return dot === -1 ? 0 : s.length - dot - 1;
 }

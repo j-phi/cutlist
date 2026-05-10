@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { ManualPartInput } from '~/composables/useProjects';
+import { useDimensionInput } from '~/composables/useDimensionInput';
 import { cycleGrainLock, GRAIN_LABELS } from '~/utils/grain';
 
 const props = defineProps<{
@@ -12,6 +13,9 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
+const { distanceUnit, precision } = useProjectSettings();
+const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
+
 const name = ref(props.initial?.name ?? '');
 const widthMm = ref<number | null>(props.initial?.widthMm ?? null);
 const lengthMm = ref<number | null>(props.initial?.lengthMm ?? null);
@@ -19,6 +23,22 @@ const thicknessMm = ref<number | null>(props.initial?.thicknessMm ?? null);
 const qty = ref(props.initial?.qty ?? 1);
 const material = ref(props.initial?.material ?? props.materials[0] ?? '');
 const grainLock = ref<'length' | 'width' | undefined>(props.initial?.grainLock);
+
+const { input: widthInput, commit: commitWidth } = useDimensionInput(
+  widthMm,
+  unit,
+  precision,
+);
+const { input: lengthInput, commit: commitLength } = useDimensionInput(
+  lengthMm,
+  unit,
+  precision,
+);
+const { input: thicknessInput, commit: commitThickness } = useDimensionInput(
+  thicknessMm,
+  unit,
+  precision,
+);
 
 const isValid = computed(
   () =>
@@ -32,6 +52,8 @@ const isValid = computed(
     qty.value >= 1 &&
     material.value !== '',
 );
+
+const placeholder = computed(() => (unit.value === 'in' ? 'e.g. 3/4' : '0'));
 
 function submit() {
   if (
@@ -82,43 +104,43 @@ function onKeydown(e: KeyboardEvent) {
     <div class="grid grid-cols-4 gap-1.5">
       <div class="flex flex-col gap-0.5">
         <label class="text-xs text-muted px-0.5" for="manual-part-width"
-          >W (mm)</label
+          >W ({{ unit }})</label
         >
         <UInput
           id="manual-part-width"
-          v-model.number="widthMm"
-          type="number"
+          v-model="widthInput"
+          type="text"
           size="sm"
-          placeholder="0"
-          :min="0"
+          :placeholder="placeholder"
+          @blur="commitWidth"
           @keydown="onKeydown"
         />
       </div>
       <div class="flex flex-col gap-0.5">
         <label class="text-xs text-muted px-0.5" for="manual-part-length"
-          >L (mm)</label
+          >L ({{ unit }})</label
         >
         <UInput
           id="manual-part-length"
-          v-model.number="lengthMm"
-          type="number"
+          v-model="lengthInput"
+          type="text"
           size="sm"
-          placeholder="0"
-          :min="0"
+          :placeholder="placeholder"
+          @blur="commitLength"
           @keydown="onKeydown"
         />
       </div>
       <div class="flex flex-col gap-0.5">
         <label class="text-xs text-muted px-0.5" for="manual-part-thickness"
-          >T (mm)</label
+          >T ({{ unit }})</label
         >
         <UInput
           id="manual-part-thickness"
-          v-model.number="thicknessMm"
-          type="number"
+          v-model="thicknessInput"
+          type="text"
           size="sm"
-          placeholder="0"
-          :min="0"
+          :placeholder="placeholder"
+          @blur="commitThickness"
           @keydown="onKeydown"
         />
       </div>

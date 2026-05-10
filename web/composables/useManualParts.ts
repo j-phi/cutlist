@@ -5,6 +5,7 @@
  * state and CRUD. These functions mutate activeProjectData and persist to IDB.
  */
 
+import { mmToM } from 'cutlist';
 import type { Part } from '~/utils/modelTypes';
 import type { PartOverride } from '~/composables/useIdb';
 import { applyOverrides } from '~/composables/useModelHydration';
@@ -38,9 +39,9 @@ export function useManualParts(ctx: ManualPartsContext) {
       name: data.name,
       colorKey: data.material,
       size: {
-        width: data.widthMm / 1000,
-        length: data.lengthMm / 1000,
-        thickness: data.thicknessMm / 1000,
+        width: mmToM(data.widthMm),
+        length: mmToM(data.lengthMm),
+        thickness: mmToM(data.thicknessMm),
       },
     }));
 
@@ -125,9 +126,9 @@ export function useManualParts(ctx: ManualPartsContext) {
       name: data.name,
       colorKey: data.material,
       size: {
-        width: data.widthMm / 1000,
-        length: data.lengthMm / 1000,
-        thickness: data.thicknessMm / 1000,
+        width: mmToM(data.widthMm),
+        length: mmToM(data.lengthMm),
+        thickness: mmToM(data.thicknessMm),
       },
     }));
     // Strip overrides from remaining parts (they live in partOverrides)

@@ -1,9 +1,25 @@
 // @vitest-environment nuxt
 import { shallowMount } from '@vue/test-utils';
-import { defineComponent, h } from 'vue';
-import { describe, expect, it } from 'vitest';
+import { defineComponent, h, ref } from 'vue';
+import { describe, expect, it, beforeEach } from 'vitest';
+import { mockNuxtImport } from '@nuxt/test-utils/runtime';
+import { DEFAULT_INCH_PRECISION, DEFAULT_MM_PRECISION } from 'cutlist';
+import { computed } from 'vue';
 
 import ManualPartRow from '../ManualPartRow.vue';
+
+const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
+const precision = computed(() =>
+  distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
+);
+mockNuxtImport('useProjectSettings', () => () => ({
+  distanceUnit,
+  precision,
+}));
+
+beforeEach(() => {
+  distanceUnit.value = 'mm';
+});
 
 const UButtonStub = {
   template: '<button type="button" v-bind="$attrs"><slot /></button>',
@@ -135,6 +151,81 @@ describe('ManualPartRow', () => {
       expect(
         (component.get('#manual-part-qty').element as HTMLInputElement).value,
       ).toBe('1');
+    });
+  });
+
+  describe('Imperial mode', () => {
+    it('Should label inputs with the project distance unit', () => {
+      distanceUnit.value = 'in';
+      const component = getComponent();
+      const labels = component
+        .findAll('label')
+        .map((l) => l.text())
+        .filter((t) => /^[WLT] \(/.test(t));
+      expect(labels).toEqual(['W (in)', 'L (in)', 'T (in)']);
+    });
+
+    it('Should parse fractions and emit mm equivalents', async () => {
+      distanceUnit.value = 'in';
+      const component = getComponent();
+
+      await component.get('input[placeholder="Part name"]').setValue('Shelf');
+      await component.get('#manual-part-width').setValue('3/4');
+      await component.get('#manual-part-length').setValue('1 1/2');
+      await component.get('#manual-part-thickness').setValue('1/4');
+      await component.get('#manual-part-qty').setValue('1');
+      await component.get('select[aria-label="Material"]').setValue('Plywood');
+      await getButton(component, 'Add').trigger('click');
+
+      const emitted = component.emitted('save');
+      expect(emitted).toHaveLength(1);
+      const data = emitted![0][0] as {
+        widthMm: number;
+        lengthMm: number;
+        thicknessMm: number;
+      };
+      expect(data.widthMm).toBeCloseTo(0.75 * 25.4, 5);
+      expect(data.lengthMm).toBeCloseTo(1.5 * 25.4, 5);
+      expect(data.thicknessMm).toBeCloseTo(0.25 * 25.4, 5);
+    });
+
+    it('Should pre-fill edit values converted to inches', () => {
+      distanceUnit.value = 'in';
+      const component = getComponent({
+        initial: {
+          partNumber: 1,
+          name: 'Shelf',
+          widthMm: 25.4 * 0.75,
+          lengthMm: 25.4 * 1.5,
+          thicknessMm: 25.4 * 0.25,
+          qty: 1,
+          material: 'Plywood',
+        },
+      });
+      expect(
+        (component.get('#manual-part-width').element as HTMLInputElement).value,
+      ).toBe('3/4');
+      expect(
+        (component.get('#manual-part-length').element as HTMLInputElement)
+          .value,
+      ).toBe('1 1/2');
+      expect(
+        (component.get('#manual-part-thickness').element as HTMLInputElement)
+          .value,
+      ).toBe('1/4');
+    });
+
+    it('Should reject invalid imperial input', async () => {
+      distanceUnit.value = 'in';
+      const component = getComponent();
+
+      await component.get('input[placeholder="Part name"]').setValue('Shelf');
+      await component.get('#manual-part-width').setValue('not-a-number');
+      await component.get('#manual-part-length').setValue('1 1/2');
+      await component.get('#manual-part-thickness').setValue('3/4');
+      await component.get('select[aria-label="Material"]').setValue('Plywood');
+
+      expect(getButton(component, 'Add').attributes('disabled')).toBeDefined();
     });
   });
 

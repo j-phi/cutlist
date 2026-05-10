@@ -15,7 +15,7 @@
  *    array form: main line, two witness lines, and tick caps when the
  *    offset is near zero.
  *
- * 3. Pure helpers `snapOffsetToWorldAxis` and `formatLength`.
+ * 3. Pure helper `snapOffsetToWorldAxis`.
  *
  * Snap semantics: the 45° snap is built around the world-axis-aligned
  * orthonormal basis perpendicular to the dimension line. Picking the
@@ -73,15 +73,6 @@ export interface DimensionViewer {
 }
 
 // ─── Pure helpers ──────────────────────────────────────────────────────────
-
-export function formatLength(
-  meters: number,
-  distanceUnit: 'mm' | 'in',
-): string {
-  return distanceUnit === 'mm'
-    ? `${Math.round(meters * 1000)}mm`
-    : `${(meters * 39.3701).toFixed(2)}in`;
-}
 
 /**
  * Snap a raw cursor-derived perpendicular offset to the nearest 45° around

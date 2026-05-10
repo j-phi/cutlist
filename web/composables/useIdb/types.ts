@@ -9,7 +9,7 @@
  */
 
 import type { JSONContent } from '@tiptap/core';
-import type { Algorithm } from 'cutlist';
+import type { Algorithm, Precision } from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 import type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
 
@@ -19,13 +19,25 @@ export interface IdbProject {
   colorMap: Record<string, string>;
   /** Color keys excluded from BOM (unchecked in mapping panel). */
   excludedColors: string[];
-  /** Per-project stock definition (YAML string). */
+  /**
+   * Per-project stock definition (YAML string). All numeric dimensions are
+   * millimetres; rows do not carry a unit field.
+   */
   stock: string;
-  /** Per-project distance unit. */
+  /**
+   * Display preference for distances. Storage is always mm — this only
+   * controls what the UI renders and how typed input is parsed.
+   */
   distanceUnit: 'in' | 'mm';
-  /** Per-project saw blade width, in the project's distanceUnit. */
+  /**
+   * Display precision — fractional or decimal granularity for the BOM,
+   * layout, PDF, and edit fields. Resets to the unit's default whenever
+   * `distanceUnit` changes.
+   */
+  precision: Precision;
+  /** Saw blade width in millimetres. */
   bladeWidth: number;
-  /** Per-project margin/offset for the packing algorithm. */
+  /** Packing margin in millimetres. */
   margin: number;
   /**
    * Default packing algorithm. Used for materials in `stock` that don't

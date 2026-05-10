@@ -56,6 +56,7 @@ function makePayload(): ProjectExport {
       excludedColors: [],
       stock: 'stock yaml',
       distanceUnit: 'mm',
+      precision: { kind: 'decimal', step: 0.1 },
       bladeWidth: 3,
       margin: 0,
       defaultAlgorithm: 'auto',
@@ -216,6 +217,22 @@ describe('Spec 00 — scenes & annotations round-trip', () => {
       'callout',
       'dimension',
     ]);
+  });
+
+  it('preserves user-customized precision through the round-trip', async () => {
+    const original = makePayload();
+    original.project.distanceUnit = 'in';
+    original.project.precision = { kind: 'fraction', denominator: 16 };
+
+    const parsed = parseProjectExport(JSON.parse(JSON.stringify(original)));
+    const { db, calls } = makeIdbMock();
+    await importProjectData(parsed, db as any);
+
+    expect(calls.createProject).toHaveLength(1);
+    expect(calls.createProject[0].opts.precision).toEqual({
+      kind: 'fraction',
+      denominator: 16,
+    });
   });
 
   it('drops orphan annotations whose scene is not in the payload', async () => {

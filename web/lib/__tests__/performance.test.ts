@@ -78,22 +78,21 @@ function generateLargeFixture(partCount: number): {
 
   const stock: StockMatrix[] = materials.map((material) => ({
     material,
-    unit: 'mm' as const,
     sizes: [
       {
-        width: '600mm',
-        length: '2400mm',
-        thickness: ['18mm', '12mm', '25mm'],
+        width: 600,
+        length: 2400,
+        thickness: [18, 12, 25],
       },
       {
-        width: '1200mm',
-        length: '2400mm',
-        thickness: ['18mm', '12mm', '25mm'],
+        width: 1200,
+        length: 2400,
+        thickness: [18, 12, 25],
       },
       {
-        width: '300mm',
-        length: '1200mm',
-        thickness: ['18mm', '12mm', '25mm'],
+        width: 300,
+        length: 1200,
+        thickness: [18, 12, 25],
       },
     ],
   }));
@@ -119,8 +118,8 @@ describe('generateBoardLayouts large fixture smoke tests', () => {
     const { parts, stock } = generateLargeFixture(50);
 
     const result = generateBoardLayouts(parts, stock, {
-      bladeWidth: '3.175mm',
-      margin: '0mm',
+      bladeWidth: 3.175,
+      margin: 0,
       defaultAlgorithm: 'auto',
       precision: 1e-5,
     });
@@ -133,8 +132,8 @@ describe('generateBoardLayouts large fixture smoke tests', () => {
     const { parts, stock } = generateLargeFixture(50);
 
     const result = generateBoardLayouts(parts, stock, {
-      bladeWidth: '3.175mm',
-      margin: '0mm',
+      bladeWidth: 3.175,
+      margin: 0,
       defaultAlgorithm: 'cnc',
       precision: 1e-5,
     });

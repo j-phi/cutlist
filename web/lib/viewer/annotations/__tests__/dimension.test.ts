@@ -11,7 +11,6 @@ import { ref } from 'vue';
 import {
   createDimensionHandler,
   createDimensionKindHooks,
-  formatLength,
   snapOffsetToWorldAxis,
   type DimensionViewer,
 } from '../dimension';
@@ -129,17 +128,6 @@ describe('snapOffsetToWorldAxis', () => {
     expect(
       snapOffsetToWorldAxis([1, 1, 1], { a: [0, 0, 0], b: [0, 0, 0] }),
     ).toEqual([0, 0, 0]);
-  });
-});
-
-describe('formatLength', () => {
-  it('Rounds metric lengths to whole millimetres', () => {
-    expect(formatLength(0.1234, 'mm')).toBe('123mm');
-    expect(formatLength(1.8, 'mm')).toBe('1800mm');
-  });
-  it('Produces 2-decimal inches', () => {
-    expect(formatLength(0.0254, 'in')).toBe('1.00in');
-    expect(formatLength(0.5, 'in')).toBe('19.69in');
   });
 });
 

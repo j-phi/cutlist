@@ -1,19 +1,17 @@
-import { Distance, toFraction } from 'cutlist';
+import { formatDistance } from 'cutlist';
 
+/**
+ * Reactive formatter that reads the active project's distance unit and
+ * precision, returning a function callable with a meter value. One
+ * formatter, one rule — same string everywhere a stored value is shown
+ * (BOM, layout, PDF, viewer labels).
+ */
 export default function () {
-  const { distanceUnit } = useProjectSettings();
+  const { distanceUnit, precision } = useProjectSettings();
 
   return (m: number | undefined | null) => {
-    if (m == null || toValue(distanceUnit) == null) return;
-
-    const distance = new Distance(m);
-    if (toValue(distanceUnit) === 'in') {
-      return `${toFraction(distance.in)}"`;
-    }
-    return `${roundMetric(distance.mm, 2)}mm`;
+    const unit = toValue(distanceUnit);
+    if (m == null || unit == null) return;
+    return formatDistance(m, unit, precision.value);
   };
-}
-
-function roundMetric(value: number, precision = 3) {
-  return String(Number(value.toFixed(precision)));
 }

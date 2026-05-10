@@ -2,12 +2,6 @@ import { z } from 'zod';
 import type { Rectangle } from './geometry';
 
 /**
- * A number in meters or a string with unit suffix ("1in").
- */
-const Distance = z.union([z.number(), z.string()]);
-type Distance = z.infer<typeof Distance>;
-
-/**
  * Per-material packing algorithm choice.
  * - `auto`: Run all guillotine variants (Tidy + Compact passes), score picks.
  * - `tidy`: Two-stage guillotine (rip-first / crosscut-first). Aligns
@@ -59,23 +53,20 @@ export interface Stock {
  * A board size — width × length plus the thicknesses available in that size.
  */
 export const StockSize = z.object({
-  width: Distance,
-  length: Distance,
-  thickness: z.array(Distance),
+  width: z.number(),
+  length: z.number(),
+  thickness: z.array(z.number()),
 });
 export type StockSize = z.infer<typeof StockSize>;
 
 /**
  * For a material, define board sizes and the thicknesses available in each.
+ *
+ * All numeric dimensions are millimetres. The user's display preference
+ * (`distanceUnit`) is applied in the UI only.
  */
 export const StockMatrix = z.object({
   material: z.string(),
-  /**
-   * Unit for numeric dimensions. Plain numbers are interpreted in this unit.
-   * String dimensions (e.g. `"18mm"`) carry their own unit and ignore this.
-   * Defaults to `'mm'`.
-   */
-  unit: z.enum(['mm', 'in']).default('mm'),
   /**
    * Available board sizes. Each entry is a width × length pair with its
    * own set of available thicknesses.
@@ -132,19 +123,20 @@ export interface PartToCut {
  */
 export const Config = z.object({
   /**
-   * The blade kerf, usually around 0.125 inches.
+   * The blade kerf in millimetres. Defaults to ≈1/8" (3.175mm).
    */
-  bladeWidth: Distance.default('0.125in'),
+  bladeWidth: z.number().default(3.175),
   /**
    * Default packing algorithm used for any material that doesn't specify its
    * own. See `Algorithm` for variant descriptions.
    */
   defaultAlgorithm: Algorithm.default('auto'),
   /**
-   * Board margin — inset from all edges where parts will not be placed.
-   * Useful for clamping area, trimming damaged edges, or out-of-square stock.
+   * Board margin in millimetres — inset from all edges where parts will not
+   * be placed. Useful for clamping area, trimming damaged edges, or
+   * out-of-square stock.
    */
-  margin: Distance.default('0'),
+  margin: z.number().default(0),
   /**
    * Optional cap on the number of search passes run per stock group in
    * `auto` mode. When unset, every pass in `DEFAULT_SEARCH_PASSES` (or the

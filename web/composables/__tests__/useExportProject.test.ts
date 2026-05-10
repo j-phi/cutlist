@@ -202,6 +202,7 @@ describe('buildExportData', () => {
         excludedColors: [],
         stock: '',
         distanceUnit: 'in' as const,
+        precision: { kind: 'decimal' as const, step: 0.1 },
         bladeWidth: 3,
         margin: 0,
         defaultAlgorithm: 'auto' as const,

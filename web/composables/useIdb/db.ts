@@ -15,6 +15,7 @@
 import { ref, readonly } from 'vue';
 import Dexie, { type Table } from 'dexie';
 import { FutureSchemaError, SCHEMA_VERSION } from '~/utils/versions';
+import { migrateProjectToMmStorage } from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
   IdbModel,
@@ -65,6 +66,23 @@ export class CutlistDB extends Dexie {
           .modify((p: Record<string, unknown>) => {
             p.defaultAlgorithm = p.optimize === 'CNC' ? 'cnc' : 'auto';
             delete p.optimize;
+          });
+      });
+
+    // v3 — canonical mm at rest. Project numerics convert from the old
+    // `distanceUnit` (or per-row `unit`) to mm; per-row `unit` field on
+    // stock-YAML rows is dropped. Logic lives in `migrateProjectToMmStorage`
+    // so the export migration runs the same transform. The migration
+    // rewrites the same project-record keys (bladeWidth, margin, stock) so
+    // Object.assign is sufficient — no Dexie field needs deleting here.
+    this.version(3)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateProjectToMmStorage(p));
           });
       });
   }

@@ -22,6 +22,7 @@ import type {
 import { gzipDecompress } from '~/utils/compress';
 import { migrateExport } from './migrations';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
+import type { Precision } from 'cutlist';
 import { defaultSceneIdForModel, isDefaultSceneId } from '~/utils/defaultScene';
 import { base64ToBlob } from '~/utils/blobBase64';
 import { remapBuildDoc } from '~/utils/buildDocRemap';
@@ -182,6 +183,22 @@ const AnnotationSchema = z.discriminatedUnion('kind', [
   DimensionSchema,
 ]);
 
+const PrecisionSchema = z.union([
+  z.object({
+    kind: z.literal('fraction'),
+    denominator: z.union([
+      z.literal(8),
+      z.literal(16),
+      z.literal(32),
+      z.literal(64),
+    ]),
+  }),
+  z.object({
+    kind: z.literal('decimal'),
+    step: z.number().positive().finite(),
+  }),
+]);
+
 // Packing settings (bladeWidth, margin, defaultAlgorithm, showPartNumbers) now
 // live on the project record, so they travel with the export automatically. A
 // top-level `settings` field left over from the pre-v2 global-settings export
@@ -195,6 +212,7 @@ const ProjectExportSchema = z.object({
     excludedColors: z.array(z.string()).default([]),
     stock: z.string(),
     distanceUnit: z.enum(['in', 'mm']).default(DEFAULT_SETTINGS.distanceUnit),
+    precision: PrecisionSchema.default(DEFAULT_SETTINGS.precision),
     bladeWidth: z.number().finite().default(DEFAULT_SETTINGS.bladeWidth),
     margin: z.number().finite().default(DEFAULT_SETTINGS.margin),
     defaultAlgorithm: z
@@ -223,6 +241,7 @@ export interface ProjectImportDb {
     opts?: {
       stock?: string;
       distanceUnit?: 'in' | 'mm';
+      precision?: Precision;
       bladeWidth?: number;
       margin?: number;
       defaultAlgorithm?: 'auto' | 'tidy' | 'compact' | 'cnc';
@@ -287,6 +306,7 @@ export async function importProjectData(
   const newProject = await idb.createProject(data.project.name, {
     stock: data.project.stock,
     distanceUnit: data.project.distanceUnit,
+    precision: data.project.precision,
     bladeWidth: data.project.bladeWidth,
     margin: data.project.margin,
     defaultAlgorithm: data.project.defaultAlgorithm,

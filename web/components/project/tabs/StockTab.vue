@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import YAML from 'js-yaml';
-import { STOCK_PRESETS } from '~/utils/settings';
+import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
 import { parseStock } from '~/utils/parseStock';
 
 const { stock } = useProjectSettings();
@@ -22,13 +22,14 @@ const presetItems = STOCK_PRESETS.map((preset) => ({
 
 function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
   if (stock.value == null) return;
+  const mmStock = presetToMmStock(preset);
   try {
     const current = parseStock(stock.value);
-    current.push(JSON.parse(JSON.stringify(preset.stock)));
+    current.push(mmStock);
     stock.value = YAML.dump(current, { indent: 2, flowLevel: 3 });
     stockInput.value?.scrollToBottom();
   } catch {
-    stock.value = YAML.dump([preset.stock], { indent: 2, flowLevel: 3 });
+    stock.value = YAML.dump([mmStock], { indent: 2, flowLevel: 3 });
     stockInput.value?.scrollToBottom();
   }
 }

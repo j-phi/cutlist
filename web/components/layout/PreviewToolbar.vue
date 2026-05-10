@@ -1,14 +1,28 @@
 <script lang="ts" setup>
+import { useDimensionInput } from '~/composables/useDimensionInput';
+
 const {
   bladeWidth,
   distanceUnit,
   margin,
+  precision,
   defaultAlgorithm,
   showPartNumbers,
   isLoading,
 } = useProjectSettings();
 
-useUnitConverter();
+const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
+
+const { input: bladeInput, commit: commitBlade } = useDimensionInput(
+  bladeWidth,
+  unit,
+  precision,
+);
+const { input: marginInput, commit: commitMargin } = useDimensionInput(
+  margin,
+  unit,
+  precision,
+);
 
 const ALGORITHM_ITEMS = [
   { label: 'Auto', value: 'auto' },
@@ -32,29 +46,27 @@ const ALGORITHM_ITEMS = [
 
     <div class="flex items-center gap-1.5">
       <label class="text-xs text-muted whitespace-nowrap"
-        >Blade ({{ distanceUnit }})</label
+        >Blade ({{ unit }})</label
       >
       <UInput
-        v-model="bladeWidth"
-        type="number"
-        min="0"
-        step="0.00001"
+        v-model="bladeInput"
+        type="text"
         size="xs"
         class="w-20"
+        @blur="commitBlade"
       />
     </div>
 
     <div class="flex items-center gap-1.5">
       <label class="text-xs text-muted whitespace-nowrap"
-        >Margin ({{ distanceUnit }})</label
+        >Margin ({{ unit }})</label
       >
       <UInput
-        v-model="margin"
-        type="number"
-        min="0"
-        step="0.00001"
+        v-model="marginInput"
+        type="text"
         size="xs"
         class="w-20"
+        @blur="commitMargin"
       />
     </div>
 

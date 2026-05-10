@@ -1,4 +1,4 @@
-import type { Algorithm } from 'cutlist';
+import type { Algorithm, Precision } from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 
 export interface Model {
@@ -29,13 +29,15 @@ export interface Project {
   colorMap: Record<string, string>;
   /** Color keys excluded from BOM (unchecked in mapping panel). */
   excludedColors: string[];
-  /** Per-project stock definition (YAML string). */
+  /** Per-project stock definition (YAML string, mm dimensions). */
   stock: string;
-  /** Per-project distance unit. */
+  /** Display preference for distances; storage is always mm. */
   distanceUnit: 'in' | 'mm';
-  /** Per-project saw blade width, in the project's distanceUnit. */
+  /** Display precision — resets to the unit's default on unit flip. */
+  precision: Precision;
+  /** Saw blade width in mm. */
   bladeWidth: number;
-  /** Per-project margin/offset for the packing algorithm. */
+  /** Packing margin in mm. */
   margin: number;
   /** Per-project default packing algorithm (used when a material has none). */
   defaultAlgorithm: Algorithm;

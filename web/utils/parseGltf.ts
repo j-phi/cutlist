@@ -71,6 +71,9 @@ interface JsonVisit {
  * BOM-only path. Produces parts/colors/nodePartMap with `nodeIndex` set to
  * the mesh-leaf visit-order index (the same value the runtime path uses as
  * `groupId`).
+ *
+ * Units: glTF 2.0 mandates meters, so accessor min/max are already
+ * meters and stored as-is in `Part.size`.
  */
 export function deriveFromGltf(gltfJson: object): DeriveResult {
   return groupPartInfos(walkJsonForParts(gltfJson));
