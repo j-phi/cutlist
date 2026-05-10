@@ -5,11 +5,12 @@
  * renders one row, that toggle/remove actions emit the right ids,
  * and that the remove confirmation flow goes through a pending state.
  */
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { defineComponent, h } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 
 import type { Model } from '../../../composables/useProjects';
+import { STORAGE_KEYS } from '../../../utils/localStorage';
 import BomModelsList from '../BomModelsList.vue';
 
 // UCheckbox stub: renders a real checkbox so we can drive `change`. Uses
@@ -55,14 +56,19 @@ function makeModel(overrides: Partial<Model> = {}): Model {
 function getComponent(props: {
   importedModels: Model[];
   totalModelParts: number;
+  projectId?: string;
 }) {
   return shallowMount(BomModelsList, {
-    props,
+    props: { projectId: 'p1', ...props },
     global: { stubs },
   });
 }
 
 describe('BomModelsList', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   describe('Rendering', () => {
     it('Should render one row per imported model', () => {
       const component = getComponent({
@@ -98,6 +104,48 @@ describe('BomModelsList', () => {
 
       await toggle.trigger('click');
       expect(toggle.attributes('aria-expanded')).toBe('false');
+    });
+
+    it('Should persist the expanded state to localStorage and restore it per project', async () => {
+      const component = getComponent({
+        projectId: 'p1',
+        importedModels: [makeModel()],
+        totalModelParts: 0,
+      });
+
+      await component
+        .get('button[aria-label="Toggle models panel"]')
+        .trigger('click');
+
+      expect(
+        window.localStorage.getItem(
+          STORAGE_KEYS.ui.projectBomModelsExpanded('p1'),
+        ),
+      ).toBe('false');
+
+      // A fresh mount on the same project restores collapsed state.
+      const remounted = getComponent({
+        projectId: 'p1',
+        importedModels: [makeModel()],
+        totalModelParts: 0,
+      });
+      expect(
+        remounted
+          .get('button[aria-label="Toggle models panel"]')
+          .attributes('aria-expanded'),
+      ).toBe('false');
+
+      // A different project keeps its own (default true) state.
+      const other = getComponent({
+        projectId: 'p2',
+        importedModels: [makeModel()],
+        totalModelParts: 0,
+      });
+      expect(
+        other
+          .get('button[aria-label="Toggle models panel"]')
+          .attributes('aria-expanded'),
+      ).toBe('true');
     });
   });
 

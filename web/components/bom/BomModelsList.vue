@@ -1,7 +1,13 @@
 <script lang="ts" setup>
 import type { Model } from '~/composables/useProjects';
+import {
+  STORAGE_KEYS,
+  getLocalStorageJson,
+  setLocalStorageJson,
+} from '~/utils/localStorage';
 
-defineProps<{
+const props = defineProps<{
+  projectId: string;
   importedModels: Model[];
   totalModelParts: number;
 }>();
@@ -12,8 +18,29 @@ const emit = defineEmits<{
   removeModel: [modelId: string];
 }>();
 
-const modelsExpanded = ref(true);
+function loadExpanded(projectId: string): boolean {
+  const stored = getLocalStorageJson<boolean>(
+    STORAGE_KEYS.ui.projectBomModelsExpanded(projectId),
+  );
+  return typeof stored === 'boolean' ? stored : true;
+}
+
+const modelsExpanded = ref(loadExpanded(props.projectId));
 const pendingRemoveModelId = ref<string | null>(null);
+
+watch(
+  () => props.projectId,
+  (id) => {
+    modelsExpanded.value = loadExpanded(id);
+  },
+);
+
+watch(modelsExpanded, (value) => {
+  setLocalStorageJson(
+    STORAGE_KEYS.ui.projectBomModelsExpanded(props.projectId),
+    value,
+  );
+});
 
 function confirmRemove(modelId: string) {
   emit('removeModel', modelId);

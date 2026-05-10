@@ -16,6 +16,10 @@ export const STORAGE_KEYS = {
     projectBomFilter(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/bom-filter/v1`;
     },
+    // Whether the Models panel on the BOM tab is expanded, scoped per project.
+    projectBomModelsExpanded(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/bom-models-expanded/v1`;
+    },
   },
 } as const;
 

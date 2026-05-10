@@ -317,13 +317,14 @@ onUnmounted(() => {
       class="absolute inset-0 flex flex-col-reverse md:flex-row min-h-0 min-w-0"
     >
       <div
-        class="relative flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden"
+        class="relative flex-1 min-h-0 min-w-0 overflow-auto"
         @mouseleave="clearBomHover"
       >
         <template v-if="activeProject">
           <!-- ─── Collapsible Models Panel ──────────────────────────────────── -->
           <BomModelsList
             v-if="activeProject.models.length > 0"
+            :project-id="activeProject.id"
             :imported-models="importedModels"
             :total-model-parts="totalModelParts"
             @pick-file="pickFile"
@@ -414,8 +415,8 @@ onUnmounted(() => {
               />
             </div>
 
-            <!-- Parts table (horizontally scrollable on small screens) -->
-            <div v-if="filteredGroups.length > 0" class="overflow-x-auto">
+            <!-- Parts table (horizontally scrollable on small screens via the outer container) -->
+            <div v-if="filteredGroups.length > 0">
               <table
                 class="w-full text-sm border-separate border-spacing-0"
                 style="min-width: 480px"
@@ -497,11 +498,14 @@ onUnmounted(() => {
                     v-for="(group, gi) in filteredGroups"
                     :key="group.material"
                   >
-                    <!-- Material group header -->
+                    <!-- Material group header (sticky below the column headers) -->
                     <tr>
                       <td
                         :colspan="tableColspan"
-                        :class="['px-5 pb-1.5', gi === 0 ? 'pt-3' : 'pt-5']"
+                        :class="[
+                          'sticky top-9 z-[5] bg-base px-5 pb-1.5',
+                          gi === 0 ? 'pt-3' : 'pt-5',
+                        ]"
                       >
                         <div
                           class="flex items-center gap-2.5 pb-1.5 border-b border-subtle"
