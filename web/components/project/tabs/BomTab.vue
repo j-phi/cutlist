@@ -457,10 +457,10 @@ onUnmounted(() => {
                       @toggle="toggleSort"
                     />
                     <BomSortableHeader
-                      column-key="thickness"
-                      label="T"
+                      column-key="length"
+                      label="L"
                       align="right"
-                      width-class="w-18"
+                      width-class="w-22"
                       :unit-suffix="distanceUnit ?? ''"
                       :current-sort="sortKey"
                       :sort-dir="sortDir"
@@ -477,10 +477,10 @@ onUnmounted(() => {
                       @toggle="toggleSort"
                     />
                     <BomSortableHeader
-                      column-key="length"
-                      label="L"
+                      column-key="thickness"
+                      label="T"
                       align="right"
-                      width-class="w-22"
+                      width-class="w-18"
                       :unit-suffix="distanceUnit ?? ''"
                       :current-sort="sortKey"
                       :sort-dir="sortDir"
@@ -671,9 +671,9 @@ onUnmounted(() => {
                           {{ row.qty }}
                         </td>
                         <td
-                          class="px-4 py-2.5 text-right text-muted tabular-nums"
+                          class="px-4 py-2.5 text-right text-body tabular-nums"
                         >
-                          {{ formatDim(row.thicknessM) }}
+                          {{ formatDim(row.lengthM) }}
                         </td>
                         <td
                           class="px-4 py-2.5 text-right text-body tabular-nums"
@@ -681,9 +681,9 @@ onUnmounted(() => {
                           {{ formatDim(row.widthM) }}
                         </td>
                         <td
-                          class="px-4 py-2.5 text-right text-body tabular-nums"
+                          class="px-4 py-2.5 text-right text-muted tabular-nums"
                         >
-                          {{ formatDim(row.lengthM) }}
+                          {{ formatDim(row.thicknessM) }}
                         </td>
                         <td class="px-4 py-2.5">
                           <div v-if="activeId" class="flex items-center gap-1">

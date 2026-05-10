@@ -214,9 +214,9 @@ function scrollToBottom() {
           <!-- Size dimensions + delete -->
           <div class="flex items-center justify-between">
             <span class="text-[13px] text-teal-300 font-mono">
-              {{ displayDim(size.width) }}{{ unit }}
-              <span class="text-dim">&times;</span>
               {{ displayDim(size.length) }}{{ unit }}
+              <span class="text-dim">&times;</span>
+              {{ displayDim(size.width) }}{{ unit }}
             </span>
             <button
               class="text-dim hover:text-body leading-none transition-colors"
@@ -255,18 +255,18 @@ function scrollToBottom() {
         <!-- Add size row -->
         <div class="flex items-center gap-1.5">
           <input
-            v-model="newSizeWidth[matIndex]"
-            type="text"
-            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
-            placeholder="width"
-            @keydown.enter.prevent="addSize(matIndex)"
-          />
-          <span class="text-dim text-sm">&times;</span>
-          <input
             v-model="newSizeLength[matIndex]"
             type="text"
             class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
             placeholder="length"
+            @keydown.enter.prevent="addSize(matIndex)"
+          />
+          <span class="text-dim text-sm">&times;</span>
+          <input
+            v-model="newSizeWidth[matIndex]"
+            type="text"
+            class="bg-elevated rounded px-2 py-1 text-[13px] text-teal-300/70 font-mono w-20 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
+            placeholder="width"
             @keydown.enter.prevent="addSize(matIndex)"
           />
           <button

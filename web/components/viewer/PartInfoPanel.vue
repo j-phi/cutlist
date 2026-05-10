@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * Compact part readout — `#N Name  W × L × T` on a single line.
+ * Compact part readout — `#N Name  L × W × T` on a single line.
  */
 import type { BoardLayoutLeftover } from 'cutlist';
 
@@ -17,9 +17,9 @@ const formatDistance = useFormatDistance();
       #{{ props.part.partNumber }} {{ props.part.name }}
     </span>
     <span class="text-muted">
-      {{ formatDistance(props.part.widthM) }}
-      ×
       {{ formatDistance(props.part.lengthM) }}
+      ×
+      {{ formatDistance(props.part.widthM) }}
       ×
       {{ formatDistance(props.part.thicknessM) }}
     </span>

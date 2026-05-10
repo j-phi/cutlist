@@ -162,7 +162,7 @@ describe('ManualPartRow', () => {
         .findAll('label')
         .map((l) => l.text())
         .filter((t) => /^[WLT] \(/.test(t));
-      expect(labels).toEqual(['W (in)', 'L (in)', 'T (in)']);
+      expect(labels).toEqual(['L (in)', 'W (in)', 'T (in)']);
     });
 
     it('Should parse fractions and emit mm equivalents', async () => {

@@ -26,14 +26,14 @@ const bottom = computed(() => formatDistance(props.placement?.bottomM));
     <table class="font-mono">
       <tbody>
         <tr>
-          <td class="text-muted">Width</td>
-          <td class="text-dim whitespace-pre">{{ ' = ' }}</td>
-          <td>{{ width }}</td>
-        </tr>
-        <tr>
           <td class="text-muted">Length</td>
           <td class="text-dim whitespace-pre">{{ ' = ' }}</td>
           <td>{{ length }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Width</td>
+          <td class="text-dim whitespace-pre">{{ ' = ' }}</td>
+          <td>{{ width }}</td>
         </tr>
         <tr>
           <td class="text-muted">Thick</td>

@@ -105,7 +105,7 @@ function drawBoardTilePage(
 
   // Board title line
   const boardTitleY = pageH - (margin + HEADER_BAND_MM) * MM - 8;
-  const sizeText = `${formatSize(stock.thicknessM) ?? ''} × ${formatSize(stock.widthM) ?? ''} × ${formatSize(stock.lengthM) ?? ''}`;
+  const sizeText = `${formatSize(stock.lengthM) ?? ''} × ${formatSize(stock.widthM) ?? ''} × ${formatSize(stock.thicknessM) ?? ''}`;
   page.drawText(`${stock.material}  ·  ${sizeText}`, {
     x: margin * MM,
     y: boardTitleY,

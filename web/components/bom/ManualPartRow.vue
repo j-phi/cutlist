@@ -103,20 +103,6 @@ function onKeydown(e: KeyboardEvent) {
     />
     <div class="grid grid-cols-4 gap-1.5">
       <div class="flex flex-col gap-0.5">
-        <label class="text-xs text-muted px-0.5" for="manual-part-width"
-          >W ({{ unit }})</label
-        >
-        <UInput
-          id="manual-part-width"
-          v-model="widthInput"
-          type="text"
-          size="sm"
-          :placeholder="placeholder"
-          @blur="commitWidth"
-          @keydown="onKeydown"
-        />
-      </div>
-      <div class="flex flex-col gap-0.5">
         <label class="text-xs text-muted px-0.5" for="manual-part-length"
           >L ({{ unit }})</label
         >
@@ -127,6 +113,20 @@ function onKeydown(e: KeyboardEvent) {
           size="sm"
           :placeholder="placeholder"
           @blur="commitLength"
+          @keydown="onKeydown"
+        />
+      </div>
+      <div class="flex flex-col gap-0.5">
+        <label class="text-xs text-muted px-0.5" for="manual-part-width"
+          >W ({{ unit }})</label
+        >
+        <UInput
+          id="manual-part-width"
+          v-model="widthInput"
+          type="text"
+          size="sm"
+          :placeholder="placeholder"
+          @blur="commitWidth"
           @keydown="onKeydown"
         />
       </div>

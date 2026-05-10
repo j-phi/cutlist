@@ -32,7 +32,7 @@ export function aggregateBom(
       name: part.name,
       qty: instances.length,
       material: part.material,
-      size: `${formatSize(part.thicknessM) ?? ''} × ${formatSize(part.widthM) ?? ''} × ${formatSize(part.lengthM) ?? ''}`,
+      size: `${formatSize(part.lengthM) ?? ''} × ${formatSize(part.widthM) ?? ''} × ${formatSize(part.thicknessM) ?? ''}`,
     };
   });
 }
