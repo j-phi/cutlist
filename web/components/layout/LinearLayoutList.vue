@@ -39,19 +39,15 @@ const groups = computed<DisplayGroup[]>(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-8 m-16">
-    <section
-      v-for="group in groups"
-      :key="group.key"
-      class="flex flex-col gap-3"
-    >
-      <header class="zoom-stable origin-top-left">
+  <div class="flex flex-col gap-16 m-16">
+    <section v-for="group in groups" :key="group.key" class="flex flex-col">
+      <header class="zoom-stable origin-bottom-left mb-8">
         <h2 class="text-2xl font-bold text-teal-400">
           {{ group.material }}
         </h2>
         <p class="text-sm text-muted mt-1">{{ group.shoppingSummary }}</p>
       </header>
-      <ul class="flex flex-col gap-2 items-start">
+      <ul class="flex flex-col gap-6 items-start">
         <LinearLayoutListItem
           v-for="(layout, i) in group.layouts"
           :key="group.indices[i]"

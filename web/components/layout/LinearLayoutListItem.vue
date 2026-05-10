@@ -59,9 +59,21 @@ const wasteStyle = computed(() => {
 
 <template>
   <li
-    class="flex flex-col gap-1.5 linear-stick"
+    class="flex flex-col gap-2 linear-stick"
     :aria-label="`Stick ${boardIndex + 1}: ${layout.stock.material} ${length}`"
   >
+    <div
+      class="text-xs text-muted flex items-center gap-2 zoom-stable origin-bottom-left"
+    >
+      <span>#{{ boardIndex + 1 }}</span>
+      <span>{{ length }} stick</span>
+      <span aria-hidden="true">&middot;</span>
+      <span>{{ cutCount }} {{ cutCount === 1 ? 'cut' : 'cuts' }}</span>
+      <template v-if="wasteLabel">
+        <span aria-hidden="true">&middot;</span>
+        <span>{{ wasteLabel }} waste</span>
+      </template>
+    </div>
     <div
       class="stick-bar relative h-10 rounded overflow-hidden shadow-md shadow-black/30 border border-subtle"
       :style="stickStyle"
@@ -83,16 +95,6 @@ const wasteStyle = computed(() => {
         :style="wasteStyle"
         :aria-label="`waste ${wasteLabel}`"
       />
-    </div>
-    <div class="text-xs text-muted flex items-center gap-2">
-      <span>#{{ boardIndex + 1 }}</span>
-      <span>{{ length }} stick</span>
-      <span aria-hidden="true">&middot;</span>
-      <span>{{ cutCount }} {{ cutCount === 1 ? 'cut' : 'cuts' }}</span>
-      <template v-if="wasteLabel">
-        <span aria-hidden="true">&middot;</span>
-        <span>{{ wasteLabel }} waste</span>
-      </template>
     </div>
   </li>
 </template>
