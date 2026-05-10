@@ -58,9 +58,13 @@ function makeLayout(
 }
 
 describe('LinearLayoutListItem', () => {
-  function getComponent(layout: LinearBoardLayout, boardIndex = 0) {
+  function getComponent(
+    layout: LinearBoardLayout,
+    boardIndex = 0,
+    maxLengthM = layout.stock.lengthM,
+  ) {
     return shallowMount(LinearLayoutListItem, {
-      props: { layout, boardIndex },
+      props: { layout, boardIndex, maxLengthM },
     });
   }
 
@@ -157,5 +161,20 @@ describe('LinearLayoutListItem', () => {
     expect(style).toContain('background: #aa0001');
     expect(style).toContain('--chip-color: #aa0002');
     expect(style).toContain('--chip-text: #aa0004');
+  });
+
+  it('scales the stick width relative to maxLengthM so shorter sticks read at relative size', () => {
+    // A 96″ stick in a group whose longest member is 192″ should render at
+    // half width. Without scaling, every stick fills its container and the
+    // 96″ and 192″ sticks look identical, which is misleading.
+    const shortStick = makeLayout({
+      stock: { ...makeLayout().stock, lengthM: 2.4384 },
+    });
+    const longestM = 4.8768;
+    const component = shallowMount(LinearLayoutListItem, {
+      props: { layout: shortStick, boardIndex: 0, maxLengthM: longestM },
+    });
+    const style = component.find('.stick-bar').attributes('style') ?? '';
+    expect(style).toContain('width: 50%');
   });
 });

@@ -15,6 +15,9 @@ interface DisplayGroup {
   layouts: LinearBoardLayout[];
   /** Indices into `layouts`, for stable per-stick numbering across the group. */
   indices: number[];
+  /** Longest stick length in the group, used to scale stick widths so an 8 ft
+   *  stick is visibly half the width of a 16 ft stick from the same material. */
+  maxLengthM: number;
 }
 
 const groups = computed<DisplayGroup[]>(() => {
@@ -26,6 +29,10 @@ const groups = computed<DisplayGroup[]>(() => {
     const summary = `${parts.join(', ')} (${g.totalSticks} ${
       g.totalSticks === 1 ? 'stick' : 'sticks'
     } total)`;
+    const maxLengthM = g.layouts.reduce(
+      (acc, l) => Math.max(acc, l.stock.lengthM),
+      0,
+    );
     return {
       key: g.material,
       material: g.material,
@@ -33,6 +40,7 @@ const groups = computed<DisplayGroup[]>(() => {
       totalSticks: g.totalSticks,
       layouts: g.layouts,
       indices: g.layouts.map((_, i) => i),
+      maxLengthM,
     };
   });
 });
@@ -57,6 +65,7 @@ const groups = computed<DisplayGroup[]>(() => {
           :key="group.indices[i]"
           :layout="layout"
           :board-index="group.indices[i]"
+          :max-length-m="group.maxLengthM"
         />
       </ul>
     </section>
