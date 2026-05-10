@@ -108,6 +108,18 @@ describe('NewProjectDialog', () => {
       });
     });
 
+    it('Should pass a precision value that IndexedDB can structuredClone', async () => {
+      // Regression: a deep ref<Precision> wraps the value in a reactive
+      // Proxy, which structuredClone (used by IDB on put) rejects.
+      const component = getComponent();
+
+      await component.get('input').setValue('My Project');
+      await component.get('input').trigger('keydown.enter');
+
+      const [, , precision] = addProject.mock.calls[0];
+      expect(() => structuredClone(precision)).not.toThrow();
+    });
+
     it('Should not create when the name is whitespace', async () => {
       const component = getComponent();
 

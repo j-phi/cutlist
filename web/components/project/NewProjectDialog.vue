@@ -8,7 +8,9 @@ const { addProject } = useProjects();
 const toast = useToast();
 const projectName = ref('');
 const unit = ref<'mm' | 'in'>('mm');
-const precision = ref<Precision>(defaultPrecisionForUnit('mm'));
+// shallowRef so the value stays a plain object — IDB's structuredClone
+// rejects Vue reactive proxies (DataCloneError on put).
+const precision = shallowRef<Precision>(defaultPrecisionForUnit('mm'));
 
 interface PrecisionOption {
   label: string;
