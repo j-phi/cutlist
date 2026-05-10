@@ -10,11 +10,16 @@
 import { describe, it } from 'vitest';
 import {
   generateBoardLayouts,
+  isLinearBoardLayout,
+  type AnyBoardLayout,
   type BoardLayout,
   type ConfigInput,
   type PartToCut,
   type StockMatrix,
 } from '..';
+
+const onlySheet = (layouts: AnyBoardLayout[]): BoardLayout[] =>
+  layouts.filter((l): l is BoardLayout => !isLinearBoardLayout(l));
 
 interface Fixture {
   name: string;
@@ -227,7 +232,7 @@ function runOnce(fixture: Fixture): Metrics {
   const t0 = performance.now();
   const result = generateBoardLayouts(fixture.parts, fixture.stock, config);
   const dt = performance.now() - t0;
-  return measure(result.layouts, dt, result.leftovers.length);
+  return measure(onlySheet(result.layouts), dt, result.leftovers.length);
 }
 
 /** Run a fixture under a forced pass set so we can isolate per-packer behaviour. */
@@ -246,7 +251,7 @@ function runWithPasses(
   const t0 = performance.now();
   const result = generateBoardLayouts(fixture.parts, fixture.stock, config);
   const dt = performance.now() - t0;
-  return measure(result.layouts, dt, result.leftovers.length);
+  return measure(onlySheet(result.layouts), dt, result.leftovers.length);
 }
 
 const VARIANTS: Array<{

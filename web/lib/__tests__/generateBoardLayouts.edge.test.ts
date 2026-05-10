@@ -1,10 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import {
   generateBoardLayouts,
+  isLinearBoardLayout,
+  type AnyBoardLayout,
+  type BoardLayout,
   type Config,
   type PartToCut,
   type StockMatrix,
 } from '..';
+
+function asSheet(layout: AnyBoardLayout): BoardLayout {
+  if (isLinearBoardLayout(layout))
+    throw new Error('expected sheet board layout, got linear');
+  return layout;
+}
+
+function sheetLayouts(layouts: AnyBoardLayout[]): BoardLayout[] {
+  return layouts.map(asSheet);
+}
 
 const baseConfig: Config = {
   bladeWidth: 0,
@@ -133,7 +146,7 @@ describe('generateBoardLayouts edge cases', () => {
     expect(result.layouts).toHaveLength(1);
     expect(result.layouts[0].marginM).toBe(marginM);
 
-    for (const p of result.layouts[0].placements) {
+    for (const p of asSheet(result.layouts[0]).placements) {
       expect(p.leftM).toBeGreaterThanOrEqual(marginM - 1e-9);
       expect(p.bottomM).toBeGreaterThanOrEqual(marginM - 1e-9);
       expect(p.rightM).toBeLessThanOrEqual(1 - marginM + 1e-9);
@@ -346,10 +359,10 @@ describe('generateBoardLayouts edge cases', () => {
       baseConfig,
     );
 
-    const ply18LayoutsA = resultA.layouts.filter(
+    const ply18LayoutsA = sheetLayouts(resultA.layouts).filter(
       (l) => Math.abs(l.stock.thicknessM - 0.018) < 1e-5,
     );
-    const ply18LayoutsB = resultB.layouts.filter(
+    const ply18LayoutsB = sheetLayouts(resultB.layouts).filter(
       (l) => Math.abs(l.stock.thicknessM - 0.018) < 1e-5,
     );
 

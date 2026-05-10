@@ -27,6 +27,8 @@ export const SearchPass = z.union([
   z.literal('cnc-area'),
   z.literal('cnc-perimeter'),
   z.literal('cnc-random'),
+  // Linear (1D timber) pass — first-fit-decreasing on length.
+  z.literal('linear-ffd'),
 ]);
 export type SearchPass = z.infer<typeof SearchPass>;
 
@@ -318,7 +320,7 @@ export const isLinearBoardLayout = (
  * any classes, and is safe to convert to and from JSON.
  */
 export interface PotentialBoardLayout {
-  stock: Stock;
+  stock: AnyStock;
   placements: Rectangle<PartToCut>[];
   algorithm: Exclude<Algorithm, 'auto'>;
 }

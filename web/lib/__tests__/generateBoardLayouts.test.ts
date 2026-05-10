@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { generateBoardLayouts, type Config, type PartToCut } from '..';
+import {
+  generateBoardLayouts,
+  isLinearBoardLayout,
+  type AnyBoardLayout,
+  type BoardLayout,
+  type Config,
+  type PartToCut,
+} from '..';
+
+function asSheet(layout: AnyBoardLayout): BoardLayout {
+  if (isLinearBoardLayout(layout))
+    throw new Error('expected sheet board layout, got linear');
+  return layout;
+}
 
 function createPart(
   partNumber: number,
@@ -135,7 +148,7 @@ describe('generateBoardLayouts', () => {
     // Tidy on equal-width parts → single column.
     for (const board of plywoodBoards) {
       const lefts = new Set(
-        board.placements.map((p) => Math.round(p.leftM * 1e6)),
+        asSheet(board).placements.map((p) => Math.round(p.leftM * 1e6)),
       );
       expect(lefts.size).toBe(1);
     }
@@ -167,7 +180,9 @@ describe('generateBoardLayouts', () => {
     expect(result.leftovers).toEqual([]);
     // Tidy on equal-sized parts → single column. CNC would scatter them.
     const lefts = new Set(
-      result.layouts[0].placements.map((p) => Math.round(p.leftM * 1e6)),
+      asSheet(result.layouts[0]).placements.map((p) =>
+        Math.round(p.leftM * 1e6),
+      ),
     );
     expect(lefts.size).toBe(1);
   });

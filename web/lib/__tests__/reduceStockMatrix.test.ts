@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { reduceStockMatrix } from '..';
+import { isLinearStock, reduceStockMatrix, type Stock } from '..';
+
+const sheetOnly = (stocks: ReturnType<typeof reduceStockMatrix>): Stock[] =>
+  stocks.filter((s): s is Stock => !isLinearStock(s));
 
 describe('reduceStockMatrix', () => {
   it('returns [] for an empty matrix', () => {
@@ -7,13 +10,15 @@ describe('reduceStockMatrix', () => {
   });
 
   it('converts mm input to meters', () => {
-    const result = reduceStockMatrix([
-      {
-        kind: 'sheet',
-        material: 'MDF',
-        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
-      },
-    ]);
+    const result = sheetOnly(
+      reduceStockMatrix([
+        {
+          kind: 'sheet',
+          material: 'MDF',
+          sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+        },
+      ]),
+    );
     expect(result).toHaveLength(1);
     expect(result[0].thickness).toBeCloseTo(0.018, 6);
     expect(result[0].width).toBeCloseTo(1.22, 6);
@@ -21,16 +26,18 @@ describe('reduceStockMatrix', () => {
   });
 
   it('returns one stock per size × thickness combination', () => {
-    const result = reduceStockMatrix([
-      {
-        kind: 'sheet',
-        material: 'Ply',
-        sizes: [
-          { width: 600, length: 2440, thickness: [12] },
-          { width: 1220, length: 2440, thickness: [12] },
-        ],
-      },
-    ]);
+    const result = sheetOnly(
+      reduceStockMatrix([
+        {
+          kind: 'sheet',
+          material: 'Ply',
+          sizes: [
+            { width: 600, length: 2440, thickness: [12] },
+            { width: 1220, length: 2440, thickness: [12] },
+          ],
+        },
+      ]),
+    );
     expect(result).toHaveLength(2);
     expect(result.map((s) => s.width)).toEqual([0.6, 1.22]);
   });
@@ -51,16 +58,18 @@ describe('reduceStockMatrix', () => {
   });
 
   it('supports different thicknesses per size', () => {
-    const result = reduceStockMatrix([
-      {
-        kind: 'sheet',
-        material: 'Ply',
-        sizes: [
-          { width: 1220, length: 2440, thickness: [18, 12, 9] },
-          { width: 1220, length: 1220, thickness: [12] },
-        ],
-      },
-    ]);
+    const result = sheetOnly(
+      reduceStockMatrix([
+        {
+          kind: 'sheet',
+          material: 'Ply',
+          sizes: [
+            { width: 1220, length: 2440, thickness: [18, 12, 9] },
+            { width: 1220, length: 1220, thickness: [12] },
+          ],
+        },
+      ]),
+    );
     expect(result).toHaveLength(4);
     const small = result.filter(
       (s) =>

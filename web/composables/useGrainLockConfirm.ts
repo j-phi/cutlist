@@ -1,4 +1,4 @@
-import { reduceStockMatrix, type Stock } from 'cutlist';
+import { reduceStockMatrix, isLinearStock, type Stock } from 'cutlist';
 import { parseStock } from '~/utils/parseStock';
 import type { GrainLock } from '~/utils/grain';
 import { cycleGrainLock } from '~/utils/grain';
@@ -14,10 +14,14 @@ export const useGrainLockConfirm = createSharedComposable(() => {
   const { activeId, updatePartGrainLock } = useProjects();
   const { stock, margin } = useProjectSettings();
 
+  // Linear stock has no per-part grain lock concept (cross-section is fixed),
+  // so the fit check only considers sheet boards.
   const parsedStock = computed<Stock[]>(() => {
     if (!stock.value) return [];
     try {
-      return reduceStockMatrix(parseStock(stock.value));
+      return reduceStockMatrix(parseStock(stock.value)).filter(
+        (s): s is Stock => !isLinearStock(s),
+      );
     } catch {
       return [];
     }

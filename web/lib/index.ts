@@ -1,24 +1,34 @@
 import {
   type Algorithm,
+  type AnyBoardLayout,
+  type AnyStock,
   type PartToCut,
   type Stock,
+  type LinearStock,
   type StockMatrix,
   Config,
   type ConfigInput,
   type BoardLayout,
   type BoardLayoutLeftover,
   type BoardLayoutPlacement,
+  type LinearBoardLayout,
+  type LinearBoardLayoutPlacement,
   type PotentialBoardLayout,
   type SearchPass,
+  isLinearStock,
 } from './types';
 
 import { Rectangle } from './geometry';
 import { isNearlyEqual } from './utils/floating-point-utils';
-import { isValidStock } from './utils/stock-utils';
+import {
+  isValidAnyStock,
+  isValidLinearStockForPart,
+} from './utils/stock-utils';
 import { mmToM } from './utils/units';
 import {
   compareLayoutScores,
   createCompactPacker,
+  createLinearPacker,
   createTidyPacker,
   createTightPacker,
   scoreLayouts,
@@ -32,7 +42,7 @@ import {
 export * from './types';
 export * from './utils/units';
 
-type PackerKind = 'tidy' | 'compact' | 'tight';
+type PackerKind = 'tidy' | 'compact' | 'tight' | 'linear';
 type PartSortMode =
   | 'area-desc'
   | 'long-side-desc'
@@ -111,6 +121,12 @@ const SEARCH_PASS_DEFINITIONS: Record<SearchPass, SearchPassDefinition> = {
     partSortMode: 'area-random',
     randomSeed: 17,
   },
+  // Linear (1D timber) pass — first-fit-decreasing on length.
+  'linear-ffd': {
+    id: 'linear-ffd',
+    packerKind: 'linear',
+    partSortMode: 'long-side-desc',
+  },
 };
 
 const TIDY_SEARCH_PASSES: SearchPass[] = [
@@ -130,6 +146,8 @@ const CNC_SEARCH_PASSES: SearchPass[] = [
   'cnc-random',
 ];
 
+const LINEAR_SEARCH_PASSES: SearchPass[] = ['linear-ffd'];
+
 /** Auto runs all guillotine voices; the score picks per material. */
 const AUTO_SEARCH_PASSES: SearchPass[] = [
   ...TIDY_SEARCH_PASSES,
@@ -143,6 +161,7 @@ const PACKER_KIND_TO_ALGORITHM: Record<
   tidy: 'tidy',
   compact: 'compact',
   tight: 'cnc',
+  linear: 'linear',
 };
 
 /**
@@ -156,13 +175,16 @@ export function generateBoardLayouts(
   stock: StockMatrix[],
   config: ConfigInput,
 ): {
-  layouts: BoardLayout[];
+  layouts: AnyBoardLayout[];
   leftovers: BoardLayoutLeftover[];
 } {
   const normalizedConfig = Config.parse(config);
 
+  // Sheet stock sorts by area; linear stock by length. Sticks have no
+  // meaningful "area" so we'd otherwise compare on cross-section × length
+  // which is a nonsense metric for placement priority.
   const boards = reduceStockMatrix(stock).toSorted(
-    (a, b) => b.width * b.length - a.width * a.length,
+    (a, b) => stockSortMetric(b) - stockSortMetric(a),
   );
   if (boards.length === 0) throw Error('You must include at least 1 stock.');
 
@@ -177,21 +199,35 @@ export function generateBoardLayouts(
   };
 }
 
+function stockSortMetric(stock: AnyStock): number {
+  if (isLinearStock(stock)) return stock.length;
+  return stock.width * stock.length;
+}
+
 /**
- * Expand a stock matrix into individual boards. Per-(material, thickness)
- * `algorithm` overrides (`thicknessAlgorithms[key]`) flow through to each
- * board's `Stock.algorithm`; the engine falls back to
+ * Expand a stock matrix into individual boards or sticks. Per-(material,
+ * thickness) `algorithm` overrides (`thicknessAlgorithms[key]`) flow through
+ * to each board's `Stock.algorithm`; the engine falls back to
  * `Config.defaultAlgorithm` when unset.
  *
  * Inputs are millimetres; outputs are meters (the engine's internal unit).
  *
- * Linear stock entries are skipped here — they're routed through the linear
- * lane in a later stage. This keeps the 2D engine path sheet-only.
+ * Linear rows expand to one `LinearStock` per stock length.
  */
-export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
-  return matrix.flatMap((item) => {
-    if (item.kind !== 'sheet') return [];
-    return item.sizes.flatMap((size) =>
+export function reduceStockMatrix(matrix: StockMatrix[]): AnyStock[] {
+  return matrix.flatMap<AnyStock>((item) => {
+    if (item.kind === 'linear') {
+      return item.size.lengths.map<LinearStock>((lenMm) => ({
+        kind: 'linear',
+        material: item.material,
+        crossSectionWidth: mmToM(item.size.crossSectionWidth),
+        crossSectionThickness: mmToM(item.size.crossSectionThickness),
+        length: mmToM(lenMm),
+        color: item.color,
+        algorithm: item.algorithm,
+      }));
+    }
+    return item.sizes.flatMap<Stock>((size) =>
       size.thickness.map((thickness) => ({
         material: item.material,
         thickness: mmToM(thickness),
@@ -219,19 +255,21 @@ export const PACKERS: Record<
       rectMerge: true,
     }),
   tight: () => createTightPacker<PartToCut>(),
+  linear: () => createLinearPacker<PartToCut>(),
 };
 
 export function getPassesForAlgorithm(alg: Algorithm): SearchPass[] {
   if (alg === 'tidy') return TIDY_SEARCH_PASSES;
   if (alg === 'compact') return COMPACT_SEARCH_PASSES;
   if (alg === 'cnc') return CNC_SEARCH_PASSES;
+  if (alg === 'linear') return LINEAR_SEARCH_PASSES;
   return AUTO_SEARCH_PASSES;
 }
 
 function runMultiPassSearch(
   config: Config,
   parts: PartToCut[],
-  stock: Stock[],
+  stock: AnyStock[],
 ): SearchPassResult {
   // Tests / programmatic callers can pin an exact pass list. Otherwise
   // each group's `Algorithm` picks its tournament.
@@ -285,7 +323,7 @@ function runMultiPassSearch(
 function runSearchPass(
   config: Config,
   parts: PartToCut[],
-  stock: Stock[],
+  stock: AnyStock[],
   pass: SearchPassDefinition,
 ): SearchPassResult {
   const packer = PACKERS[pass.packerKind](pass);
@@ -336,7 +374,7 @@ type PlaceOptions = {
 function placeAllParts(
   config: Config,
   parts: PartToCut[],
-  stock: Stock[],
+  stock: AnyStock[],
   packer: Packer<PartToCut>,
   algorithm: Exclude<Algorithm, 'auto'>,
   options: PlaceOptions,
@@ -365,7 +403,7 @@ function placeAllParts(
 }
 
 interface OpenBoard {
-  stock: Stock;
+  stock: AnyStock;
   binState: unknown;
   placements: Rectangle<PartToCut>[];
 }
@@ -373,7 +411,7 @@ interface OpenBoard {
 function placeAllPartsWithLookback(
   config: Config,
   parts: PartToCut[],
-  stock: Stock[],
+  stock: AnyStock[],
   packer: Packer<PartToCut>,
   algorithm: Exclude<Algorithm, 'auto'>,
   options: PlaceOptions,
@@ -394,15 +432,13 @@ function placeAllPartsWithLookback(
   const tryPlaceInBinState = packer.tryPlaceInBinState!;
 
   for (const part of sortedParts) {
-    const partRect = makePartRect(part);
-
     // Try every already-opened board first.
     let placed = false;
     for (const board of openBoards) {
-      if (!isValidStock(board.stock, part, config.precision)) continue;
+      if (!isValidAnyStock(board.stock, part, config.precision)) continue;
       const placement = tryPlaceInBinState(
         board.binState,
-        partRect,
+        makePartRect(part, algorithm, board.stock),
         packerOptions,
       );
       if (placement) {
@@ -413,13 +449,17 @@ function placeAllPartsWithLookback(
     }
     if (placed) continue;
 
-    const board = stock.find((s) => isValidStock(s, part, config.precision));
+    const board = stock.find((s) => isValidAnyStock(s, part, config.precision));
     if (!board) {
       leftovers.push(part);
       continue;
     }
     const binState = createBinState(makeBoardRect(board, margin));
-    const placement = tryPlaceInBinState(binState, partRect, packerOptions);
+    const placement = tryPlaceInBinState(
+      binState,
+      makePartRect(part, algorithm, board),
+      packerOptions,
+    );
     if (!placement) {
       // isValidStock claims it fits; if the packer rejects on a fresh
       // board the part is genuinely unplaceable.
@@ -439,7 +479,18 @@ function placeAllPartsWithLookback(
   };
 }
 
-function makeBoardRect(board: Stock, margin: number): Rectangle<Stock> {
+function makeBoardRect(board: AnyStock, margin: number): Rectangle<AnyStock> {
+  if (isLinearStock(board)) {
+    // Linear bin: width = cross-section, height = stick length minus end margins.
+    // Start at (0, margin) so the bin's bottom is at the margin (matches sheet).
+    return new Rectangle(
+      board,
+      0,
+      margin,
+      board.crossSectionWidth,
+      board.length - 2 * margin,
+    );
+  }
   return new Rectangle(
     board,
     margin,
@@ -449,7 +500,18 @@ function makeBoardRect(board: Stock, margin: number): Rectangle<Stock> {
   );
 }
 
-function makePartRect(part: PartToCut): Rectangle<PartToCut> {
+function makePartRect(
+  part: PartToCut,
+  algorithm: Exclude<Algorithm, 'auto'>,
+  stock?: AnyStock,
+): Rectangle<PartToCut> {
+  if (algorithm === 'linear' && stock != null && isLinearStock(stock)) {
+    // Linear: cross-section on X (must equal stock cross-section width),
+    // length on Y. The user might enter the part with W/T swapped, so we
+    // pin the rect width to the stock's cross-section width and put the
+    // cut length on Y.
+    return new Rectangle(part, 0, 0, stock.crossSectionWidth, part.size.length);
+  }
   // grainLock='width': pre-rotate so part.width is on Y-axis (with grain).
   if (part.grainLock === 'width') {
     return new Rectangle(part, 0, 0, part.size.length, part.size.width);
@@ -551,18 +613,16 @@ function getStableRandomValue(seed: number, part: PartToCut): number {
 function minimizeLayoutStock(
   config: Config,
   originalLayout: PotentialBoardLayout,
-  stock: Stock[],
+  stock: AnyStock[],
   packer: Packer<PartToCut>,
   packerOptions: PackOptions<PartToCut>,
 ): PotentialBoardLayout {
   const margin = mmToM(config.margin);
 
-  // Get alternative stock, smaller areas first.
+  // Get alternative stock, smaller (length for linear, area for sheet) first.
   const altStock = stock
-    .filter((stock) =>
-      isValidStock(originalLayout.stock, stock, config.precision),
-    )
-    .toSorted((a, b) => a.width * a.length - b.width * b.length);
+    .filter((s) => isValidAnyStock(originalLayout.stock, s, config.precision))
+    .toSorted((a, b) => stockSortMetric(a) - stockSortMetric(b));
 
   for (const smallerStock of altStock) {
     const bin = makeBoardRect(smallerStock, margin);
@@ -581,37 +641,38 @@ function minimizeLayoutStock(
 
 interface StockGroup {
   parts: PartToCut[];
-  stock: Stock[];
+  stock: AnyStock[];
 }
 
 /**
- * Group parts by the stock type they match (material + thickness), using the
- * same isValidStock logic that placeAllParts uses to assign parts to boards.
+ * Group parts by the stock type they match. Sheet groups key on
+ * (material, thickness); linear groups key on (material, cross-section).
+ * A part can match at most one group — material+kind exclusivity is the
+ * design contract (a material is sheet-only or linear-only per project).
  */
 function groupPartsByStock(
   parts: PartToCut[],
-  stock: Stock[],
+  stock: AnyStock[],
   precision: number,
 ): StockGroup[] {
-  // Collect unique stock types (same material + ~equal thickness)
-  const stockTypes: Stock[][] = [];
+  // Collect unique stock types: sheet types group by ~thickness; linear
+  // types group by ~(crossSectionWidth, crossSectionThickness) in either
+  // orientation.
+  const stockTypes: AnyStock[][] = [];
   for (const s of stock) {
-    const match = stockTypes.find(
-      (t) =>
-        t[0].material === s.material &&
-        isNearlyEqual(t[0].thickness, s.thickness, precision),
+    const match = stockTypes.find((t) =>
+      isCompatibleStockType(t[0], s, precision),
     );
     if (match) match.push(s);
     else stockTypes.push([s]);
   }
 
-  // Assign each part to its matching stock type in a single pass
-  const grouped = new Map<Stock[], PartToCut[]>();
+  const grouped = new Map<AnyStock[], PartToCut[]>();
   const unmatched: PartToCut[] = [];
 
   for (const part of parts) {
     const type = stockTypes.find((t) =>
-      t.some((s) => isValidStock(s, part, precision)),
+      t.some((s) => isValidAnyStock(s, part, precision)),
     );
     if (type) {
       let group = grouped.get(type);
@@ -629,12 +690,39 @@ function groupPartsByStock(
     ([groupStock, groupParts]) => ({ parts: groupParts, stock: groupStock }),
   );
 
-  // Unmatched parts still run so they surface as leftovers
+  // Unmatched parts still run so they surface as leftovers. Hand them the
+  // full stock list so the leftover branch can scan everything.
   if (unmatched.length > 0) {
     result.push({ parts: unmatched, stock });
   }
 
   return result;
+}
+
+function isCompatibleStockType(
+  a: AnyStock,
+  b: AnyStock,
+  precision: number,
+): boolean {
+  if (a.material !== b.material) return false;
+  if (isLinearStock(a) !== isLinearStock(b)) return false;
+  if (isLinearStock(a) && isLinearStock(b)) {
+    return (
+      (isNearlyEqual(a.crossSectionWidth, b.crossSectionWidth, precision) &&
+        isNearlyEqual(
+          a.crossSectionThickness,
+          b.crossSectionThickness,
+          precision,
+        )) ||
+      (isNearlyEqual(a.crossSectionWidth, b.crossSectionThickness, precision) &&
+        isNearlyEqual(a.crossSectionThickness, b.crossSectionWidth, precision))
+    );
+  }
+  return isNearlyEqual(
+    (a as Stock).thickness,
+    (b as Stock).thickness,
+    precision,
+  );
 }
 
 function getPackerOptions(config: Config): PackOptions<PartToCut> {
@@ -649,18 +737,67 @@ function getPackerOptions(config: Config): PackOptions<PartToCut> {
 function serializeBoardLayoutRectangles(
   layout: PotentialBoardLayout,
   marginM: number,
+): AnyBoardLayout {
+  if (isLinearStock(layout.stock)) {
+    return serializeLinearLayout(layout, layout.stock, marginM);
+  }
+  return serializeSheetLayout(layout, layout.stock, marginM);
+}
+
+function serializeSheetLayout(
+  layout: PotentialBoardLayout,
+  stock: Stock,
+  marginM: number,
 ): BoardLayout {
   return {
     placements: layout.placements.map(serializePartToCutPlacement),
     stock: {
-      material: layout.stock.material,
-      thicknessM: layout.stock.thickness,
-      widthM: layout.stock.width,
-      lengthM: layout.stock.length,
-      color: layout.stock.color,
+      material: stock.material,
+      thicknessM: stock.thickness,
+      widthM: stock.width,
+      lengthM: stock.length,
+      color: stock.color,
     },
     marginM,
     algorithm: layout.algorithm,
+  };
+}
+
+function serializeLinearLayout(
+  layout: PotentialBoardLayout,
+  stock: LinearStock,
+  marginM: number,
+): LinearBoardLayout {
+  // Placements live in the bin's coordinate space; the bin starts at y = marginM,
+  // so subtracting marginM produces an offset relative to the stock's start.
+  const sorted = [...layout.placements].sort((a, b) => a.bottom - b.bottom);
+  const placements: LinearBoardLayoutPlacement[] = sorted.map((p) => ({
+    partNumber: p.data.partNumber,
+    instanceNumber: p.data.instanceNumber,
+    name: p.data.name,
+    material: p.data.material,
+    offsetM: p.bottom - marginM,
+    lengthM: p.height,
+  }));
+  // Trailing waste sits between the last placement's end and the stick end,
+  // exclusive of the trailing margin (so total = placements + kerfs + wasteEnd
+  // + 2 × margin).
+  const lastTopInBin =
+    sorted.length > 0 ? sorted[sorted.length - 1].top : marginM;
+  const wasteEndM = stock.length - lastTopInBin - marginM;
+  return {
+    kind: 'linear',
+    stock: {
+      material: stock.material,
+      crossSectionWidthM: stock.crossSectionWidth,
+      crossSectionThicknessM: stock.crossSectionThickness,
+      lengthM: stock.length,
+      color: stock.color,
+    },
+    placements,
+    marginM,
+    wasteEndM,
+    algorithm: 'linear',
   };
 }
 
