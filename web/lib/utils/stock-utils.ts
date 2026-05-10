@@ -75,14 +75,13 @@ export function isValidAnyStock(
   target: PartToCut | AnyStock,
   epsilon: number,
 ): boolean {
+  const targetIsPart = 'size' in target;
   if (isLinearStock(test)) {
-    if ('size' in target)
-      return isValidLinearStockForPart(test, target, epsilon);
-    if (isLinearStock(target))
-      return isCompatibleLinearStock(test, target, epsilon);
-    return false;
+    if (targetIsPart) return isValidLinearStockForPart(test, target, epsilon);
+    return (
+      isLinearStock(target) && isCompatibleLinearStock(test, target, epsilon)
+    );
   }
-  if ('size' in target) return isValidStock(test, target, epsilon);
-  if (isLinearStock(target)) return false;
-  return isValidStock(test, target, epsilon);
+  if (targetIsPart) return isValidStock(test, target, epsilon);
+  return !isLinearStock(target) && isValidStock(test, target, epsilon);
 }

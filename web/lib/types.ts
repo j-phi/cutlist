@@ -55,10 +55,7 @@ export interface Stock {
 
 /**
  * Engine-side linear stock: a single stick at a single length.
- *
- * Cross-section dimensions distinguish this from `Stock`'s panel `width` /
- * `thickness` pair so callers can't accidentally feed a linear stick into a
- * 2D packer. All numbers are meters (engine internal unit).
+ * All numbers are meters (engine internal unit).
  */
 export interface LinearStock {
   kind: 'linear';
@@ -80,12 +77,8 @@ export const isLinearStock = (s: AnyStock): s is LinearStock =>
   'kind' in s && s.kind === 'linear';
 
 /**
- * Sheet stock matrix: a material sold as 2D panels (plywood, MDF, melamine).
- *
- * The discriminator defaults to `'sheet'` so freshly-authored literals (UI
- * forms, presets) round-trip without callers having to type the field. By
- * the time YAML reaches `parseStock`, the v4 migration has stamped explicit
- * `kind: 'sheet'` on every legacy row.
+ * Sheet stock matrix: a material sold as 2D panels (plywood, MDF, …).
+ * `kind` defaults to `'sheet'` so freshly-authored literals can omit it.
  */
 const SheetStockMatrixSchema = z.object({
   kind: z.literal('sheet').default('sheet'),
@@ -145,18 +138,13 @@ const LinearStockMatrixSchema = z.object({
 });
 
 /**
- * For a material, define stock dimensions. A material is *either* sheet
- * *or* linear — never both. The packer routes per material based on the
- * `kind` discriminator.
+ * For a material, define stock dimensions. A material is sheet OR linear,
+ * never both — the packer routes per material on `kind`. All numeric
+ * dimensions are millimetres; display unit is applied in the UI only.
  *
- * Modeled as `z.union` rather than `z.discriminatedUnion` so the sheet
- * variant's `kind` default fills in for legacy YAML rows authored before
- * v4. The v4 migration also stamps `kind: 'sheet'` explicitly, but the
- * default keeps `parseStock` forgiving of any path that bypasses migration
- * (e.g. seed presets defined in code).
- *
- * All numeric dimensions are millimetres. The user's display preference
- * (`distanceUnit`) is applied in the UI only.
+ * Modelled as `z.union` rather than `z.discriminatedUnion` so the sheet
+ * variant's `kind` default fills in for legacy YAML and in-code presets
+ * that bypass the v4 migration.
  */
 export const StockMatrix = z.union([
   SheetStockMatrixSchema,
@@ -287,11 +275,12 @@ export interface LinearBoardLayoutPlacement {
   instanceNumber: number;
   name: string;
   material: string;
-  /** Part's authored width in METERS. Equals the stock's cross-section width
-   *  in whichever orientation the part matched. Carried so BOM consumers and
-   *  hover info can resolve dimensions without joining back to the source part. */
+  /**
+   * Part's authored width/thickness in METERS. Carried so BOM consumers
+   * and hover info can resolve dimensions without joining back to the
+   * source part.
+   */
   widthM: number;
-  /** Part's authored thickness in METERS. See `widthM`. */
   thicknessM: number;
   /** Cut length in METERS — the only dimension that varies along the stick. */
   lengthM: number;

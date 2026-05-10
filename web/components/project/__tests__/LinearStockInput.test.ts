@@ -1,6 +1,6 @@
 // @vitest-environment nuxt
 import { describe, expect, it } from 'vitest';
-import { computed, defineComponent, h, ref } from 'vue';
+import { defineComponent, h } from 'vue';
 import { mount } from '@vue/test-utils';
 import {
   DEFAULT_INCH_PRECISION,
@@ -11,9 +11,7 @@ import {
 import LinearStockInput from '../LinearStockInput.vue';
 
 const UInputStub = defineComponent({
-  props: {
-    modelValue: { type: [String, Number], default: '' },
-  },
+  props: { modelValue: { type: [String, Number], default: '' } },
   emits: ['update:modelValue', 'blur'],
   setup(props, { attrs, emit }) {
     return () =>
@@ -76,31 +74,11 @@ function makeCls(): LinearStockMatrix {
   };
 }
 
-function makeWrapper(modelValue: LinearStockMatrix, unit: 'mm' | 'in' = 'mm') {
-  const Host = defineComponent({
-    components: { LinearStockInput },
-    props: {
-      initial: { type: Object, required: true },
-      unit: { type: String, required: true },
-    },
-    setup(props) {
-      const value = ref<LinearStockMatrix>(props.initial as LinearStockMatrix);
-      const precision = computed(() =>
-        props.unit === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
-      );
-      return { value, precision };
-    },
-    template: `<LinearStockInput
-      :model-value="value"
-      :distance-unit="unit"
-      :precision="precision"
-      @update:model-value="value = $event"
-      @remove="$emit('remove')"
-    />`,
-  });
-
-  return mount(Host, {
-    props: { initial: modelValue, unit },
+function mountInput(modelValue: LinearStockMatrix, unit: 'mm' | 'in' = 'mm') {
+  const precision =
+    unit === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION;
+  return mount(LinearStockInput, {
+    props: { modelValue, distanceUnit: unit, precision },
     global: {
       stubs: {
         UInput: UInputStub,
@@ -112,30 +90,36 @@ function makeWrapper(modelValue: LinearStockMatrix, unit: 'mm' | 'in' = 'mm') {
   });
 }
 
-function inner(host: ReturnType<typeof makeWrapper>) {
-  return host.findComponent(LinearStockInput);
+function emittedLatest(
+  wrapper: ReturnType<typeof mountInput>,
+): LinearStockMatrix | undefined {
+  const events = wrapper.emitted('update:modelValue');
+  if (!events?.length) return undefined;
+  return events[events.length - 1][0] as LinearStockMatrix;
 }
 
-function lengthInputs(host: ReturnType<typeof makeWrapper>) {
-  return host
+function lengthInputs(wrapper: ReturnType<typeof mountInput>) {
+  return wrapper
     .findAll('[data-testid="linear-length-row"] input')
     .filter((el) => el.attributes('data-length-mm') != null);
 }
 
 describe('LinearStockInput', () => {
   describe('Cross-section display', () => {
-    it('Renders cross-section in mm when distanceUnit is mm', () => {
-      const host = makeWrapper(makeCls(), 'mm');
-      const text = host.find('[data-testid="linear-cross-section"]').text();
+    it('renders cross-section in mm when distanceUnit is mm', () => {
+      const text = mountInput(makeCls(), 'mm')
+        .find('[data-testid="linear-cross-section"]')
+        .text();
       expect(text).toContain('38');
       expect(text).toContain('89');
       expect(text).toContain('mm');
     });
 
-    it('Renders cross-section in inches when distanceUnit is in', () => {
-      const host = makeWrapper(makePine24(), 'in');
-      const text = host.find('[data-testid="linear-cross-section"]').text();
+    it('renders cross-section in inches when distanceUnit is in', () => {
       // Pine 2×4 nominal: 1 1/2" × 3 1/2"
+      const text = mountInput(makePine24(), 'in')
+        .find('[data-testid="linear-cross-section"]')
+        .text();
       expect(text).toContain('1 1/2');
       expect(text).toContain('3 1/2');
       expect(text).toContain('"');
@@ -143,117 +127,91 @@ describe('LinearStockInput', () => {
   });
 
   describe('Length editing', () => {
-    it('Renders one editable row per length in modelValue', () => {
-      const host = makeWrapper(makeCls(), 'mm');
-      expect(lengthInputs(host)).toHaveLength(4);
+    it('renders one editable row per length in modelValue', () => {
+      expect(lengthInputs(mountInput(makeCls(), 'mm'))).toHaveLength(4);
     });
 
-    it('Removing a row emits update:modelValue without that length', async () => {
-      const host = makeWrapper(makeCls(), 'mm');
-      const removeButtons = host.findAll(
-        '[data-testid="linear-length-remove"]',
-      );
-      expect(removeButtons).toHaveLength(4);
+    it('removing a row emits update:modelValue without that length', async () => {
+      const wrapper = mountInput(makeCls(), 'mm');
       // Second row corresponds to 3000mm (lengths are sorted asc).
-      await removeButtons[1].trigger('click');
-
-      const events = inner(host).emitted('update:modelValue');
-      expect(events).toBeTruthy();
-      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
-      expect(next.size.lengths).toEqual([2400, 3600, 4800]);
+      await wrapper
+        .findAll('[data-testid="linear-length-remove"]')[1]
+        .trigger('click');
+      expect(emittedLatest(wrapper)?.size.lengths).toEqual([2400, 3600, 4800]);
     });
 
-    it('Adding a length appends a copy of the longest length the user can then edit', async () => {
-      const host = makeWrapper(makeCls(), 'mm');
-      await host.find('[data-testid="linear-length-add"]').trigger('click');
-
-      const events = inner(host).emitted('update:modelValue');
-      expect(events).toBeTruthy();
-      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
+    it('adding a length seeds the longest current length', async () => {
+      const wrapper = mountInput(makeCls(), 'mm');
+      await wrapper.find('[data-testid="linear-length-add"]').trigger('click');
       // 4800 duplicated (it was already the max).
-      expect(next.size.lengths).toEqual([2400, 3000, 3600, 4800, 4800]);
+      expect(emittedLatest(wrapper)?.size.lengths).toEqual([
+        2400, 3000, 3600, 4800, 4800,
+      ]);
     });
 
-    it('Adding a length to an empty list seeds 96″ in inch mode', async () => {
-      const empty = makeCls();
-      empty.size.lengths = [];
-      const host = makeWrapper(empty, 'in');
-      await host.find('[data-testid="linear-length-add"]').trigger('click');
-
-      const events = inner(host).emitted('update:modelValue');
-      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
-      expect(next.size.lengths).toHaveLength(1);
+    it('adding to an empty list seeds 96″ in inch mode', async () => {
+      const empty = { ...makeCls(), size: { ...makeCls().size, lengths: [] } };
+      const wrapper = mountInput(empty, 'in');
+      await wrapper.find('[data-testid="linear-length-add"]').trigger('click');
+      const lengths = emittedLatest(wrapper)?.size.lengths;
       // 96″ = 2438.4 mm.
-      expect(next.size.lengths[0]).toBeCloseTo(2438.4, 1);
+      expect(lengths).toHaveLength(1);
+      expect(lengths![0]).toBeCloseTo(2438.4, 1);
     });
 
-    it('Adding a length to an empty list seeds 2400mm in metric mode', async () => {
-      const empty = makeCls();
-      empty.size.lengths = [];
-      const host = makeWrapper(empty, 'mm');
-      await host.find('[data-testid="linear-length-add"]').trigger('click');
-
-      const events = inner(host).emitted('update:modelValue');
-      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
-      expect(next.size.lengths).toEqual([2400]);
+    it('adding to an empty list seeds 2400mm in metric mode', async () => {
+      const empty = { ...makeCls(), size: { ...makeCls().size, lengths: [] } };
+      const wrapper = mountInput(empty, 'mm');
+      await wrapper.find('[data-testid="linear-length-add"]').trigger('click');
+      expect(emittedLatest(wrapper)?.size.lengths).toEqual([2400]);
     });
 
-    it('Editing a length and committing on blur emits the parsed mm value', async () => {
-      const host = makeWrapper(makeCls(), 'mm');
-      const inputs = lengthInputs(host);
+    it('editing in mm commits the typed value on blur', async () => {
+      const wrapper = mountInput(makeCls(), 'mm');
+      const inputs = lengthInputs(wrapper);
       // Type "2500" into the second row, then blur.
       await inputs[1].setValue('2500');
       await inputs[1].trigger('blur');
-
-      const events = inner(host).emitted('update:modelValue');
-      expect(events).toBeTruthy();
-      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
       // 3000 replaced with 2500; result re-sorted ascending.
-      expect(next.size.lengths).toEqual([2400, 2500, 3600, 4800]);
+      expect(emittedLatest(wrapper)?.size.lengths).toEqual([
+        2400, 2500, 3600, 4800,
+      ]);
     });
 
-    it('Editing in inches commits the converted mm value', async () => {
-      const host = makeWrapper(makePine24(), 'in');
-      const inputs = lengthInputs(host);
+    it('editing in inches converts to mm on commit', async () => {
+      const wrapper = mountInput(makePine24(), 'in');
+      const inputs = lengthInputs(wrapper);
       await inputs[0].setValue('100');
       await inputs[0].trigger('blur');
-
-      const events = inner(host).emitted('update:modelValue');
-      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
-      // 100″ = 2540mm. Lengths re-sorted.
-      const sorted = [...next.size.lengths].sort((a, b) => a - b);
-      expect(sorted[0]).toBeCloseTo(2540, 1);
+      // 100″ = 2540mm. Sorted ascending.
+      const lengths = emittedLatest(wrapper)?.size.lengths;
+      expect(lengths?.[0]).toBeCloseTo(2540, 1);
     });
 
-    it('Invalid input on commit discards the draft (does not emit)', async () => {
-      const host = makeWrapper(makeCls(), 'mm');
-      const inputs = lengthInputs(host);
+    it('invalid input is discarded without emitting', async () => {
+      const wrapper = mountInput(makeCls(), 'mm');
+      const inputs = lengthInputs(wrapper);
       await inputs[0].setValue('not a number');
       await inputs[0].trigger('blur');
-
-      // Nothing was emitted for the bad commit.
-      expect(inner(host).emitted('update:modelValue')).toBeFalsy();
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy();
     });
   });
 
   describe('Material name', () => {
-    it('Editing the material name emits update:modelValue with the new name', async () => {
-      const host = makeWrapper(makeCls(), 'mm');
-      const input = host.find('[data-testid="linear-material-name"]');
-      await input.setValue('My Lumber');
-
-      const events = inner(host).emitted('update:modelValue');
-      expect(events).toBeTruthy();
-      const next = (events as unknown[][])[0][0] as LinearStockMatrix;
-      expect(next.material).toBe('My Lumber');
+    it('typing emits update:modelValue with the new name', async () => {
+      const wrapper = mountInput(makeCls(), 'mm');
+      await wrapper
+        .find('[data-testid="linear-material-name"]')
+        .setValue('My Lumber');
+      expect(emittedLatest(wrapper)?.material).toBe('My Lumber');
     });
   });
 
   describe('Remove', () => {
-    it('Clicking remove emits remove', async () => {
-      const host = makeWrapper(makeCls(), 'mm');
-      await host.find('[data-testid="linear-remove"]').trigger('click');
-      expect(inner(host).emitted('remove')).toBeTruthy();
+    it('clicking remove emits remove', async () => {
+      const wrapper = mountInput(makeCls(), 'mm');
+      await wrapper.find('[data-testid="linear-remove"]').trigger('click');
+      expect(wrapper.emitted('remove')).toBeTruthy();
     });
   });
 });

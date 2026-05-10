@@ -20,10 +20,7 @@ import {
 
 import { Rectangle } from './geometry';
 import { isNearlyEqual } from './utils/floating-point-utils';
-import {
-  isValidAnyStock,
-  isValidLinearStockForPart,
-} from './utils/stock-utils';
+import { isCompatibleLinearStock, isValidAnyStock } from './utils/stock-utils';
 import { mmToM } from './utils/units';
 import {
   compareLayoutScores,
@@ -706,24 +703,11 @@ function isCompatibleStockType(
   precision: number,
 ): boolean {
   if (a.material !== b.material) return false;
-  if (isLinearStock(a) !== isLinearStock(b)) return false;
-  if (isLinearStock(a) && isLinearStock(b)) {
-    return (
-      (isNearlyEqual(a.crossSectionWidth, b.crossSectionWidth, precision) &&
-        isNearlyEqual(
-          a.crossSectionThickness,
-          b.crossSectionThickness,
-          precision,
-        )) ||
-      (isNearlyEqual(a.crossSectionWidth, b.crossSectionThickness, precision) &&
-        isNearlyEqual(a.crossSectionThickness, b.crossSectionWidth, precision))
-    );
+  if (isLinearStock(a)) {
+    return isLinearStock(b) && isCompatibleLinearStock(a, b, precision);
   }
-  return isNearlyEqual(
-    (a as Stock).thickness,
-    (b as Stock).thickness,
-    precision,
-  );
+  if (isLinearStock(b)) return false;
+  return isNearlyEqual(a.thickness, b.thickness, precision);
 }
 
 function getPackerOptions(config: Config): PackOptions<PartToCut> {

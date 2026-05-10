@@ -29,8 +29,9 @@ const fromDisplay = (display: number) =>
 function parseAndSet(yaml: string) {
   updating = true;
   try {
-    // Filter to sheet-only here; the Stock tab's "Add timber" path edits
-    // linear rows through a dedicated component in a later stage.
+    // Defensive: this editor only handles sheet rows. `StockTab` already
+    // strips linear rows from the YAML it passes in, but the guard keeps
+    // the typed matrix narrow regardless of caller.
     matrix.value = parseStock(yaml).filter(
       (m): m is SheetStockMatrix => m.kind === 'sheet',
     );

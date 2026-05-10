@@ -28,40 +28,33 @@ export function aggregateLinearShoppingList(
 ): LinearShoppingListGroup[] {
   const byMaterial = new Map<
     string,
-    {
-      material: string;
-      counts: Map<number, number>;
-      layouts: LinearBoardLayout[];
-    }
+    { counts: Map<number, number>; layouts: LinearBoardLayout[] }
   >();
 
   for (const layout of layouts) {
-    const mat = layout.stock.material;
-    let entry = byMaterial.get(mat);
+    const material = layout.stock.material;
+    let entry = byMaterial.get(material);
     if (!entry) {
-      entry = { material: mat, counts: new Map(), layouts: [] };
-      byMaterial.set(mat, entry);
+      entry = { counts: new Map(), layouts: [] };
+      byMaterial.set(material, entry);
     }
     const len = layout.stock.lengthM;
     entry.counts.set(len, (entry.counts.get(len) ?? 0) + 1);
     entry.layouts.push(layout);
   }
 
-  const groups: LinearShoppingListGroup[] = [];
-  for (const entry of byMaterial.values()) {
-    const lengths = [...entry.counts.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([lengthM, count]) => ({ lengthM, count }));
-    const sortedLayouts = [...entry.layouts].sort(
-      (a, b) => a.stock.lengthM - b.stock.lengthM,
-    );
-    groups.push({
-      material: entry.material,
+  const groups = [...byMaterial.entries()].map<LinearShoppingListGroup>(
+    ([material, entry]) => ({
+      material,
       totalSticks: entry.layouts.length,
-      lengths,
-      layouts: sortedLayouts,
-    });
-  }
+      lengths: [...entry.counts.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([lengthM, count]) => ({ lengthM, count })),
+      layouts: [...entry.layouts].sort(
+        (a, b) => a.stock.lengthM - b.stock.lengthM,
+      ),
+    }),
+  );
 
   groups.sort((a, b) => a.material.localeCompare(b.material));
   return groups;

@@ -36,8 +36,9 @@ const crossSectionLabel = computed(() => {
 });
 
 // Local draft state for each length row, keyed by index. Lets the user type a
-// freeform string (e.g. "8 ft", "120", "2.4m") without us thrashing the YAML
-// on every keystroke. We commit on blur or Enter.
+// freeform string (e.g. "8 ft", "120", "2.4m") without thrashing the YAML on
+// every keystroke; commit on blur or Enter. Cleared on add/remove because
+// indices shift and a stale draft would be mis-attributed to the wrong row.
 const drafts = ref<Record<number, string>>({});
 
 function draftFor(idx: number, mm: number): string {
@@ -46,6 +47,14 @@ function draftFor(idx: number, mm: number): string {
 
 function onDraft(idx: number, raw: string) {
   drafts.value[idx] = raw;
+}
+
+function emitLengths(next: number[]) {
+  drafts.value = {};
+  emit('update:modelValue', {
+    ...props.modelValue,
+    size: { ...props.modelValue.size, lengths: next },
+  });
 }
 
 function commit(idx: number) {
@@ -57,41 +66,26 @@ function commit(idx: number) {
     delete drafts.value[idx];
     return;
   }
-  const mm = fromDisplay(parsed);
-  delete drafts.value[idx];
   const next = [...props.modelValue.size.lengths];
-  next[idx] = mm;
-  next.sort((a, b) => a - b);
-  emit('update:modelValue', {
-    ...props.modelValue,
-    size: { ...props.modelValue.size, lengths: next },
-  });
+  next[idx] = fromDisplay(parsed);
+  emitLengths(next.sort((a, b) => a - b));
 }
 
 function removeLength(idx: number) {
-  delete drafts.value[idx];
-  const next = props.modelValue.size.lengths.filter((_, i) => i !== idx);
-  emit('update:modelValue', {
-    ...props.modelValue,
-    size: { ...props.modelValue.size, lengths: next },
-  });
+  emitLengths(props.modelValue.size.lengths.filter((_, i) => i !== idx));
 }
 
 function addLength() {
-  // Append a sensible default the user can immediately edit: a copy of the
-  // longest current length, or 96″ / 2400mm if the list is empty.
+  // Seed with a copy of the longest current length so the user immediately
+  // edits a sensible number; fall back to 96″ / 2400mm if the list is empty.
   const existing = props.modelValue.size.lengths;
-  const defaultMm =
+  const seed =
     existing.length > 0
       ? Math.max(...existing)
       : unit.value === 'in'
         ? convertUnits(96, 'in', 'mm')
         : 2400;
-  const next = [...existing, defaultMm].sort((a, b) => a - b);
-  emit('update:modelValue', {
-    ...props.modelValue,
-    size: { ...props.modelValue.size, lengths: next },
-  });
+  emitLengths([...existing, seed].sort((a, b) => a - b));
 }
 
 function emitNext(patch: Partial<LinearStockMatrix>) {

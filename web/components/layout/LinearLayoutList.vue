@@ -8,18 +8,13 @@ const props = defineProps<{
 const formatDistance = useFormatDistance();
 
 interface DisplayGroup {
-  key: string;
   material: string;
   shoppingSummary: string;
-  totalSticks: number;
   layouts: LinearBoardLayout[];
-  /** Indices into `layouts`, for stable per-stick numbering across the group. */
-  indices: number[];
 }
 
-const groups = computed<DisplayGroup[]>(() => {
-  const aggregated = aggregateLinearShoppingList(props.layouts);
-  return aggregated.map((g) => {
+const groups = computed<DisplayGroup[]>(() =>
+  aggregateLinearShoppingList(props.layouts).map((g) => {
     const parts = g.lengths.map(
       (l) => `${l.count}× ${formatDistance(l.lengthM) ?? ''}`,
     );
@@ -27,32 +22,31 @@ const groups = computed<DisplayGroup[]>(() => {
       g.totalSticks === 1 ? 'stick' : 'sticks'
     } total)`;
     return {
-      key: g.material,
       material: g.material,
       shoppingSummary: summary,
-      totalSticks: g.totalSticks,
       layouts: g.layouts,
-      indices: g.layouts.map((_, i) => i),
     };
-  });
-});
+  }),
+);
 </script>
 
 <template>
   <div class="flex items-start gap-16 m-16">
-    <section v-for="group in groups" :key="group.key" class="flex flex-col">
+    <section
+      v-for="group in groups"
+      :key="group.material"
+      class="flex flex-col"
+    >
       <header class="zoom-stable origin-bottom-left mb-8">
-        <h2 class="text-2xl font-bold text-teal-400">
-          {{ group.material }}
-        </h2>
+        <h2 class="text-2xl font-bold text-teal-400">{{ group.material }}</h2>
         <p class="text-sm text-muted mt-1">{{ group.shoppingSummary }}</p>
       </header>
       <ul class="flex flex-col gap-6 items-start">
         <LinearLayoutListItem
           v-for="(layout, i) in group.layouts"
-          :key="group.indices[i]"
+          :key="i"
           :layout="layout"
-          :board-index="group.indices[i]"
+          :board-index="i"
         />
       </ul>
     </section>
