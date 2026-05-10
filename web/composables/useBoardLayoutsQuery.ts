@@ -1,7 +1,9 @@
 import {
+  isLinearBoardLayout,
   type BoardLayout,
   type BoardLayoutLeftover,
   type ConfigInput,
+  type LinearBoardLayout,
   type PartToCut,
 } from 'cutlist';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
@@ -14,11 +16,18 @@ import { fingerprint } from '~/utils/fingerprint';
 import * as layoutCache from '~/composables/boardLayoutsCache';
 
 type LayoutResult = {
+  /** Sheet (2D) board layouts, unchanged shape for legacy consumers. */
   layouts: BoardLayout[];
+  /** Linear (1D) stick layouts, split out for the Layout tab's stick view. */
+  linearLayouts: LinearBoardLayout[];
   leftovers: BoardLayoutLeftover[];
 };
 
-const EMPTY_RESULT: LayoutResult = { layouts: [], leftovers: [] };
+const EMPTY_RESULT: LayoutResult = {
+  layouts: [],
+  linearLayouts: [],
+  leftovers: [],
+};
 
 /**
  * Reactive derivation of cut-layout results for the active project.
@@ -104,7 +113,19 @@ export default createSharedComposable(() => {
     if (!pid) return undefined;
 
     const cached = layoutCache.get(pid);
-    if (cached) return { layouts: cached.layouts, leftovers: cached.leftovers };
+    if (cached) {
+      const sheet: BoardLayout[] = [];
+      const linear: LinearBoardLayout[] = [];
+      for (const l of cached.layouts) {
+        if (isLinearBoardLayout(l)) linear.push(l);
+        else sheet.push(l);
+      }
+      return {
+        layouts: sheet,
+        linearLayouts: linear,
+        leftovers: cached.leftovers,
+      };
+    }
 
     // Project fully loaded but nothing to pack (no enabled models, or every
     // part excluded). Synthesise an empty result so the UI can render an

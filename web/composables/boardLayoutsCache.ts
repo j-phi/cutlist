@@ -9,10 +9,10 @@
  * reactivity on the (potentially large) layout arrays.
  */
 
-import type { BoardLayout, BoardLayoutLeftover } from 'cutlist';
+import type { AnyBoardLayout, BoardLayoutLeftover } from 'cutlist';
 
 export interface LayoutCacheEntry {
-  layouts: BoardLayout[];
+  layouts: AnyBoardLayout[];
   leftovers: BoardLayoutLeftover[];
   fingerprint: string;
 }

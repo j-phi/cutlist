@@ -41,6 +41,7 @@ import {
 
 export * from './types';
 export * from './utils/units';
+export * from './utils/shoppingList';
 
 type PackerKind = 'tidy' | 'compact' | 'tight' | 'linear';
 type PartSortMode =

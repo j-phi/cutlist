@@ -1,5 +1,5 @@
 import type {
-  BoardLayout,
+  AnyBoardLayout,
   BoardLayoutLeftover,
   ConfigInput,
   PartToCut,
@@ -17,14 +17,14 @@ interface LayoutRequest {
 interface LayoutResponse {
   type: 'layout';
   id: number;
-  result?: { layouts: BoardLayout[]; leftovers: BoardLayoutLeftover[] };
+  result?: { layouts: AnyBoardLayout[]; leftovers: BoardLayoutLeftover[] };
   error?: string;
 }
 
 interface PendingRequest {
   projectId: string;
   resolve: (r: {
-    layouts: BoardLayout[];
+    layouts: AnyBoardLayout[];
     leftovers: BoardLayoutLeftover[];
   }) => void;
   reject: (e: Error) => void;
@@ -144,7 +144,7 @@ export function computeLayouts(
   parts: PartToCut[],
   stockYaml: string,
   config: ConfigInput,
-): Promise<{ layouts: BoardLayout[]; leftovers: BoardLayoutLeftover[] }> {
+): Promise<{ layouts: AnyBoardLayout[]; leftovers: BoardLayoutLeftover[] }> {
   if (parts.length > PART_COUNT_HARD_LIMIT) {
     return Promise.reject(new PartCountExceededError(parts.length));
   }

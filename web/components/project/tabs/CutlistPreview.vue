@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { BoardLayout, LinearBoardLayout } from 'cutlist';
+
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
 const tab = useProjectTab();
 
@@ -21,11 +23,15 @@ function stockKey(stock: {
   return `${stock.material}__${stock.thicknessM}__${stock.widthM}__${stock.lengthM}`;
 }
 
+const sheetLayouts = computed<BoardLayout[]>(() => data.value?.layouts ?? []);
+const linearLayouts = computed<LinearBoardLayout[]>(
+  () => data.value?.linearLayouts ?? [],
+);
+
 const stockOptions = computed(() => {
-  if (!data.value) return [];
   const seen = new Set<string>();
   const options: { label: string; value: string }[] = [];
-  for (const layout of data.value.layouts) {
+  for (const layout of sheetLayouts.value) {
     const key = stockKey(layout.stock);
     if (!seen.has(key)) {
       seen.add(key);
@@ -51,18 +57,21 @@ watch(stockOptions, (opts) => {
   }
 });
 
-const filteredLayouts = computed(() => {
-  if (!data.value) return [];
-  if (selectedStock.value === ALL) return data.value.layouts;
-  return data.value.layouts.filter(
+const filteredSheetLayouts = computed<BoardLayout[]>(() => {
+  if (selectedStock.value === ALL) return sheetLayouts.value;
+  return sheetLayouts.value.filter(
     (l) => stockKey(l.stock) === selectedStock.value,
   );
 });
 
+const totalVisibleLayouts = computed(
+  () => filteredSheetLayouts.value.length + linearLayouts.value.length,
+);
+
 const unplacedCount = computed(() => data.value?.leftovers.length ?? 0);
 
 const showLeftoverBanner = computed(
-  () => unplacedCount.value > 0 && filteredLayouts.value.length > 0,
+  () => unplacedCount.value > 0 && totalVisibleLayouts.value > 0,
 );
 </script>
 
@@ -74,7 +83,7 @@ const showLeftoverBanner = computed(
 
       <template v-else-if="data">
         <div
-          v-if="filteredLayouts.length === 0"
+          v-if="totalVisibleLayouts === 0"
           class="m-auto max-w-sm text-center bg-base border border-default rounded-lg p-6"
         >
           <UIcon name="i-lucide-layers" class="w-8 h-8 text-dim mx-auto mb-3" />
@@ -107,7 +116,14 @@ const showLeftoverBanner = computed(
             class="canvas-plane"
             :style="`--zoom:${scale ?? 1}`"
           >
-            <LayoutList :layouts="filteredLayouts" />
+            <LayoutList
+              v-if="filteredSheetLayouts.length > 0"
+              :layouts="filteredSheetLayouts"
+            />
+            <LinearLayoutList
+              v-if="linearLayouts.length > 0"
+              :layouts="linearLayouts"
+            />
           </div>
         </template>
       </template>
