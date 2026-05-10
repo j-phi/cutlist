@@ -19,9 +19,9 @@ import { useScenes } from '~/composables/useScenes';
 import { useAnnotations } from '~/composables/useAnnotations';
 import { useAnnotationAuthor } from '~/composables/useAnnotationAuthor';
 import { useAnnotationProjector } from '~/composables/useAnnotationProjector';
-import { useSceneAuthoringActions } from '~/composables/useSceneAuthoringActions';
 import { useFocusedModelLoader } from '~/composables/useFocusedModelLoader';
 import { defaultSceneIdForModel } from '~/utils/defaultScene';
+import { sceneStateToIdb } from '~/lib/scene';
 
 const props = withDefaults(
   defineProps<{
@@ -239,7 +239,49 @@ const annotationKindComponents = {
   dimension: DimensionLabel,
 };
 
-const sceneActions = useSceneAuthoringActions(sceneAuthor, scenesApi);
+const canUpdateScene = computed(
+  () =>
+    sceneAuthor.dirty.value &&
+    sceneAuthor.activeSceneId.value !== null &&
+    sceneAuthor.tween.value === null,
+);
+
+async function addScene(): Promise<void> {
+  if (sceneAuthor.tween.value !== null) return;
+  const state = sceneAuthor.captureCurrentSceneState();
+  const thumbnail = sceneAuthor.captureThumbnail() ?? undefined;
+  const id = await scenesApi.addScene({ state, thumbnail });
+  if (id) sceneAuthor.activeSceneId.value = id;
+  sceneAuthor.dirty.value = false;
+}
+
+async function selectScene(id: string): Promise<void> {
+  if (sceneAuthor.tween.value !== null) return;
+  const scene = scenesApi.scenes.value.find((s) => s.id === id);
+  if (!scene) return;
+  await sceneAuthor.tweenToScene(scene);
+}
+
+async function updateActiveScene(): Promise<void> {
+  const id = sceneAuthor.activeSceneId.value;
+  if (!id) return;
+  const state = sceneAuthor.captureCurrentSceneState();
+  const thumbnail = sceneAuthor.captureThumbnail() ?? undefined;
+  await scenesApi.updateScene(id, {
+    ...sceneStateToIdb(state),
+    thumbnailDataUrl: thumbnail,
+  });
+  sceneAuthor.markClean();
+}
+
+async function removeScene(id: string): Promise<void> {
+  if (scenesApi.isDefaultScene(id)) return;
+  if (sceneAuthor.activeSceneId.value === id) {
+    sceneAuthor.activeSceneId.value = null;
+    sceneAuthor.dirty.value = false;
+  }
+  await scenesApi.removeScene(id);
+}
 
 function onSnap(preset: ViewPreset) {
   viewer.applyViewPreset(preset);
@@ -439,14 +481,14 @@ watch(
         :busy="sceneAuthor.tween.value !== null"
         :pinned-ids="scenesApi.pinnedSceneIds.value"
         :collapsed="scenesCollapsed"
-        :can-update-active="sceneActions.canUpdateScene.value"
+        :can-update-active="canUpdateScene"
         @update:collapsed="(v) => (scenesCollapsed = v)"
-        @select="sceneActions.selectScene"
+        @select="selectScene"
         @reorder="(id, idx) => scenesApi.moveScene(id, idx)"
         @rename="(id, name) => scenesApi.updateScene(id, { name })"
-        @remove="sceneActions.removeScene"
-        @add="sceneActions.addScene"
-        @update-active="sceneActions.updateActiveScene"
+        @remove="removeScene"
+        @add="addScene"
+        @update-active="updateActiveScene"
       />
 
       <ViewerStatusBar

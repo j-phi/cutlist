@@ -2,17 +2,17 @@
  * Model and part operations on the active project.
  *
  * Covers source-model lifecycle (add/remove/toggle), color-map mutations,
- * part overrides (grain lock, name override), and manual-part CRUD via
- * `useManualParts`. Each function returns early when the requested
- * `projectId` is not the active project so calls remain safe across
- * project switches.
+ * part overrides (grain lock, name override), and manual-part CRUD. Each
+ * function returns early when the requested `projectId` is not the active
+ * project so calls remain safe across project switches.
  */
+import { mmToM } from 'cutlist';
 import type { Part } from '~/utils/modelTypes';
 import { useIdb, type PartOverride } from '~/composables/useIdb';
-import { useManualParts } from '~/composables/useManualParts';
+import { applyOverrides } from '~/utils/modelHydration';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import { activeProjectData } from './state';
-import type { Model } from './types';
+import type { ManualPartInput, Model } from './types';
 
 export default function useProjectModels() {
   const idb = useIdb();
@@ -221,11 +221,194 @@ export default function useProjectModels() {
     }
   }
 
-  const { addManualPart, updateManualPart, removeManualPart } = useManualParts({
-    activeProjectData,
-    idb,
-    updateColorMap,
-  });
+  // ─── Manual-part CRUD ───────────────────────────────────────────────────────
+
+  async function addManualPart(projectId: string, data: ManualPartInput) {
+    const project = activeProjectData.value;
+    if (!project || project.id !== projectId) return;
+
+    const existing = project.models.find((m) => m.source === 'manual');
+    const newPartNumber = existing
+      ? Math.max(0, ...existing.parts.map((d) => d.partNumber)) + 1
+      : 1;
+
+    const newParts: Part[] = Array.from({ length: data.qty }, (_, i) => ({
+      partNumber: newPartNumber,
+      instanceNumber: i + 1,
+      name: data.name,
+      colorKey: data.material,
+      size: {
+        width: mmToM(data.widthMm),
+        length: mmToM(data.lengthMm),
+        thickness: mmToM(data.thicknessMm),
+      },
+    }));
+
+    // grainLock goes into partOverrides, not onto the Part
+    const newOverrides: Record<number, PartOverride> = {};
+    if (data.grainLock) {
+      newOverrides[newPartNumber] = { grainLock: data.grainLock };
+    }
+
+    if (existing) {
+      const updatedParts = [...existing.parts, ...newParts];
+      const idbModel = (await idb.getProjectWithModels(projectId))?.models.find(
+        (m) => m.id === existing.id,
+      );
+      const mergedOverrides = {
+        ...(idbModel?.partOverrides ?? {}),
+        ...newOverrides,
+      };
+      activeProjectData.value = {
+        ...project,
+        models: project.models.map((m) =>
+          m.id === existing.id
+            ? { ...m, parts: applyOverrides(updatedParts, mergedOverrides) }
+            : m,
+        ),
+      };
+      await idb.updateModel(existing.id, {
+        parts: updatedParts,
+        partOverrides: mergedOverrides,
+      });
+    } else {
+      const modelId = crypto.randomUUID();
+      const model = {
+        id: modelId,
+        filename: 'Manual Parts',
+        source: 'manual' as const,
+        parts: applyOverrides(newParts, newOverrides),
+        colors: [],
+        enabled: true,
+      };
+      activeProjectData.value = {
+        ...project,
+        models: [...project.models, model],
+      };
+      await idb.createModel({
+        id: modelId,
+        projectId,
+        filename: model.filename,
+        source: 'manual',
+        parts: newParts,
+        colors: [],
+        nodePartMap: [],
+        enabled: true,
+        rawSource: null,
+        partOverrides: newOverrides,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (!project.colorMap[data.material]) {
+      await updateColorMap(projectId, data.material, data.material);
+    }
+  }
+
+  async function updateManualPart(
+    projectId: string,
+    partNumber: number,
+    data: ManualPartInput,
+  ) {
+    const project = activeProjectData.value;
+    if (!project || project.id !== projectId) return;
+
+    const existing = project.models.find((m) => m.source === 'manual');
+    if (!existing) return;
+
+    const remaining = existing.parts.filter((d) => d.partNumber !== partNumber);
+    const updated: Part[] = Array.from({ length: data.qty }, (_, i) => ({
+      partNumber,
+      instanceNumber: i + 1,
+      name: data.name,
+      colorKey: data.material,
+      size: {
+        width: mmToM(data.widthMm),
+        length: mmToM(data.lengthMm),
+        thickness: mmToM(data.thicknessMm),
+      },
+    }));
+    // Strip overrides from remaining parts (they live in partOverrides)
+    const cleanParts = [...remaining, ...updated].map(
+      ({ grainLock: _, ...rest }) => rest,
+    );
+
+    const idbModel = (await idb.getProjectWithModels(projectId))?.models.find(
+      (m) => m.id === existing.id,
+    );
+    const updatedOverrides = { ...(idbModel?.partOverrides ?? {}) };
+    if (data.grainLock) {
+      updatedOverrides[partNumber] = {
+        ...updatedOverrides[partNumber],
+        grainLock: data.grainLock,
+      };
+    } else if (updatedOverrides[partNumber]) {
+      const { grainLock: _, ...rest } = updatedOverrides[partNumber];
+      if (Object.keys(rest).length === 0) {
+        delete updatedOverrides[partNumber];
+      } else {
+        updatedOverrides[partNumber] = rest;
+      }
+    }
+
+    activeProjectData.value = {
+      ...project,
+      models: project.models.map((m) =>
+        m.id === existing.id
+          ? { ...m, parts: applyOverrides(cleanParts, updatedOverrides) }
+          : m,
+      ),
+    };
+    await idb.updateModel(existing.id, {
+      parts: cleanParts,
+      partOverrides: updatedOverrides,
+    });
+
+    if (!project.colorMap[data.material]) {
+      await updateColorMap(projectId, data.material, data.material);
+    }
+  }
+
+  async function removeManualPart(projectId: string, partNumber: number) {
+    const project = activeProjectData.value;
+    if (!project || project.id !== projectId) return;
+
+    const existing = project.models.find((m) => m.source === 'manual');
+    if (!existing) return;
+
+    const remaining = existing.parts.filter((d) => d.partNumber !== partNumber);
+
+    if (remaining.length === 0) {
+      activeProjectData.value = {
+        ...project,
+        models: project.models.filter((m) => m.id !== existing.id),
+      };
+      await idb.deleteModel(existing.id);
+      return;
+    }
+
+    const idbModel = (await idb.getProjectWithModels(projectId))?.models.find(
+      (m) => m.id === existing.id,
+    );
+    const updatedOverrides = { ...(idbModel?.partOverrides ?? {}) };
+    delete updatedOverrides[partNumber];
+
+    // Persist raw parts only. Grain locks live in partOverrides.
+    const cleanParts = remaining.map(({ grainLock: _, ...rest }) => rest);
+
+    activeProjectData.value = {
+      ...project,
+      models: project.models.map((m) =>
+        m.id === existing.id
+          ? { ...m, parts: applyOverrides(cleanParts, updatedOverrides) }
+          : m,
+      ),
+    };
+    await idb.updateModel(existing.id, {
+      parts: cleanParts,
+      partOverrides: updatedOverrides,
+    });
+  }
 
   return {
     addModel,

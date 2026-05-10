@@ -8,7 +8,6 @@ import { DEFAULT_SETTINGS } from '~/utils/settings';
 import type {
   IdbProject,
   IdbModelMeta,
-  IdbScene,
   IdbAnnotation,
   IdbBuildDoc,
 } from './types';
@@ -47,22 +46,6 @@ export function applyModelDefaults(
     colors: m.colors ?? [],
     nodePartMap: m.nodePartMap ?? [],
   } as IdbModelMeta;
-}
-
-export function applySceneDefaults(
-  s: Partial<IdbScene> & { id: string; modelId: string },
-): IdbScene {
-  if (typeof s.modelId !== 'string' || s.modelId === '') {
-    throw new Error(
-      `Scene ${s.id} is missing required field 'modelId' — corrupt data.`,
-    );
-  }
-  return {
-    ...s,
-    cameraMode: s.cameraMode ?? 'perspective',
-    objectOffsets: s.objectOffsets ?? {},
-    floorVisible: s.floorVisible ?? true,
-  } as IdbScene;
 }
 
 export function applyBuildDocDefaults(

@@ -12,7 +12,6 @@ export {
   useIdbErrors,
   applyProjectDefaults,
   applyModelDefaults,
-  applySceneDefaults,
   applyAnnotationDefaults,
   applyBuildDocDefaults,
 } from './useIdb/index';

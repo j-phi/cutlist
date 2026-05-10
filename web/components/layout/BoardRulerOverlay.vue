@@ -18,10 +18,33 @@ const {
   getMeasurementsForBoard,
 } = useRulerStore();
 
-const snapEdges = useSnapEdges(
-  () => props.layout,
-  () => props.boardIndex,
-);
+const snapEdges = computed<SnapEdge[]>(() => {
+  const idx = props.boardIndex;
+  const edges: SnapEdge[] = [
+    { axis: 'x', positionM: 0, boardIndex: idx },
+    { axis: 'x', positionM: props.layout.stock.widthM, boardIndex: idx },
+    { axis: 'y', positionM: 0, boardIndex: idx },
+    { axis: 'y', positionM: props.layout.stock.lengthM, boardIndex: idx },
+  ];
+  for (const p of props.layout.placements) {
+    edges.push({ axis: 'x', positionM: p.leftM, boardIndex: idx });
+    edges.push({ axis: 'x', positionM: p.leftM + p.widthM, boardIndex: idx });
+    edges.push({ axis: 'y', positionM: p.bottomM, boardIndex: idx });
+    edges.push({
+      axis: 'y',
+      positionM: p.bottomM + p.lengthM,
+      boardIndex: idx,
+    });
+  }
+  // Deduplicate co-located edges (e.g. board edge meeting a part edge).
+  const seen = new Set<string>();
+  return edges.filter((e) => {
+    const key = `${e.axis}:${e.positionM.toFixed(6)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+});
 const boardMeasurements = getMeasurementsForBoard(props.boardIndex);
 
 const widthM = computed(() => props.layout.stock.widthM);

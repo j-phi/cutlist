@@ -2,7 +2,7 @@
  * Integration tests for the IDB ↔ hydration boundary.
  *
  * Single-record CRUD lives in useIdb.test.ts; pure-function applyOverrides
- * semantics live in useModelHydration.test.ts. This file covers the cases
+ * semantics live in utils/__tests__/modelHydration.test.ts. This file covers the cases
  * where those layers interact in non-trivial ways — multi-model projects,
  * GLTF-derived data round-tripping through IDB metadata, and the batch
  * partOverride flow that crosses both layers.
@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { useIdb, type IdbModel } from '../useIdb';
 import type { Part } from '~/utils/modelTypes';
-import { applyOverrides } from '../useModelHydration';
+import { applyOverrides } from '~/utils/modelHydration';
 
 const idb = useIdb();
 

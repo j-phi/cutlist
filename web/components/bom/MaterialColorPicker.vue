@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { FALLBACK_PALETTE } from '~/composables/useMaterialColors';
+import { FALLBACK_PALETTE } from '~/utils/materialColors';
 
 const model = defineModel<string>();
 

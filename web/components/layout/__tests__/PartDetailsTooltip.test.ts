@@ -9,7 +9,7 @@ import PartDetailsTooltip from '../PartDetailsTooltip.vue';
 const x = ref(0);
 const y = ref(0);
 
-mockNuxtImport('useGlobalMouse', () => () => ({ x, y }));
+mockNuxtImport('useMouse', () => () => ({ x, y }));
 
 const PartDetailsStub = {
   name: 'PartDetails',

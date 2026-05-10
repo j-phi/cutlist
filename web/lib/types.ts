@@ -50,16 +50,6 @@ export interface Stock {
 }
 
 /**
- * A board size — width × length plus the thicknesses available in that size.
- */
-export const StockSize = z.object({
-  width: z.number(),
-  length: z.number(),
-  thickness: z.array(z.number()),
-});
-export type StockSize = z.infer<typeof StockSize>;
-
-/**
  * For a material, define board sizes and the thicknesses available in each.
  *
  * All numeric dimensions are millimetres. The user's display preference
@@ -71,7 +61,13 @@ export const StockMatrix = z.object({
    * Available board sizes. Each entry is a width × length pair with its
    * own set of available thicknesses.
    */
-  sizes: z.array(StockSize),
+  sizes: z.array(
+    z.object({
+      width: z.number(),
+      length: z.number(),
+      thickness: z.array(z.number()),
+    }),
+  ),
   /** Display color for board previews (hex string, e.g. `"#d2b996"`). */
   color: z.string().optional(),
   /**

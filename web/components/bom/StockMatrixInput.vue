@@ -7,7 +7,7 @@ import {
 } from 'cutlist';
 import type { StockMatrix } from 'cutlist';
 import { parseStock } from '~/utils/parseStock';
-import { FALLBACK_PALETTE } from '~/composables/useMaterialColors';
+import { FALLBACK_PALETTE } from '~/utils/materialColors';
 import YAML from 'js-yaml';
 
 const value = defineModel<string>({ required: true });

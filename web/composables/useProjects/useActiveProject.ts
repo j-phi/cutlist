@@ -10,7 +10,7 @@ import { computed, watch } from 'vue';
 import type { ColorInfo } from '~/utils/modelTypes';
 import type { IdbProject } from '~/composables/useIdb';
 import { useIdb } from '~/composables/useIdb';
-import { loadProject } from '~/composables/useModelHydration';
+import { loadProject } from '~/utils/modelHydration';
 import { activeId, activeProjectData, projectLoading } from './state';
 
 let watcherStarted = false;

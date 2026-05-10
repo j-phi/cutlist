@@ -5,7 +5,7 @@ const props = defineProps<{
   part: BoardLayoutPlacement;
 }>();
 
-const { x, y } = useGlobalMouse();
+const { x, y } = useMouse();
 </script>
 
 <template>

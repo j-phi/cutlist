@@ -1,18 +1,14 @@
 /**
- * Tests for useModelHydration — applyOverrides, hydrateModel, and loadProject.
+ * Tests for modelHydration — applyOverrides, hydrateModel, and loadProject.
  *
  * Both GLTF and manual models now store their parts directly in IDB, so
  * hydration is a straightforward read + override-apply step. No worker needed.
  */
 import { describe, expect, it } from 'vitest';
 import type { Part, ColorInfo, NodePartMapping } from '~/utils/modelTypes';
-import type { IdbModelMeta } from '../useIdb';
-import { useIdb } from '../useIdb';
-import {
-  applyOverrides,
-  hydrateModel,
-  loadProject,
-} from '../useModelHydration';
+import type { IdbModelMeta } from '~/composables/useIdb';
+import { useIdb } from '~/composables/useIdb';
+import { applyOverrides, hydrateModel, loadProject } from '../modelHydration';
 
 const idb = useIdb();
 

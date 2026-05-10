@@ -65,7 +65,6 @@ export { useIdbErrors, resetDatabase } from './db';
 export {
   applyProjectDefaults,
   applyModelDefaults,
-  applySceneDefaults,
   applyAnnotationDefaults,
   applyBuildDocDefaults,
 } from './defaults';

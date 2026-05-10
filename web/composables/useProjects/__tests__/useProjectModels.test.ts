@@ -1,19 +1,18 @@
 /**
- * Tests for useManualParts — addManualPart, removeManualPart, updateManualPart.
- *
- * These functions take a context object with a real IDB (fake-indexeddb) and
- * a ref-like activeProjectData. We use Vue's ref() for the reactive wrapper.
+ * Tests for the manual-part CRUD inside useProjectModels — addManualPart,
+ * removeManualPart, updateManualPart. These functions read from the
+ * module-level `activeProjectData` ref and persist to IDB (fake-indexeddb),
+ * so the test seeds both before exercising the functions.
  */
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { ref, type Ref } from 'vue';
-import { useIdb, type IdbModel } from '../useIdb';
+import { describe, expect, it, beforeEach } from 'vitest';
+import { useIdb } from '~/composables/useIdb';
 import type { Part } from '~/utils/modelTypes';
-import type { Project, ManualPartInput } from '../useProjects';
-import { useManualParts } from '../useManualParts';
-import { DEFAULT_SETTINGS } from '../../utils/settings';
+import type { Project, ManualPartInput } from '../types';
+import useProjectModels from '../useProjectModels';
+import { activeProjectData } from '../state';
+import { DEFAULT_SETTINGS } from '~/utils/settings';
 
 const idb = useIdb();
-const mockUpdateColorMap = vi.fn(async () => {});
 
 function makeProject(id: string, models: Project['models'] = []): Project {
   return {
@@ -67,22 +66,17 @@ function makeInput(overrides?: Partial<ManualPartInput>): ManualPartInput {
 }
 
 describe('addManualPart', () => {
-  let activeProjectData: Ref<Project | null>;
   let projectId: string;
 
   beforeEach(async () => {
-    mockUpdateColorMap.mockClear();
+    activeProjectData.value = null;
     const project = await idb.createProject('ManualPartTest');
     projectId = project.id;
-    activeProjectData = ref(makeProject(projectId));
+    activeProjectData.value = makeProject(projectId);
   });
 
   it('creates a part with correct defaults', async () => {
-    const { addManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
+    const { addManualPart } = useProjectModels();
 
     await addManualPart(
       projectId,
@@ -109,7 +103,6 @@ describe('addManualPart', () => {
     expect(part.instanceNumber).toBe(1);
     expect(part.name).toBe('Shelf');
     expect(part.colorKey).toBe('Oak');
-    // Dimensions converted from mm to meters
     expect(part.size.width).toBeCloseTo(0.4);
     expect(part.size.length).toBeCloseTo(0.8);
     expect(part.size.thickness).toBeCloseTo(0.018);
@@ -119,7 +112,6 @@ describe('addManualPart', () => {
     const modelId = crypto.randomUUID();
     const existingParts = [makePart(1, { name: 'First' })];
 
-    // Set up an existing manual model in both reactive state and IDB
     activeProjectData.value = makeProject(projectId, [
       makeManualModel(modelId, existingParts),
     ]);
@@ -137,12 +129,7 @@ describe('addManualPart', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const { addManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { addManualPart } = useProjectModels();
     await addManualPart(projectId, makeInput({ name: 'Second' }));
 
     const model = activeProjectData.value!.models.find(
@@ -154,78 +141,56 @@ describe('addManualPart', () => {
   });
 
   it('creates multiple instances when qty > 1', async () => {
-    const { addManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { addManualPart } = useProjectModels();
     await addManualPart(projectId, makeInput({ qty: 3, name: 'Leg' }));
 
     const model = activeProjectData.value!.models[0];
     expect(model.parts).toHaveLength(3);
-    // All same partNumber, different instanceNumbers
     expect(model.parts.every((p) => p.partNumber === 1)).toBe(true);
     const instances = model.parts.map((p) => p.instanceNumber).sort();
     expect(instances).toEqual([1, 2, 3]);
   });
 
-  it('calls updateColorMap for new materials', async () => {
-    const { addManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+  it('writes the new material into the colorMap when unseen', async () => {
+    const { addManualPart } = useProjectModels();
     await addManualPart(projectId, makeInput({ material: 'Walnut' }));
-    expect(mockUpdateColorMap).toHaveBeenCalledWith(
-      projectId,
+
+    expect(activeProjectData.value!.colorMap).toHaveProperty(
       'Walnut',
       'Walnut',
     );
+    const persisted = await idb.getProjectWithModels(projectId);
+    expect(persisted!.colorMap).toHaveProperty('Walnut', 'Walnut');
   });
 
   it('stores grainLock in partOverrides, not on the Part', async () => {
-    const { addManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { addManualPart } = useProjectModels();
     await addManualPart(
       projectId,
       makeInput({ grainLock: 'length', name: 'Grain Test' }),
     );
 
-    // The reactive model should show grainLock applied (via applyOverrides)
     const model = activeProjectData.value!.models[0];
     expect(model.parts[0].grainLock).toBe('length');
 
-    // Verify IDB stores it in partOverrides, not on raw parts
     const full = await idb.getProjectWithModels(projectId);
     const idbModel = full!.models[0];
     expect(idbModel.partOverrides[1]).toEqual({ grainLock: 'length' });
   });
 
   it('does nothing if project ID does not match', async () => {
-    const { addManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { addManualPart } = useProjectModels();
     await addManualPart('wrong-id', makeInput());
     expect(activeProjectData.value!.models).toHaveLength(0);
   });
 });
 
 describe('removeManualPart', () => {
-  let activeProjectData: Ref<Project | null>;
   let projectId: string;
   let modelId: string;
 
   beforeEach(async () => {
-    mockUpdateColorMap.mockClear();
+    activeProjectData.value = null;
     const project = await idb.createProject('RemovePartTest');
     projectId = project.id;
     modelId = crypto.randomUUID();
@@ -236,9 +201,9 @@ describe('removeManualPart', () => {
       makePart(3, { name: 'Panel' }),
     ];
 
-    activeProjectData = ref(
-      makeProject(projectId, [makeManualModel(modelId, parts)]),
-    );
+    activeProjectData.value = makeProject(projectId, [
+      makeManualModel(modelId, parts),
+    ]);
 
     await idb.createModel({
       id: modelId,
@@ -256,12 +221,7 @@ describe('removeManualPart', () => {
   });
 
   it('removes the correct part by partNumber', async () => {
-    const { removeManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { removeManualPart } = useProjectModels();
     await removeManualPart(projectId, 2);
 
     const model = activeProjectData.value!.models[0];
@@ -295,12 +255,7 @@ describe('removeManualPart', () => {
     });
     await idb.flushPendingModelWrites();
 
-    const { removeManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { removeManualPart } = useProjectModels();
     await removeManualPart(projectId, 2);
     await idb.flushPendingModelWrites();
 
@@ -315,15 +270,13 @@ describe('removeManualPart', () => {
   });
 
   it('removes the manual model entirely when last part is removed', async () => {
-    // Start with a single part
     const singlePartModelId = crypto.randomUUID();
     const singleProject = await idb.createProject('SinglePartRemove');
     const singleParts = [makePart(1, { name: 'Only Part' })];
-    const singleActiveData: Ref<Project | null> = ref(
-      makeProject(singleProject.id, [
-        makeManualModel(singlePartModelId, singleParts),
-      ]),
-    );
+
+    activeProjectData.value = makeProject(singleProject.id, [
+      makeManualModel(singlePartModelId, singleParts),
+    ]);
 
     await idb.createModel({
       id: singlePartModelId,
@@ -339,35 +292,25 @@ describe('removeManualPart', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const { removeManualPart } = useManualParts({
-      activeProjectData: singleActiveData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { removeManualPart } = useProjectModels();
     await removeManualPart(singleProject.id, 1);
-    expect(singleActiveData.value!.models).toHaveLength(0);
+
+    expect(activeProjectData.value!.models).toHaveLength(0);
   });
 
   it('does nothing if project ID does not match', async () => {
-    const { removeManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { removeManualPart } = useProjectModels();
     await removeManualPart('wrong-id', 1);
     expect(activeProjectData.value!.models[0].parts).toHaveLength(3);
   });
 });
 
 describe('updateManualPart', () => {
-  let activeProjectData: Ref<Project | null>;
   let projectId: string;
   let modelId: string;
 
   beforeEach(async () => {
-    mockUpdateColorMap.mockClear();
+    activeProjectData.value = null;
     const project = await idb.createProject('UpdatePartTest');
     projectId = project.id;
     modelId = crypto.randomUUID();
@@ -377,9 +320,9 @@ describe('updateManualPart', () => {
       makePart(2, { name: 'Stile', colorKey: 'Oak' }),
     ];
 
-    activeProjectData = ref(
-      makeProject(projectId, [makeManualModel(modelId, parts)]),
-    );
+    activeProjectData.value = makeProject(projectId, [
+      makeManualModel(modelId, parts),
+    ]);
 
     await idb.createModel({
       id: modelId,
@@ -397,12 +340,7 @@ describe('updateManualPart', () => {
   });
 
   it('updates dimensions correctly', async () => {
-    const { updateManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { updateManualPart } = useProjectModels();
     await updateManualPart(
       projectId,
       1,
@@ -422,34 +360,22 @@ describe('updateManualPart', () => {
     expect(updatedPart.size.length).toBeCloseTo(0.2);
     expect(updatedPart.size.thickness).toBeCloseTo(0.012);
 
-    // Other parts unchanged
     const stile = model.parts.find((p) => p.partNumber === 2)!;
     expect(stile.name).toBe('Stile');
   });
 
   it('updates grain lock via partOverrides', async () => {
-    const { updateManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { updateManualPart } = useProjectModels();
     await updateManualPart(
       projectId,
       1,
-      makeInput({
-        name: 'Rail',
-        material: 'Oak',
-        grainLock: 'width',
-      }),
+      makeInput({ name: 'Rail', material: 'Oak', grainLock: 'width' }),
     );
 
-    // Check reactive state has grainLock applied
     const model = activeProjectData.value!.models[0];
     const rail = model.parts.find((p) => p.partNumber === 1)!;
     expect(rail.grainLock).toBe('width');
 
-    // Check IDB has it stored in partOverrides
     await idb.flushPendingModelWrites();
     const fullAfterFlush = await idb.getProjectWithModels(projectId);
     const idbModel = fullAfterFlush!.models[0];
@@ -457,96 +383,61 @@ describe('updateManualPart', () => {
   });
 
   it('clears grainLock when removed', async () => {
-    // First set a grainLock
     await idb.updateModel(modelId, {
       partOverrides: { 1: { grainLock: 'length' } },
     });
     await idb.flushPendingModelWrites();
 
-    const { updateManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
-    // Update without grainLock to clear it
+    const { updateManualPart } = useProjectModels();
     await updateManualPart(
       projectId,
       1,
-      makeInput({
-        name: 'Rail',
-        material: 'Oak',
-        // no grainLock
-      }),
+      makeInput({ name: 'Rail', material: 'Oak' }), // no grainLock
     );
 
-    // Check IDB partOverrides - grainLock should be cleared
     await idb.flushPendingModelWrites();
     const full = await idb.getProjectWithModels(projectId);
     const idbModel = full!.models[0];
-    // partOverrides entry for partNumber 1 should be gone (empty override removed)
     expect(idbModel.partOverrides[1]).toBeUndefined();
   });
 
   it('Should update the color map when changing to a new material', async () => {
-    const { updateManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { updateManualPart } = useProjectModels();
     await updateManualPart(
       projectId,
       1,
-      makeInput({
-        name: 'Rail',
-        material: 'Walnut',
-      }),
+      makeInput({ name: 'Rail', material: 'Walnut' }),
     );
 
-    expect(mockUpdateColorMap).toHaveBeenCalledWith(
-      projectId,
+    expect(activeProjectData.value!.colorMap).toHaveProperty(
       'Walnut',
       'Walnut',
     );
   });
 
   it('does nothing if project ID does not match', async () => {
-    const { updateManualPart } = useManualParts({
-      activeProjectData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { updateManualPart } = useProjectModels();
     await updateManualPart('wrong-id', 1, makeInput());
     const model = activeProjectData.value!.models[0];
-    expect(model.parts[0].name).toBe('Rail'); // unchanged
+    expect(model.parts[0].name).toBe('Rail');
   });
 
   it('does nothing if no manual model exists', async () => {
-    // Set up a project with no manual model
     const gltfProject = await idb.createProject('NoManual');
-    const gltfActiveData: Ref<Project | null> = ref(
-      makeProject(gltfProject.id, [
-        {
-          id: 'gltf-1',
-          filename: 'test.glb',
-          source: 'gltf',
-          parts: [makePart(1)],
-          colors: [],
-          enabled: true,
-        },
-      ]),
-    );
+    activeProjectData.value = makeProject(gltfProject.id, [
+      {
+        id: 'gltf-1',
+        filename: 'test.glb',
+        source: 'gltf',
+        parts: [makePart(1)],
+        colors: [],
+        enabled: true,
+      },
+    ]);
 
-    const { updateManualPart } = useManualParts({
-      activeProjectData: gltfActiveData,
-      idb,
-      updateColorMap: mockUpdateColorMap,
-    });
-
+    const { updateManualPart } = useProjectModels();
     await updateManualPart(gltfProject.id, 1, makeInput());
-    // Model should be unchanged - still gltf, no manual model added
-    expect(gltfActiveData.value!.models[0].source).toBe('gltf');
+
+    expect(activeProjectData.value!.models[0].source).toBe('gltf');
   });
 });

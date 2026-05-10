@@ -1,7 +1,7 @@
 // @vitest-environment nuxt
 import { describe, expect, it } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
-import { FALLBACK_PALETTE } from '~/composables/useMaterialColors';
+import { FALLBACK_PALETTE } from '~/utils/materialColors';
 
 import MaterialColorPicker from '../MaterialColorPicker.vue';
 

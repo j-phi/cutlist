@@ -1,6 +1,6 @@
 // @vitest-environment nuxt
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
@@ -29,11 +29,13 @@ mockNuxtImport('useRulerStore', () => () => ({
   getMeasurementsForBoard: () => measurementsForBoard,
 }));
 
-const snapEdgesRef = ref<SnapEdge[]>([]);
-mockNuxtImport('useSnapEdges', () => () => computed(() => snapEdgesRef.value));
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Snap edges are derived from the layout: board has edges at 0/widthM/0/lengthM
+ * (axes x/y), and each placement contributes its own four edges. Tests construct
+ * layouts whose snap edges are the inputs they need.
+ */
 function makeLayout(widthM = 1, lengthM = 2): BoardLayout {
   return {
     stock: { material: 'Plywood', widthM, lengthM, thicknessM: 0.018 },
@@ -44,7 +46,7 @@ function makeLayout(widthM = 1, lengthM = 2): BoardLayout {
 }
 
 function getComponent(boardIndex = 0, layout = makeLayout()) {
-  const component = shallowMount(BoardRulerOverlay, {
+  return shallowMount(BoardRulerOverlay, {
     props: { layout, boardIndex },
     global: {
       stubs: {
@@ -61,71 +63,37 @@ function getComponent(boardIndex = 0, layout = makeLayout()) {
       },
     },
   });
-  return component;
 }
 
-function dispatchMouseMove(
+const STD_RECT = {
+  left: 0,
+  top: 0,
+  right: 500,
+  bottom: 1000,
+  width: 500,
+  height: 1000,
+  x: 0,
+  y: 0,
+  toJSON() {
+    return {};
+  },
+} as DOMRect;
+
+function dispatch(
   component: ReturnType<typeof getComponent>,
+  type: 'mousemove' | 'click',
   clientX: number,
   clientY: number,
 ) {
   const svg = component.find('svg').element as SVGSVGElement;
-  // Provide a deterministic bounding rect so position math is predictable.
-  const rect = {
-    left: 0,
-    top: 0,
-    right: 500,
-    bottom: 1000,
-    width: 500,
-    height: 1000,
-    x: 0,
-    y: 0,
-    toJSON() {
-      return {};
-    },
-  } as DOMRect;
-  svg.getBoundingClientRect = () => rect;
-  const event = new MouseEvent('mousemove', {
-    clientX,
-    clientY,
-    bubbles: true,
-  });
-  svg.dispatchEvent(event);
-}
-
-function dispatchClick(
-  component: ReturnType<typeof getComponent>,
-  clientX: number,
-  clientY: number,
-) {
-  const svg = component.find('svg').element as SVGSVGElement;
-  const rect = {
-    left: 0,
-    top: 0,
-    right: 500,
-    bottom: 1000,
-    width: 500,
-    height: 1000,
-    x: 0,
-    y: 0,
-    toJSON() {
-      return {};
-    },
-  } as DOMRect;
-  svg.getBoundingClientRect = () => rect;
-  const event = new MouseEvent('click', {
-    clientX,
-    clientY,
-    bubbles: true,
-  });
-  svg.dispatchEvent(event);
+  svg.getBoundingClientRect = () => STD_RECT;
+  svg.dispatchEvent(new MouseEvent(type, { clientX, clientY, bubbles: true }));
 }
 
 beforeEach(() => {
   isRulerActive.value = false;
   pendingClick.value = null;
   measurementsForBoard.value = [];
-  snapEdgesRef.value = [];
   startMeasurement.mockClear();
   completeMeasurement.mockClear();
   removeMeasurement.mockClear();
@@ -137,93 +105,77 @@ afterEach(() => {
 });
 
 describe('BoardRulerOverlay', () => {
-  describe('On mousemove', () => {
-    it('Should be a no-op when the ruler is inactive', () => {
-      snapEdgesRef.value = [{ axis: 'x', positionM: 0, boardIndex: 0 }];
-      const component = getComponent();
+  it('Should be a no-op on mousemove when the ruler is inactive', () => {
+    const component = getComponent();
 
-      dispatchMouseMove(component, 250, 500);
+    dispatch(component, 'mousemove', 250, 500);
 
-      // No pre-click highlight rendered.
-      expect(component.html()).not.toContain('stroke-opacity="0.4"');
-    });
+    expect(component.html()).not.toContain('stroke-opacity="0.4"');
+  });
 
-    it('Should highlight the nearest edge when active and pendingClick is null', async () => {
-      isRulerActive.value = true;
-      // Vertical edge at x=0.5m on a 1m wide board.
-      snapEdgesRef.value = [{ axis: 'x', positionM: 0.5, boardIndex: 0 }];
-      const component = getComponent();
+  it('Should highlight the nearest edge when active and pendingClick is null', async () => {
+    isRulerActive.value = true;
+    // 1m wide layout → board's right edge is a snap at x = 1m. Hover near
+    // 498px (= ~0.996m on a 500px-wide rect) is within the 0.03m threshold.
+    const component = getComponent(0, makeLayout(1, 2));
 
-      // Hover near x=250px (= 0.5m on a 500px wide rect).
-      dispatchMouseMove(component, 252, 500);
-      await component.vm.$nextTick();
+    dispatch(component, 'mousemove', 498, 500);
+    await component.vm.$nextTick();
 
-      // Pre-click highlight line is rendered with stroke-opacity 0.4.
-      expect(component.html()).toContain('stroke-opacity="0.4"');
+    expect(component.html()).toContain('stroke-opacity="0.4"');
+  });
+
+  it('Should call startMeasurement on first click near a snap edge', () => {
+    isRulerActive.value = true;
+    // 1m wide → snap edges at x=0 and x=1. Click at 498px snaps to x=1.
+    const component = getComponent(0, makeLayout(1, 2));
+
+    dispatch(component, 'click', 498, 500);
+
+    expect(startMeasurement).toHaveBeenCalledTimes(1);
+    expect(startMeasurement.mock.calls[0][0]).toMatchObject({
+      axis: 'x',
+      positionM: 1,
     });
   });
 
-  describe('On click', () => {
-    it('Should call startMeasurement when no click is pending', () => {
-      isRulerActive.value = true;
-      const edge: SnapEdge = { axis: 'x', positionM: 0.5, boardIndex: 0 };
-      snapEdgesRef.value = [edge];
-      const component = getComponent();
+  it('Should call completeMeasurement on the second click', () => {
+    isRulerActive.value = true;
+    // 1m wide layout gives snap edges at x=0 and x=1.
+    const layout = makeLayout(1, 2);
+    pendingClick.value = {
+      edge: { axis: 'x', positionM: 0, boardIndex: 0 },
+      boardIndex: 0,
+    };
+    const component = getComponent(0, layout);
 
-      // Click near the snap edge.
-      dispatchClick(component, 250, 500);
+    dispatch(component, 'click', 498, 500);
 
-      expect(startMeasurement).toHaveBeenCalledTimes(1);
-      expect(startMeasurement.mock.calls[0][0]).toMatchObject({
-        axis: 'x',
-        positionM: 0.5,
-      });
-    });
-
-    it('Should call completeMeasurement on the second click', () => {
-      isRulerActive.value = true;
-      const firstEdge: SnapEdge = { axis: 'x', positionM: 0.0, boardIndex: 0 };
-      const secondEdge: SnapEdge = { axis: 'x', positionM: 1.0, boardIndex: 0 };
-      snapEdgesRef.value = [firstEdge, secondEdge];
-      pendingClick.value = { edge: firstEdge, boardIndex: 0 };
-      const component = getComponent();
-
-      // Click near x=500px which is 1.0m → second edge.
-      dispatchClick(component, 498, 500);
-
-      expect(completeMeasurement).toHaveBeenCalledTimes(1);
-      const arg = completeMeasurement.mock.calls[0][0] as SnapEdge;
-      expect(arg.positionM).toBe(1.0);
-    });
+    expect(completeMeasurement).toHaveBeenCalledTimes(1);
+    const arg = completeMeasurement.mock.calls[0][0] as SnapEdge;
+    expect(arg.positionM).toBe(1);
   });
 
-  describe('Preview measurement', () => {
-    it('Should render the preview only on the matching boardIndex', async () => {
-      isRulerActive.value = true;
-      const firstEdge: SnapEdge = { axis: 'x', positionM: 0.0, boardIndex: 0 };
-      const secondEdge: SnapEdge = { axis: 'x', positionM: 1.0, boardIndex: 0 };
-      snapEdgesRef.value = [firstEdge, secondEdge];
-      pendingClick.value = { edge: firstEdge, boardIndex: 0 };
+  it('Should render the preview only on the matching boardIndex', async () => {
+    isRulerActive.value = true;
+    const layout = makeLayout(1, 2);
+    pendingClick.value = {
+      edge: { axis: 'x', positionM: 0, boardIndex: 0 },
+      boardIndex: 0,
+    };
 
-      const matching = getComponent(0);
-      const nonMatching = getComponent(1);
+    const matching = getComponent(0, layout);
+    const nonMatching = getComponent(1, layout);
 
-      // Hover near second edge on each.
-      dispatchMouseMove(matching, 498, 500);
-      dispatchMouseMove(nonMatching, 498, 500);
-      await matching.vm.$nextTick();
-      await nonMatching.vm.$nextTick();
+    dispatch(matching, 'mousemove', 498, 500);
+    dispatch(nonMatching, 'mousemove', 498, 500);
+    await matching.vm.$nextTick();
+    await nonMatching.vm.$nextTick();
 
-      const previewMatching = matching.find('[data-id="__preview__"]');
-      const previewNonMatching = nonMatching.find('[data-id="__preview__"]');
-      expect(previewMatching.exists()).toBe(true);
-      expect(previewMatching.attributes('data-preview')).toBe('true');
-      expect(previewNonMatching.exists()).toBe(false);
-    });
+    expect(matching.find('[data-id="__preview__"]').exists()).toBe(true);
+    expect(
+      matching.find('[data-id="__preview__"]').attributes('data-preview'),
+    ).toBe('true');
+    expect(nonMatching.find('[data-id="__preview__"]').exists()).toBe(false);
   });
 });
-
-// TODO(test): keyboard ESC handling is in useRulerStore (separate composable).
-// TODO(test): existing measurement annotations passed to DimensionAnnotation —
-//   one-line v-for delegation; covered by the store unit tests.
-// TODO(test): handleMouseLeave clearing — small bookkeeping branch.
