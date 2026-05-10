@@ -85,7 +85,10 @@ export default function useBomRows() {
         );
       }
       return groupPartsByNumber(
-        data.value.layouts.flatMap((l) => l.placements),
+        [
+          ...data.value.layouts.flatMap((l) => l.placements),
+          ...data.value.linearLayouts.flatMap((l) => l.placements),
+        ],
         data.value.leftovers,
       ).map((instanceList) => {
         const part = instanceList[0];

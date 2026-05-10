@@ -287,10 +287,16 @@ export interface LinearBoardLayoutPlacement {
   instanceNumber: number;
   name: string;
   material: string;
+  /** Part's authored width in METERS. Equals the stock's cross-section width
+   *  in whichever orientation the part matched. Carried so BOM consumers and
+   *  hover info can resolve dimensions without joining back to the source part. */
+  widthM: number;
+  /** Part's authored thickness in METERS. See `widthM`. */
+  thicknessM: number;
+  /** Cut length in METERS — the only dimension that varies along the stick. */
+  lengthM: number;
   /** Offset from the start of the stick in METERS. */
   offsetM: number;
-  /** Length of this cut in METERS. */
-  lengthM: number;
 }
 
 /**

@@ -91,6 +91,34 @@ describe('generateBoardLayouts — linear routing', () => {
     expect(layout.placements[1].offsetM).toBeCloseTo(1.0, 6);
   });
 
+  it('serialises widthM and thicknessM on each linear placement so BOM and hover can resolve the part', () => {
+    // Regression guard: BOM rows and the Model-tab hover→info resolver
+    // both read placements through `groupPartsByNumber` and expect a
+    // BoardLayoutLeftover-shaped record (partNumber + dimensions). Without
+    // these fields, linear-routed parts vanish from the BOM and produce
+    // a blank hover popover.
+    const stock: StockMatrix[] = [
+      {
+        kind: 'linear',
+        material: 'Pine 2x4',
+        size: {
+          crossSectionWidth: CSW_MM,
+          crossSectionThickness: CST_MM,
+          lengths: [2440],
+        },
+      },
+    ];
+    const parts = [makeLinearPart(7, 1.0)];
+    const result = generateBoardLayouts(parts, stock, baseConfig);
+    const layout = asLinear(result.layouts[0]);
+    const placement = layout.placements[0];
+
+    expect(placement.widthM).toBeCloseTo(CSW_M, 6);
+    expect(placement.thicknessM).toBeCloseTo(CST_M, 6);
+    expect(placement.partNumber).toBe(7);
+    expect(placement.material).toBe('Pine 2x4');
+  });
+
   it('prefers shorter sticks when both meet the demand', () => {
     // Both 2440mm and 4880mm available. A single 2440mm stick fits all parts,
     // so the result should land on the shorter stick after stock minimization.

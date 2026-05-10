@@ -29,8 +29,10 @@ function makePlacement(
     instanceNumber: 1,
     name: 'Rail',
     material: 'Pine 2x4',
-    offsetM: 0,
+    widthM: 0.089,
+    thicknessM: 0.038,
     lengthM: 0.5,
+    offsetM: 0,
     ...overrides,
   };
 }

@@ -777,8 +777,10 @@ function serializeLinearLayout(
     instanceNumber: p.data.instanceNumber,
     name: p.data.name,
     material: p.data.material,
-    offsetM: p.bottom - marginM,
+    widthM: p.data.size.width,
+    thicknessM: p.data.size.thickness,
     lengthM: p.height,
+    offsetM: p.bottom - marginM,
   }));
   // Trailing waste sits between the last placement's end and the stick end,
   // exclusive of the trailing margin (so total = placements + kerfs + wasteEnd
