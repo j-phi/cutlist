@@ -240,21 +240,41 @@ Board layouts are cached per tab in a module-level `Map` inside [web/composables
 
 ### Migrations
 
-**IDB schema** is owned by the `CutlistDB` class in [web/composables/useIdb/db.ts](web/composables/useIdb/db.ts), which uses [Dexie](https://dexie.org). Each schema version is declared with a chained `this.version(N).stores({...}).upgrade(tx => ...)` call. Dexie opens the DB and runs any pending `.upgrade()` callbacks atomically; a mid-upgrade failure rolls the whole transaction back.
+Two paths convert old data to the current schema; both run the same per-version transform.
 
-**Export-file compatibility** is a separate concern, handled by [web/utils/projectImport/migrations.ts](web/utils/projectImport/migrations.ts). A `.cutlist.gz` emitted at schema v(N-1) still needs its record shapes brought up to vN when imported by a newer client — Dexie can't help with that since the file isn't in IDB yet. That module keeps:
+- **Local IDB upgrades**: `CutlistDB` in [web/composables/useIdb/db.ts](web/composables/useIdb/db.ts) declares one `this.version(N).stores({...}).upgrade(tx => ...)` block per schema version. Dexie runs any pending `.upgrade()` callbacks atomically when `db.open()` is called.
+- **Imported `.cutlist.gz` files**: a parallel registry in [web/utils/projectImport/migrations/](web/utils/projectImport/migrations/) applies the same transforms to records that arrive from outside IDB. `migrations/index.ts` is the version-agnostic registry; each `migrations/v<N>.ts` exports a `vNMigration: RecordMigration` plus the pure transform function. `migrateExport()` walks the registry to bring an import up to `SCHEMA_VERSION`.
 
-- **`migrations[]`** — pure, append-only entries applied to raw export records. Mirrors any Dexie `.upgrade()` record transformation.
-- **`migrateExport()`** — runs the above over an imported payload.
+The per-version transform must not throw — a thrown error inside Dexie's `.upgrade()` rolls back the transaction and locks the user out of the DB. Drop unparseable rows; preserve repairable ones (see `migrations/v3.ts` for the canonical defensive shape).
+
+`FutureSchemaError` (in `versions.ts`) is raised when the stored DB or imported file was written by a newer Cutlist than the one running. `LegacyExportError` covers `.cutlist.gz` files older than `MIN_SUPPORTED_EXPORT_VERSION`.
 
 **Read-path safety net**: `applyDefaults` helpers in [web/composables/useIdb/defaults.ts](web/composables/useIdb/defaults.ts) fill missing fields on every record read, so partial records from older writes still hydrate cleanly.
 
-### When adding a new field to a record type
+Current schema: **v3**. v2 normalised `optimize` → `defaultAlgorithm`; v3 canonicalised distance storage to millimetres (see `migrations/v3.ts` for the full shape).
 
-The current schema is a clean v1 baseline. The first real schema bump after this point follows:
+### When adding a new schema version
 
 1. Update the TypeScript interface in `useIdb/types.ts`.
-2. Append a new Dexie version block in `db.ts`:
+2. Create `web/utils/projectImport/migrations/v<N>.ts`:
+
+   ```ts
+   import type { IdbRecord, RecordMigration } from './types';
+
+   export function migrateProjectToVN(record: IdbRecord): IdbRecord {
+     /* defensive transform — never throw */
+   }
+
+   export const vNMigration: RecordMigration = {
+     version: N,
+     store: 'projects',
+     migrate: migrateProjectToVN,
+   };
+   ```
+
+3. Register the entry in `migrations/index.ts` by appending `vNMigration` to `migrations[]`.
+4. Add a matching Dexie block in `db.ts`. Do NOT edit older version blocks.
+
    ```ts
    this.version(N)
      .stores({
@@ -264,16 +284,16 @@ The current schema is a clean v1 baseline. The first real schema bump after this
        await tx
          .table('projects')
          .toCollection()
-         .modify((p) => {
-           p.newField = defaultValue;
+         .modify((p: Record<string, unknown>) => {
+           Object.assign(p, migrateProjectToVN(p));
          });
      });
    ```
-   Do NOT edit the existing v1 block.
-3. Bump `SCHEMA_VERSION` in `versions.ts` and add the matching pure-function entry to `migrations[]` in `projectImport/migrations.ts` for the import path.
-4. Update the relevant `applyDefaults` helper.
-5. Update `createX` to set the field for new records.
-6. Add a test in `utils/projectImport/__tests__/migrations.test.ts`.
+
+5. Bump `SCHEMA_VERSION` in `versions.ts`.
+6. Update the relevant `applyDefaults` helper.
+7. Update `createX` to set the field for new records.
+8. Add tests in `web/utils/projectImport/migrations/__tests__/v<N>.test.ts` (per-version, sibling to the source). Registry-level invariants live in `web/utils/projectImport/__tests__/migrations.test.ts`.
 
 ### IDB error handling
 
