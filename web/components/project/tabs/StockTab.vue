@@ -1,19 +1,12 @@
 <script lang="ts" setup>
 import YAML from 'js-yaml';
-import type { LinearStockMatrix, StockMatrix } from 'cutlist';
+import type { SheetStockMatrix, StockMatrix } from 'cutlist';
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
 import { parseStock } from '~/utils/parseStock';
+import { FALLBACK_PALETTE } from '~/utils/materialColors';
 
 const { stock, distanceUnit, precision } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
-
-interface StockMatrixInputExpose {
-  commit: () => boolean;
-  addMaterial: () => void;
-  scrollToBottom: () => void;
-}
-
-const stockInput = ref<StockMatrixInputExpose>();
 
 const sheetPresets = STOCK_PRESETS.filter((p) => p.stock.kind === 'sheet');
 const timberPresets = STOCK_PRESETS.filter((p) => p.stock.kind === 'linear');
@@ -39,25 +32,11 @@ const presetItems = [
   ],
 ];
 
-function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
-  if (stock.value == null) return;
-  const mmStock = presetToMmStock(preset);
-  try {
-    const current = parseStock(stock.value);
-    current.push(mmStock);
-    stock.value = YAML.dump(current, { indent: 2, flowLevel: 3 });
-    stockInput.value?.scrollToBottom();
-  } catch {
-    stock.value = YAML.dump([mmStock], { indent: 2, flowLevel: 3 });
-    stockInput.value?.scrollToBottom();
-  }
-}
-
 /**
- * Parse the full stock list (both kinds). Returns an empty list if YAML
- * is invalid — child components own error display for their own slice.
+ * Parse the full stock list. Returns an empty list if YAML is invalid;
+ * the entries are the single source of truth for the flat editor.
  */
-const allEntries = computed<StockMatrix[]>(() => {
+const entries = computed<StockMatrix[]>(() => {
   if (stock.value == null) return [];
   try {
     return parseStock(stock.value);
@@ -66,63 +45,34 @@ const allEntries = computed<StockMatrix[]>(() => {
   }
 });
 
-const linearEntries = computed<LinearStockMatrix[]>(() =>
-  allEntries.value.filter((m): m is LinearStockMatrix => m.kind === 'linear'),
-);
-
-/**
- * Slice of the YAML containing only sheet rows. Linear rows are
- * preserved across StockMatrixInput's own serialise cycle by merging
- * back here on each write.
- */
-const sheetYaml = computed<string>({
-  get() {
-    const sheets = allEntries.value.filter((m) => m.kind === 'sheet');
-    return YAML.dump(sheets, { indent: 2, flowLevel: 3 });
-  },
-  set(next: string) {
-    let sheetParsed: StockMatrix[];
-    try {
-      sheetParsed = parseStock(next);
-    } catch {
-      stock.value = next;
-      return;
-    }
-    const merged = [...sheetParsed, ...linearEntries.value];
-    stock.value = YAML.dump(merged, { indent: 2, flowLevel: 3 });
-  },
-});
-
-/**
- * Replace the linear entry at the given index (relative to the linear
- * subset) and re-serialise the full list.
- */
-function updateLinear(linearIdx: number, next: LinearStockMatrix) {
-  const entries = allEntries.value.slice();
-  let seen = 0;
-  for (let i = 0; i < entries.length; i++) {
-    if (entries[i].kind !== 'linear') continue;
-    if (seen === linearIdx) {
-      entries[i] = next;
-      break;
-    }
-    seen++;
-  }
-  stock.value = YAML.dump(entries, { indent: 2, flowLevel: 3 });
+function writeEntries(next: StockMatrix[]) {
+  stock.value = YAML.dump(next, { indent: 2, flowLevel: 3 });
 }
 
-function removeLinear(linearIdx: number) {
-  const entries = allEntries.value.slice();
-  let seen = 0;
-  for (let i = 0; i < entries.length; i++) {
-    if (entries[i].kind !== 'linear') continue;
-    if (seen === linearIdx) {
-      entries.splice(i, 1);
-      break;
-    }
-    seen++;
-  }
-  stock.value = YAML.dump(entries, { indent: 2, flowLevel: 3 });
+function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
+  const next = entries.value.slice();
+  next.push(presetToMmStock(preset));
+  writeEntries(next);
+}
+
+function addCustomSheet() {
+  const blank: SheetStockMatrix = {
+    kind: 'sheet',
+    material: 'New Material',
+    sizes: [],
+    color: FALLBACK_PALETTE[entries.value.length % FALLBACK_PALETTE.length],
+  };
+  writeEntries([...entries.value, blank]);
+}
+
+function updateEntry(idx: number, next: StockMatrix) {
+  const list = entries.value.slice();
+  list[idx] = next;
+  writeEntries(list);
+}
+
+function removeEntry(idx: number) {
+  writeEntries(entries.value.filter((_, i) => i !== idx));
 }
 </script>
 
@@ -152,10 +102,7 @@ function removeLinear(linearIdx: number) {
           variant="outline"
           icon="i-lucide-plus"
           size="sm"
-          @click="
-            stockInput?.addMaterial();
-            stockInput?.scrollToBottom();
-          "
+          @click="addCustomSheet"
         >
           Add custom
         </UButton>
@@ -166,17 +113,24 @@ function removeLinear(linearIdx: number) {
       v-if="stock != null"
       class="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto"
     >
-      <StockMatrixInput ref="stockInput" v-model="sheetYaml" />
-
-      <LinearStockInput
-        v-for="(entry, idx) in linearEntries"
-        :key="`linear-${idx}-${entry.material}`"
-        :model-value="entry"
-        :distance-unit="unit"
-        :precision="precision"
-        @update:model-value="(next) => updateLinear(idx, next)"
-        @remove="removeLinear(idx)"
-      />
+      <template v-for="(entry, idx) in entries" :key="idx">
+        <SheetStockInput
+          v-if="entry.kind === 'sheet'"
+          :model-value="entry"
+          :distance-unit="unit"
+          :precision="precision"
+          @update:model-value="(next) => updateEntry(idx, next)"
+          @remove="removeEntry(idx)"
+        />
+        <LinearStockInput
+          v-else
+          :model-value="entry"
+          :distance-unit="unit"
+          :precision="precision"
+          @update:model-value="(next) => updateEntry(idx, next)"
+          @remove="removeEntry(idx)"
+        />
+      </template>
     </div>
   </div>
 </template>

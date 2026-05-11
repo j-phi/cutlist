@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { computed, defineComponent, h, ref } from 'vue';
 import YAML from 'js-yaml';
 import { mount } from '@vue/test-utils';
@@ -20,25 +20,6 @@ mockNuxtImport('useProjectSettings', () => () => ({
   distanceUnit,
   precision,
 }));
-
-const addMaterialSpy = vi.fn();
-const scrollToBottomSpy = vi.fn();
-const commitSpy = vi.fn(() => true);
-
-const StockMatrixInputStub = defineComponent({
-  props: {
-    modelValue: { type: String, required: true },
-  },
-  emits: ['update:modelValue'],
-  setup(_props, { expose }) {
-    expose({
-      addMaterial: addMaterialSpy,
-      scrollToBottom: scrollToBottomSpy,
-      commit: commitSpy,
-    });
-    return () => h('div', { 'data-testid': 'stock-matrix-input' });
-  },
-});
 
 const UButtonStub = defineComponent({
   inheritAttrs: false,
@@ -71,8 +52,6 @@ const UDropdownMenuStub = defineComponent({
     },
   },
   setup(props, { slots }) {
-    // Flatten group-arrays (Nuxt UI groups items via nested arrays). Render
-    // a "group-label" attribute on rows so tests can assert grouping.
     const groups: DropdownItem[][] = Array.isArray(props.items[0])
       ? (props.items as DropdownItem[][])
       : [props.items as DropdownItem[]];
@@ -106,6 +85,36 @@ const UDropdownMenuStub = defineComponent({
           }),
         ),
       ]);
+  },
+});
+
+const SheetStockInputStub = defineComponent({
+  props: {
+    modelValue: { type: Object, required: true },
+    distanceUnit: { type: String, required: true },
+    precision: { type: Object, required: true },
+  },
+  emits: ['update:modelValue', 'remove'],
+  setup(props, { emit }) {
+    return () =>
+      h(
+        'div',
+        {
+          'data-testid': 'sheet-stock-input',
+          'data-material': (props.modelValue as { material: string }).material,
+        },
+        [
+          h(
+            'button',
+            {
+              type: 'button',
+              'data-testid': 'sheet-stub-remove',
+              onClick: () => emit('remove'),
+            },
+            'remove',
+          ),
+        ],
+      );
   },
 });
 
@@ -146,7 +155,7 @@ function getComponent() {
         UButton: UButtonStub,
         UIcon: true,
         UDropdownMenu: UDropdownMenuStub,
-        StockMatrixInput: StockMatrixInputStub,
+        SheetStockInput: SheetStockInputStub,
         LinearStockInput: LinearStockInputStub,
       },
     },
@@ -159,88 +168,81 @@ function getButton(component: ReturnType<typeof getComponent>, text: string) {
   return button;
 }
 
+function firstSheet() {
+  return STOCK_PRESETS.find((p) => p.stock.kind === 'sheet')!;
+}
+
+function firstTimber() {
+  return STOCK_PRESETS.find((p) => p.stock.kind === 'linear')!;
+}
+
 describe('StockTab', () => {
   afterEach(() => {
     stock.value = undefined;
     distanceUnit.value = 'mm';
-    addMaterialSpy.mockReset();
-    scrollToBottomSpy.mockReset();
-    commitSpy.mockReset();
-    vi.restoreAllMocks();
   });
 
-  function firstSheet() {
-    return STOCK_PRESETS.find((p) => p.stock.kind === 'sheet')!;
-  }
-
-  function firstTimber() {
-    return STOCK_PRESETS.find((p) => p.stock.kind === 'linear')!;
-  }
+  describe('Flat rendering', () => {
+    it('renders one row per entry, dispatched by kind, in order', () => {
+      stock.value = YAML.dump([
+        presetToMmStock(firstSheet()),
+        presetToMmStock(firstTimber()),
+        presetToMmStock(firstSheet()),
+      ]);
+      const component = getComponent();
+      const rows = component.findAll(
+        '[data-testid="sheet-stock-input"], [data-testid="linear-stock-input"]',
+      );
+      expect(rows).toHaveLength(3);
+      expect(rows[0].attributes('data-testid')).toBe('sheet-stock-input');
+      expect(rows[1].attributes('data-testid')).toBe('linear-stock-input');
+      expect(rows[2].attributes('data-testid')).toBe('sheet-stock-input');
+    });
+  });
 
   describe('Add custom', () => {
-    it('Should call addMaterial and scrollToBottom on the StockMatrixInput', async () => {
-      stock.value = YAML.dump([STOCK_PRESETS[0].stock]);
-
+    it('appends a blank kind:sheet entry to the YAML', async () => {
+      stock.value = YAML.dump([presetToMmStock(firstSheet())]);
       const component = getComponent();
 
       await getButton(component, 'Add custom').trigger('click');
 
-      expect(addMaterialSpy).toHaveBeenCalledTimes(1);
-      expect(scrollToBottomSpy).toHaveBeenCalledTimes(1);
+      const parsed = YAML.load(stock.value!) as Array<{
+        kind: string;
+        material: string;
+        sizes: unknown[];
+      }>;
+      expect(parsed).toHaveLength(2);
+      expect(parsed[1].kind).toBe('sheet');
+      expect(parsed[1].material).toBe('New Material');
+      expect(parsed[1].sizes).toEqual([]);
     });
   });
 
   describe('Add preset dropdown', () => {
-    it('Should append the chosen preset to the YAML stock and call scrollToBottom', async () => {
-      const initialStock = [STOCK_PRESETS[0].stock];
-      stock.value = YAML.dump(initialStock);
+    it('appends a sheet preset to the YAML', async () => {
+      const sheet = firstSheet();
+      stock.value = YAML.dump([presetToMmStock(sheet)]);
 
       const component = getComponent();
       const presetButton = component
         .findAll('button')
         .find(
-          (b) => b.attributes('data-preset-label') === STOCK_PRESETS[1].label,
+          (b) =>
+            b.attributes('data-preset-label') === sheet.label &&
+            b.attributes('data-group-label') === 'Sheet',
         );
       expect(presetButton).toBeDefined();
 
       await presetButton!.trigger('click');
 
-      expect(stock.value).toBeTypeOf('string');
       const parsed = YAML.load(stock.value!) as Array<{ material: string }>;
       expect(parsed).toHaveLength(2);
-      expect(parsed[0].material).toBe(STOCK_PRESETS[0].stock.material);
-      expect(parsed[1].material).toBe(STOCK_PRESETS[1].stock.material);
-      expect(scrollToBottomSpy).toHaveBeenCalledTimes(1);
+      expect(parsed[1].material).toBe(sheet.stock.material);
     });
 
-    it('Should group sheet and timber presets under separate labels', async () => {
-      stock.value = YAML.dump([firstSheet().stock]);
-      const component = getComponent();
-
-      const sheetButtons = component
-        .findAll('button')
-        .filter((b) => b.attributes('data-group-label') === 'Sheet');
-      const timberButtons = component
-        .findAll('button')
-        .filter((b) => b.attributes('data-group-label') === 'Timber');
-
-      expect(sheetButtons.length).toBeGreaterThan(0);
-      expect(timberButtons.length).toBeGreaterThan(0);
-      // Each side should contain at least one preset of its kind.
-      expect(
-        sheetButtons.some(
-          (b) => b.attributes('data-preset-label') === firstSheet().label,
-        ),
-      ).toBe(true);
-      expect(
-        timberButtons.some(
-          (b) => b.attributes('data-preset-label') === firstTimber().label,
-        ),
-      ).toBe(true);
-    });
-
-    it('Should append a kind:linear row when a timber preset is selected', async () => {
-      stock.value = YAML.dump([firstSheet().stock]);
+    it('appends a kind:linear row when a timber preset is selected', async () => {
+      stock.value = YAML.dump([presetToMmStock(firstSheet())]);
       const component = getComponent();
 
       const timberBtn = component
@@ -252,60 +254,49 @@ describe('StockTab', () => {
 
       const parsed = YAML.load(stock.value!) as Array<{ kind: string }>;
       expect(parsed).toHaveLength(2);
-      expect(parsed.some((p) => p.kind === 'linear')).toBe(true);
+      expect(parsed[1].kind).toBe('linear');
     });
 
-    it('Should replace invalid YAML stock with a single-preset list (catch path)', async () => {
-      stock.value = 'this: is: not: valid: yaml: [';
-
+    it('groups sheet and timber presets under separate labels', () => {
+      stock.value = YAML.dump([presetToMmStock(firstSheet())]);
       const component = getComponent();
-      const presetButton = component
+
+      const sheetButtons = component
         .findAll('button')
-        .find(
-          (b) => b.attributes('data-preset-label') === STOCK_PRESETS[0].label,
-        );
-      expect(presetButton).toBeDefined();
+        .filter((b) => b.attributes('data-group-label') === 'Sheet');
+      const timberButtons = component
+        .findAll('button')
+        .filter((b) => b.attributes('data-group-label') === 'Timber');
 
-      await presetButton!.trigger('click');
-
-      expect(stock.value).toBeTypeOf('string');
-      const parsed = YAML.load(stock.value!) as Array<{ material: string }>;
-      expect(parsed).toHaveLength(1);
-      expect(parsed[0].material).toBe(STOCK_PRESETS[0].stock.material);
-      expect(scrollToBottomSpy).toHaveBeenCalledTimes(1);
+      expect(sheetButtons.length).toBeGreaterThan(0);
+      expect(timberButtons.length).toBeGreaterThan(0);
     });
   });
 
-  describe('Linear rendering', () => {
-    it('Should render both StockMatrixInput and LinearStockInput for a mixed stock list', () => {
-      const sheet = firstSheet();
-      const timber = firstTimber();
+  describe('Remove', () => {
+    it('removes a sheet entry when SheetStockInput emits remove', async () => {
       stock.value = YAML.dump([
-        presetToMmStock(sheet),
-        presetToMmStock(timber),
+        presetToMmStock(firstSheet()),
+        presetToMmStock(firstTimber()),
       ]);
-
       const component = getComponent();
 
-      expect(
-        component.find('[data-testid="stock-matrix-input"]').exists(),
-      ).toBe(true);
-      const linears = component.findAll('[data-testid="linear-stock-input"]');
-      expect(linears).toHaveLength(1);
-      expect(linears[0].attributes('data-material')).toBe(
-        timber.stock.material,
-      );
+      await component
+        .find('[data-testid="sheet-stub-remove"]')
+        .trigger('click');
+
+      const parsed = YAML.load(stock.value!) as Array<{ kind: string }>;
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].kind).toBe('linear');
     });
 
-    it('Should drop a linear entry from YAML when LinearStockInput emits remove', async () => {
-      const sheet = firstSheet();
-      const timber = firstTimber();
+    it('removes a linear entry when LinearStockInput emits remove', async () => {
       stock.value = YAML.dump([
-        presetToMmStock(sheet),
-        presetToMmStock(timber),
+        presetToMmStock(firstSheet()),
+        presetToMmStock(firstTimber()),
       ]);
-
       const component = getComponent();
+
       await component
         .find('[data-testid="linear-stub-remove"]')
         .trigger('click');
