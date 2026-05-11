@@ -5,11 +5,13 @@ import type { IdbScene } from '~/composables/useIdb';
 import SceneViewer from '~/components/editor/SceneViewer.vue';
 import BlockDragHandle from '~/components/editor/BlockDragHandle.vue';
 import EmbedCaption from '~/components/editor/EmbedCaption.vue';
+import { EDITOR_EDITABLE } from '~/lib/editor/editableInject';
 
 const props = defineProps<NodeViewProps>();
 
 const idb = useIdb();
 const { activeProject } = useProjects();
+const editable = inject(EDITOR_EDITABLE, ref(true));
 
 const modelId = computed(() => props.node.attrs.modelId as string);
 const sceneId = computed(() => props.node.attrs.sceneId as string);
@@ -128,8 +130,9 @@ const active = ref(false);
         </template>
 
         <!-- Scene picker: hover-revealed top-left overlay so it doesn't
-             sit over the content at rest. -->
+             sit over the content at rest. Edit-mode only. -->
         <select
+          v-if="editable"
           :value="pickerValue"
           class="absolute top-2 left-2 z-20 max-w-[60%] px-2 py-1 bg-overlay backdrop-blur border border-subtle rounded-md text-xs text-body focus:outline-none focus:border-teal-500/50 opacity-0 group-hover/embed:opacity-100 focus:opacity-100 transition-opacity"
           @change="onPick"
