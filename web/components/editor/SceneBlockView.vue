@@ -5,13 +5,13 @@ import type { IdbScene } from '~/composables/useIdb';
 import SceneViewer from '~/components/editor/SceneViewer.vue';
 import BlockDragHandle from '~/components/editor/BlockDragHandle.vue';
 import EmbedCaption from '~/components/editor/EmbedCaption.vue';
-import { EDITOR_EDITABLE } from '~/lib/editor/editableInject';
+import { useEditable } from '~/lib/editor/useEditable';
 
 const props = defineProps<NodeViewProps>();
 
 const idb = useIdb();
 const { activeProject } = useProjects();
-const editable = inject(EDITOR_EDITABLE, ref(true));
+const editable = useEditable();
 
 const modelId = computed(() => props.node.attrs.modelId as string);
 const sceneId = computed(() => props.node.attrs.sceneId as string);

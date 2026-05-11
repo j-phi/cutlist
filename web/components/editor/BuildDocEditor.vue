@@ -8,7 +8,7 @@ import Typography from '@tiptap/extension-typography';
 import { ImageBlock } from '~/lib/editor/imageBlock';
 import { SceneBlock } from '~/lib/editor/sceneBlock';
 import { YoutubeBlock } from '~/lib/editor/youtubeBlock';
-import { EDITOR_EDITABLE } from '~/lib/editor/editableInject';
+import { provideEditable } from '~/lib/editor/useEditable';
 
 const props = withDefaults(
   defineProps<{
@@ -28,9 +28,7 @@ const emit = defineEmits<{
 const { uploadImageAsset } = useDocAssets();
 const toast = useToast();
 
-// Embed NodeViews pull this to hide authoring chrome (drag handle,
-// caption input, picker dropdowns) when the editor is in view mode.
-provide(EDITOR_EDITABLE, toRef(props, 'editable'));
+provideEditable(toRef(props, 'editable'));
 
 // In-flight drop/paste uploads. The toolbar-insert path has its own
 // per-block "Compressing…" state inside `ImageBlockView`; this covers

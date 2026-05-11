@@ -3,13 +3,13 @@ import type { NodeViewProps } from '@tiptap/vue-3';
 import { NodeViewWrapper } from '@tiptap/vue-3';
 import BlockDragHandle from '~/components/editor/BlockDragHandle.vue';
 import EmbedCaption from '~/components/editor/EmbedCaption.vue';
-import { EDITOR_EDITABLE } from '~/lib/editor/editableInject';
+import { useEditable } from '~/lib/editor/useEditable';
 
 const props = defineProps<NodeViewProps>();
 
 const { uploadImageAsset, useAssetUrl } = useDocAssets();
 const { activeProject } = useProjects();
-const editable = inject(EDITOR_EDITABLE, ref(true));
+const editable = useEditable();
 
 const assetId = computed(() => props.node.attrs.assetId as string);
 const caption = computed(() => props.node.attrs.caption as string);

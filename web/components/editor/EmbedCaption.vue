@@ -5,7 +5,7 @@
  * renders as plain text — and renders nothing at all when empty, so
  * the unfilled placeholder doesn't leak into the published view.
  */
-import { EDITOR_EDITABLE } from '~/lib/editor/editableInject';
+import { useEditable } from '~/lib/editor/useEditable';
 
 defineProps<{
   modelValue: string;
@@ -15,7 +15,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string];
 }>();
 
-const editable = inject(EDITOR_EDITABLE, ref(true));
+const editable = useEditable();
 
 function onInput(e: Event) {
   emit('update:modelValue', (e.target as HTMLInputElement).value);

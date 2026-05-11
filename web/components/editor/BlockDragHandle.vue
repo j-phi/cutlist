@@ -1,17 +1,13 @@
 <script lang="ts" setup>
 /**
- * Drag handle shared by every embed block (image, scene, youtube).
- * ProseMirror picks this up via `[data-drag-handle]`; without it the
- * inner `contenteditable="false"` content swallows the drag and drops
- * never land on a valid block position.
- *
- * Hover-reveal is driven by the parent's `group/embed` modifier — every
- * embed block must wrap with that group name so this handle fades in
- * when the user hovers the block.
+ * Drag handle for every embed block. ProseMirror picks this up via
+ * `[data-drag-handle]`; without it the inner `contenteditable="false"`
+ * content swallows the drag. The hover-reveal needs the parent to set
+ * `group/embed` for `group-hover/embed:` to fire.
  */
-import { EDITOR_EDITABLE } from '~/lib/editor/editableInject';
+import { useEditable } from '~/lib/editor/useEditable';
 
-const editable = inject(EDITOR_EDITABLE, ref(true));
+const editable = useEditable();
 </script>
 
 <template>
