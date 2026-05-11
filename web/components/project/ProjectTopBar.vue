@@ -17,15 +17,6 @@ const { setActiveProject } = useProjectNavigation();
 const { exportProject } = useExportProject();
 const { pickAndImport } = useImportProject();
 
-const route = useRoute();
-// Path-based active checks: /plans and /plans/<slug> are sibling page
-// records, so Vue Router's active-class won't keep Plans lit on the detail
-// route. Cheaper than restructuring routes for one link.
-const onPlansRoute = computed(
-  () => route.path === '/plans' || route.path.startsWith('/plans/'),
-);
-const onHomeRoute = computed(() => route.path === '/');
-
 const showModal = ref(false);
 const showHistory = ref(false);
 const showMobileMenu = ref(false);
@@ -236,8 +227,9 @@ function openNewProject() {
     </div>
     <NuxtLink
       to="/"
-      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle hover:text-teal-400 hover:bg-surface transition-colors"
-      :class="onHomeRoute ? 'text-teal-400 bg-surface' : 'text-muted'"
+      active-class=""
+      exact-active-class="text-teal-400 bg-surface"
+      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
       title="Home"
       aria-label="Home"
     >
@@ -245,8 +237,8 @@ function openNewProject() {
     </NuxtLink>
     <NuxtLink
       to="/plans"
-      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle hover:text-teal-400 hover:bg-surface transition-colors"
-      :class="onPlansRoute ? 'text-teal-400 bg-surface' : 'text-muted'"
+      active-class="text-teal-400 bg-surface"
+      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
       title="Browse plans"
       aria-label="Browse plans"
     >
@@ -390,8 +382,9 @@ function openNewProject() {
         <!-- Home -->
         <NuxtLink
           to="/"
-          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle hover:bg-surface transition-colors"
-          :class="onHomeRoute ? 'text-teal-400 bg-surface' : 'text-body'"
+          active-class=""
+          exact-active-class="text-teal-400 bg-surface"
+          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle text-body hover:bg-surface transition-colors"
           @click="showMobileMenu = false"
         >
           <UIcon name="i-lucide-house" class="w-4 h-4 shrink-0" />
@@ -401,8 +394,8 @@ function openNewProject() {
         <!-- Plans -->
         <NuxtLink
           to="/plans"
-          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle hover:bg-surface transition-colors"
-          :class="onPlansRoute ? 'text-teal-400 bg-surface' : 'text-body'"
+          active-class="text-teal-400 bg-surface"
+          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle text-body hover:bg-surface transition-colors"
           @click="showMobileMenu = false"
         >
           <UIcon name="i-lucide-hammer" class="w-4 h-4 shrink-0" />
