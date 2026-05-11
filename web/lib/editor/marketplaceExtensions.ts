@@ -11,6 +11,7 @@
 import { Node } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Typography from '@tiptap/extension-typography';
+import Youtube from '@tiptap/extension-youtube';
 
 const configuredStarterKit = StarterKit.configure({
   codeBlock: false,
@@ -84,4 +85,5 @@ export const marketplaceExtensions = [
   Typography,
   ImageBlockRender,
   SceneBlockRender,
+  Youtube.configure({ nocookie: true, modestBranding: true }),
 ];
