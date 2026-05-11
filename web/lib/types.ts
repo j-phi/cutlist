@@ -55,6 +55,9 @@ export interface SheetStock {
 /**
  * Engine-side linear stock: a 1D stick at a single length.
  * All numbers are meters (engine internal unit).
+ *
+ * No `algorithm` override here — `kind: 'linear'` forces the linear
+ * packer; per-material algorithm choice only applies to sheet stock.
  */
 export interface LinearStock {
   kind: 'linear';
@@ -63,7 +66,6 @@ export interface LinearStock {
   crossSectionThickness: number;
   length: number;
   color?: string;
-  algorithm?: Algorithm;
 }
 
 /**
@@ -129,12 +131,6 @@ const LinearStockMatrixSchema = z.object({
   size: LinearStockSize,
   /** Display color for board previews (hex string). */
   color: z.string().optional(),
-  /**
-   * Optional per-material algorithm override. Falls back to
-   * `Config.defaultAlgorithm` when omitted; only `'linear'` is meaningful
-   * for this kind.
-   */
-  algorithm: Algorithm.optional(),
 });
 
 /**

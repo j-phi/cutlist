@@ -222,7 +222,6 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
         crossSectionThickness: mmToM(item.size.crossSectionThickness),
         length: mmToM(lenMm),
         color: item.color,
-        algorithm: item.algorithm,
       }));
     }
     return item.sizes.flatMap<Stock>((size) =>
@@ -281,12 +280,16 @@ function runMultiPassSearch(
   const allLeftovers: PartToCut[] = [];
 
   for (const group of groups) {
-    // First defined algorithm wins, regardless of area-sort position. Picking
-    // `group.stock[0]` directly would let an undefined entry override a
-    // defined one when two `StockMatrix` rows share material+thickness.
-    const algorithm =
-      group.stock.find((s) => s.algorithm != null)?.algorithm ??
-      config.defaultAlgorithm;
+    // Linear groups always use the linear pass; their `kind` is the
+    // algorithm choice. For sheet groups, first defined `algorithm` wins
+    // (picking `stock[0]` directly would let an undefined entry override
+    // a defined one when two `StockMatrix` rows share material+thickness).
+    const algorithm: Algorithm =
+      group.stock.length > 0 && isLinearStock(group.stock[0])
+        ? 'linear'
+        : (group.stock.find(
+            (s): s is SheetStock => !isLinearStock(s) && s.algorithm != null,
+          )?.algorithm ?? config.defaultAlgorithm);
     const passOrder = passOverride ?? getPassesForAlgorithm(algorithm);
     let best: SearchPassResult | undefined;
 
