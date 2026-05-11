@@ -126,10 +126,33 @@
           </h2>
           <p>
             Your projects and models are stored locally in your browser &mdash;
-            nothing is sent to any server. No accounts, no tracking. The only
-            external service is
-            <strong class="text-white">Sentry</strong>, which reports errors so
-            I can fix bugs. That's it.
+            nothing is sent to any server. No accounts, no cookies, no
+            cross-site tracking, no ad networks.
+          </p>
+          <p class="mt-3">
+            I use
+            <a
+              href="https://www.simpleanalytics.com/"
+              target="_blank"
+              class="text-teal-400 hover:text-teal-300 underline"
+              >Simple Analytics</a
+            >
+            &mdash; a privacy-friendly, GDPR-compliant service that doesn't use
+            cookies and doesn't store IP addresses or personal data &mdash; to
+            collect a small set of aggregate stats so I can tell whether the
+            product is useful and where it's breaking. Specifically:
+          </p>
+          <ul class="space-y-1 mt-3 ml-4 list-disc text-muted">
+            <li>Anonymous page views (which pages get visited)</li>
+            <li>A project was created (and the unit, mm or in)</li>
+            <li>A project was imported (and the file size)</li>
+            <li>A project was exported</li>
+            <li>A PDF was exported (and how many rows it contained)</li>
+          </ul>
+          <p class="mt-3">
+            I also use <strong class="text-white">Sentry</strong> for error
+            reports so I can fix bugs. That's it &mdash; no behavioural
+            profiles, no third-party sharing, no advertising.
           </p>
         </div>
 
@@ -207,7 +230,7 @@ const features = [
     icon: 'i-lucide-hard-drive',
     title: 'Offline & private',
     description:
-      'No server, no accounts, no tracking. Your data stays on your machine.',
+      'No server, no accounts, no invasive tracking. Your data stays on your machine.',
   },
 ];
 

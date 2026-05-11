@@ -407,8 +407,7 @@ async function onDrop(e: DragEvent) {
                     Offline &amp; private
                   </p>
                   <p class="text-sm text-muted mt-0.5">
-                    Everything runs in your browser. No server, no accounts, no
-                    tracking.
+                    Everything runs in your browser. No server, no accounts.
                   </p>
                 </div>
               </div>

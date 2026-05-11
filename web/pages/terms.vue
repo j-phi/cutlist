@@ -67,9 +67,17 @@
             Privacy
           </h2>
           <p>
-            All data (projects, models, settings) is stored locally in your
-            browser. Nothing is transmitted to any server. No analytics,
-            cookies, or tracking of any kind.
+            All project data (projects, models, settings) is stored locally in
+            your browser. No accounts, no cookies, no cross-site tracking.
+            Privacy-friendly aggregate analytics (page views and a handful of
+            product events) are collected via Simple Analytics, and error
+            reports go to Sentry so I can fix bugs. See the
+            <NuxtLink
+              to="/about"
+              class="text-teal-400 hover:text-teal-300 underline"
+              >About page</NuxtLink
+            >
+            for the full list.
           </p>
         </div>
       </section>
