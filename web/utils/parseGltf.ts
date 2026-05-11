@@ -111,12 +111,10 @@ export async function buildGltfObjectGraph(
   );
   gltf.scene.updateMatrixWorld(true);
 
-  // Override the JSON-walk size with an OBB computed from real vertex
-  // positions before grouping, so rotated/un-rotated twins land together
-  // even when the exporter baked rotation into vertices.
+  // Refine size via OBB from real vertices before grouping, so rotated /
+  // un-rotated twins land together when the exporter baked rotation in.
   interface NodeData {
     meshes: MeshSlice[];
-    obbInputs: ObbMeshInput[];
     matrix: import('three').Matrix4;
   }
   const nodeDataByGroup = new Map<number, NodeData>();
@@ -148,7 +146,7 @@ export async function buildGltfObjectGraph(
     ]);
     v.info.size = { thickness, width, length };
 
-    nodeDataByGroup.set(v.groupId, { meshes, obbInputs, matrix });
+    nodeDataByGroup.set(v.groupId, { meshes, matrix });
   }
 
   const grouped = groupPartInfos(visits.map((v) => v.info));
