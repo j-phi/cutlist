@@ -1,24 +1,13 @@
 <script lang="ts" setup>
 import * as Sentry from '@sentry/nuxt';
 
-const {
-  projects,
-  activeId,
-  archivedList,
-  closeProject,
-  restoreProject,
-  permanentlyDeleteProject,
-  clearHistory,
-  resetDatabase,
-  renameProject,
-  reorderProjects,
-} = useProjects();
+const { projects, activeId, closeProject, renameProject, reorderProjects } =
+  useProjects();
 const { setActiveProject } = useProjectNavigation();
 const { exportProject } = useExportProject();
 const { pickAndImport } = useImportProject();
 
 const showModal = ref(false);
-const showHistory = ref(false);
 const showMobileMenu = ref(false);
 const pendingCloseId = ref<string | null>(null);
 const pendingCloseName = ref('');
@@ -82,30 +71,6 @@ function confirmClose() {
 
 function cancelClose() {
   pendingCloseId.value = null;
-}
-
-function closeHistory() {
-  showHistory.value = false;
-}
-
-async function handleDesktopRestore(id: string) {
-  closeHistory();
-  await restoreProject(id);
-}
-
-async function handleMobileRestore(id: string) {
-  await restoreProject(id);
-  closeMobileMenu();
-}
-
-async function handleDesktopClear() {
-  closeHistory();
-  await clearHistory();
-}
-
-async function handleDesktopReset() {
-  closeHistory();
-  await resetDatabase();
 }
 
 // ─── Rename ───────────────────────────────────────────────────────────────────
@@ -228,7 +193,7 @@ function openNewProject() {
     <NuxtLink
       to="/"
       active-class=""
-      exact-active-class="text-teal-400 bg-surface"
+      exact-active-class="text-teal-400 bg-gradient-to-b from-teal-400/30 to-transparent"
       class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
       title="Home"
       aria-label="Home"
@@ -237,12 +202,21 @@ function openNewProject() {
     </NuxtLink>
     <NuxtLink
       to="/plans"
-      active-class="text-teal-400 bg-surface"
+      active-class="text-teal-400 bg-gradient-to-b from-teal-400/30 to-transparent"
       class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
       title="Browse plans"
       aria-label="Browse plans"
     >
       <UIcon name="i-lucide-hammer" class="block shrink-0 w-4 h-4" />
+    </NuxtLink>
+    <NuxtLink
+      to="/projects"
+      active-class="text-teal-400 bg-gradient-to-b from-teal-400/30 to-transparent"
+      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
+      title="Browse projects"
+      aria-label="Browse projects"
+    >
+      <UIcon name="i-lucide-layout-grid" class="block shrink-0 w-4 h-4" />
     </NuxtLink>
     <TabList class="hidden sm:flex flex-1 min-w-0">
       <TabListItem
@@ -309,63 +283,6 @@ function openNewProject() {
       <span class="text-xs">Help</span>
     </button>
 
-    <div class="relative shrink-0 hidden sm:flex">
-      <button
-        class="px-3 flex items-center gap-1.5 h-full border-l border-subtle transition-colors"
-        :class="
-          showHistory ? 'text-teal-400' : 'text-muted hover:text-teal-400'
-        "
-        title="Project history"
-        aria-label="Project history"
-        :aria-expanded="showHistory"
-        aria-haspopup="true"
-        @click="showHistory ? closeHistory() : (showHistory = true)"
-      >
-        <UIcon name="i-lucide-clock" class="block shrink-0 w-4 h-4" />
-        <span class="text-xs">History</span>
-        <span
-          v-if="archivedList.length > 0"
-          class="ml-0.5 text-xs tabular-nums text-muted"
-          >{{ archivedList.length }}</span
-        >
-      </button>
-
-      <Transition
-        enter-active-class="transition ease-out duration-100"
-        enter-from-class="opacity-0 scale-95"
-        enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition ease-in duration-75"
-        leave-from-class="opacity-100 scale-100"
-        leave-to-class="opacity-0 scale-95"
-      >
-        <div
-          v-if="showHistory"
-          class="absolute top-full right-0 mt-1 w-72 bg-elevated border border-default rounded-lg shadow-2xl z-50 origin-top-right"
-        >
-          <div class="px-3 py-2 border-b border-subtle">
-            <span
-              class="text-xs font-semibold text-muted uppercase tracking-wider"
-              >Closed projects</span
-            >
-          </div>
-          <ProjectHistoryMenu
-            :archived="archivedList"
-            @restore="handleDesktopRestore"
-            @permanently-delete="permanentlyDeleteProject"
-            @clear="handleDesktopClear"
-            @reset="handleDesktopReset"
-          />
-        </div>
-      </Transition>
-
-      <div
-        v-if="showHistory"
-        class="fixed inset-0 z-40"
-        aria-hidden="true"
-        @click="closeHistory"
-      />
-    </div>
-
     <!-- ─── Mobile menu panel ─────────────────────────────────────────────── -->
     <Transition
       enter-active-class="transition ease-out duration-150"
@@ -400,6 +317,17 @@ function openNewProject() {
         >
           <UIcon name="i-lucide-hammer" class="w-4 h-4 shrink-0" />
           <span class="text-sm">Plans</span>
+        </NuxtLink>
+
+        <!-- Projects -->
+        <NuxtLink
+          to="/projects"
+          active-class="text-teal-400 bg-surface"
+          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle text-body hover:bg-surface transition-colors"
+          @click="showMobileMenu = false"
+        >
+          <UIcon name="i-lucide-layout-grid" class="w-4 h-4 shrink-0" />
+          <span class="text-sm">Projects</span>
         </NuxtLink>
 
         <!-- Open projects -->
@@ -492,26 +420,6 @@ function openNewProject() {
           <span class="text-sm">Report an issue</span>
         </button>
 
-        <!-- History -->
-        <div class="px-4 pt-3 pb-1 flex items-center justify-between">
-          <span
-            class="text-xs font-semibold text-muted uppercase tracking-wider"
-            >History</span
-          >
-          <span
-            v-if="archivedList.length > 0"
-            class="text-xs tabular-nums text-muted"
-            >{{ archivedList.length }}</span
-          >
-        </div>
-        <ProjectHistoryMenu
-          :archived="archivedList"
-          @restore="handleMobileRestore"
-          @permanently-delete="permanentlyDeleteProject"
-          @clear="clearHistory"
-          @reset="resetDatabase"
-        />
-
         <!-- About / Terms -->
         <div class="flex items-center gap-4 px-4 py-3 border-t border-subtle">
           <NuxtLink
@@ -564,7 +472,7 @@ function openNewProject() {
           </div>
           <p class="text-sm text-muted">
             <span class="text-body font-medium">{{ pendingCloseName }}</span>
-            will be moved to History where you can restore it later.
+            will close, but stays in your Projects list — open it again anytime.
           </p>
           <div class="flex justify-end gap-2">
             <UButton color="neutral" variant="ghost" @click="cancelClose">

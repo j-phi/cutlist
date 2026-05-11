@@ -1,34 +1,32 @@
 /**
- * Project list and archive operations.
+ * Project list, open-tab list, and lifecycle CRUD.
  *
- * Owns the project list, the archive list, and lifecycle CRUD that affects
- * either (add/close/restore/delete/clear/rename/reorder). Initial population
- * runs once from `startProjects()`. Lifecycle paths that need to surface a
- * different project to the user navigate via `navigateTo(projectPath(...))`;
- * the URL is the source of truth for `activeId`.
+ * The IDB project library is every project ever created. The localStorage
+ * open-tab list (managed in `useOpenTabs`) is which of those is pinned as
+ * a top-bar tab. The tab bar renders the intersection.
+ *
+ * The Projects page reads IDB directly so it can show closed projects too.
  */
 import { computed } from 'vue';
 import * as Sentry from '@sentry/nuxt';
 import type { Precision } from 'cutlist';
-import { DEFAULT_SETTINGS, getDefaultStockYaml } from '~/utils/settings';
+import { getDefaultStockYaml } from '~/utils/settings';
 import { useIdb } from '~/composables/useIdb';
 import { resetDatabase as idbResetDatabase } from '~/composables/useIdb/db';
-import { projectPath } from '~/utils/projectTabs';
 import {
-  activeId,
-  activeProjectData,
-  archivedList,
-  projectList,
-} from './state';
-import type { Project } from './types';
+  addOpenTab,
+  clearOpenTabs,
+  openTabIds,
+  removeOpenTab,
+  reorderOpenTabs,
+} from '~/composables/useOpenTabs';
+import { projectPath } from '~/utils/projectTabs';
+import { activeId, activeProjectData, projectList } from './state';
+
+type TabEntry = { id: string; name: string };
 
 async function init(idb: ReturnType<typeof useIdb>) {
-  const [list, archived] = await Promise.all([
-    idb.getProjectList(),
-    idb.getArchivedList(),
-  ]);
-  projectList.value = list;
-  archivedList.value = archived;
+  projectList.value = await idb.getAllProjectsByRecency();
 }
 
 let collectionStarted = false;
@@ -42,33 +40,26 @@ export function startProjectCollection() {
 export default function useProjectCollection() {
   const idb = useIdb();
 
+  /** Tabs in tab-bar order, keyed by id for `[id, project]` iteration. */
   const projects = computed(() => {
-    const map = new Map<string, Project>();
-    for (const p of projectList.value) {
-      if (
-        p.id === activeId.value &&
-        activeProjectData.value?.id === activeId.value
-      ) {
-        map.set(p.id, activeProjectData.value);
-      } else {
-        map.set(p.id, {
-          id: p.id,
-          name: p.name,
-          models: [],
-          colorMap: {},
-          excludedColors: [],
-          stock: '',
-          distanceUnit: DEFAULT_SETTINGS.distanceUnit,
-          precision: DEFAULT_SETTINGS.precision,
-          bladeWidth: DEFAULT_SETTINGS.bladeWidth,
-          margin: DEFAULT_SETTINGS.margin,
-          defaultAlgorithm: DEFAULT_SETTINGS.defaultAlgorithm,
-          showPartNumbers: DEFAULT_SETTINGS.showPartNumbers,
-        });
+    const byId = new Map(projectList.value.map((p) => [p.id, p]));
+    const map = new Map<string, TabEntry>();
+    for (const id of openTabIds.value) {
+      if (id === activeId.value && activeProjectData.value?.id === id) {
+        map.set(id, activeProjectData.value);
+        continue;
       }
+      const meta = byId.get(id);
+      if (meta) map.set(id, meta);
     }
     return map;
   });
+
+  async function navigateAwayIfClosed(closedId: string) {
+    if (activeId.value !== closedId) return;
+    const next = openTabIds.value.at(-1) ?? null;
+    await navigateTo(next ? projectPath(next, null) : '/');
+  }
 
   async function addProject(
     name: string,
@@ -81,62 +72,37 @@ export default function useProjectCollection() {
       stock: getDefaultStockYaml(unit),
     });
     projectList.value = [
-      ...projectList.value,
       { id: project.id, name: project.name, updatedAt: project.updatedAt },
+      ...projectList.value,
     ];
-    // Prime `activeProjectData` so the workspace renders immediately when
-    // the navigation below resolves — the activeId watcher would otherwise
-    // round-trip through `loadProject` for data we already have.
+    addOpenTab(project.id);
+    // Prime activeProjectData so the workspace renders immediately on the
+    // navigation below — the activeId watcher would otherwise round-trip
+    // through loadProject for data we already have.
     activeProjectData.value = { ...project, models: [] };
     await navigateTo(projectPath(project.id, null));
-    Sentry.metrics.count('project.created', 1, {
-      attributes: { unit },
-    });
+    Sentry.metrics.count('project.created', 1, { attributes: { unit } });
   }
 
   async function closeProject(id: string) {
-    const item = projectList.value.find((p) => p.id === id);
-    const remaining = projectList.value.filter((p) => p.id !== id);
-    const wasActive = activeId.value === id;
-    projectList.value = remaining;
-    await idb.archiveProject(id);
-    const archivedAt = new Date().toISOString();
-    archivedList.value = [
-      { id, name: item?.name ?? '', archivedAt },
-      ...archivedList.value,
-    ];
-    if (wasActive) {
-      const nextId =
-        remaining.length > 0 ? remaining[remaining.length - 1].id : null;
-      await navigateTo(nextId ? projectPath(nextId, null) : '/');
-    }
+    removeOpenTab(id);
+    await navigateAwayIfClosed(id);
   }
 
-  async function restoreProject(id: string) {
-    const item = archivedList.value.find((p) => p.id === id);
-    if (!item) return;
-    await idb.unarchiveProject(id);
-    archivedList.value = archivedList.value.filter((p) => p.id !== id);
-    const updatedAt = new Date().toISOString();
-    projectList.value = [
-      ...projectList.value,
-      { id, name: item.name, updatedAt },
-    ];
+  async function openProject(id: string) {
+    addOpenTab(id);
     await navigateTo(projectPath(id, null));
   }
 
   async function permanentlyDeleteProject(id: string) {
-    archivedList.value = archivedList.value.filter((p) => p.id !== id);
+    projectList.value = projectList.value.filter((p) => p.id !== id);
+    removeOpenTab(id);
     await idb.deleteProject(id);
-  }
-
-  async function clearHistory() {
-    const ids = archivedList.value.map((p) => p.id);
-    archivedList.value = [];
-    await Promise.all(ids.map((id) => idb.deleteProject(id)));
+    await navigateAwayIfClosed(id);
   }
 
   async function resetDatabase() {
+    clearOpenTabs();
     await idbResetDatabase();
     window.location.reload();
   }
@@ -152,40 +118,21 @@ export default function useProjectCollection() {
   }
 
   async function appendProject(id: string) {
-    const project = await idb.getProjectWithModels(id);
-    if (!project) return;
-    projectList.value = [
-      ...projectList.value,
-      { id: project.id, name: project.name, updatedAt: project.updatedAt },
-    ];
-  }
-
-  async function reloadProjectList() {
-    const [list, archived] = await Promise.all([
-      idb.getProjectList(),
-      idb.getArchivedList(),
-    ]);
-    projectList.value = list;
-    archivedList.value = archived;
-  }
-
-  function reorderProjects(ids: string[]) {
-    const map = new Map(projectList.value.map((p) => [p.id, p]));
-    projectList.value = ids.map((id) => map.get(id)!).filter(Boolean);
+    if (!projectList.value.some((p) => p.id === id)) {
+      projectList.value = await idb.getAllProjectsByRecency();
+    }
+    addOpenTab(id);
   }
 
   return {
     projects,
-    archivedList,
     addProject,
     appendProject,
     closeProject,
-    restoreProject,
+    openProject,
     permanentlyDeleteProject,
-    clearHistory,
     resetDatabase,
     renameProject,
-    reorderProjects,
-    reloadProjectList,
+    reorderProjects: reorderOpenTabs,
   };
 }

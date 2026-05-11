@@ -9,7 +9,7 @@
  * it up as a top-level composable.
  */
 import { computed, ref } from 'vue';
-import type { ArchivedProjectItem, Project, ProjectListItem } from './types';
+import type { Project, ProjectListItem } from './types';
 
 export const activeId = computed<string | null>(() => {
   if (!import.meta.client) return null;
@@ -17,7 +17,10 @@ export const activeId = computed<string | null>(() => {
   return (route.params.projectId as string | undefined) ?? null;
 });
 
+/**
+ * Metadata for every project in IDB. The tab bar reads it to render names
+ * for the IDs in `openTabIds`. Populated once at startup.
+ */
 export const projectList = ref<ProjectListItem[]>([]);
-export const archivedList = ref<ArchivedProjectItem[]>([]);
 export const activeProjectData = ref<Project | null>(null);
 export const projectLoading = ref(false);

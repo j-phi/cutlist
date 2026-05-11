@@ -48,7 +48,6 @@ export interface IdbProject {
   showPartNumbers: boolean;
   createdAt: string;
   updatedAt: string;
-  archivedAt?: string;
 }
 
 export interface PartOverride {

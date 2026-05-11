@@ -27,9 +27,11 @@ import {
 } from '../../versions';
 import type { IdbRecord, RecordMigration, StoreName } from './types';
 import { v3Migration } from './v3';
+import { v4Migration } from './v4';
 
 export type { IdbRecord, RecordMigration, StoreName } from './types';
 export { migrateProjectToMmStorage } from './v3';
+export { migrateProjectDropArchivedAt } from './v4';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
@@ -52,6 +54,12 @@ export const migrations: RecordMigration[] = [
   },
 
   v3Migration,
+
+  // v4: drop the `archivedAt` field from project records. "Open as a tab" is
+  // session/UI state now (see `~/composables/useOpenTabs`), not data about
+  // the project. Mirror of the Dexie .version(4).upgrade() in
+  // `~/composables/useIdb/db`.
+  v4Migration,
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

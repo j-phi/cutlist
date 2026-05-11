@@ -1,6 +1,5 @@
 /**
- * Format an ISO timestamp as a short, human-readable "time ago" string used by
- * the archived/closed projects history menu.
+ * Format an ISO timestamp as a short, human-readable "time ago" string.
  *
  * Buckets:
  *   < 1 minute  -> "just now"
@@ -9,7 +8,7 @@
  *   < 7 days    -> "{N}d ago"
  *   otherwise   -> locale-formatted month + day (e.g. "Apr 27")
  */
-export function formatArchivedDate(iso: string): string {
+export function formatRelativeDate(iso: string): string {
   const d = new Date(iso);
   const now = Date.now();
   const diff = now - d.getTime();

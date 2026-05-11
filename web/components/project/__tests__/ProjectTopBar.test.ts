@@ -16,36 +16,16 @@ import { UButtonStub } from '~/test-utils/stubs';
 
 const projects = ref<Map<string, { id: string; name: string }>>(new Map());
 const activeId = ref<string | null>(null);
-const archivedList = ref<
-  Array<{ id: string; name: string; archivedAt: string }>
->([]);
 
 const closeCalls: string[] = [];
-const restoreCalls: string[] = [];
-const permanentlyDeleteCalls: string[] = [];
-const clearHistoryCalls: number[] = [];
-const resetDatabaseCalls: number[] = [];
 const renameCalls: Array<{ id: string; name: string }> = [];
 const reorderCalls: string[][] = [];
 
 mockNuxtImport('useProjects', () => () => ({
   projects,
   activeId,
-  archivedList,
   closeProject: (id: string) => {
     closeCalls.push(id);
-  },
-  restoreProject: async (id: string) => {
-    restoreCalls.push(id);
-  },
-  permanentlyDeleteProject: async (id: string) => {
-    permanentlyDeleteCalls.push(id);
-  },
-  clearHistory: async () => {
-    clearHistoryCalls.push(Date.now());
-  },
-  resetDatabase: async () => {
-    resetDatabaseCalls.push(Date.now());
   },
   renameProject: async (id: string, name: string) => {
     renameCalls.push({ id, name });
@@ -95,13 +75,6 @@ const TabListItemStub = {
   `,
 };
 
-const ProjectHistoryMenuStub = {
-  name: 'ProjectHistoryMenu',
-  props: ['archived'],
-  emits: ['restore', 'permanently-delete', 'clear', 'reset'],
-  template: `<div data-testid="history-menu-stub" :data-archived-count="archived.length" />`,
-};
-
 const stubs = {
   UButton: UButtonStub,
   UIcon: true,
@@ -112,7 +85,6 @@ const stubs = {
   },
   TabList: { template: '<ul role="tablist"><slot /></ul>' },
   TabListItem: TabListItemStub,
-  ProjectHistoryMenu: ProjectHistoryMenuStub,
   NewProjectDialog: true,
   Transition: false,
 };
@@ -134,12 +106,7 @@ beforeEach(() => {
     ['p3', { id: 'p3', name: 'Gamma' }],
   ]);
   activeId.value = 'p1';
-  archivedList.value = [];
   closeCalls.length = 0;
-  restoreCalls.length = 0;
-  permanentlyDeleteCalls.length = 0;
-  clearHistoryCalls.length = 0;
-  resetDatabaseCalls.length = 0;
   renameCalls.length = 0;
   reorderCalls.length = 0;
 });
@@ -217,71 +184,6 @@ describe('ProjectTopBar', () => {
     await component.vm.$nextTick();
 
     expect(reorderCalls).toEqual([['p2', 'p1', 'p3']]);
-  });
-
-  describe('On history menu', () => {
-    async function openHistory() {
-      const component = getComponent();
-      await component
-        .get('button[aria-label="Project history"]')
-        .trigger('click');
-      return component;
-    }
-
-    it('Should pass the archived list through to the menu', async () => {
-      archivedList.value = [
-        { id: 'a1', name: 'Old Cabinet', archivedAt: new Date().toISOString() },
-        { id: 'a2', name: 'Older', archivedAt: new Date().toISOString() },
-      ];
-      const component = await openHistory();
-      const stub = component.findComponent(ProjectHistoryMenuStub);
-      expect(stub.props('archived')).toHaveLength(2);
-      expect(stub.props('archived')[0].name).toBe('Old Cabinet');
-    });
-
-    // Each menu emit invokes a distinct composable method. Single it.each
-    // covers the wiring; the per-method semantics are tested in
-    // useProjects/* tests.
-    it.each([
-      { event: 'restore', payload: 'a1', sink: restoreCalls, expected: ['a1'] },
-      {
-        event: 'permanently-delete',
-        payload: 'a1',
-        sink: permanentlyDeleteCalls,
-        expected: ['a1'],
-      },
-      {
-        event: 'clear',
-        payload: undefined,
-        sink: clearHistoryCalls,
-        expected: 1,
-      },
-      {
-        event: 'reset',
-        payload: undefined,
-        sink: resetDatabaseCalls,
-        expected: 1,
-      },
-    ])(
-      'Should forward $event to the composable',
-      async ({ event, payload, sink, expected }) => {
-        archivedList.value = [
-          { id: 'a1', name: 'Old', archivedAt: new Date().toISOString() },
-        ];
-        const component = await openHistory();
-
-        const args = payload === undefined ? [event] : [event, payload];
-        await component
-          .findComponent(ProjectHistoryMenuStub)
-          .vm.$emit(...(args as [string, ...unknown[]]));
-
-        if (typeof expected === 'number') {
-          expect(sink).toHaveLength(expected);
-        } else {
-          expect(sink).toEqual(expected);
-        }
-      },
-    );
   });
 });
 

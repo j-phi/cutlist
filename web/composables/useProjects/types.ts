@@ -50,9 +50,3 @@ export interface ProjectListItem {
   name: string;
   updatedAt: string;
 }
-
-export interface ArchivedProjectItem {
-  id: string;
-  name: string;
-  archivedAt: string;
-}

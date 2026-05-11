@@ -85,6 +85,21 @@ export class CutlistDB extends Dexie {
             Object.assign(p, migrateProjectToMmStorage(p));
           });
       });
+
+    // v4 — drop the project-level `archivedAt` field. "Open as a tab" is now
+    // session state in `localStorage` (see `~/composables/useOpenTabs`), not
+    // a property of the project. The export pipeline runs the same transform
+    // via `migrateProjectDropArchivedAt`; here we just delete the key.
+    this.version(4)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            delete p.archivedAt;
+          });
+      });
   }
 }
 

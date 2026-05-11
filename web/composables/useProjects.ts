@@ -18,7 +18,6 @@ export {
   useProjectModels,
 } from './useProjects/index';
 export type {
-  ArchivedProjectItem,
   ManualPartInput,
   Model,
   Project,

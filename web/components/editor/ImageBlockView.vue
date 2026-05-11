@@ -3,11 +3,13 @@ import type { NodeViewProps } from '@tiptap/vue-3';
 import { NodeViewWrapper } from '@tiptap/vue-3';
 import BlockDragHandle from '~/components/editor/BlockDragHandle.vue';
 import EmbedCaption from '~/components/editor/EmbedCaption.vue';
+import { useEditable } from '~/lib/editor/useEditable';
 
 const props = defineProps<NodeViewProps>();
 
 const { uploadImageAsset, useAssetUrl } = useDocAssets();
 const { activeProject } = useProjects();
+const editable = useEditable();
 
 const assetId = computed(() => props.node.attrs.assetId as string);
 const caption = computed(() => props.node.attrs.caption as string);
@@ -57,7 +59,7 @@ async function onFile(e: Event) {
       >
         <img v-if="url" :src="url" :alt="caption" class="w-full h-auto block" />
         <button
-          v-else
+          v-else-if="editable"
           type="button"
           class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-dim hover:text-body p-6 text-center transition-colors"
           :disabled="uploading"
@@ -75,7 +77,7 @@ async function onFile(e: Event) {
         </button>
 
         <button
-          v-if="url"
+          v-if="url && editable"
           type="button"
           class="absolute top-2 right-2 px-3 py-1.5 text-xs font-medium rounded-md bg-overlay backdrop-blur border border-subtle text-body hover:bg-elevated disabled:opacity-50 opacity-0 group-hover/embed:opacity-100 focus-visible:opacity-100 transition-opacity"
           :disabled="uploading"
@@ -85,6 +87,7 @@ async function onFile(e: Event) {
         </button>
 
         <input
+          v-if="editable"
           ref="fileInput"
           type="file"
           accept="image/png,image/jpeg,image/webp"

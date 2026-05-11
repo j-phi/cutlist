@@ -10,6 +10,7 @@ import { computed, watch } from 'vue';
 import type { ColorInfo } from '~/utils/modelTypes';
 import type { IdbProject } from '~/composables/useIdb';
 import { useIdb } from '~/composables/useIdb';
+import { addOpenTab, removeOpenTab } from '~/composables/useOpenTabs';
 import { loadProject } from '~/utils/modelHydration';
 import { activeId, activeProjectData, projectLoading } from './state';
 
@@ -39,7 +40,11 @@ export function startActiveProjectWatcher() {
       if (activeId.value !== id) return; // stale if user switched again
       if (data) {
         activeProjectData.value = data;
+        // URL is the source of truth for "this project is open right now",
+        // so ensure the tab bar reflects it on deep links / refresh.
+        addOpenTab(id);
       } else {
+        removeOpenTab(id);
         void navigateTo('/');
       }
       projectLoading.value = false;
