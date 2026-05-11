@@ -8,6 +8,7 @@ import {
   type ObjectNode,
 } from './types';
 import { computeObjectEdges } from '~/lib/viewer/edges';
+import { obbDimsFromMeshes, type ObbMeshInput } from '~/lib/utils/obb';
 
 interface GltfAccessor {
   min?: number[];
@@ -101,11 +102,7 @@ export async function buildGltfObjectGraph(
 ): Promise<ObjectGraph> {
   const visits = walkJsonForVisits(gltfJson);
 
-  const [THREE, { GLTFLoader }] = await Promise.all([
-    import('three'),
-    import('three/addons/loaders/GLTFLoader.js'),
-  ]);
-
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const loader = new GLTFLoader();
   const gltf = await new Promise<
     import('three/addons/loaders/GLTFLoader.js').GLTF
@@ -113,6 +110,44 @@ export async function buildGltfObjectGraph(
     loader.parse(JSON.stringify(gltfJson), '', resolve, reject),
   );
   gltf.scene.updateMatrixWorld(true);
+
+  // Refine size via OBB from real vertices before grouping, so rotated /
+  // un-rotated twins land together when the exporter baked rotation in.
+  interface NodeData {
+    meshes: MeshSlice[];
+    matrix: import('three').Matrix4;
+  }
+  const nodeDataByGroup = new Map<number, NodeData>();
+
+  for (const v of visits) {
+    const node = (await gltf.parser.getDependency('node', v.jsonNodeIndex)) as
+      | import('three').Object3D
+      | undefined;
+    if (!node) continue;
+
+    const meshes: MeshSlice[] = [];
+    const obbInputs: ObbMeshInput[] = [];
+    let matrix: import('three').Matrix4 | null = null;
+    node.traverse((child) => {
+      const m = child as import('three').Mesh;
+      if (!m.isMesh) return;
+      m.updateWorldMatrix(true, false);
+      const matrixWorld = m.matrixWorld.clone();
+      if (!matrix) matrix = matrixWorld;
+      meshes.push({ geometry: m.geometry, colorHex: v.info.colorHex });
+      obbInputs.push({ geometry: m.geometry, matrixWorld });
+    });
+    if (meshes.length === 0 || !matrix) continue;
+
+    const [thickness, width, length] = obbDimsFromMeshes(obbInputs, [
+      v.info.size.thickness,
+      v.info.size.width,
+      v.info.size.length,
+    ]);
+    v.info.size = { thickness, width, length };
+
+    nodeDataByGroup.set(v.groupId, { meshes, matrix });
+  }
 
   const grouped = groupPartInfos(visits.map((v) => v.info));
   const partByGroup = new Map<number, number>();
@@ -123,36 +158,18 @@ export async function buildGltfObjectGraph(
   const objects: ObjectNode[] = [];
 
   for (const v of visits) {
-    const node = (await gltf.parser.getDependency('node', v.jsonNodeIndex)) as
-      | import('three').Object3D
-      | undefined;
-    if (!node) continue;
-
-    const meshes: MeshSlice[] = [];
-    let originalMatrix: import('three').Matrix4 | null = null;
-
-    node.traverse((child) => {
-      const m = child as import('three').Mesh;
-      if (!m.isMesh) return;
-      m.updateWorldMatrix(true, false);
-      if (!originalMatrix) originalMatrix = m.matrixWorld.clone();
-      meshes.push({
-        geometry: m.geometry,
-        colorHex: v.info.colorHex,
-      });
-    });
-
-    if (meshes.length === 0) continue;
+    const data = nodeDataByGroup.get(v.groupId);
+    if (!data) continue;
 
     const partNumber = partByGroup.get(v.groupId) ?? 0;
-    const edgesLocal = await computeObjectEdges(meshes);
+    const edgesLocal = await computeObjectEdges(data.meshes);
 
     objects.push({
       groupId: v.groupId,
       partNumber,
       name: nameFor(v.info.name, partNumber),
-      meshes,
-      originalMatrix: originalMatrix ?? new THREE.Matrix4(),
+      meshes: data.meshes,
+      originalMatrix: data.matrix,
       edgesLocal,
     });
 
@@ -232,6 +249,8 @@ function meshToPartInfo(
   gltf: Gltf,
   groupId: number,
 ): PartInfo | null {
+  // Local-frame AABB × world-matrix scale. Avoids the world-AABB-of-rotated-
+  // corners inflation; `buildGltfObjectGraph` further refines via OBB.
   let min: [number, number, number] = [Infinity, Infinity, Infinity];
   let max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
   let firstMaterialIdx: number | undefined;
@@ -242,17 +261,9 @@ function meshToPartInfo(
     const acc = gltf.accessors![posIdx];
     if (!acc?.min || !acc?.max) continue;
 
-    for (let i = 0; i < 8; i += 1) {
-      const p: [number, number, number] = [
-        i & 1 ? acc.max[0] : acc.min[0],
-        i & 2 ? acc.max[1] : acc.min[1],
-        i & 4 ? acc.max[2] : acc.min[2],
-      ];
-      const w = transformPoint(worldMatrix, p);
-      for (let a = 0; a < 3; a += 1) {
-        if (w[a] < min[a]) min[a] = w[a];
-        if (w[a] > max[a]) max[a] = w[a];
-      }
+    for (let a = 0; a < 3; a += 1) {
+      if (acc.min[a] < min[a]) min[a] = acc.min[a];
+      if (acc.max[a] > max[a]) max[a] = acc.max[a];
     }
 
     if (firstMaterialIdx == null && prim.material != null) {
@@ -262,9 +273,12 @@ function meshToPartInfo(
 
   if (!isFinite(min[0])) return null;
 
-  const dims = [max[0] - min[0], max[1] - min[1], max[2] - min[2]].sort(
-    (a, b) => a - b,
-  );
+  const scale = matrixScale(worldMatrix);
+  const dims = [
+    (max[0] - min[0]) * scale[0],
+    (max[1] - min[1]) * scale[1],
+    (max[2] - min[2]) * scale[2],
+  ].sort((a, b) => a - b);
 
   const matName =
     firstMaterialIdx != null
@@ -410,13 +424,11 @@ function multiply(a: Mat4, b: Mat4): Mat4 {
   return out as Mat4;
 }
 
-function transformPoint(
-  m: Mat4,
-  p: [number, number, number],
-): [number, number, number] {
+/** Per-axis scale magnitudes from a column-major TRS matrix. */
+function matrixScale(m: Mat4): [number, number, number] {
   return [
-    m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12],
-    m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
-    m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14],
+    Math.hypot(m[0]!, m[1]!, m[2]!),
+    Math.hypot(m[4]!, m[5]!, m[6]!),
+    Math.hypot(m[8]!, m[9]!, m[10]!),
   ];
 }

@@ -7,6 +7,7 @@ import {
   type ObjectNode,
 } from './types';
 import { computeObjectEdges } from '~/lib/viewer/edges';
+import { obbDimsFromMeshes } from '~/lib/utils/obb';
 import type { ColorInfo } from './modelTypes';
 
 type Mesh = import('three').Mesh;
@@ -79,12 +80,27 @@ export async function buildColladaObjectGraph(
     if (!material) return;
     if (isEdgeMaterial(material.name)) return;
 
-    const box = new THREE.Box3().setFromObject(mesh);
-    if (box.isEmpty()) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    const bbox = mesh.geometry.boundingBox;
+    if (!bbox || bbox.isEmpty()) return;
 
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const dims = [size.x, size.y, size.z].sort((a, b) => a - b);
+    const localSize = new THREE.Vector3();
+    bbox.getSize(localSize);
+    const worldScale = new THREE.Vector3();
+    mesh.matrixWorld.decompose(
+      new THREE.Vector3(),
+      new THREE.Quaternion(),
+      worldScale,
+    );
+
+    const dims = obbDimsFromMeshes(
+      [{ geometry: mesh.geometry, matrixWorld: mesh.matrixWorld }],
+      [
+        localSize.x * Math.abs(worldScale.x),
+        localSize.y * Math.abs(worldScale.y),
+        localSize.z * Math.abs(worldScale.z),
+      ],
+    );
     if (dims[0] < 1e-8 || dims[1] < 1e-8 || dims[2] < 1e-8) return;
 
     const { key, rgb, hex } = resolveColor(material);
