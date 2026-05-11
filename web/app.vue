@@ -2,7 +2,6 @@
 import { startProjects } from '~/composables/useProjects';
 
 startProjects();
-useUrlSync();
 useAppErrors();
 </script>
 

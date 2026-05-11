@@ -85,5 +85,5 @@ export function projectPath(
 ): string {
   if (!projectId) return '/';
   const segment = tab ? urlSegmentForTab(tab) : '';
-  return segment ? `/${projectId}/${segment}` : `/${projectId}`;
+  return segment ? `/build/${projectId}/${segment}` : `/build/${projectId}`;
 }

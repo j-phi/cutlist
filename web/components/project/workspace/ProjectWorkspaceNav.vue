@@ -2,6 +2,7 @@
 import { PROJECT_TABS } from '~/utils/projectTabs';
 
 const tab = useProjectTab();
+const { setTab } = useProjectNavigation();
 const { isComputing } = useBoardLayoutsQuery();
 
 const items = computed(() =>
@@ -10,7 +11,7 @@ const items = computed(() =>
     label: definition.label,
     icon: definition.icon,
     active: tab.value === definition.id,
-    onSelect: () => void (tab.value = definition.id),
+    onSelect: () => setTab(definition.id),
   })),
 );
 

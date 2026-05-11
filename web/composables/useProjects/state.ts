@@ -1,17 +1,22 @@
 /**
  * Module-level singletons shared by the project composables.
  *
- * Sub-composables (`useActiveProject`, `useProjectCollection`,
- * `useProjectModels`) read and mutate these refs directly so they all observe
- * the same source of truth without provide/inject plumbing.
+ * `activeId` is derived from the URL — writes go through `navigateTo` so
+ * the route stays the single source of truth. The other refs hold IDB-backed
+ * state that isn't URL-derived.
  *
- * This file lives inside the `useProjects/` directory specifically so it is
- * not a top-level composable file and does not get auto-imported by Nuxt.
+ * Lives inside `useProjects/` so Nuxt's component auto-import doesn't pick
+ * it up as a top-level composable.
  */
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import type { ArchivedProjectItem, Project, ProjectListItem } from './types';
 
-export const activeId = ref<string | null>(null);
+export const activeId = computed<string | null>(() => {
+  if (!import.meta.client) return null;
+  const route = useRoute();
+  return (route.params.projectId as string | undefined) ?? null;
+});
+
 export const projectList = ref<ProjectListItem[]>([]);
 export const archivedList = ref<ArchivedProjectItem[]>([]);
 export const activeProjectData = ref<Project | null>(null);

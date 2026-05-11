@@ -13,9 +13,18 @@ const {
   renameProject,
   reorderProjects,
 } = useProjects();
-const { setActiveProject, goHome } = useProjectNavigation();
+const { setActiveProject } = useProjectNavigation();
 const { exportProject } = useExportProject();
 const { pickAndImport } = useImportProject();
+
+const route = useRoute();
+// Path-based active checks: /plans and /plans/<slug> are sibling page
+// records, so Vue Router's active-class won't keep Plans lit on the detail
+// route. Cheaper than restructuring routes for one link.
+const onPlansRoute = computed(
+  () => route.path === '/plans' || route.path.startsWith('/plans/'),
+);
+const onHomeRoute = computed(() => route.path === '/');
 
 const showModal = ref(false);
 const showHistory = ref(false);
@@ -65,11 +74,6 @@ async function handleImportFromMenu() {
 function openNewProjectFromMenu() {
   closeMobileMenu();
   openNewProject();
-}
-
-function goHomeFromMenu() {
-  closeMobileMenu();
-  goHome();
 }
 
 function requestClose(id: string) {
@@ -230,19 +234,24 @@ function openNewProject() {
         >studio</span
       >
     </div>
-    <button
-      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle transition-colors"
-      :class="
-        !activeId
-          ? 'text-teal-400 bg-surface'
-          : 'text-muted hover:text-teal-400 hover:bg-surface'
-      "
+    <NuxtLink
+      to="/"
+      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle hover:text-teal-400 hover:bg-surface transition-colors"
+      :class="onHomeRoute ? 'text-teal-400 bg-surface' : 'text-muted'"
       title="Home"
       aria-label="Home"
-      @click="goHome"
     >
       <UIcon name="i-lucide-house" class="block shrink-0 w-4 h-4" />
-    </button>
+    </NuxtLink>
+    <NuxtLink
+      to="/plans"
+      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle hover:text-teal-400 hover:bg-surface transition-colors"
+      :class="onPlansRoute ? 'text-teal-400 bg-surface' : 'text-muted'"
+      title="Browse plans"
+      aria-label="Browse plans"
+    >
+      <UIcon name="i-lucide-hammer" class="block shrink-0 w-4 h-4" />
+    </NuxtLink>
     <TabList class="hidden sm:flex flex-1 min-w-0">
       <TabListItem
         v-for="[id, project] in projects"
@@ -379,18 +388,26 @@ function openNewProject() {
         class="sm:hidden absolute top-10 inset-x-0 z-50 bg-elevated border-b border-default shadow-2xl max-h-[calc(100vh-2.5rem)] overflow-y-auto"
       >
         <!-- Home -->
-        <button
-          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle transition-colors"
-          :class="
-            !activeId
-              ? 'text-teal-400 bg-surface'
-              : 'text-body hover:bg-surface'
-          "
-          @click="goHomeFromMenu"
+        <NuxtLink
+          to="/"
+          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle hover:bg-surface transition-colors"
+          :class="onHomeRoute ? 'text-teal-400 bg-surface' : 'text-body'"
+          @click="showMobileMenu = false"
         >
           <UIcon name="i-lucide-house" class="w-4 h-4 shrink-0" />
           <span class="text-sm">Home</span>
-        </button>
+        </NuxtLink>
+
+        <!-- Plans -->
+        <NuxtLink
+          to="/plans"
+          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle hover:bg-surface transition-colors"
+          :class="onPlansRoute ? 'text-teal-400 bg-surface' : 'text-body'"
+          @click="showMobileMenu = false"
+        >
+          <UIcon name="i-lucide-hammer" class="w-4 h-4 shrink-0" />
+          <span class="text-sm">Plans</span>
+        </NuxtLink>
 
         <!-- Open projects -->
         <div

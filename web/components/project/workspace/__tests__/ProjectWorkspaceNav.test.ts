@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
@@ -8,8 +8,10 @@ import ProjectWorkspaceNav from '../ProjectWorkspaceNav.vue';
 
 const tabRef = ref<string>('bom');
 const isComputing = ref(false);
+const setTab = vi.fn();
 
 mockNuxtImport('useProjectTab', () => () => tabRef);
+mockNuxtImport('useProjectNavigation', () => () => ({ setTab }));
 mockNuxtImport('useBoardLayoutsQuery', () => () => ({ isComputing }));
 
 describe('ProjectWorkspaceNav', () => {
@@ -53,14 +55,15 @@ describe('ProjectWorkspaceNav', () => {
   });
 
   describe('On tab click', () => {
-    it('Should update the active tab via useProjectTab', async () => {
+    it('Should call setTab with the clicked tab id', async () => {
+      setTab.mockClear();
       const component = getComponent();
       const tabs = component.findAll('[role="tab"]');
       const layoutIndex = PROJECT_TABS.findIndex((t) => t.id === 'layout');
 
       await tabs[layoutIndex].trigger('click');
 
-      expect(tabRef.value).toBe('layout');
+      expect(setTab).toHaveBeenCalledWith('layout');
     });
   });
 });

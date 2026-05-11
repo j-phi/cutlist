@@ -3,10 +3,11 @@ import { projectPath, type ProjectTabId } from '~/utils/projectTabs';
 /**
  * Navigation helpers for the project workspace.
  *
- * These wrappers push history entries through `navigateTo` so the back button
- * works as users expect. Pure state changes (e.g. switching tabs) are handled
- * by setting the relevant ref directly; `useUrlSync` mirrors them to the URL
- * with `replace: true`.
+ * The URL is the source of truth — `useProjects().activeId` and
+ * `useProjectTab()` are derived from `route.params`. These helpers wrap
+ * `navigateTo` so callers don't have to know the URL shape. Project
+ * switches push history; tab switches replace (so tab toggling doesn't
+ * clutter the back stack).
  */
 export default function useProjectNavigation() {
   const { activeId } = useProjects();
@@ -15,19 +16,16 @@ export default function useProjectNavigation() {
   /** Navigate to a project. No-op if already active. */
   function setActiveProject(id: string | null) {
     if (id === activeId.value) return;
-    navigateTo(projectPath(id, null));
+    navigateTo(id ? projectPath(id, null) : '/');
   }
 
-  /** Navigate back to the home/landing page. */
-  function goHome() {
-    if (activeId.value === null) return;
-    navigateTo('/');
-  }
-
-  /** Switch the workspace tab. URL sync mirrors the change to the URL. */
+  /** Switch the workspace tab. Replace, not push — tab toggling shouldn't
+   *  litter history. No-op if no project is active or the tab is unchanged. */
   function setTab(next: ProjectTabId) {
-    tab.value = next;
+    if (!activeId.value) return;
+    if (next === tab.value) return;
+    navigateTo(projectPath(activeId.value, next), { replace: true });
   }
 
-  return { setActiveProject, goHome, setTab };
+  return { setActiveProject, setTab };
 }

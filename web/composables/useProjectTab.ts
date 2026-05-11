@@ -1,22 +1,23 @@
-import { DEFAULT_PROJECT_TAB, type ProjectTabId } from '~/utils/projectTabs';
+/**
+ * Read-only handle to the currently-active workspace tab.
+ *
+ * Derived from `useRoute().params.tab` — the URL is the source of truth.
+ * Tab switches are performed via `useProjectNavigation().setTab(tab)` which
+ * calls `navigateTo(projectPath(activeId, tab), { replace: true })`. The
+ * computed re-evaluates on the resulting route change.
+ */
+import { computed } from 'vue';
+import {
+  DEFAULT_PROJECT_TAB,
+  tabFromUrlSegment,
+  type ProjectTabId,
+} from '~/utils/projectTabs';
 
-const useTabMap = createGlobalState(() =>
-  useSessionStorage<Record<string, ProjectTabId | undefined>>(
-    '@cutlist/tab-map',
-    {},
-  ),
-);
-
-export default function () {
-  const { activeId: projectId } = useProjects();
-  const map = useTabMap();
-  const key = computed(() => projectId.value ?? '__local__');
-  return computed<ProjectTabId>({
-    get() {
-      return map.value[key.value] ?? DEFAULT_PROJECT_TAB;
-    },
-    set(value) {
-      map.value[key.value] = value;
-    },
+export default function useProjectTab() {
+  const route = useRoute();
+  return computed<ProjectTabId>(() => {
+    if (!import.meta.client) return DEFAULT_PROJECT_TAB;
+    const segment = route.params.tab as string | undefined;
+    return tabFromUrlSegment(segment);
   });
 }

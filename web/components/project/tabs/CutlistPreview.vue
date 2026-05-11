@@ -2,7 +2,7 @@
 import type { SheetBoardLayout, LinearBoardLayout } from 'cutlist';
 
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
-const tab = useProjectTab();
+const { setTab } = useProjectNavigation();
 
 const container = ref<HTMLDivElement>();
 const gridEl = ref<HTMLDivElement>();
@@ -11,7 +11,7 @@ const { scale, resetZoom, zoomIn, zoomOut } = usePanZoom(container, gridEl);
 const formatDistance = useFormatDistance();
 
 function goToStock() {
-  tab.value = 'boards';
+  setTab('boards');
 }
 
 function stockKey(stock: {

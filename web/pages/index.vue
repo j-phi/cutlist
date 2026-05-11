@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-const { activeProject } = useProjects();
 const { importFromFile, pickAndImport } = useImportProject();
 const toast = useToast();
 
@@ -73,7 +72,6 @@ async function onDrop(e: DragEvent) {
   <AppShell>
     <ClientOnly>
       <div
-        v-if="!activeProject"
         class="flex-1 overflow-y-auto"
         @dragover="onDragOver"
         @dragleave="onDragLeave"
@@ -85,45 +83,7 @@ async function onDrop(e: DragEvent) {
         <section
           class="relative min-h-[calc(100vh-2.5rem)] flex flex-col items-center overflow-hidden pt-16 px-4"
         >
-          <!-- Teal spotlight glow -->
-          <div
-            class="absolute inset-0 pointer-events-none select-none hero-spotlight"
-            aria-hidden="true"
-          />
-
-          <!-- Grid background with radial fade -->
-          <div
-            class="absolute inset-0 pointer-events-none select-none"
-            aria-hidden="true"
-          >
-            <div
-              class="w-full h-full"
-              style="
-                background-image:
-                  linear-gradient(
-                    rgba(20, 184, 166, 0.18) 1px,
-                    transparent 1px
-                  ),
-                  linear-gradient(
-                    90deg,
-                    rgba(20, 184, 166, 0.18) 1px,
-                    transparent 1px
-                  );
-                background-size: 24px 24px;
-                background-position: center center;
-                mask-image: radial-gradient(
-                  ellipse 70% 60% at 50% 50%,
-                  black 0%,
-                  transparent 100%
-                );
-                -webkit-mask-image: radial-gradient(
-                  ellipse 70% 60% at 50% 50%,
-                  black 0%,
-                  transparent 100%
-                );
-              "
-            />
-          </div>
+          <HeroBackdrop />
 
           <!-- Hero content -->
           <div
@@ -179,6 +139,13 @@ async function onDrop(e: DragEvent) {
                   >
                     Import Project
                   </button>
+                  <NuxtLink
+                    to="/plans"
+                    class="w-full py-2.5 px-4 rounded-lg border border-subtle bg-surface hover:bg-mist-800 text-muted hover:text-body text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <UIcon name="i-lucide-hammer" class="w-4 h-4" />
+                    Browse Plans
+                  </NuxtLink>
                   <button
                     class="w-full py-2.5 px-4 rounded-lg border border-subtle bg-surface hover:bg-mist-800 text-muted hover:text-body text-sm transition-colors flex items-center justify-center gap-2"
                     :disabled="loadingDemo"
@@ -466,25 +433,3 @@ async function onDrop(e: DragEvent) {
     <NewProjectDialog v-model:open="showNewProject" />
   </AppShell>
 </template>
-
-<style scoped>
-.hero-spotlight {
-  background-image: radial-gradient(
-    ellipse 120% 70% at 50% 45%,
-    rgba(20, 184, 166, 0.2) 0%,
-    rgba(20, 184, 166, 0.09) 35%,
-    transparent 75%
-  );
-}
-
-@media (min-width: 640px) {
-  .hero-spotlight {
-    background-image: radial-gradient(
-      ellipse 60% 50% at 50% 45%,
-      rgba(20, 184, 166, 0.18) 0%,
-      rgba(20, 184, 166, 0.08) 35%,
-      transparent 75%
-    );
-  }
-}
-</style>

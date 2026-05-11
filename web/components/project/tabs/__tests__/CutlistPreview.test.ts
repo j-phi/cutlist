@@ -51,6 +51,9 @@ mockNuxtImport('useBoardLayoutsQuery', () => () => ({
 const tab = ref<string>('layout');
 mockNuxtImport('useProjectTab', () => () => tab);
 
+const setTab = vi.fn();
+mockNuxtImport('useProjectNavigation', () => () => ({ setTab }));
+
 const scale = ref<number | undefined>(1);
 const resetZoom = vi.fn();
 const zoomIn = vi.fn();
@@ -351,12 +354,13 @@ describe('CutlistPreview', () => {
       linearLayouts: [],
       leftovers: [makeLeftover('Plywood', 0.018, 1)],
     };
+    setTab.mockClear();
     const component = getComponent();
 
     await component
       .get('[data-testid="configure-stock-button"]')
       .trigger('click');
 
-    expect(tab.value).toBe('boards');
+    expect(setTab).toHaveBeenCalledWith('boards');
   });
 });
