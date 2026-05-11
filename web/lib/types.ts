@@ -141,7 +141,7 @@ const LinearStockMatrixSchema = z.object({
  *
  * Modelled as `z.union` rather than `z.discriminatedUnion` so the sheet
  * variant's `kind` default fills in for legacy YAML and in-code presets
- * that bypass the v4 migration.
+ * that bypass the v3 migration — kind-less rows still parse as sheet.
  */
 export const StockMatrix = z.union([
   SheetStockMatrixSchema,

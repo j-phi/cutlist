@@ -24,13 +24,39 @@ describe('migrateProjectToMmStorage (v3)', () => {
     expect(v3.margin).toBeCloseTo(6.35, 5);
 
     const parsed = YAML.load(v3.stock as string) as Array<{
+      kind: string;
       unit?: string;
       sizes: Array<{ width: number; length: number; thickness: number[] }>;
     }>;
+    expect(parsed[0].kind).toBe('sheet');
     expect(parsed[0].unit).toBeUndefined();
     expect(parsed[0].sizes[0].width).toBeCloseTo(1219.2, 3);
     expect(parsed[0].sizes[0].length).toBeCloseTo(2438.4, 3);
     expect(parsed[0].sizes[0].thickness[0]).toBeCloseTo(19.05, 3);
+  });
+
+  it("stamps kind: 'sheet' on every pre-v3 row (the new discriminator)", () => {
+    const stockYaml = YAML.dump([
+      {
+        material: 'Plywood',
+        unit: 'mm',
+        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      },
+      {
+        material: 'MDF',
+        unit: 'mm',
+        sizes: [{ width: 1220, length: 2440, thickness: [12] }],
+      },
+    ]);
+    const v3 = migrateProjectToMmStorage({
+      id: 'p',
+      distanceUnit: 'mm',
+      bladeWidth: 3,
+      margin: 0,
+      stock: stockYaml,
+    });
+    const parsed = YAML.load(v3.stock as string) as Array<{ kind: string }>;
+    expect(parsed.map((r) => r.kind)).toEqual(['sheet', 'sheet']);
   });
 
   it('leaves an mm-mode project unchanged', () => {
@@ -284,10 +310,11 @@ describe('migrateProjectToMmStorage (v3)', () => {
   });
 
   it('is idempotent on already-v3 data', () => {
-    // Already v3-shaped: no `unit` field, mm numerics. Running the
-    // migration a second time should be a no-op.
+    // Already v3-shaped: no `unit` field, mm numerics, `kind: 'sheet'`
+    // discriminator. Running the migration a second time should be a no-op.
     const stockYaml = YAML.dump([
       {
+        kind: 'sheet',
         material: 'Plywood',
         sizes: [{ width: 1220, length: 2440, thickness: [18] }],
       },
@@ -305,5 +332,35 @@ describe('migrateProjectToMmStorage (v3)', () => {
     expect(YAML.load(twice.stock as string)).toEqual(
       YAML.load(once.stock as string),
     );
+  });
+
+  it("preserves kind: 'linear' on already-v3 rows (forward-compat)", () => {
+    // A linear row imported from a future export — must pass through cleanly.
+    const stockYaml = YAML.dump([
+      {
+        kind: 'linear',
+        material: 'Pine 2x4',
+        size: {
+          crossSectionWidth: 89,
+          crossSectionThickness: 38,
+          lengths: [2400, 3000],
+        },
+      },
+    ]);
+    const v3 = migrateProjectToMmStorage({
+      id: 'p',
+      distanceUnit: 'mm',
+      bladeWidth: 3,
+      margin: 0,
+      stock: stockYaml,
+    });
+    const parsed = YAML.load(v3.stock as string) as Array<{
+      kind: string;
+      material: string;
+      size: { lengths: number[] };
+    }>;
+    expect(parsed[0].kind).toBe('linear');
+    expect(parsed[0].material).toBe('Pine 2x4');
+    expect(parsed[0].size.lengths).toEqual([2400, 3000]);
   });
 });

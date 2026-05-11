@@ -15,10 +15,7 @@
 import { ref, readonly } from 'vue';
 import Dexie, { type Table } from 'dexie';
 import { FutureSchemaError, SCHEMA_VERSION } from '~/utils/versions';
-import {
-  migrateProjectToMmStorage,
-  migrateStockToV4,
-} from '~/utils/projectImport/migrations';
+import { migrateProjectToMmStorage } from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
   IdbModel,
@@ -72,12 +69,12 @@ export class CutlistDB extends Dexie {
           });
       });
 
-    // v3 — canonical mm at rest. Project numerics convert from the old
-    // `distanceUnit` (or per-row `unit`) to mm; per-row `unit` field on
-    // stock-YAML rows is dropped. Logic lives in `migrateProjectToMmStorage`
-    // so the export migration runs the same transform. The migration
-    // rewrites the same project-record keys (bladeWidth, margin, stock) so
-    // Object.assign is sufficient — no Dexie field needs deleting here.
+    // v3 — canonical mm at rest, plus the `kind: 'sheet' | 'linear'`
+    // discriminator on stock-YAML rows. Project numerics convert from the
+    // old `distanceUnit` (or per-row `unit`) to mm; per-row `unit` field is
+    // dropped; every existing row gets `kind: 'sheet'` stamped (every pre-v3
+    // row was implicitly sheet). Logic lives in `migrateProjectToMmStorage`
+    // so the export migration runs the same transform.
     this.version(3)
       .stores({})
       .upgrade(async (tx) => {
@@ -86,20 +83,6 @@ export class CutlistDB extends Dexie {
           .toCollection()
           .modify((p: Record<string, unknown>) => {
             Object.assign(p, migrateProjectToMmStorage(p));
-          });
-      });
-
-    // v4 — stock-YAML rows gain an explicit `kind: 'sheet' | 'linear'`
-    // discriminator. Pre-v4 rows are implicitly sheet; the migration stamps
-    // the field so the discriminated `StockMatrix` union parses them.
-    this.version(4)
-      .stores({})
-      .upgrade(async (tx) => {
-        await tx
-          .table('projects')
-          .toCollection()
-          .modify((p: Record<string, unknown>) => {
-            Object.assign(p, migrateStockToV4(p));
           });
       });
   }
