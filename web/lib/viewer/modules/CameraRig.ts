@@ -64,6 +64,7 @@ export class CameraRig {
     const controls = new OC(this.perspective, domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
+    controls.zoomToCursor = true;
 
     // OnShape-style: left=NULL (reserved for select/gizmo), middle=PAN, right=ROTATE.
     controls.mouseButtons = {
