@@ -3,8 +3,6 @@ import { FALLBACK_PALETTE } from '~/utils/materialColors';
 
 const model = defineModel<string>();
 
-const presets = FALLBACK_PALETTE;
-
 const open = ref(false);
 
 function pick(hex: string) {
@@ -16,7 +14,7 @@ function onCustomInput(e: Event) {
   model.value = (e.target as HTMLInputElement).value;
 }
 
-const display = computed(() => model.value || presets[0]);
+const display = computed(() => model.value || FALLBACK_PALETTE[0]);
 const displayLower = computed(() => display.value?.toLowerCase());
 </script>
 
@@ -38,7 +36,7 @@ const displayLower = computed(() => display.value?.toLowerCase());
         <!-- Preset swatches -->
         <div class="grid grid-cols-4 gap-2">
           <button
-            v-for="hex in presets"
+            v-for="hex in FALLBACK_PALETTE"
             :key="hex"
             type="button"
             class="swatch"
@@ -55,9 +53,11 @@ const displayLower = computed(() => display.value?.toLowerCase());
         <label class="flex items-center gap-2 cursor-pointer group">
           <span
             class="swatch"
-            :class="presets.includes(displayLower ?? '') ? 'empty' : 'active'"
+            :class="
+              FALLBACK_PALETTE.includes(displayLower ?? '') ? 'empty' : 'active'
+            "
             :style="{
-              background: presets.includes(displayLower ?? '')
+              background: FALLBACK_PALETTE.includes(displayLower ?? '')
                 ? 'transparent'
                 : display,
             }"

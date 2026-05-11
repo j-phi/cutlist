@@ -61,7 +61,9 @@ export interface SheetStock {
 export interface LinearStock {
   kind: 'linear';
   material: string;
+  /** Wider face of the cross-section (e.g. 3.5" / 89mm on a 2×4). */
   crossSectionWidth: number;
+  /** Narrower face of the cross-section (e.g. 1.5" / 38mm on a 2×4). */
   crossSectionThickness: number;
   length: number;
   color?: string;
@@ -303,17 +305,35 @@ export const isSheetBoardLayout = (l: BoardLayout): l is SheetBoardLayout =>
   l.kind === 'sheet';
 
 /**
+ * Intermediate sheet layout — board + rectangles before serialization.
+ * Carries the sheet algorithm that produced it.
+ */
+export interface PotentialSheetBoardLayout {
+  kind: 'sheet';
+  stock: SheetStock;
+  placements: Rectangle<PartToCut>[];
+  algorithm: Exclude<Algorithm, 'auto'>;
+}
+
+/**
+ * Intermediate linear layout — stick + rectangles before serialization.
+ * Linear stock has no algorithm choice (FFD only).
+ */
+export interface PotentialLinearBoardLayout {
+  kind: 'linear';
+  stock: LinearStock;
+  placements: Rectangle<PartToCut>[];
+}
+
+/**
  * Intermediate type for storing the board layout with the rectangle class.
  * Not JSON friendly. This gets converted into `BoardLayout`, which doesn't
  * contain any classes, and is safe to convert to and from JSON.
+ *
+ * Discriminated on `kind` mirroring `BoardLayout`, so the sheet branch
+ * carries `algorithm` and the linear branch doesn't — no runtime guard
+ * required at serialize time.
  */
-export interface PotentialBoardLayout {
-  stock: Stock;
-  placements: Rectangle<PartToCut>[];
-  /**
-   * Set when `stock.kind === 'sheet'` to record which sheet algorithm
-   * produced the layout. Undefined for linear sticks, which have no
-   * algorithm choice and discriminate via `stock.kind`.
-   */
-  algorithm?: Exclude<Algorithm, 'auto'>;
-}
+export type PotentialBoardLayout =
+  | PotentialSheetBoardLayout
+  | PotentialLinearBoardLayout;

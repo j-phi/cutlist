@@ -40,6 +40,9 @@ export function useDimensionDrafts(
    * Parse a free-text dimension in the active unit, returning canonical
    * mm if valid. Useful for one-shot inputs (e.g. chip-style add) that
    * don't participate in the draft/commit lifecycle.
+   *
+   * Returns null for unparseable input AND for zero/negative values —
+   * callers treat that as "discard"; zero-length stock is never useful.
    */
   function parse(raw: string | undefined): number | null {
     if (raw == null) return null;

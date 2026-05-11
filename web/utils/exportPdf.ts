@@ -26,7 +26,7 @@ export interface ExportPdfOptions {
   bomRows: BomRow[];
   layouts: SheetBoardLayout[];
   /** Linear (1D timber) layouts. Rendered as a separate section after sheets. */
-  linearLayouts?: LinearBoardLayout[];
+  linearLayouts: LinearBoardLayout[];
   leftovers: BoardLayoutLeftover[];
   formatSize: (m: number) => string | undefined;
   showPartNumbers: boolean;
@@ -66,7 +66,7 @@ export async function exportCutlistPdf(
   });
 
   // Pages: linear (timber) shopping list + stick view, after the sheet section.
-  drawLinearPages(ctx, opts.linearLayouts ?? []);
+  drawLinearPages(ctx, opts.linearLayouts);
 
   // Fill in "Page N of M" placeholders
   const totalPages = ctx.pageCount.value;

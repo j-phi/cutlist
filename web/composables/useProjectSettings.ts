@@ -8,7 +8,7 @@
  * the UI sees the new value on the next tick, even before persistence lands.
  */
 
-import { type Algorithm, type Precision } from 'cutlist';
+import { type Algorithm, type Precision, type StockMatrix } from 'cutlist';
 import { defaultPrecisionForUnit } from '~/utils/settings';
 import { parseStock } from '~/utils/parseStock';
 import type { IdbProject } from '~/composables/useIdb';
@@ -141,23 +141,34 @@ export default createSharedComposable(() => {
   });
 
   /**
+   * Single parse of the project's stock YAML. Every consumer that needs the
+   * structured stock list reads this rather than calling `parseStock` directly,
+   * so a malformed YAML edit shows up in one place and the parse work runs
+   * once per stock change rather than per-consumer.
+   */
+  const parsedStock = computed<StockMatrix[]>(() => {
+    const yaml = stock.value;
+    if (!yaml) return [];
+    try {
+      return parseStock(yaml);
+    } catch {
+      return [];
+    }
+  });
+
+  /**
    * Names of materials whose stock kind is linear. Grain lock is meaningless
    * for dimensional lumber (grain runs along the length by definition), so
    * UI surfaces hide the grain-lock control for these materials.
    */
-  const linearMaterials = computed<Set<string>>(() => {
-    const yaml = stock.value;
-    if (!yaml) return new Set();
-    try {
-      return new Set(
-        parseStock(yaml)
+  const linearMaterials = computed<Set<string>>(
+    () =>
+      new Set(
+        parsedStock.value
           .filter((m) => m.kind === 'linear')
           .map((m) => m.material),
-      );
-    } catch {
-      return new Set();
-    }
-  });
+      ),
+  );
 
   return {
     bladeWidth,
@@ -165,6 +176,7 @@ export default createSharedComposable(() => {
     defaultAlgorithm,
     showPartNumbers,
     stock,
+    parsedStock,
     distanceUnit,
     precision,
     isLoading,

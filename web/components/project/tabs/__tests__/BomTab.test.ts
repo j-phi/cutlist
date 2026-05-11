@@ -100,10 +100,12 @@ mockNuxtImport('useGrainLockConfirm', () => () => ({
 
 const distanceUnit = ref<'mm' | 'in'>('mm');
 const stock = ref<string | null>(null);
+const parsedStock = computed(() => []);
 const linearMaterials = computed(() => new Set<string>());
 mockNuxtImport('useProjectSettings', () => () => ({
   distanceUnit,
   stock,
+  parsedStock,
   linearMaterials,
 }));
 

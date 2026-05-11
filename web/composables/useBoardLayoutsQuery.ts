@@ -114,15 +114,9 @@ export default createSharedComposable(() => {
 
     const cached = layoutCache.get(pid);
     if (cached) {
-      const sheet: SheetBoardLayout[] = [];
-      const linear: LinearBoardLayout[] = [];
-      for (const l of cached.layouts) {
-        if (isLinearBoardLayout(l)) linear.push(l);
-        else sheet.push(l);
-      }
       return {
-        layouts: sheet,
-        linearLayouts: linear,
+        layouts: cached.layouts,
+        linearLayouts: cached.linearLayouts,
         leftovers: cached.leftovers,
       };
     }
@@ -175,8 +169,16 @@ export default createSharedComposable(() => {
 
       computeLayouts(projectId, inputs.parts, inputs.stock, inputs.config)
         .then((result) => {
+          // Split sheet/linear once at write time; per-render reads stay O(1).
+          const sheet: SheetBoardLayout[] = [];
+          const linear: LinearBoardLayout[] = [];
+          for (const l of result.layouts) {
+            if (isLinearBoardLayout(l)) linear.push(l);
+            else sheet.push(l);
+          }
           layoutCache.set(projectId, {
-            layouts: result.layouts,
+            layouts: sheet,
+            linearLayouts: linear,
             leftovers: result.leftovers,
             fingerprint: fp,
           });

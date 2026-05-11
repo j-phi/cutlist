@@ -5,6 +5,11 @@ const props = defineProps<{
   modelValue: StockMatrix;
   distanceUnit: 'in' | 'mm';
   precision: Precision;
+  /**
+   * Another stock row uses the same material name. Materials are name-keyed
+   * across the app, so colliding names silently break stock→part grouping.
+   */
+  duplicateName?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -26,7 +31,8 @@ function onColor(color: string | undefined) {
 
 <template>
   <div
-    class="rounded-lg border border-default bg-surface p-4 flex flex-col gap-3"
+    class="rounded-lg border bg-surface p-4 flex flex-col gap-3"
+    :class="duplicateName ? 'border-amber-500/60' : 'border-default'"
     :data-testid="`stock-card-${typeLabel}`"
   >
     <div class="flex items-center gap-2">
@@ -56,6 +62,15 @@ function onColor(color: string | undefined) {
         @click="emit('remove')"
       />
     </div>
+
+    <p
+      v-if="duplicateName"
+      class="text-xs text-amber-400"
+      data-testid="stock-duplicate-warning"
+    >
+      Another stock row uses this material name. Rename one so parts route to
+      the right material.
+    </p>
 
     <LinearDimensions
       v-if="modelValue.kind === 'linear'"

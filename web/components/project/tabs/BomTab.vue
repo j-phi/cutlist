@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import { mToMm } from 'cutlist';
-import { parseStock } from '~/utils/parseStock';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import { STORAGE_KEYS } from '~/utils/localStorage';
 import type { ManualPartInput } from '~/composables/useProjects';
@@ -23,7 +22,7 @@ const {
 } = useProjects();
 
 const { requestGrainLockChange } = useGrainLockConfirm();
-const { distanceUnit, stock, linearMaterials } = useProjectSettings();
+const { distanceUnit, parsedStock, linearMaterials } = useProjectSettings();
 const formatDistance = useFormatDistance();
 const toast = useToast();
 const modelViewer = useModelViewerStore();
@@ -79,14 +78,7 @@ const {
 
 // ── Materials list ───────────────────────────────────────────────────────────
 
-const materials = computed(() => {
-  if (!stock.value) return [];
-  try {
-    return parseStock(stock.value).map((s) => s.material);
-  } catch {
-    return [];
-  }
-});
+const materials = computed(() => parsedStock.value.map((s) => s.material));
 
 // ── Manual part tracking ─────────────────────────────────────────────────────
 

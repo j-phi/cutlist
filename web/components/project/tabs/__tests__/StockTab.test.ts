@@ -4,9 +4,14 @@ import { computed, defineComponent, h, ref } from 'vue';
 import YAML from 'js-yaml';
 import { mount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
-import { DEFAULT_INCH_PRECISION, DEFAULT_MM_PRECISION } from 'cutlist';
+import {
+  DEFAULT_INCH_PRECISION,
+  DEFAULT_MM_PRECISION,
+  type StockMatrix,
+} from 'cutlist';
 
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
+import { parseStock } from '~/utils/parseStock';
 import StockTab from '../StockTab.vue';
 
 const stock = ref<string | undefined>(undefined);
@@ -14,9 +19,18 @@ const distanceUnit = ref<'mm' | 'in'>('mm');
 const precision = computed(() =>
   distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
 );
+const parsedStock = computed<StockMatrix[]>(() => {
+  if (!stock.value) return [];
+  try {
+    return parseStock(stock.value);
+  } catch {
+    return [];
+  }
+});
 
 mockNuxtImport('useProjectSettings', () => () => ({
   stock,
+  parsedStock,
   distanceUnit,
   precision,
 }));
@@ -99,6 +113,7 @@ const StockCardStub = defineComponent({
     modelValue: { type: Object, required: true },
     distanceUnit: { type: String, required: true },
     precision: { type: Object, required: true },
+    duplicateName: { type: Boolean, default: false },
   },
   emits: ['update:modelValue', 'remove'],
   setup(props, { emit }) {
@@ -112,6 +127,7 @@ const StockCardStub = defineComponent({
         {
           'data-testid': `stock-card-${mv.kind === 'linear' ? 'timber' : 'sheet'}`,
           'data-material': mv.material,
+          'data-duplicate': String(props.duplicateName),
         },
         [
           h(
@@ -343,6 +359,50 @@ describe('StockTab', () => {
       const parsed = YAML.load(stock.value!) as Array<{ kind: string }>;
       expect(parsed).toHaveLength(1);
       expect(parsed[0].kind).toBe('linear');
+    });
+  });
+
+  describe('Unique material names', () => {
+    it('auto-suffixes a second "Add Sheet" so the new card does not collide', async () => {
+      stock.value = YAML.dump([]);
+      const component = getComponent();
+
+      await clickItem(component, 'Sheet');
+      await clickItem(component, 'Sheet');
+
+      const parsed = YAML.load(stock.value!) as Array<{ material: string }>;
+      expect(parsed.map((r) => r.material)).toEqual([
+        'New Material',
+        'New Material (2)',
+      ]);
+    });
+
+    it('auto-suffixes when the same preset is added twice', async () => {
+      const sheet = firstSheet();
+      stock.value = YAML.dump([]);
+      const component = getComponent();
+
+      await clickItem(component, sheet.label, 'Sheet');
+      await clickItem(component, sheet.label, 'Sheet');
+
+      const parsed = YAML.load(stock.value!) as Array<{ material: string }>;
+      expect(parsed).toHaveLength(2);
+      expect(parsed[0].material).toBe(sheet.stock.material);
+      expect(parsed[1].material).toBe(`${sheet.stock.material} (2)`);
+    });
+
+    it('flags cards that share a material name as duplicate', () => {
+      // Hand-build colliding YAML — the user typed a duplicate by hand,
+      // bypassing the add-time auto-suffix.
+      stock.value = YAML.dump([
+        { kind: 'sheet', material: 'Pine', sizes: [] },
+        { kind: 'sheet', material: 'Pine', sizes: [] },
+        { kind: 'sheet', material: 'Oak', sizes: [] },
+      ]);
+      const cards = getComponent().findAll('[data-testid="stock-card-sheet"]');
+      expect(cards[0].attributes('data-duplicate')).toBe('true');
+      expect(cards[1].attributes('data-duplicate')).toBe('true');
+      expect(cards[2].attributes('data-duplicate')).toBe('false');
     });
   });
 

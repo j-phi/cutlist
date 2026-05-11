@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { Rectangle } from '../../geometry';
-import type { PartToCut, PotentialBoardLayout, Stock } from '../../types';
+import type { PartToCut, PotentialBoardLayout, SheetStock } from '../../types';
 import { compareLayoutScores, scoreLayouts } from '../layout-score';
 
-const stock10x10: Stock = {
+const stock10x10: SheetStock = {
   kind: 'sheet',
   material: 'MDF',
   thickness: 0.018,
@@ -26,7 +26,7 @@ function part(id: number): PartToCut {
 }
 
 function createLayout(
-  stock: Stock,
+  stock: SheetStock,
   placements: Array<{
     left: number;
     bottom: number;
@@ -35,6 +35,7 @@ function createLayout(
   }>,
 ): PotentialBoardLayout {
   return {
+    kind: 'sheet',
     stock,
     placements: placements.map((placement, i) => {
       return new Rectangle(

@@ -4,9 +4,9 @@ import {
   type Algorithm,
   type SheetBoardLayout,
   type SheetStockMatrix,
+  type StockMatrix,
 } from 'cutlist';
 import YAML from 'js-yaml';
-import { parseStock } from '~/utils/parseStock';
 
 const props = defineProps<{
   layouts: SheetBoardLayout[];
@@ -15,7 +15,7 @@ const props = defineProps<{
 const getPx = useGetPx();
 const gap = getPx(4 * M_PER_IN);
 const formatDistance = useFormatDistance();
-const { stock, defaultAlgorithm } = useProjectSettings();
+const { stock, parsedStock, defaultAlgorithm } = useProjectSettings();
 
 const ALGORITHM_LABEL: Record<Algorithm, string> = {
   auto: 'Auto',
@@ -47,23 +47,13 @@ interface LayoutGroup {
 }
 
 /**
- * Single parse of the project's stock YAML; used for picker state.
- *
- * Linear timber rows are filtered out — the algorithm picker on this view is
+ * Sheet-only view of the parsed stock — the algorithm picker on this view is
  * sheet-only. Linear stock has its own (single) algorithm and is rendered by
  * a separate list component.
  */
-const parsedMatrix = computed<SheetStockMatrix[]>(() => {
-  const yaml = stock.value;
-  if (!yaml) return [];
-  try {
-    return parseStock(yaml).filter(
-      (m): m is SheetStockMatrix => m.kind === 'sheet',
-    );
-  } catch {
-    return [];
-  }
-});
+const parsedMatrix = computed<SheetStockMatrix[]>(() =>
+  parsedStock.value.filter((m): m is SheetStockMatrix => m.kind === 'sheet'),
+);
 
 /**
  * Match a layout's `thicknessM` back to the YAML thickness key on a single
@@ -135,14 +125,10 @@ const groups = computed<LayoutGroup[]>(() => {
 });
 
 function setOverride(material: string, thicknessM: number, alg: Algorithm) {
-  const yaml = stock.value;
-  if (!yaml) return;
-  let matrix;
-  try {
-    matrix = parseStock(yaml);
-  } catch {
-    return;
-  }
+  // Round-trip through JSON to drop Vue reactivity wrappers before mutating.
+  // Bail if the YAML is currently malformed (parsedStock falls back to []).
+  const matrix: StockMatrix[] = JSON.parse(JSON.stringify(parsedStock.value));
+  if (matrix.length === 0) return;
 
   // Apply to every row that matches this (material, thickness). When the same
   // material appears on two rows (e.g. one mm row + one in row), writing only
@@ -172,11 +158,7 @@ function setOverride(material: string, thicknessM: number, alg: Algorithm) {
   }
   if (!touched) return;
 
-  // JSON round-trip strips Vue reactivity wrappers before YAML.dump.
-  stock.value = YAML.dump(JSON.parse(JSON.stringify(matrix)), {
-    indent: 2,
-    flowLevel: 3,
-  });
+  stock.value = YAML.dump(matrix, { indent: 2, flowLevel: 3 });
 }
 
 function algorithmMenu(group: LayoutGroup) {

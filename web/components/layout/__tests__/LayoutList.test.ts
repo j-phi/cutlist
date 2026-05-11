@@ -1,15 +1,17 @@
 // @vitest-environment nuxt
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   Algorithm,
   SheetBoardLayout,
   SheetBoardLayoutPlacement,
+  StockMatrix,
 } from 'cutlist';
 
+import { parseStock } from '~/utils/parseStock';
 import LayoutList from '../LayoutList.vue';
 
 mockNuxtImport('useGetPx', () => () => (m: number) => `${m * 100}px`);
@@ -27,8 +29,18 @@ const stockYaml = ref<string | undefined>(`- material: Plywood
 `);
 const defaultAlgorithm = ref<Algorithm | undefined>('auto');
 
+const parsedStock = computed<StockMatrix[]>(() => {
+  if (!stockYaml.value) return [];
+  try {
+    return parseStock(stockYaml.value);
+  } catch {
+    return [];
+  }
+});
+
 mockNuxtImport('useProjectSettings', () => () => ({
   stock: stockYaml,
+  parsedStock,
   bladeWidth: ref(undefined),
   margin: ref(undefined),
   defaultAlgorithm,

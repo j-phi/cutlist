@@ -7,10 +7,9 @@ import {
   type StockMatrix,
 } from 'cutlist';
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
-import { parseStock } from '~/utils/parseStock';
 import { FALLBACK_PALETTE } from '~/utils/materialColors';
 
-const { stock, distanceUnit, precision } = useProjectSettings();
+const { stock, parsedStock, distanceUnit, precision } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
 interface DropdownItem {
@@ -63,18 +62,7 @@ const customItems: DropdownItem[][] = [
   ],
 ];
 
-/**
- * Parse the full stock list. Returns an empty list if YAML is invalid;
- * the entries are the single source of truth for the flat editor.
- */
-const entries = computed<StockMatrix[]>(() => {
-  if (stock.value == null) return [];
-  try {
-    return parseStock(stock.value);
-  } catch {
-    return [];
-  }
-});
+const entries = parsedStock;
 
 function writeEntries(next: StockMatrix[]) {
   stock.value = YAML.dump(next, { indent: 2, flowLevel: 3 });
@@ -84,14 +72,40 @@ function nextPaletteColor(): string {
   return FALLBACK_PALETTE[entries.value.length % FALLBACK_PALETTE.length];
 }
 
+/**
+ * Materials are name-keyed everywhere (colorMap, PDF shopping aggregation,
+ * stock→part grouping). Two rows sharing a name would silently confuse the
+ * packer (first match wins), so we auto-suffix duplicates on add and flag
+ * collisions introduced by edits via `duplicateNames`.
+ */
+function uniqueMaterialName(name: string, existing: StockMatrix[]): string {
+  const taken = new Set(existing.map((e) => e.material));
+  if (!taken.has(name)) return name;
+  let n = 2;
+  while (taken.has(`${name} (${n})`)) n++;
+  return `${name} (${n})`;
+}
+
+const duplicateNames = computed<Set<string>>(() => {
+  const counts = new Map<string, number>();
+  for (const e of entries.value) {
+    counts.set(e.material, (counts.get(e.material) ?? 0) + 1);
+  }
+  return new Set(
+    [...counts.entries()].filter(([, n]) => n > 1).map(([m]) => m),
+  );
+});
+
 function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
-  writeEntries([...entries.value, presetToMmStock(preset)]);
+  const next = presetToMmStock(preset);
+  next.material = uniqueMaterialName(next.material, entries.value);
+  writeEntries([...entries.value, next]);
 }
 
 function addCustomSheet() {
   const blank: SheetStockMatrix = {
     kind: 'sheet',
-    material: 'New Material',
+    material: uniqueMaterialName('New Material', entries.value),
     sizes: [],
     color: nextPaletteColor(),
   };
@@ -105,7 +119,7 @@ function addCustomLinear() {
     unit.value === 'in' ? convertUnits(96, 'in', 'mm') : 2400;
   const blank: LinearStockMatrix = {
     kind: 'linear',
-    material: 'New Timber',
+    material: uniqueMaterialName('New Timber', entries.value),
     color: nextPaletteColor(),
     size: {
       crossSectionWidth:
@@ -217,6 +231,7 @@ function removeEntry(idx: number) {
         :model-value="entry"
         :distance-unit="unit"
         :precision="precision"
+        :duplicate-name="duplicateNames.has(entry.material)"
         @update:model-value="(next) => updateEntry(idx, next)"
         @remove="removeEntry(idx)"
       />

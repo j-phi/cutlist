@@ -21,6 +21,7 @@ function makeOptions(overrides?: Partial<ExportPdfOptions>): ExportPdfOptions {
     scale: 10 as const,
     bomRows,
     layouts,
+    linearLayouts: [],
     leftovers,
     formatSize,
     showPartNumbers: true,
