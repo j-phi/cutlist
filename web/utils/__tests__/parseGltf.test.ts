@@ -36,6 +36,86 @@ function makeGltf(nodes: FixtureNode[]) {
   };
 }
 
+describe('deriveFromGltf dimensions for rotated nodes', () => {
+  function quatAroundZ(angleRad: number): [number, number, number, number] {
+    const half = angleRad / 2;
+    return [0, 0, Math.sin(half), Math.cos(half)];
+  }
+
+  it('returns the same dims for a part regardless of node rotation', () => {
+    const flat = deriveFromGltf({
+      scene: 0,
+      scenes: [{ nodes: [0, 1] }],
+      nodes: [
+        { name: 'Flat', mesh: 0 },
+        { name: 'Rotated', mesh: 0, rotation: quatAroundZ(Math.PI / 4) },
+      ],
+      meshes: [{ primitives: [{ attributes: { POSITION: 0 }, material: 0 }] }],
+      accessors: [
+        {
+          componentType: 5126,
+          count: 8,
+          type: 'VEC3',
+          min: [0, 0, 0],
+          max: [0.5, 0.3, 0.018],
+        },
+      ],
+      materials: [
+        {
+          name: 'Birch Ply',
+          pbrMetallicRoughness: { baseColorFactor: [0.9, 0.85, 0.75, 1] },
+        },
+      ],
+    });
+
+    expect(flat.parts).toHaveLength(2);
+    const [a, b] = flat.parts;
+    expect(a.size.thickness).toBeCloseTo(b.size.thickness, 8);
+    expect(a.size.width).toBeCloseTo(b.size.width, 8);
+    expect(a.size.length).toBeCloseTo(b.size.length, 8);
+    expect(b.size.thickness).toBeCloseTo(0.018, 8);
+    expect(b.size.width).toBeCloseTo(0.3, 8);
+    expect(b.size.length).toBeCloseTo(0.5, 8);
+  });
+
+  it('still applies node scale to part dims', () => {
+    const result = deriveFromGltf({
+      scene: 0,
+      scenes: [{ nodes: [0] }],
+      nodes: [
+        {
+          name: 'Scaled',
+          mesh: 0,
+          scale: [2, 1, 0.5],
+          rotation: quatAroundZ(Math.PI / 6),
+        },
+      ],
+      meshes: [{ primitives: [{ attributes: { POSITION: 0 }, material: 0 }] }],
+      accessors: [
+        {
+          componentType: 5126,
+          count: 8,
+          type: 'VEC3',
+          min: [0, 0, 0],
+          max: [0.5, 0.3, 0.018],
+        },
+      ],
+      materials: [
+        {
+          name: 'Birch Ply',
+          pbrMetallicRoughness: { baseColorFactor: [0.9, 0.85, 0.75, 1] },
+        },
+      ],
+    });
+
+    // Source (0.018, 0.3, 0.5) × scale (0.5, 1, 2) → (0.009, 0.3, 1.0).
+    const size = result.parts[0].size;
+    expect(size.thickness).toBeCloseTo(0.009, 8);
+    expect(size.width).toBeCloseTo(0.3, 8);
+    expect(size.length).toBeCloseTo(1.0, 8);
+  });
+});
+
 describe('deriveFromGltf grouping', () => {
   it('merges same stock + same size with different names into one group using first name', () => {
     const result = deriveFromGltf(

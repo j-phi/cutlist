@@ -96,4 +96,131 @@ describe('parseCollada', () => {
     expect(sorted[1]).toBeCloseTo(0.4572, 4); // width      = 18"
     expect(sorted[2]).toBeCloseTo(0.9144, 4); // length     = 36"
   });
+
+  it('returns true dims for a node-rotated part, not the inflated world AABB', async () => {
+    // 36 × 18 × 1 inches authored in inches, then the node rotates the box
+    // 45° around the Z (up) axis.
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <unit meter="0.0254" name="inch"/>
+    <up_axis>Y_UP</up_axis>
+  </asset>
+  <library_effects>
+    <effect id="eff"><profile_COMMON><technique sid="t"><lambert>
+      <diffuse><color>0.5 0.5 0.5 1</color></diffuse>
+    </lambert></technique></profile_COMMON></effect>
+  </library_effects>
+  <library_materials>
+    <material id="mat"><instance_effect url="#eff"/></material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="g"><mesh>
+      <source id="pos"><float_array id="pos-a" count="24">
+        0 0 0  36 0 0  36 18 0  0 18 0
+        0 0 1  36 0 1  36 18 1  0 18 1
+      </float_array>
+      <technique_common><accessor source="#pos-a" count="8" stride="3">
+        <param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/>
+      </accessor></technique_common></source>
+      <vertices id="v"><input semantic="POSITION" source="#pos"/></vertices>
+      <triangles count="12" material="m">
+        <input semantic="VERTEX" source="#v" offset="0"/>
+        <p>0 1 2 0 2 3 4 6 5 4 7 6 0 4 5 0 5 1 1 5 6 1 6 2 2 6 7 2 7 3 3 7 4 3 4 0</p>
+      </triangles>
+    </mesh></geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="s"><node id="n">
+      <rotate>0 0 1 45</rotate>
+      <instance_geometry url="#g"><bind_material><technique_common>
+        <instance_material symbol="m" target="#mat"/>
+      </technique_common></bind_material></instance_geometry>
+    </node></visual_scene>
+  </library_visual_scenes>
+  <scene><instance_visual_scene url="#s"/></scene>
+</COLLADA>`;
+
+    const graph = await buildColladaObjectGraph(xml);
+    expect(graph.parts).toHaveLength(1);
+
+    const size = graph.parts[0].size;
+    const sorted = [size.thickness, size.width, size.length].sort(
+      (a, b) => a - b,
+    );
+    expect(sorted[0]).toBeCloseTo(0.0254, 4); // thickness  =  1"
+    expect(sorted[1]).toBeCloseTo(0.4572, 4); // width      = 18"
+    expect(sorted[2]).toBeCloseTo(0.9144, 4); // length     = 36"
+  });
+
+  it('returns true dims when rotation is baked into the vertex coordinates', async () => {
+    const c = Math.cos(Math.PI / 4);
+    const s = Math.sin(Math.PI / 4);
+    const corners: [number, number, number][] = [
+      [0, 0, 0],
+      [36, 0, 0],
+      [36, 18, 0],
+      [0, 18, 0],
+      [0, 0, 1],
+      [36, 0, 1],
+      [36, 18, 1],
+      [0, 18, 1],
+    ];
+    const rotated = corners.map(([x, y, z]) => [
+      x * c - y * s,
+      x * s + y * c,
+      z,
+    ]);
+    const floatArr = rotated.flat().join(' ');
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <unit meter="0.0254" name="inch"/>
+    <up_axis>Y_UP</up_axis>
+  </asset>
+  <library_effects>
+    <effect id="eff"><profile_COMMON><technique sid="t"><lambert>
+      <diffuse><color>0.5 0.5 0.5 1</color></diffuse>
+    </lambert></technique></profile_COMMON></effect>
+  </library_effects>
+  <library_materials>
+    <material id="mat"><instance_effect url="#eff"/></material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="g"><mesh>
+      <source id="pos"><float_array id="pos-a" count="24">
+        ${floatArr}
+      </float_array>
+      <technique_common><accessor source="#pos-a" count="8" stride="3">
+        <param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/>
+      </accessor></technique_common></source>
+      <vertices id="v"><input semantic="POSITION" source="#pos"/></vertices>
+      <triangles count="12" material="m">
+        <input semantic="VERTEX" source="#v" offset="0"/>
+        <p>0 1 2 0 2 3 4 6 5 4 7 6 0 4 5 0 5 1 1 5 6 1 6 2 2 6 7 2 7 3 3 7 4 3 4 0</p>
+      </triangles>
+    </mesh></geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="s"><node id="n">
+      <instance_geometry url="#g"><bind_material><technique_common>
+        <instance_material symbol="m" target="#mat"/>
+      </technique_common></bind_material></instance_geometry>
+    </node></visual_scene>
+  </library_visual_scenes>
+  <scene><instance_visual_scene url="#s"/></scene>
+</COLLADA>`;
+
+    const graph = await buildColladaObjectGraph(xml);
+    expect(graph.parts).toHaveLength(1);
+
+    const size = graph.parts[0].size;
+    const sorted = [size.thickness, size.width, size.length].sort(
+      (a, b) => a - b,
+    );
+    expect(sorted[0]).toBeCloseTo(0.0254, 4); // thickness  =  1"
+    expect(sorted[1]).toBeCloseTo(0.4572, 4); // width      = 18"
+    expect(sorted[2]).toBeCloseTo(0.9144, 4); // length     = 36"
+  });
 });
