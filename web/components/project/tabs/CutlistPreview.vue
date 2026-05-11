@@ -171,28 +171,32 @@ const showLeftoverBanner = computed(
       </div>
     </div>
 
-    <!-- Settings toolbar -->
+    <!-- Single row so the right group wraps below the left on narrow
+         viewports instead of overlapping it. -->
     <div
-      class="absolute top-3 left-3 z-10 bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
+      class="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-start justify-between gap-2"
     >
-      <PreviewToolbar />
-    </div>
-
-    <!-- Stock filter + print -->
-    <div class="absolute top-3 right-3 z-10 flex items-center gap-2">
       <div
-        v-if="stockOptions.length > 1"
-        class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
+        class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
       >
-        <label class="text-xs text-muted whitespace-nowrap">Stock</label>
-        <USelect
-          v-model="selectedStock"
-          :items="[{ label: 'All', value: ALL }, ...stockOptions]"
-          size="xs"
-          class="w-36"
-        />
+        <PreviewToolbar />
       </div>
-      <ExportPdfButton />
+
+      <div class="flex items-center gap-2 ml-auto">
+        <div
+          v-if="stockOptions.length > 1"
+          class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
+        >
+          <label class="text-xs text-muted whitespace-nowrap">Stock</label>
+          <USelect
+            v-model="selectedStock"
+            :items="[{ label: 'All', value: ALL }, ...stockOptions]"
+            size="xs"
+            class="w-36"
+          />
+        </div>
+        <ExportPdfButton />
+      </div>
     </div>
 
     <!-- Controls -->

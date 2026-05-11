@@ -29,6 +29,7 @@ function makeEvent(
     clientY?: number;
     shiftKey?: boolean;
     pointerId?: number;
+    pointerType?: string;
   } = {},
 ): PointerEvent {
   const e = new Event(type) as PointerEvent;
@@ -37,6 +38,9 @@ function makeEvent(
   Object.defineProperty(e, 'clientY', { value: init.clientY ?? 0 });
   Object.defineProperty(e, 'shiftKey', { value: init.shiftKey ?? false });
   Object.defineProperty(e, 'pointerId', { value: init.pointerId ?? 1 });
+  Object.defineProperty(e, 'pointerType', {
+    value: init.pointerType ?? 'mouse',
+  });
   return e;
 }
 
@@ -404,6 +408,77 @@ describe('InputRouter', () => {
     expect(marquee.beginCalls).toEqual([]);
     const sel = captured.find((e) => e.type === 'selection-changed');
     expect(sel).toMatchObject({ groupIds: [5] });
+  });
+
+  it('Should not begin a marquee on touch drag — single-finger orbit owns the gesture', async () => {
+    const marquee = makeRecordingMarquee();
+    let lockHeld = 0;
+    buildRouter({
+      marquee: marquee.asDep,
+      acquireInteractionLock: () => {
+        lockHeld++;
+        return () => {
+          lockHeld--;
+        };
+      },
+      getSelectionSnapshot: () => [],
+    });
+
+    currentTime = 0;
+    dom.dispatchEvent(
+      makeEvent('pointerdown', {
+        clientX: 50,
+        clientY: 50,
+        pointerType: 'touch',
+      }),
+    );
+    dom.dispatchEvent(
+      makeEvent('pointermove', {
+        clientX: 80,
+        clientY: 50,
+        pointerType: 'touch',
+      }),
+    );
+    await flushRafTwice();
+
+    expect(marquee.beginCalls).toEqual([]);
+    expect(lockHeld).toBe(0);
+  });
+
+  it('Should still emit selection-changed on a touch tap', () => {
+    const marquee = makeRecordingMarquee();
+    const result: PickResult = {
+      groupId: 9,
+      worldPoint: { x: 0, y: 0, z: 0 } as unknown as PickResult['worldPoint'],
+      worldNormal: { x: 0, y: 1, z: 0 } as unknown as PickResult['worldNormal'],
+    };
+    buildRouter({
+      raycast: () => result,
+      marquee: marquee.asDep,
+      acquireInteractionLock: () => () => {},
+      getSelectionSnapshot: () => [],
+    });
+
+    currentTime = 0;
+    dom.dispatchEvent(
+      makeEvent('pointerdown', {
+        clientX: 20,
+        clientY: 20,
+        pointerType: 'touch',
+      }),
+    );
+    currentTime = 60;
+    dom.dispatchEvent(
+      makeEvent('pointerup', {
+        clientX: 21,
+        clientY: 20,
+        pointerType: 'touch',
+      }),
+    );
+
+    expect(captured).toEqual([
+      { type: 'selection-changed', groupIds: [9], shiftKey: false },
+    ]);
   });
 
   it('Should suppress hover and clicks while the input lock is held', async () => {

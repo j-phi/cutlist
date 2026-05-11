@@ -20,6 +20,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   addCallout: [];
   addDimension: [];
+  hideSelection: [];
+  resetSelection: [];
   'update:gizmoMode': [mode: GizmoMode];
 }>();
 
@@ -44,18 +46,44 @@ const isPickMode = computed(() => props.mode === 'pick' && !!props.pickHint);
         :color="props.gizmoMode === 'translate' ? 'primary' : 'neutral'"
         :variant="props.gizmoMode === 'translate' ? 'solid' : 'ghost'"
         icon="i-lucide-move"
-        label="Move"
+        title="Move"
         @click="emit('update:gizmoMode', 'translate')"
-      />
+      >
+        <span class="hidden sm:inline">Move</span>
+      </UButton>
       <UButton
         v-if="props.hasSelection"
         size="xs"
         :color="props.gizmoMode === 'rotate' ? 'primary' : 'neutral'"
         :variant="props.gizmoMode === 'rotate' ? 'solid' : 'ghost'"
         icon="i-lucide-rotate-3d"
-        label="Rotate"
+        title="Rotate"
         @click="emit('update:gizmoMode', 'rotate')"
-      />
+      >
+        <span class="hidden sm:inline">Rotate</span>
+      </UButton>
+      <UButton
+        v-if="props.hasSelection"
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        icon="i-lucide-eye-off"
+        title="Hide selected (Del / Backspace)"
+        @click="emit('hideSelection')"
+      >
+        <span class="hidden sm:inline">Hide</span>
+      </UButton>
+      <UButton
+        v-if="props.hasSelection"
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        icon="i-lucide-rotate-ccw"
+        title="Reset selected position"
+        @click="emit('resetSelection')"
+      >
+        <span class="hidden sm:inline">Reset</span>
+      </UButton>
       <span
         v-if="props.hasSelection && props.hasActiveScene"
         class="w-px h-5 bg-subtle mx-1"
@@ -67,18 +95,22 @@ const isPickMode = computed(() => props.mode === 'pick' && !!props.pickHint);
         :color="isPicking('callout') ? 'primary' : 'neutral'"
         :variant="isPicking('callout') ? 'solid' : 'ghost'"
         icon="i-lucide-message-square-text"
-        label="Callout"
+        title="Callout"
         @click="emit('addCallout')"
-      />
+      >
+        <span class="hidden sm:inline">Callout</span>
+      </UButton>
       <UButton
         v-if="props.hasActiveScene"
         size="xs"
         :color="isPicking('dimension') ? 'primary' : 'neutral'"
         :variant="isPicking('dimension') ? 'solid' : 'ghost'"
         icon="i-lucide-ruler"
-        label="Dimension"
+        title="Dimension"
         @click="emit('addDimension')"
-      />
+      >
+        <span class="hidden sm:inline">Dimension</span>
+      </UButton>
     </template>
   </div>
 </template>

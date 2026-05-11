@@ -131,6 +131,7 @@ watch(
       variant="ghost"
       color="neutral"
       icon="i-lucide-rotate-ccw"
+      label="Reset"
       title="Reset all positions"
       @click="panel.resetAllPositions()"
     />
@@ -139,7 +140,7 @@ watch(
       variant="ghost"
       color="neutral"
       icon="i-lucide-eye"
-      title="Show all"
+      label="Show all"
       @click="panel.showAll()"
     />
     <UButton
@@ -147,7 +148,7 @@ watch(
       variant="ghost"
       color="neutral"
       icon="i-lucide-eye-off"
-      title="Hide all"
+      label="Hide all"
       @click="panel.hideAll()"
     />
   </div>
