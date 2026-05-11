@@ -64,6 +64,22 @@ const customItems: DropdownItem[][] = [
 
 const entries = parsedStock;
 
+// Stable per-row ids. Index keys would let a deleted card's DOM (and its
+// draft state) survive into its successor; ours move with the row.
+const entryKeys = ref<string[]>([]);
+let nextKeyId = 0;
+const makeKey = () => `e${++nextKeyId}`;
+
+watch(
+  () => entries.value.length,
+  (len) => {
+    if (entryKeys.value.length !== len) {
+      entryKeys.value = Array.from({ length: len }, makeKey);
+    }
+  },
+  { immediate: true },
+);
+
 function writeEntries(next: StockMatrix[]) {
   stock.value = YAML.dump(next, { indent: 2, flowLevel: 3 });
 }
@@ -72,34 +88,50 @@ function nextPaletteColor(): string {
   return FALLBACK_PALETTE[entries.value.length % FALLBACK_PALETTE.length];
 }
 
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
 /**
  * Materials are name-keyed everywhere (colorMap, PDF shopping aggregation,
- * stock→part grouping). Two rows sharing a name would silently confuse the
- * packer (first match wins), so we auto-suffix duplicates on add and flag
- * collisions introduced by edits via `duplicateNames`.
+ * stock→part grouping). Two rows sharing a name silently confuse the packer
+ * (first match wins), so we auto-suffix on add and flag collisions on edit.
+ * Comparison is trim+case-insensitive: users read "Pine" and "pine " as one.
  */
 function uniqueMaterialName(name: string, existing: StockMatrix[]): string {
-  const taken = new Set(existing.map((e) => e.material));
-  if (!taken.has(name)) return name;
+  const trimmed = name.trim();
+  const taken = new Set(existing.map((e) => normalizeName(e.material)));
+  if (!taken.has(normalizeName(trimmed))) return trimmed;
   let n = 2;
-  while (taken.has(`${name} (${n})`)) n++;
-  return `${name} (${n})`;
+  while (taken.has(normalizeName(`${trimmed} (${n})`))) n++;
+  return `${trimmed} (${n})`;
 }
 
 const duplicateNames = computed<Set<string>>(() => {
   const counts = new Map<string, number>();
   for (const e of entries.value) {
-    counts.set(e.material, (counts.get(e.material) ?? 0) + 1);
+    const key = normalizeName(e.material);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
   }
+  const dupKeys = new Set(
+    [...counts.entries()].filter(([, n]) => n > 1).map(([k]) => k),
+  );
   return new Set(
-    [...counts.entries()].filter(([, n]) => n > 1).map(([m]) => m),
+    entries.value
+      .filter((e) => dupKeys.has(normalizeName(e.material)))
+      .map((e) => e.material),
   );
 });
+
+function appendEntry(next: StockMatrix) {
+  entryKeys.value.push(makeKey());
+  writeEntries([...entries.value, next]);
+}
 
 function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
   const next = presetToMmStock(preset);
   next.material = uniqueMaterialName(next.material, entries.value);
-  writeEntries([...entries.value, next]);
+  appendEntry(next);
 }
 
 function addCustomSheet() {
@@ -109,7 +141,7 @@ function addCustomSheet() {
     sizes: [],
     color: nextPaletteColor(),
   };
-  writeEntries([...entries.value, blank]);
+  appendEntry(blank);
 }
 
 function addCustomLinear() {
@@ -129,7 +161,7 @@ function addCustomLinear() {
       lengths: [seedLengthMm],
     },
   };
-  writeEntries([...entries.value, blank]);
+  appendEntry(blank);
 }
 
 function updateEntry(idx: number, next: StockMatrix) {
@@ -139,6 +171,7 @@ function updateEntry(idx: number, next: StockMatrix) {
 }
 
 function removeEntry(idx: number) {
+  entryKeys.value.splice(idx, 1);
   writeEntries(entries.value.filter((_, i) => i !== idx));
 }
 </script>
@@ -227,7 +260,7 @@ function removeEntry(idx: number) {
     <div v-else class="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
       <StockCard
         v-for="(entry, idx) in entries"
-        :key="idx"
+        :key="entryKeys[idx]"
         :model-value="entry"
         :distance-unit="unit"
         :precision="precision"

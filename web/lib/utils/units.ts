@@ -1,13 +1,8 @@
-/** Millimetres per inch — single source for the 25.4 constant. */
+/** Single source for the 25.4 constant. Derived: M_PER_IN. */
 export const MM_PER_IN = 25.4;
-
-/** Meters per inch — derived; used by viewer / px layout sites. */
 export const M_PER_IN = MM_PER_IN / 1000;
 
-/** mm → meters (engine-internal unit). */
 export const mmToM = (mm: number) => mm / 1000;
-
-/** meters → mm (canonical storage unit). */
 export const mToMm = (m: number) => m * 1000;
 
 /**
@@ -22,13 +17,11 @@ export type Precision =
   | { kind: 'fraction'; denominator: 8 | 16 | 32 | 64 }
   | { kind: 'decimal'; step: number };
 
-/** Default precision for inch users — 1/32" matches a tape measure. */
+// 1/32" matches a tape measure; 0.1mm is finer than any saw kerf.
 export const DEFAULT_INCH_PRECISION: Precision = {
   kind: 'fraction',
   denominator: 32,
 };
-
-/** Default precision for mm users — 0.1mm is finer than any saw kerf. */
 export const DEFAULT_MM_PRECISION: Precision = { kind: 'decimal', step: 0.1 };
 
 const fractionLookupTable: Record<number, Map<number, string>> = {
@@ -70,7 +63,6 @@ export function toFraction(value: number, denominator: number): string {
   return integerPart === 0 ? frac : `${integerPart} ${frac}`;
 }
 
-/** Convert a distance between mm and inches. */
 export function convertUnits(
   value: number,
   from: 'mm' | 'in',
@@ -80,11 +72,16 @@ export function convertUnits(
   return from === 'mm' ? value / MM_PER_IN : value * MM_PER_IN;
 }
 
+// Cap on a plausible workshop dimension. Past this it's a typo or pasted
+// scientific notation; reject before 1e308 lands in storage.
+const MAX_DIMENSION = 1e5;
+
 /**
  * Parse a user-entered dimension into a number expressed in `unit`.
  * Imperial accepts fractions, mixed numbers, feet+inches, and unit
  * glyphs; metric accepts decimals with optional "mm" suffix. Returns
- * null on empty / unparseable input; never returns negative or NaN.
+ * null on empty / unparseable input, on negatives, on NaN, and on
+ * absurdly large values (see `MAX_DIMENSION`).
  */
 export function parseDimension(
   raw: string | null | undefined,
@@ -94,11 +91,16 @@ export function parseDimension(
   const s = String(raw).trim();
   if (s === '') return null;
 
-  if (unit === 'mm') {
-    const n = Number(s.replace(/\s*mm$/i, ''));
-    return Number.isFinite(n) && n >= 0 ? n : null;
-  }
-  return parseInches(s);
+  const result =
+    unit === 'mm'
+      ? (() => {
+          const n = Number(s.replace(/\s*mm$/i, ''));
+          return Number.isFinite(n) && n >= 0 ? n : null;
+        })()
+      : parseInches(s);
+
+  if (result == null || result > MAX_DIMENSION) return null;
+  return result;
 }
 
 function parseInches(raw: string): number | null {

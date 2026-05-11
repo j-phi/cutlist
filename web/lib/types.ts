@@ -79,6 +79,10 @@ export const isLinearStock = (s: Stock): s is LinearStock =>
   s.kind === 'linear';
 export const isSheetStock = (s: Stock): s is SheetStock => s.kind === 'sheet';
 
+// Reject 0, negatives, NaN, infinity at the schema boundary — they
+// propagate as silent bugs or blow up layout math downstream.
+const PositiveDimension = z.number().positive().finite();
+
 /**
  * Sheet stock matrix: a material sold as 2D panels (plywood, MDF, …).
  * `kind` defaults to `'sheet'` so freshly-authored literals can omit it.
@@ -92,9 +96,9 @@ const SheetStockMatrixSchema = z.object({
    */
   sizes: z.array(
     z.object({
-      width: z.number(),
-      length: z.number(),
-      thickness: z.array(z.number()),
+      width: PositiveDimension,
+      length: PositiveDimension,
+      thickness: z.array(PositiveDimension),
     }),
   ),
   /** Display color for board previews (hex string, e.g. `"#d2b996"`). */
@@ -114,11 +118,11 @@ const SheetStockMatrixSchema = z.object({
  */
 export const LinearStockSize = z.object({
   /** Cross-section width in millimetres (the wider face). */
-  crossSectionWidth: z.number(),
+  crossSectionWidth: PositiveDimension,
   /** Cross-section thickness in millimetres (the narrower face). */
-  crossSectionThickness: z.number(),
+  crossSectionThickness: PositiveDimension,
   /** Available stock lengths in millimetres. */
-  lengths: z.array(z.number()),
+  lengths: z.array(PositiveDimension),
 });
 export type LinearStockSize = z.infer<typeof LinearStockSize>;
 

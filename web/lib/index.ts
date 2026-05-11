@@ -183,9 +183,10 @@ export function generateBoardLayouts(
   const searchResult = runMultiPassSearch(normalizedConfig, parts, boards);
 
   const marginM = mmToM(normalizedConfig.margin);
+  const kerfM = mmToM(normalizedConfig.bladeWidth);
   return {
     layouts: searchResult.layouts.map((l) =>
-      serializeBoardLayoutRectangles(l, marginM),
+      serializeBoardLayoutRectangles(l, marginM, kerfM),
     ),
     leftovers: searchResult.leftovers.map(serializePartToCut),
   };
@@ -737,8 +738,9 @@ function getPackerOptions(config: Config): PackOptions<PartToCut> {
 function serializeBoardLayoutRectangles(
   layout: PotentialBoardLayout,
   marginM: number,
+  kerfM: number,
 ): BoardLayout {
-  if (layout.kind === 'linear') return serializeLinearLayout(layout);
+  if (layout.kind === 'linear') return serializeLinearLayout(layout, kerfM);
   return serializeSheetLayout(layout, marginM);
 }
 
@@ -764,6 +766,7 @@ function serializeSheetLayout(
 
 function serializeLinearLayout(
   layout: PotentialLinearBoardLayout,
+  kerfM: number,
 ): LinearBoardLayout {
   const { stock } = layout;
   const sorted = [...layout.placements].sort((a, b) => a.bottom - b.bottom);
@@ -778,6 +781,10 @@ function serializeLinearLayout(
     offsetM: p.bottom,
   }));
   const lastTop = sorted.length > 0 ? sorted[sorted.length - 1].top : 0;
+  // The cut that frees the trailing offcut consumes one kerf; with no
+  // placements no cut is needed and the whole stick is the offcut.
+  const trailing =
+    sorted.length === 0 ? stock.length : stock.length - lastTop - kerfM;
   return {
     kind: 'linear',
     stock: {
@@ -788,7 +795,7 @@ function serializeLinearLayout(
       color: stock.color,
     },
     placements,
-    wasteEndM: stock.length - lastTop,
+    wasteEndM: Math.max(0, trailing),
   };
 }
 

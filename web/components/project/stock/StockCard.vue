@@ -24,6 +24,15 @@ function onMaterial(name: string) {
   emit('update:modelValue', { ...props.modelValue, material: name });
 }
 
+// Trim only on blur — mid-edit keystrokes pass through so we don't fight
+// the user as they type "Pine " before adding the next word.
+function commitMaterial() {
+  const trimmed = props.modelValue.material.trim();
+  if (trimmed !== props.modelValue.material) {
+    emit('update:modelValue', { ...props.modelValue, material: trimmed });
+  }
+}
+
 function onColor(color: string | undefined) {
   emit('update:modelValue', { ...props.modelValue, color });
 }
@@ -46,6 +55,7 @@ function onColor(color: string | undefined) {
         placeholder="Material name"
         data-testid="stock-material-name"
         @update:model-value="onMaterial"
+        @blur="commitMaterial"
       />
       <span
         class="text-[11px] uppercase tracking-wider text-dim font-medium"

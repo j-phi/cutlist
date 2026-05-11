@@ -58,22 +58,68 @@ describe('parseStock', () => {
     ]);
   });
 
-  it('rejects string dimensions (mm-only schema)', () => {
+  it('drops rows with string dimensions (mm-only schema)', () => {
     const yaml = `
 - material: Mix
   sizes:
     - width: 1220mm
       length: 2440mm
       thickness: [18mm]
+- material: MDF
+  sizes:
+    - width: 1220
+      length: 2440
+      thickness: [18]
 `;
-    expect(() => parseStock(yaml)).toThrow();
+    // The bad row drops cleanly; the well-formed row still hydrates.
+    expect(parseStock(yaml)).toEqual([
+      {
+        kind: 'sheet',
+        material: 'MDF',
+        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      },
+    ]);
   });
 
-  it('throws a ZodError for invalid YAML missing required fields', () => {
+  it('drops rows missing required fields', () => {
     const yaml = `
 - material: MDF
+- material: Ply
+  sizes:
+    - width: 600
+      length: 1800
+      thickness: [12]
 `;
-    expect(() => parseStock(yaml)).toThrow();
+    expect(parseStock(yaml)).toEqual([
+      {
+        kind: 'sheet',
+        material: 'Ply',
+        sizes: [{ width: 600, length: 1800, thickness: [12] }],
+      },
+    ]);
+  });
+
+  it('drops rows with non-positive dimensions', () => {
+    const yaml = `
+- material: ZeroWidth
+  sizes:
+    - width: 0
+      length: 2440
+      thickness: [18]
+- material: NegLength
+  sizes:
+    - width: 1220
+      length: -1
+      thickness: [18]
+- material: OK
+  sizes:
+    - width: 1220
+      length: 2440
+      thickness: [18]
+`;
+    const result = parseStock(yaml);
+    expect(result).toHaveLength(1);
+    expect(result[0].material).toBe('OK');
   });
 
   it('Should throw when YAML is malformed', () => {

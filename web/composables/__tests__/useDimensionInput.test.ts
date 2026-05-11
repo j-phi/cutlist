@@ -131,6 +131,27 @@ describe('useDimensionInput', () => {
     expect(mm.value).toBeCloseTo(49.53, 6);
   });
 
+  it('preserves storage when the unit flips while the input is dirty', async () => {
+    // External unit flip (settings sync, undo) must reformat from storage,
+    // never re-parse the dirty string under the new unit — otherwise "2"
+    // in inches becomes 2 mm instead of staying at 50.8 mm.
+    const mm = ref<number | null>(null);
+    const unit = ref<'mm' | 'in'>('in');
+    const precision = ref<Precision>(DEFAULT_INCH_PRECISION);
+    const { input } = useDimensionInput(mm, unit, precision);
+
+    input.value = '2';
+    await nextTick();
+    expect(mm.value).toBeCloseTo(50.8, 6);
+
+    unit.value = 'mm';
+    precision.value = DEFAULT_MM_PRECISION;
+    await nextTick();
+
+    expect(mm.value).toBeCloseTo(50.8, 6);
+    expect(input.value).toBe('50.8');
+  });
+
   it('ignores transiently-unparseable input without overwriting storage', async () => {
     const mm = ref<number | null>(25.4);
     const unit = ref<'mm' | 'in'>('in');
