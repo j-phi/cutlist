@@ -1,10 +1,6 @@
 <script lang="ts" setup>
-/**
- * Caption shared by every embed block. In edit mode it's a transparent
- * input that fills to a subtle surface on focus. In read-only mode it
- * renders as plain text — and renders nothing at all when empty, so
- * the unfilled placeholder doesn't leak into the published view.
- */
+// Empty captions render nothing in read-only mode so the unfilled
+// placeholder doesn't leak into the published view.
 import { useEditable } from '~/lib/editor/useEditable';
 
 defineProps<{

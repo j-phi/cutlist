@@ -118,13 +118,8 @@ export default function useProjectCollection() {
   }
 
   async function appendProject(id: string) {
-    const project = await idb.getProjectWithModels(id);
-    if (!project) return;
     if (!projectList.value.some((p) => p.id === id)) {
-      projectList.value = [
-        { id: project.id, name: project.name, updatedAt: project.updatedAt },
-        ...projectList.value,
-      ];
+      projectList.value = await idb.getAllProjectsByRecency();
     }
     addOpenTab(id);
   }

@@ -18,9 +18,8 @@ export const activeId = computed<string | null>(() => {
 });
 
 /**
- * Metadata for every project in IDB, used by the tab bar to render names for
- * the IDs in `openTabIds`. Populated once at startup. The Projects page
- * fetches its own list directly from IDB.
+ * Metadata for every project in IDB. The tab bar reads it to render names
+ * for the IDs in `openTabIds`. Populated once at startup.
  */
 export const projectList = ref<ProjectListItem[]>([]);
 export const activeProjectData = ref<Project | null>(null);

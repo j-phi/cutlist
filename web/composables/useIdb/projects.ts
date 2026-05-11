@@ -20,44 +20,27 @@ export async function getAllProjectsByRecency(): Promise<
 }
 
 /**
- * One thumbnail per project — the first captured scene of the oldest model.
- * Projects without one are absent from the map.
+ * One thumbnail per project — the lowest-order captured scene. Projects
+ * without one are absent from the map. We narrow models to only those that
+ * own a thumbnail-bearing scene so we don't deserialize every model's
+ * `rawSource` (GLTF JSON / COLLADA XML) on a page that just wants images.
  */
 export async function getProjectThumbnails(): Promise<Map<string, string>> {
   const db = await getDb();
-  const [models, scenes] = await Promise.all([
-    db.models.toArray(),
-    db.scenes.toArray(),
-  ]);
+  const thumbScenes = (await db.scenes.toArray())
+    .filter((s) => s.thumbnailDataUrl)
+    .sort((a, b) => a.order - b.order);
+  if (thumbScenes.length === 0) return new Map();
 
-  const modelsByProject = new Map<string, typeof models>();
-  for (const m of models) {
-    const arr = modelsByProject.get(m.projectId) ?? [];
-    arr.push(m);
-    modelsByProject.set(m.projectId, arr);
-  }
-
-  const scenesByModel = new Map<string, typeof scenes>();
-  for (const s of scenes) {
-    const arr = scenesByModel.get(s.modelId) ?? [];
-    arr.push(s);
-    scenesByModel.set(s.modelId, arr);
-  }
+  const modelIds = [...new Set(thumbScenes.map((s) => s.modelId))];
+  const models = await db.models.where('id').anyOf(modelIds).toArray();
+  const projectByModel = new Map(models.map((m) => [m.id, m.projectId]));
 
   const result = new Map<string, string>();
-  for (const [projectId, projModels] of modelsByProject) {
-    const sorted = [...projModels].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt),
-    );
-    for (const m of sorted) {
-      const projScenes = (scenesByModel.get(m.id) ?? []).sort(
-        (a, b) => a.order - b.order,
-      );
-      const thumb = projScenes.find((s) => s.thumbnailDataUrl);
-      if (thumb?.thumbnailDataUrl) {
-        result.set(projectId, thumb.thumbnailDataUrl);
-        break;
-      }
+  for (const s of thumbScenes) {
+    const projectId = projectByModel.get(s.modelId);
+    if (projectId && !result.has(projectId)) {
+      result.set(projectId, s.thumbnailDataUrl!);
     }
   }
   return result;
