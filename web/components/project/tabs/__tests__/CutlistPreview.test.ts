@@ -48,11 +48,8 @@ mockNuxtImport('useBoardLayoutsQuery', () => () => ({
   partCountWarning,
 }));
 
-const tab = ref<string>('layout');
-mockNuxtImport('useProjectTab', () => () => tab);
-
-const setTab = vi.fn();
-mockNuxtImport('useProjectNavigation', () => () => ({ setTab }));
+const activeId = ref<string | null>('proj-1');
+mockNuxtImport('useProjects', () => () => ({ activeId }));
 
 const scale = ref<number | undefined>(1);
 const resetZoom = vi.fn();
@@ -143,7 +140,6 @@ beforeEach(() => {
   error.value = null;
   partCountWarning.value = null;
   scale.value = 1;
-  tab.value = 'layout';
   resetZoom.mockClear();
   zoomIn.mockClear();
   zoomOut.mockClear();
@@ -348,19 +344,15 @@ describe('CutlistPreview', () => {
     });
   });
 
-  it('Should switch to the boards tab when the configure-stock CTA is clicked', async () => {
+  it('points the configure-stock CTA at the boards tab URL', () => {
     data.value = {
       layouts: [],
       linearLayouts: [],
       leftovers: [makeLeftover('Plywood', 0.018, 1)],
     };
-    setTab.mockClear();
     const component = getComponent();
-
-    await component
-      .get('[data-testid="configure-stock-button"]')
-      .trigger('click');
-
-    expect(setTab).toHaveBeenCalledWith('boards');
+    expect(
+      component.get('[data-testid="configure-stock-button"]').attributes('to'),
+    ).toBe('/build/proj-1/boards');
   });
 });

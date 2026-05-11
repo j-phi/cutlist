@@ -1,8 +1,9 @@
 <script lang="ts" setup>
 import type { SheetBoardLayout, LinearBoardLayout } from 'cutlist';
+import { projectPath } from '~/utils/projectTabs';
 
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
-const { setTab } = useProjectNavigation();
+const { activeId } = useProjects();
 
 const container = ref<HTMLDivElement>();
 const gridEl = ref<HTMLDivElement>();
@@ -10,9 +11,7 @@ const { scale, resetZoom, zoomIn, zoomOut } = usePanZoom(container, gridEl);
 
 const formatDistance = useFormatDistance();
 
-function goToStock() {
-  setTab('boards');
-}
+const stockTabPath = computed(() => projectPath(activeId.value, 'boards'));
 
 function stockKey(stock: {
   material: string;
@@ -106,7 +105,7 @@ const showLeftoverBanner = computed(
             size="sm"
             color="primary"
             icon="i-lucide-warehouse"
-            @click="goToStock"
+            :to="stockTabPath"
           >
             Configure stock
           </UButton>

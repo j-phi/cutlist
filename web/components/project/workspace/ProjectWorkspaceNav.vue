@@ -1,19 +1,9 @@
 <script lang="ts" setup>
-import { PROJECT_TABS } from '~/utils/projectTabs';
+import { PROJECT_TABS, projectPath } from '~/utils/projectTabs';
 
-const tab = useProjectTab();
-const { setTab } = useProjectNavigation();
+const route = useRoute();
+const { activeId } = useProjects();
 const { isComputing } = useBoardLayoutsQuery();
-
-const items = computed(() =>
-  PROJECT_TABS.map((definition) => ({
-    key: definition.id,
-    label: definition.label,
-    icon: definition.icon,
-    active: tab.value === definition.id,
-    onSelect: () => setTab(definition.id),
-  })),
-);
 
 const tabScroller = ref<HTMLElement | null>(null);
 const canScrollLeft = ref(false);
@@ -33,7 +23,7 @@ function scrollBy(dir: -1 | 1) {
 function scrollToActiveTab(behavior: ScrollBehavior = 'auto') {
   const el = tabScroller.value;
   if (!el) return;
-  const active = el.querySelector<HTMLElement>('[data-tab-active="true"]');
+  const active = el.querySelector<HTMLElement>('.tab-link-active');
   if (!active) return;
   active.scrollIntoView({ inline: 'center', block: 'nearest', behavior });
 }
@@ -42,7 +32,6 @@ let ro: ResizeObserver | null = null;
 
 onMounted(() => {
   nextTick(() => scrollToActiveTab('auto'));
-
   const el = tabScroller.value;
   if (el) {
     el.addEventListener('scroll', updateScrollState, { passive: true });
@@ -58,12 +47,17 @@ onBeforeUnmount(() => {
   ro?.disconnect();
 });
 
-watch(tab, () => {
-  nextTick(() => {
-    scrollToActiveTab('smooth');
-    updateScrollState();
-  });
-});
+// Active-tab tracking for the auto-scroll behaviour. `route.path` changes
+// on every tab navigation, which is what we want.
+watch(
+  () => route.path,
+  () => {
+    nextTick(() => {
+      scrollToActiveTab('smooth');
+      updateScrollState();
+    });
+  },
+);
 </script>
 
 <template>
@@ -77,35 +71,32 @@ watch(tab, () => {
             class="flex w-max pl-2"
           >
             <li
-              v-for="item in items"
-              :key="item.key"
-              :data-tab-active="item.active ? 'true' : null"
+              v-for="definition in PROJECT_TABS"
+              :key="definition.id"
               class="shrink-0"
             >
-              <button
+              <NuxtLink
+                :to="projectPath(activeId, definition.id)"
+                replace
                 role="tab"
-                :aria-selected="item.active"
-                :aria-label="item.label"
-                class="group relative flex items-center gap-2 px-3 h-10 text-sm whitespace-nowrap transition-colors"
-                :class="
-                  item.active ? 'text-teal-400' : 'text-muted hover:text-body'
+                :aria-label="definition.label"
+                active-class="text-teal-400 tab-link-active"
+                :exact-active-class="
+                  definition.urlSegment === ''
+                    ? 'text-teal-400 tab-link-active'
+                    : ''
                 "
-                @click="item.onSelect"
+                class="group relative flex items-center gap-2 px-3 h-10 text-sm whitespace-nowrap transition-colors text-muted hover:text-body"
               >
                 <span
                   class="shrink-0 inline-flex items-center justify-center"
                   style="width: 16px; height: 16px"
                   aria-hidden="true"
                 >
-                  <UIcon :name="item.icon" class="w-4 h-4" />
+                  <UIcon :name="definition.icon" class="w-4 h-4" />
                 </span>
-                <span>{{ item.label }}</span>
-                <span
-                  v-if="item.active"
-                  class="absolute inset-x-2 bottom-0 h-0.5 bg-teal-400 rounded-full"
-                  aria-hidden="true"
-                />
-              </button>
+                <span>{{ definition.label }}</span>
+              </NuxtLink>
             </li>
           </ul>
         </div>
@@ -175,5 +166,20 @@ watch(tab, () => {
 }
 .tab-nav-scroller::-webkit-scrollbar {
   display: none;
+}
+/* Active-tab underline. Doubles as the selector the auto-scroll uses to
+   centre the active tab in the scroller. */
+.tab-link-active {
+  position: relative;
+}
+.tab-link-active::after {
+  content: '';
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0;
+  height: 2px;
+  background-color: rgb(45 212 191); /* teal-400 */
+  border-radius: 9999px;
 }
 </style>
