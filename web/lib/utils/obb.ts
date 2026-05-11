@@ -8,6 +8,10 @@
  * the OBB axes directly, without PCA's √2 worst case on square panels.
  *
  * Falls back to the supplied AABB dims for non-boxy geometry.
+ *
+ * Known limitation: faceted cylinders (dowels, turned legs) pick an arbitrary
+ * side facet as axis 2, so the two non-axial dims come out as random chord
+ * lengths instead of the diameter. Boxy parts only.
  */
 
 import type { BufferGeometry, Matrix4 } from 'three';
