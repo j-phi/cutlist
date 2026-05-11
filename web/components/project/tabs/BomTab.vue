@@ -407,11 +407,11 @@ onUnmounted(() => {
               />
             </div>
 
-            <!-- Parts table (horizontally scrollable on small screens via the outer container) -->
-            <div v-if="filteredGroups.length > 0">
+            <!-- Table owns its horizontal scroll so the search / summary
+                 bar above stays anchored on narrow viewports. -->
+            <div v-if="filteredGroups.length > 0" class="overflow-x-auto">
               <table
                 class="w-full text-sm border-separate border-spacing-0"
-                style="min-width: 480px"
                 aria-label="Bill of materials"
               >
                 <thead
@@ -423,19 +423,21 @@ onUnmounted(() => {
                       label="#"
                       :current-sort="sortKey"
                       :sort-dir="sortDir"
-                      width-class="w-14 pl-5"
+                      padding-class="pl-4 pr-2 md:pl-5 md:pr-4"
+                      width-class="w-10 md:w-14"
                       @toggle="toggleSort"
                     />
                     <BomSortableHeader
                       column-key="name"
                       label="Name"
+                      padding-class="px-2 md:px-4"
                       :current-sort="sortKey"
                       :sort-dir="sortDir"
                       @toggle="toggleSort"
                     />
                     <th
                       v-if="showModelColumn"
-                      class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide w-48"
+                      class="hidden md:table-cell px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide w-48"
                     >
                       Model
                     </th>
@@ -443,7 +445,8 @@ onUnmounted(() => {
                       column-key="qty"
                       label="QTY"
                       align="right"
-                      width-class="w-14"
+                      padding-class="px-2 md:px-4"
+                      width-class="w-10 md:w-14"
                       :current-sort="sortKey"
                       :sort-dir="sortDir"
                       @toggle="toggleSort"
@@ -452,7 +455,8 @@ onUnmounted(() => {
                       column-key="length"
                       label="L"
                       align="right"
-                      width-class="w-22"
+                      padding-class="px-2 md:px-4"
+                      width-class="w-12 md:w-22"
                       :unit-suffix="distanceUnit ?? ''"
                       :current-sort="sortKey"
                       :sort-dir="sortDir"
@@ -462,7 +466,8 @@ onUnmounted(() => {
                       column-key="width"
                       label="W"
                       align="right"
-                      width-class="w-22"
+                      padding-class="px-2 md:px-4"
+                      width-class="w-12 md:w-22"
                       :unit-suffix="distanceUnit ?? ''"
                       :current-sort="sortKey"
                       :sort-dir="sortDir"
@@ -472,14 +477,15 @@ onUnmounted(() => {
                       column-key="thickness"
                       label="T"
                       align="right"
-                      width-class="w-18"
+                      padding-class="px-2 md:px-4"
+                      width-class="w-12 md:w-18"
                       :unit-suffix="distanceUnit ?? ''"
                       :current-sort="sortKey"
                       :sort-dir="sortDir"
                       @toggle="toggleSort"
                     />
                     <th
-                      class="px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide"
+                      class="px-2 md:px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide"
                     >
                       Grain
                     </th>
@@ -490,14 +496,17 @@ onUnmounted(() => {
                     v-for="(group, gi) in filteredGroups"
                     :key="group.material"
                   >
+                    <!-- Gap row, not group padding — keeps the sticky label
+                         flush against the column header when pinned. -->
+                    <tr v-if="gi > 0" aria-hidden="true">
+                      <td :colspan="tableColspan" class="h-3" />
+                    </tr>
+
                     <!-- Material group header (sticky below the column headers) -->
                     <tr>
                       <td
                         :colspan="tableColspan"
-                        :class="[
-                          'sticky top-9 z-[5] bg-base px-5 pb-1.5',
-                          gi === 0 ? 'pt-3' : 'pt-5',
-                        ]"
+                        class="sticky top-9 z-[5] bg-base px-4 md:px-5 py-1.5"
                       >
                         <div
                           class="flex items-center gap-2.5 pb-1.5 border-b border-subtle"
@@ -549,10 +558,14 @@ onUnmounted(() => {
                         @mouseleave="onRowLeave(row)"
                         @click="onRowClick(row, $event)"
                       >
-                        <td class="pl-5 pr-4 py-2.5 text-muted tabular-nums">
+                        <td
+                          class="pl-4 pr-2 md:pl-5 md:pr-4 py-2 md:py-2.5 text-muted tabular-nums"
+                        >
                           {{ row.number }}
                         </td>
-                        <td class="px-4 py-2.5 text-body font-medium">
+                        <td
+                          class="px-2 md:px-4 py-2 md:py-2.5 text-body font-medium"
+                        >
                           <div
                             v-if="renamingPartNumber === row.number"
                             class="inline-flex items-center gap-1"
@@ -652,32 +665,32 @@ onUnmounted(() => {
                         </td>
                         <td
                           v-if="showModelColumn"
-                          class="px-4 py-2.5 text-muted truncate max-w-[14rem]"
+                          class="hidden md:table-cell px-4 py-2.5 text-muted truncate max-w-[14rem]"
                           :title="row.modelName"
                         >
                           {{ row.modelName }}
                         </td>
                         <td
-                          class="px-4 py-2.5 text-right text-body tabular-nums"
+                          class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
                         >
                           {{ row.qty }}
                         </td>
                         <td
-                          class="px-4 py-2.5 text-right text-body tabular-nums"
+                          class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
                         >
                           {{ formatDim(row.lengthM) }}
                         </td>
                         <td
-                          class="px-4 py-2.5 text-right text-body tabular-nums"
+                          class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
                         >
                           {{ formatDim(row.widthM) }}
                         </td>
                         <td
-                          class="px-4 py-2.5 text-right text-muted tabular-nums"
+                          class="px-2 md:px-4 py-2 md:py-2.5 text-right text-muted tabular-nums"
                         >
                           {{ formatDim(row.thicknessM) }}
                         </td>
-                        <td class="px-4 py-2.5">
+                        <td class="px-2 md:px-4 py-2 md:py-2.5">
                           <div
                             v-if="
                               activeId && !linearMaterials.has(row.material)
@@ -796,7 +809,7 @@ onUnmounted(() => {
         </p>
       </div>
 
-      <template v-if="activeProject && hasModelPreview">
+      <template v-if="activeProject && hasModelPreview && !isNarrow">
         <div
           role="separator"
           :aria-orientation="isNarrow ? 'horizontal' : 'vertical'"

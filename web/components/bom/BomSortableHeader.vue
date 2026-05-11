@@ -9,9 +9,10 @@ const props = withDefaults(
     sortDir: 'asc' | 'desc';
     align?: 'left' | 'right';
     widthClass?: string;
+    paddingClass?: string;
     unitSuffix?: string;
   }>(),
-  { align: 'left', widthClass: '', unitSuffix: '' },
+  { align: 'left', widthClass: '', paddingClass: 'px-4', unitSuffix: '' },
 );
 
 const emit = defineEmits<{ toggle: [key: SortKey] }>();
@@ -31,9 +32,8 @@ const directionIcon = computed(() =>
 
 const thClass = computed(() => [
   'py-2.5 text-xs font-medium text-muted tracking-wide cursor-pointer select-none hover:text-body transition-colors',
-  props.align === 'right' ? 'px-4 text-right' : 'px-4 text-left',
-  // Number column gets the tighter pl-5 from the parent table; all sortable
-  // headers use the symmetric px-4 above.
+  props.align === 'right' ? 'text-right' : 'text-left',
+  props.paddingClass,
   props.widthClass,
 ]);
 

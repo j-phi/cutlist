@@ -202,6 +202,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 }
 
+function hideSelection() {
+  if (store.selectedGroupIds.value.size === 0) return;
+  sceneAuthor.toggleObjectsVisibility(Array.from(store.selectedGroupIds.value));
+}
+
+function resetSelection() {
+  if (store.selectedGroupIds.value.size === 0) return;
+  sceneAuthor.resetSelectedOffsets(Array.from(store.selectedGroupIds.value));
+}
+
 useEventListener('keydown', (event: KeyboardEvent) => {
   if (props.readOnly) return;
   if (event.key !== 'Delete' && event.key !== 'Backspace') return;
@@ -211,7 +221,7 @@ useEventListener('keydown', (event: KeyboardEvent) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   if (isEditableTarget(event.target)) return;
   event.preventDefault();
-  sceneAuthor.toggleObjectsVisibility(Array.from(store.selectedGroupIds.value));
+  hideSelection();
 });
 
 function onAddCallout() {
@@ -371,12 +381,12 @@ watch(
 
         <ModelEmptyState v-if="emptyStateType" :type="emptyStateType" />
 
-        <!-- Top-center: Annotation toolbar. `pointer-events-none` during
-             pick mode keeps canvas pointermove flowing — without it the
-             dimension offset preview freezes between clicks. -->
+        <!-- Annotation toolbar. `pointer-events-none` during pick mode
+             keeps canvas pointermove flowing — without it the dimension
+             offset preview freezes between clicks. -->
         <div
           v-if="!props.readOnly && canShowViewerControls"
-          class="absolute top-4 left-1/2 -translate-x-1/2 z-20"
+          class="absolute left-1/2 -translate-x-1/2 z-20 bottom-4 sm:bottom-auto sm:top-4"
           :class="{
             'pointer-events-none': annotationAuthor.mode.value === 'pick',
           }"
@@ -390,6 +400,8 @@ watch(
             :gizmo-mode="gizmoMode"
             @add-callout="onAddCallout"
             @add-dimension="onAddDimension"
+            @hide-selection="hideSelection"
+            @reset-selection="resetSelection"
             @update:gizmo-mode="onGizmoMode"
           />
         </div>

@@ -173,6 +173,16 @@ const open = ref(false);
             <span class="text-xs text-body ml-auto pl-3">Zoom</span>
           </div>
         </div>
+
+        <!-- Keyboard shortcuts apply on both pointer types. -->
+        <div class="pt-2 mt-1 border-t border-subtle flex items-center gap-2.5">
+          <kbd
+            class="shrink-0 px-1.5 py-0.5 rounded border border-subtle bg-surface text-[10px] text-muted font-mono"
+            >Del</kbd
+          >
+          <span class="text-xs text-muted">on selection</span>
+          <span class="text-xs text-body ml-auto pl-3">Toggle visibility</span>
+        </div>
       </div>
     </template>
   </UPopover>

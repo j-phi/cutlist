@@ -10,6 +10,11 @@ export default defineAppConfig({
         content: 'bg-elevated ring ring-mist-700 sm:max-w-md w-full',
       },
     },
+    drawer: {
+      slots: {
+        overlay: 'bg-black/80',
+      },
+    },
     popover: {
       slots: {
         content: 'bg-elevated ring-mist-700',

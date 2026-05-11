@@ -80,6 +80,7 @@ interface DownState {
   button: number;
   shiftKey: boolean;
   pointerId: number;
+  pointerType: string;
 }
 
 export class InputRouter {
@@ -127,6 +128,7 @@ export class InputRouter {
       button: event.button,
       shiftKey: event.shiftKey,
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
     };
   };
 
@@ -168,10 +170,13 @@ export class InputRouter {
 
     // Detect drag-to-marquee transition. Runs before any lock check —
     // marquee acquires the lock itself, so a stale `isInputLocked()`
-    // reading would prevent us from ever transitioning.
+    // reading would prevent us from ever transitioning. Touch is skipped
+    // so OrbitControls owns single-finger drag alone; tap-to-select still
+    // routes through `onPointerUp`'s click-threshold path.
     if (
       !this.marqueeActive &&
       this.leftDown &&
+      this.leftDown.pointerType !== 'touch' &&
       this.mode === 'select' &&
       this.deps.marquee &&
       this.deps.acquireInteractionLock

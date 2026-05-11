@@ -100,8 +100,9 @@ function makeAuthor(): SceneAuthor & { calls: string[] } {
 const stubs = {
   UButton: {
     inheritAttrs: false,
-    props: ['icon', 'title'],
-    template: '<button type="button" :title="title" v-bind="$attrs"></button>',
+    props: ['icon', 'title', 'label'],
+    template:
+      '<button type="button" :title="title" v-bind="$attrs">{{ label }}</button>',
   },
   UIcon: { props: ['name'], template: '<i :data-icon="name"></i>' },
 };
@@ -148,8 +149,8 @@ describe('ObjectsPanel', () => {
       global: { stubs },
     });
     const buttons = component.findAll('button');
-    const showAll = buttons.find((b) => b.attributes('title') === 'Show all');
-    const hideAll = buttons.find((b) => b.attributes('title') === 'Hide all');
+    const showAll = buttons.find((b) => b.text() === 'Show all');
+    const hideAll = buttons.find((b) => b.text() === 'Hide all');
     await showAll!.trigger('click');
     await hideAll!.trigger('click');
     expect(author.calls).toContain('showAllObjects');
