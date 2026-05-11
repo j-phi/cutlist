@@ -7,6 +7,7 @@ import FileHandler from '@tiptap/extension-file-handler';
 import Typography from '@tiptap/extension-typography';
 import { ImageBlock } from '~/lib/editor/imageBlock';
 import { SceneBlock } from '~/lib/editor/sceneBlock';
+import { YoutubeBlock } from '~/lib/editor/youtubeBlock';
 
 const props = withDefaults(
   defineProps<{
@@ -112,6 +113,7 @@ const editor = useEditor({
     Typography,
     ImageBlock,
     SceneBlock,
+    YoutubeBlock.configure({ nocookie: true, modestBranding: true }),
     // Owns drop/paste detection for filesystem files: preventDefault,
     // posAtCoords, and the "is this an internal drag?" check are all
     // handled inside the extension. We just receive the File array and
@@ -215,6 +217,21 @@ function insertScene() {
     })
     .run();
 }
+
+function insertYoutube() {
+  const url = window.prompt('YouTube URL');
+  if (!url) return;
+  // `setYoutubeVideo` returns false (no insert) when the URL doesn't match
+  // the YouTube regex — let the command be the single source of validation.
+  const ok = editor.value?.chain().focus().setYoutubeVideo({ src: url }).run();
+  if (ok === false) {
+    toast.add({
+      title: "Doesn't look like a YouTube URL",
+      description: 'Paste a youtube.com or youtu.be link and try again.',
+      color: 'error',
+    });
+  }
+}
 </script>
 
 <template>
@@ -290,6 +307,14 @@ function insertScene() {
         variant="ghost"
         label="3D scene"
         @click="insertScene"
+      />
+      <UButton
+        size="xs"
+        icon="i-lucide-youtube"
+        color="neutral"
+        variant="ghost"
+        label="YouTube"
+        @click="insertYoutube"
       />
 
       <div
