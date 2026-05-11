@@ -59,19 +59,23 @@ function onResetClick() {
   <AppShell>
     <ClientOnly>
       <div class="flex-1 overflow-y-auto">
-        <section class="max-w-5xl mx-auto px-4 pt-12 pb-6">
-          <div class="flex items-baseline justify-between gap-4">
-            <h1 class="text-2xl font-bold text-hi">My projects</h1>
-            <span
-              v-if="!loading && rows.length > 0"
-              class="text-sm tabular-nums text-muted"
-            >
-              {{ rows.length }} {{ rows.length === 1 ? 'project' : 'projects' }}
-            </span>
+        <section class="relative overflow-hidden">
+          <HeroBackdrop position="top" />
+          <div class="relative z-10 max-w-5xl mx-auto px-4 pt-12 pb-6">
+            <div class="flex items-baseline justify-between gap-4">
+              <h1 class="text-2xl font-bold text-hi">My projects</h1>
+              <span
+                v-if="!loading && rows.length > 0"
+                class="text-sm tabular-nums text-muted"
+              >
+                {{ rows.length }}
+                {{ rows.length === 1 ? 'project' : 'projects' }}
+              </span>
+            </div>
+            <p class="mt-2 text-sm text-muted">
+              These live only in this browser — nothing is sent to a server.
+            </p>
           </div>
-          <p class="mt-2 text-sm text-muted">
-            These live only in this browser — nothing is sent to a server.
-          </p>
         </section>
 
         <div class="max-w-5xl mx-auto px-4 pb-12">

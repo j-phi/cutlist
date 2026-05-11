@@ -193,7 +193,7 @@ function openNewProject() {
     <NuxtLink
       to="/"
       active-class=""
-      exact-active-class="text-teal-400 bg-surface"
+      exact-active-class="text-teal-400 bg-gradient-to-b from-teal-400/30 to-transparent"
       class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
       title="Home"
       aria-label="Home"
@@ -202,7 +202,7 @@ function openNewProject() {
     </NuxtLink>
     <NuxtLink
       to="/plans"
-      active-class="text-teal-400 bg-surface"
+      active-class="text-teal-400 bg-gradient-to-b from-teal-400/30 to-transparent"
       class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
       title="Browse plans"
       aria-label="Browse plans"
@@ -211,7 +211,7 @@ function openNewProject() {
     </NuxtLink>
     <NuxtLink
       to="/projects"
-      active-class="text-teal-400 bg-surface"
+      active-class="text-teal-400 bg-gradient-to-b from-teal-400/30 to-transparent"
       class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
       title="Browse projects"
       aria-label="Browse projects"
