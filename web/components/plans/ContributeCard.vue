@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-// TODO(matt): swap for the real form URL before merging.
-const SUBMIT_URL = 'https://forms.gle/REPLACE_ME';
+const SUBMIT_URL =
+  'https://docs.google.com/forms/d/e/1FAIpQLSdnFqLkjyWvz_9rPZwnqymUHqMTKOmAFkYxhGkXUFHK_Zp2cQ/viewform';
 
 const steps = [
   {
@@ -74,7 +74,10 @@ const steps = [
         class="w-4 h-4 transition-transform group-hover:translate-x-0.5"
       />
     </a>
-    <p class="mt-3 text-xs text-dim">Takes 2 minutes · no account needed</p>
+    <p class="mt-3 text-xs text-dim">
+      Google sign-in required to attach your
+      <code class="font-mono">.cutlist</code> file
+    </p>
 
     <div
       class="mt-10 w-full max-w-3xl text-left rounded-xl border border-subtle bg-base/40 backdrop-blur p-5 sm:p-6"
