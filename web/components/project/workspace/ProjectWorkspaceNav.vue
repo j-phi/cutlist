@@ -77,7 +77,8 @@ watch(
                 :to="projectPath(activeId, definition.id)"
                 replace
                 role="tab"
-                active-class="text-teal-400 tab-link-active"
+                active-class=""
+                exact-active-class="text-teal-400 tab-link-active"
                 class="flex items-center gap-2 px-3 h-10 text-sm whitespace-nowrap transition-colors text-muted hover:text-body"
               >
                 <UIcon
