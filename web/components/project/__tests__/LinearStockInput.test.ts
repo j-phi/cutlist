@@ -1,6 +1,6 @@
 // @vitest-environment nuxt
 import { describe, expect, it } from 'vitest';
-import { defineComponent, h } from 'vue';
+import { defineComponent } from 'vue';
 import { mount } from '@vue/test-utils';
 import {
   DEFAULT_INCH_PRECISION,
@@ -9,38 +9,7 @@ import {
 } from 'cutlist';
 
 import LinearStockInput from '../LinearStockInput.vue';
-
-const UInputStub = defineComponent({
-  props: { modelValue: { type: [String, Number], default: '' } },
-  emits: ['update:modelValue', 'blur'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h('input', {
-        ...attrs,
-        value: props.modelValue ?? '',
-        onInput: (event: Event) =>
-          emit('update:modelValue', (event.target as HTMLInputElement).value),
-        onBlur: (event: FocusEvent) => emit('blur', event),
-      });
-  },
-});
-
-const UButtonStub = defineComponent({
-  inheritAttrs: false,
-  emits: ['click'],
-  setup(_props, { attrs, emit, slots }) {
-    return () =>
-      h(
-        'button',
-        {
-          ...attrs,
-          type: 'button',
-          onClick: (event: MouseEvent) => emit('click', event),
-        },
-        slots.default ? slots.default() : undefined,
-      );
-  },
-});
+import { UButtonStub, UInputStub } from '~/test-utils/stubs';
 
 const MaterialColorPickerStub = defineComponent({
   props: { modelValue: { type: String, default: '' } },
@@ -104,25 +73,58 @@ function lengthInputs(wrapper: ReturnType<typeof mountInput>) {
     .filter((el) => el.attributes('data-length-mm') != null);
 }
 
+function crossSectionInputs(wrapper: ReturnType<typeof mountInput>) {
+  return {
+    thickness: wrapper.find('[data-testid="linear-cross-thickness"]'),
+    width: wrapper.find('[data-testid="linear-cross-width"]'),
+  };
+}
+
 describe('LinearStockInput', () => {
-  describe('Cross-section display', () => {
-    it('renders cross-section in mm when distanceUnit is mm', () => {
-      const text = mountInput(makeCls(), 'mm')
-        .find('[data-testid="linear-cross-section"]')
-        .text();
-      expect(text).toContain('38');
-      expect(text).toContain('89');
-      expect(text).toContain('mm');
+  describe('Cross-section editing', () => {
+    it('renders cross-section dimensions in the active unit (mm)', () => {
+      const { thickness, width } = crossSectionInputs(
+        mountInput(makeCls(), 'mm'),
+      );
+      expect((thickness.element as HTMLInputElement).value).toBe('38');
+      expect((width.element as HTMLInputElement).value).toBe('89');
     });
 
-    it('renders cross-section in inches when distanceUnit is in', () => {
+    it('renders cross-section dimensions in inches (nominal lumber)', () => {
+      const { thickness, width } = crossSectionInputs(
+        mountInput(makePine24(), 'in'),
+      );
       // Pine 2×4 nominal: 1 1/2" × 3 1/2"
-      const text = mountInput(makePine24(), 'in')
-        .find('[data-testid="linear-cross-section"]')
-        .text();
-      expect(text).toContain('1 1/2');
-      expect(text).toContain('3 1/2');
-      expect(text).toContain('"');
+      expect((thickness.element as HTMLInputElement).value).toBe('1 1/2');
+      expect((width.element as HTMLInputElement).value).toBe('3 1/2');
+    });
+
+    it('editing cross-section thickness in mm commits to size.crossSectionThickness on blur', async () => {
+      const wrapper = mountInput(makeCls(), 'mm');
+      const { thickness } = crossSectionInputs(wrapper);
+      await thickness.setValue('44');
+      await thickness.trigger('blur');
+      expect(emittedLatest(wrapper)?.size.crossSectionThickness).toBe(44);
+    });
+
+    it('editing cross-section width in inches converts to mm on commit', async () => {
+      const wrapper = mountInput(makePine24(), 'in');
+      const { width } = crossSectionInputs(wrapper);
+      await width.setValue('5 1/2');
+      await width.trigger('blur');
+      // 5.5" = 139.7mm
+      expect(emittedLatest(wrapper)?.size.crossSectionWidth).toBeCloseTo(
+        139.7,
+        1,
+      );
+    });
+
+    it('invalid cross-section input is discarded without emitting', async () => {
+      const wrapper = mountInput(makeCls(), 'mm');
+      const { thickness } = crossSectionInputs(wrapper);
+      await thickness.setValue('not a number');
+      await thickness.trigger('blur');
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy();
     });
   });
 
@@ -194,24 +196,6 @@ describe('LinearStockInput', () => {
       await inputs[0].setValue('not a number');
       await inputs[0].trigger('blur');
       expect(wrapper.emitted('update:modelValue')).toBeFalsy();
-    });
-  });
-
-  describe('Material name', () => {
-    it('typing emits update:modelValue with the new name', async () => {
-      const wrapper = mountInput(makeCls(), 'mm');
-      await wrapper
-        .find('[data-testid="linear-material-name"]')
-        .setValue('My Lumber');
-      expect(emittedLatest(wrapper)?.material).toBe('My Lumber');
-    });
-  });
-
-  describe('Remove', () => {
-    it('clicking remove emits remove', async () => {
-      const wrapper = mountInput(makeCls(), 'mm');
-      await wrapper.find('[data-testid="linear-remove"]').trigger('click');
-      expect(wrapper.emitted('remove')).toBeTruthy();
     });
   });
 });

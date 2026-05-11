@@ -28,18 +28,13 @@ function displayDim(mm: number): string {
   return formatValue(toDisplay(mm), unit.value, props.precision);
 }
 
-const crossSectionLabel = computed(() => {
-  const w = displayDim(props.modelValue.size.crossSectionWidth);
-  const t = displayDim(props.modelValue.size.crossSectionThickness);
-  const suffix = unit.value === 'in' ? '"' : ' mm';
-  return `${t}${suffix} × ${w}${suffix}`;
-});
-
-// Local draft state for each length row, keyed by index. Lets the user type a
-// freeform string (e.g. "8 ft", "120", "2.4m") without thrashing the YAML on
-// every keystroke; commit on blur or Enter. Cleared on add/remove because
-// indices shift and a stale draft would be mis-attributed to the wrong row.
+// Local draft state for each editable dimension. Lets the user type a freeform
+// string (e.g. "8 ft", "120", "2.4m") without thrashing the YAML on every
+// keystroke; commit on blur or Enter. Cleared on add/remove because indices
+// shift and a stale draft would be mis-attributed to the wrong row.
 const drafts = ref<Record<number, string>>({});
+const crossWidthDraft = ref<string | null>(null);
+const crossThicknessDraft = ref<string | null>(null);
 
 function draftFor(idx: number, mm: number): string {
   return drafts.value[idx] ?? displayDim(mm);
@@ -100,6 +95,34 @@ function onColor(color: string | undefined) {
   emitNext({ color });
 }
 
+function commitCrossSection(
+  field: 'crossSectionWidth' | 'crossSectionThickness',
+) {
+  const draftRef =
+    field === 'crossSectionWidth' ? crossWidthDraft : crossThicknessDraft;
+  const raw = draftRef.value;
+  if (raw == null) return;
+  const parsed = parseDimension(raw, unit.value);
+  // Invalid or non-positive: drop the draft so the input reverts to canonical.
+  if (parsed == null || parsed <= 0) {
+    draftRef.value = null;
+    return;
+  }
+  draftRef.value = null;
+  emit('update:modelValue', {
+    ...props.modelValue,
+    size: { ...props.modelValue.size, [field]: fromDisplay(parsed) },
+  });
+}
+
+function crossDisplay(
+  field: 'crossSectionWidth' | 'crossSectionThickness',
+): string {
+  const draftRef =
+    field === 'crossSectionWidth' ? crossWidthDraft : crossThicknessDraft;
+  return draftRef.value ?? displayDim(props.modelValue.size[field]);
+}
+
 /** Pretty side-label for foot-multiple inches: "(8 ft)". */
 function footLabel(mm: number): string {
   if (unit.value !== 'in') return '';
@@ -141,16 +164,31 @@ function footLabel(mm: number): string {
       />
     </div>
 
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-col gap-1.5">
       <label class="text-xs font-medium text-muted uppercase tracking-wider">
-        Cross-section
+        Cross-section ({{ unit }})
       </label>
-      <span
-        class="text-[13px] text-teal-300 font-mono"
-        data-testid="linear-cross-section"
-      >
-        {{ crossSectionLabel }}
-      </span>
+      <div class="flex items-center gap-2">
+        <UInput
+          :model-value="crossDisplay('crossSectionThickness')"
+          class="flex-1 font-mono"
+          :placeholder="unit === 'in' ? 'e.g. 1 1/2' : 'e.g. 38'"
+          data-testid="linear-cross-thickness"
+          @update:model-value="(v: string) => (crossThicknessDraft = v)"
+          @blur="commitCrossSection('crossSectionThickness')"
+          @keydown.enter="commitCrossSection('crossSectionThickness')"
+        />
+        <span class="text-dim text-sm">&times;</span>
+        <UInput
+          :model-value="crossDisplay('crossSectionWidth')"
+          class="flex-1 font-mono"
+          :placeholder="unit === 'in' ? 'e.g. 3 1/2' : 'e.g. 89'"
+          data-testid="linear-cross-width"
+          @update:model-value="(v: string) => (crossWidthDraft = v)"
+          @blur="commitCrossSection('crossSectionWidth')"
+          @keydown.enter="commitCrossSection('crossSectionWidth')"
+        />
+      </div>
     </div>
 
     <div class="flex flex-col gap-1.5">

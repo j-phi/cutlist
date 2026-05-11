@@ -23,7 +23,7 @@ const {
 } = useProjects();
 
 const { requestGrainLockChange } = useGrainLockConfirm();
-const { distanceUnit, stock } = useProjectSettings();
+const { distanceUnit, stock, linearMaterials } = useProjectSettings();
 const formatDistance = useFormatDistance();
 const toast = useToast();
 const modelViewer = useModelViewerStore();
@@ -686,7 +686,12 @@ onUnmounted(() => {
                           {{ formatDim(row.thicknessM) }}
                         </td>
                         <td class="px-4 py-2.5">
-                          <div v-if="activeId" class="flex items-center gap-1">
+                          <div
+                            v-if="
+                              activeId && !linearMaterials.has(row.material)
+                            "
+                            class="flex items-center gap-1"
+                          >
                             <!-- Unlocked state: plain icon button -->
                             <button
                               v-if="!row.grainLock"

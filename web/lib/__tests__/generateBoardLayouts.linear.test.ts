@@ -84,7 +84,6 @@ describe('generateBoardLayouts — linear routing', () => {
     const layout = asLinear(result.layouts[0]);
     expect(layout.kind).toBe('linear');
     expect(layout.placements).toHaveLength(2);
-    expect(layout.algorithm).toBe('linear');
     // FFD: identical lengths land back-to-back from offset 0.
     expect(layout.placements[0].offsetM).toBeCloseTo(0, 6);
     expect(layout.placements[1].offsetM).toBeCloseTo(1.0, 6);

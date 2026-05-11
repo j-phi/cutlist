@@ -13,7 +13,7 @@ import { truncate } from './text';
 
 const TITLE_AREA_MM = 10;
 const GROUP_HEADER_HEIGHT_MM = 14;
-const STICK_BAR_HEIGHT_MM = 12;
+const STICK_BAR_HEIGHT_MM = 8;
 const STICK_FOOTER_HEIGHT_MM = 6;
 const STICK_BLOCK_HEIGHT_MM = STICK_BAR_HEIGHT_MM + STICK_FOOTER_HEIGHT_MM + 4;
 
@@ -85,15 +85,6 @@ export function drawLinearPages(ctx: Ctx, layouts: LinearBoardLayout[]): void {
   const pageHmm = A4_H_MM;
   const contentWmm = pageWmm - 2 * margin;
 
-  // Single horizontal scale across the whole linear section so sticks of
-  // different lengths render at proportional widths. Pin the longest stick
-  // to the content width so even worst-case fits.
-  const maxLengthM = layouts.reduce(
-    (acc, l) => Math.max(acc, l.stock.lengthM),
-    0,
-  );
-  const ptPerMm = maxLengthM > 0 ? (contentWmm * MM) / (maxLengthM * 1000) : MM;
-
   // Top-of-content cursor in PDF points (measured from page top).
   let page = addPage(ctx, { wMm: pageWmm, hMm: pageHmm }, 'Timber');
   let cursorY = topY(page, margin) - TITLE_AREA_MM * MM;
@@ -124,7 +115,7 @@ export function drawLinearPages(ctx: Ctx, layouts: LinearBoardLayout[]): void {
         drawGroupHeader(ctx, page, margin, cursorY, group.material, summary);
         cursorY -= GROUP_HEADER_HEIGHT_MM * MM;
       }
-      drawStick(ctx, page, layout, li, margin, cursorY, ptPerMm);
+      drawStick(ctx, page, layout, li, margin, cursorY, contentWmm);
       cursorY -= STICK_BLOCK_HEIGHT_MM * MM;
     }
 
@@ -201,13 +192,17 @@ function drawStick(
   boardIndexInGroup: number,
   marginMm: number,
   topYpt: number,
-  ptPerMm: number,
+  contentWmm: number,
 ): void {
   const { formatSize } = ctx.opts;
   const colors = pdfMaterialColors(layout.stock.color);
   const totalM = layout.stock.lengthM;
+  // Per-stick scale: every stick fills the full content width regardless of
+  // its length. Lengths are compared via the shopping-list header; the bar
+  // visualises the cut layout within that stick.
+  const ptPerMm = totalM > 0 ? (contentWmm * MM) / (totalM * 1000) : MM;
   const barLeftPt = marginMm * MM;
-  const barWidthPt = totalM * 1000 * ptPerMm;
+  const barWidthPt = contentWmm * MM;
   const barHeightPt = STICK_BAR_HEIGHT_MM * MM;
   const barBottomPt = topYpt - barHeightPt;
 
@@ -240,16 +235,22 @@ function drawStick(
       borderColor: rgb(0, 0, 0),
       borderWidth: 0.3,
     });
-    const fullLabel = `${placement.partNumber} · ${formatSize(placement.lengthM) ?? ''}`;
-    const numberOnly = String(placement.partNumber);
+    const lengthLabel = formatSize(placement.lengthM) ?? '';
+    const showNumbers = ctx.opts.showPartNumbers;
+    const fullLabel = showNumbers
+      ? `${placement.partNumber} · ${lengthLabel}`
+      : lengthLabel;
+    const fallbackLabel = showNumbers
+      ? String(placement.partNumber)
+      : lengthLabel;
     const fullW = ctx.font.widthOfTextAtSize(fullLabel, chipFontSize);
-    const numberW = ctx.font.widthOfTextAtSize(numberOnly, chipFontSize);
+    const fallbackW = ctx.font.widthOfTextAtSize(fallbackLabel, chipFontSize);
     const padding = 2;
     let label: string | null = null;
     if (fullW + padding * 2 <= chipW) {
       label = fullLabel;
-    } else if (numberW + padding * 2 <= chipW) {
-      label = numberOnly;
+    } else if (fallbackW + padding * 2 <= chipW) {
+      label = fallbackLabel;
     }
     if (label) {
       const labelW = ctx.font.widthOfTextAtSize(label, chipFontSize);

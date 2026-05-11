@@ -8,6 +8,7 @@ const props = defineProps<{
 
 const formatDistance = useFormatDistance();
 const getPx = useGetPx();
+const { showPartNumbers } = useProjectSettings();
 
 const colors = computed(() => getMaterialColor(props.layout.stock.color));
 
@@ -39,12 +40,17 @@ interface ChipView {
 const chips = computed<ChipView[]>(() => {
   const totalM = props.layout.stock.lengthM;
   if (totalM <= 0) return [];
-  return props.layout.placements.map((p) => ({
-    key: `${p.partNumber}:${p.instanceNumber}`,
-    leftPct: (p.offsetM / totalM) * 100,
-    widthPct: (p.lengthM / totalM) * 100,
-    label: `${p.partNumber} · ${formatDistance(p.lengthM) ?? ''}`,
-  }));
+  return props.layout.placements.map((p) => {
+    const lengthLabel = formatDistance(p.lengthM) ?? '';
+    return {
+      key: `${p.partNumber}:${p.instanceNumber}`,
+      leftPct: (p.offsetM / totalM) * 100,
+      widthPct: (p.lengthM / totalM) * 100,
+      label: showPartNumbers.value
+        ? `${p.partNumber} · ${lengthLabel}`
+        : lengthLabel,
+    };
+  });
 });
 
 const wasteStyle = computed(() => {

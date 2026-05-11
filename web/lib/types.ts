@@ -9,10 +9,11 @@ import type { Rectangle } from './geometry';
  * - `compact`: Free-rect n-stage guillotine. Maximum yield within a
  *   guillotine constraint, at the cost of a zigzag cut sequence.
  * - `cnc`: Non-guillotine bottom-left. Maximum yield, requires a CNC router.
- * - `linear`: 1D first-fit-decreasing for linear timber stock (sticks). Only
- *   valid for `LinearStock` materials; ignored for sheet stock.
+ *
+ * Linear (1D) stock is not represented here — it has only one strategy
+ * (first-fit-decreasing) and is routed outside the algorithm tournament.
  */
-export const Algorithm = z.enum(['auto', 'tidy', 'compact', 'cnc', 'linear']);
+export const Algorithm = z.enum(['auto', 'tidy', 'compact', 'cnc']);
 export type Algorithm = z.infer<typeof Algorithm>;
 
 export const SearchPass = z.union([
@@ -27,8 +28,6 @@ export const SearchPass = z.union([
   z.literal('cnc-area'),
   z.literal('cnc-perimeter'),
   z.literal('cnc-random'),
-  // Linear (1D timber) pass — first-fit-decreasing on length.
-  z.literal('linear-ffd'),
 ]);
 export type SearchPass = z.infer<typeof SearchPass>;
 
@@ -276,18 +275,20 @@ export interface SheetBoardLayout {
   /** Board margin in meters (inset from all edges). 0 when no margin is set. */
   marginM: number;
   /** The concrete algorithm that produced this board (never `'auto'`). */
-  algorithm: Exclude<Algorithm, 'auto' | 'linear'>;
+  algorithm: Exclude<Algorithm, 'auto'>;
 }
 
-/** Engine output for a single linear stick. */
+/**
+ * Engine output for a single linear stick. Linear stock has no margin
+ * concept — you don't trim the rip face of a 2×4 — so offsets are absolute
+ * along the stick (`offsetM` measured from the leading end).
+ */
 export interface LinearBoardLayout {
   kind: 'linear';
   stock: LinearBoardLayoutStock;
   placements: LinearBoardLayoutPlacement[];
-  marginM: number;
   /** Trailing waste left over after the last cut, in METERS. */
   wasteEndM: number;
-  algorithm: 'linear';
 }
 
 /**
@@ -309,5 +310,10 @@ export const isSheetBoardLayout = (l: BoardLayout): l is SheetBoardLayout =>
 export interface PotentialBoardLayout {
   stock: Stock;
   placements: Rectangle<PartToCut>[];
-  algorithm: Exclude<Algorithm, 'auto'>;
+  /**
+   * Set when `stock.kind === 'sheet'` to record which sheet algorithm
+   * produced the layout. Undefined for linear sticks, which have no
+   * algorithm choice and discriminate via `stock.kind`.
+   */
+  algorithm?: Exclude<Algorithm, 'auto'>;
 }

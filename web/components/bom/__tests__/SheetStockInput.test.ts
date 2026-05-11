@@ -9,38 +9,7 @@ import {
 } from 'cutlist';
 
 import SheetStockInput from '../SheetStockInput.vue';
-
-const UInputStub = defineComponent({
-  props: { modelValue: { type: [String, Number], default: '' } },
-  emits: ['update:modelValue', 'blur'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h('input', {
-        ...attrs,
-        value: props.modelValue ?? '',
-        onInput: (event: Event) =>
-          emit('update:modelValue', (event.target as HTMLInputElement).value),
-        onBlur: (event: FocusEvent) => emit('blur', event),
-      });
-  },
-});
-
-const UButtonStub = defineComponent({
-  inheritAttrs: false,
-  emits: ['click'],
-  setup(_props, { attrs, emit, slots }) {
-    return () =>
-      h(
-        'button',
-        {
-          ...attrs,
-          type: 'button',
-          onClick: (event: MouseEvent) => emit('click', event),
-        },
-        slots.default ? slots.default() : undefined,
-      );
-  },
-});
+import { UButtonStub, UInputStub } from '~/test-utils/stubs';
 
 const MaterialColorPickerStub = defineComponent({
   props: { modelValue: { type: String, default: '' } },

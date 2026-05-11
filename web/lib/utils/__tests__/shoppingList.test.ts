@@ -25,9 +25,7 @@ function makeLinear(
       lengthM: m,
       offsetM: 0,
     })),
-    marginM: 0,
     wasteEndM: 0,
-    algorithm: 'linear',
   };
 }
 

@@ -10,6 +10,7 @@
 
 import { type Algorithm, type Precision } from 'cutlist';
 import { defaultPrecisionForUnit } from '~/utils/settings';
+import { parseStock } from '~/utils/parseStock';
 import type { IdbProject } from '~/composables/useIdb';
 
 const DEBOUNCE_MS = 300;
@@ -139,6 +140,25 @@ export default createSharedComposable(() => {
     },
   });
 
+  /**
+   * Names of materials whose stock kind is linear. Grain lock is meaningless
+   * for dimensional lumber (grain runs along the length by definition), so
+   * UI surfaces hide the grain-lock control for these materials.
+   */
+  const linearMaterials = computed<Set<string>>(() => {
+    const yaml = stock.value;
+    if (!yaml) return new Set();
+    try {
+      return new Set(
+        parseStock(yaml)
+          .filter((m) => m.kind === 'linear')
+          .map((m) => m.material),
+      );
+    } catch {
+      return new Set();
+    }
+  });
+
   return {
     bladeWidth,
     margin,
@@ -148,5 +168,6 @@ export default createSharedComposable(() => {
     distanceUnit,
     precision,
     isLoading,
+    linearMaterials,
   };
 });

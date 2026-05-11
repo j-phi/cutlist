@@ -22,7 +22,6 @@ const ALGORITHM_LABEL: Record<Algorithm, string> = {
   tidy: 'Tidy',
   compact: 'Compact',
   cnc: 'CNC',
-  linear: 'Linear',
 };
 const ALGORITHM_ORDER: Algorithm[] = ['auto', 'tidy', 'compact', 'cnc'];
 

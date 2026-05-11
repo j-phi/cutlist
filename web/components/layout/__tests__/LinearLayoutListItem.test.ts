@@ -22,6 +22,9 @@ mockNuxtImport('getMaterialColor', () => (_hex: string | undefined) => ({
 }));
 // Match the production scale (PX_PER_M = 500) so width assertions are stable.
 mockNuxtImport('useGetPx', () => () => (m: number) => `${m * 500}px`);
+mockNuxtImport('useProjectSettings', () => () => ({
+  showPartNumbers: { value: true },
+}));
 
 function makePlacement(
   overrides: Partial<LinearBoardLayoutPlacement> = {},
@@ -52,9 +55,7 @@ function makeLayout(
       color: '#abcdef',
     },
     placements: [makePlacement()],
-    marginM: 0,
     wasteEndM: 0,
-    algorithm: 'linear',
     ...overrides,
   };
 }

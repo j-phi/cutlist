@@ -12,13 +12,16 @@ const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
 const precision = computed(() =>
   distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
 );
+const linearMaterials = ref<Set<string>>(new Set());
 mockNuxtImport('useProjectSettings', () => () => ({
   distanceUnit,
   precision,
+  linearMaterials,
 }));
 
 beforeEach(() => {
   distanceUnit.value = 'mm';
+  linearMaterials.value = new Set();
 });
 
 const UButtonStub = {
@@ -87,6 +90,50 @@ describe('ManualPartRow', () => {
     if (!button) throw new Error(`Missing button: ${text}`);
     return button;
   }
+
+  describe('Linear materials', () => {
+    it('hides the grain-lock control when the selected material is linear', async () => {
+      linearMaterials.value = new Set(['Pine 2x4']);
+      const component = getComponent({
+        materials: ['Plywood', 'Pine 2x4'],
+      });
+
+      // Plywood (sheet) shows the toggle.
+      expect(component.findAll('button').some((b) => b.text() === 'Free')).toBe(
+        true,
+      );
+
+      // Switching to a linear material removes the toggle.
+      await component.get('select[aria-label="Material"]').setValue('Pine 2x4');
+      expect(component.findAll('button').some((b) => b.text() === 'Free')).toBe(
+        false,
+      );
+    });
+
+    it('clears any prior grain lock when switching onto a linear material', async () => {
+      linearMaterials.value = new Set(['Pine 2x4']);
+      const component = getComponent({
+        materials: ['Plywood', 'Pine 2x4'],
+        initial: {
+          partNumber: 1,
+          name: 'Stud',
+          widthMm: 38,
+          lengthMm: 1000,
+          thicknessMm: 89,
+          qty: 1,
+          material: 'Plywood',
+          grainLock: 'length',
+        },
+      });
+      await component.get('select[aria-label="Material"]').setValue('Pine 2x4');
+      await getButton(component, 'Save').trigger('click');
+
+      expect(component.emitted('save')?.[0][0]).toMatchObject({
+        material: 'Pine 2x4',
+        grainLock: undefined,
+      });
+    });
+  });
 
   describe('Rendering', () => {
     it('Should label add and edit modes', () => {

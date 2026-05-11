@@ -2,29 +2,24 @@ import { isNearlyEqual } from './floating-point-utils';
 import {
   type LinearStock,
   type PartToCut,
-  type SheetBoardLayoutStock,
   type SheetStock,
   type Stock,
   isLinearStock,
 } from '../types';
 
 /**
- * Sheet-stock validity: material + thickness match. The first arg accepts
- * either an in-flight `SheetStock` or a serialised `SheetBoardLayoutStock`
- * (which uses `thicknessM` instead of `thickness`).
+ * Sheet-stock validity: material + thickness match between two in-flight
+ * sheet stocks, or between a sheet stock and a part.
  */
 export function isValidSheetStock(
-  test: SheetStock | SheetBoardLayoutStock,
+  test: SheetStock,
   target: PartToCut | SheetStock,
   epsilon: number,
 ) {
-  return (
-    isNearlyEqual(
-      'size' in target ? target.size.thickness : target.thickness,
-      'thicknessM' in test ? test.thicknessM : test.thickness,
-      epsilon,
-    ) && test.material === target.material
-  );
+  if (test.material !== target.material) return false;
+  const targetThickness =
+    'size' in target ? target.size.thickness : target.thickness;
+  return isNearlyEqual(targetThickness, test.thickness, epsilon);
 }
 
 /**
@@ -71,22 +66,32 @@ export function isCompatibleLinearStock(
 }
 
 /**
- * Dispatching wrapper: checks whether `test` accommodates `target` regardless
- * of kind. Used by the routing pipeline to match parts to stock and to find
- * smaller equivalent stocks during layout minimisation.
+ * Whether `part` fits on `stock`. Linear stocks accept the part in either
+ * cross-section orientation; sheet stocks just check material+thickness.
  */
-export function isValidStock(
-  test: Stock,
-  target: PartToCut | Stock,
+export function canPartFitStock(
+  stock: Stock,
+  part: PartToCut,
   epsilon: number,
 ): boolean {
-  const targetIsPart = 'size' in target;
-  if (isLinearStock(test)) {
-    if (targetIsPart) return isValidLinearStockForPart(test, target, epsilon);
-    return (
-      isLinearStock(target) && isCompatibleLinearStock(test, target, epsilon)
-    );
+  if (isLinearStock(stock))
+    return isValidLinearStockForPart(stock, part, epsilon);
+  return isValidSheetStock(stock, part, epsilon);
+}
+
+/**
+ * Whether two stocks are interchangeable for packing — same material and
+ * same shape (sheet thickness, or linear cross-section in either
+ * orientation). Used by `minimizeLayoutStock` and stock-type grouping to
+ * find equivalent boards/sticks of different lengths.
+ */
+export function areStocksEquivalent(
+  a: Stock,
+  b: Stock,
+  epsilon: number,
+): boolean {
+  if (isLinearStock(a)) {
+    return isLinearStock(b) && isCompatibleLinearStock(a, b, epsilon);
   }
-  if (targetIsPart) return isValidSheetStock(test, target, epsilon);
-  return !isLinearStock(target) && isValidSheetStock(test, target, epsilon);
+  return !isLinearStock(b) && isValidSheetStock(a, b, epsilon);
 }

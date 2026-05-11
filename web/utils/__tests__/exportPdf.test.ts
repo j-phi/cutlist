@@ -251,8 +251,6 @@ describe('exportCutlistPdf', () => {
     const linearLayouts: LinearBoardLayout[] = [
       {
         kind: 'linear',
-        algorithm: 'linear',
-        marginM: 0,
         wasteEndM: 0.2,
         stock: {
           material: 'Pine 2x4',
@@ -286,8 +284,6 @@ describe('exportCutlistPdf', () => {
       },
       {
         kind: 'linear',
-        algorithm: 'linear',
-        marginM: 0,
         wasteEndM: 0.4,
         stock: {
           material: 'Pine 2x4',
@@ -331,8 +327,6 @@ describe('exportCutlistPdf', () => {
     const linearLayouts: LinearBoardLayout[] = [
       {
         kind: 'linear',
-        algorithm: 'linear',
-        marginM: 0,
         wasteEndM: 0,
         stock: {
           material: 'Pine 2x6',
@@ -344,8 +338,6 @@ describe('exportCutlistPdf', () => {
       },
       {
         kind: 'linear',
-        algorithm: 'linear',
-        marginM: 0,
         wasteEndM: 0,
         stock: {
           material: 'Pine 2x4',

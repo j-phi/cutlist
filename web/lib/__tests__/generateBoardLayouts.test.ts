@@ -217,7 +217,9 @@ describe('generateBoardLayouts', () => {
     });
 
     expect(result.leftovers).toEqual([]);
-    expect(result.layouts.every((l) => l.algorithm === 'tidy')).toBe(true);
+    expect(
+      result.layouts.every((l) => l.kind === 'sheet' && l.algorithm === 'tidy'),
+    ).toBe(true);
   });
 
   it('is deterministic in auto mode', () => {

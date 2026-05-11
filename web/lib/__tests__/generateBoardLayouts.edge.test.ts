@@ -144,7 +144,7 @@ describe('generateBoardLayouts edge cases', () => {
 
     expect(result.leftovers).toHaveLength(0);
     expect(result.layouts).toHaveLength(1);
-    expect(result.layouts[0].marginM).toBe(marginM);
+    expect(asSheet(result.layouts[0]).marginM).toBe(marginM);
 
     for (const p of asSheet(result.layouts[0]).placements) {
       expect(p.leftM).toBeGreaterThanOrEqual(marginM - 1e-9);
@@ -168,7 +168,7 @@ describe('generateBoardLayouts edge cases', () => {
 
     const result = generateBoardLayouts(parts, stock, baseConfig);
 
-    expect(result.layouts[0].marginM).toBe(0);
+    expect(asSheet(result.layouts[0]).marginM).toBe(0);
   });
 
   // 5. Empty parts list → layouts=[], leftovers=[]
