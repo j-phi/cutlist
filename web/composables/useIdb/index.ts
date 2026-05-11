@@ -22,13 +22,11 @@
  */
 
 import {
-  getProjectList,
-  getArchivedList,
+  getAllProjectsByRecency,
+  getProjectThumbnails,
   getProjectWithModels,
   createProject,
   updateProject,
-  archiveProject,
-  unarchiveProject,
   deleteProject,
 } from './projects';
 import {
@@ -86,13 +84,11 @@ export type {
 
 export function useIdb() {
   return {
-    getProjectList,
-    getArchivedList,
+    getAllProjectsByRecency,
+    getProjectThumbnails,
     getProjectWithModels,
     createProject,
     updateProject,
-    archiveProject,
-    unarchiveProject,
     deleteProject,
     createModel,
     updateModel,

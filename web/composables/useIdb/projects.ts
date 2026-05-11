@@ -1,8 +1,7 @@
 /**
- * Project CRUD: create/read/update/archive/unarchive/delete.
- *
- * Project deletion cascades to models, the build doc, and assets in a
- * single Dexie transaction so partial failures don't leave orphans.
+ * Project CRUD. Deletion cascades to models, scenes, annotations, build doc
+ * and assets in a single Dexie transaction so partial failures don't leave
+ * orphans.
  */
 
 import type { Algorithm, Precision } from 'cutlist';
@@ -11,49 +10,57 @@ import { getDb, safeWrite } from './db';
 import { applyProjectDefaults, applyModelDefaults } from './defaults';
 import type { IdbProject, IdbModelMeta } from './types';
 
-export async function getProjectList(): Promise<
+/** All projects, newest first by `updatedAt`. */
+export async function getAllProjectsByRecency(): Promise<
   Pick<IdbProject, 'id' | 'name' | 'updatedAt'>[]
 > {
   const db = await getDb();
-  const all = await db.projects.orderBy('updatedAt').toArray();
-  return all
-    .filter((p) => !p.archivedAt)
-    .map(({ id, name, updatedAt }) => ({ id, name, updatedAt }));
+  const all = await db.projects.orderBy('updatedAt').reverse().toArray();
+  return all.map(({ id, name, updatedAt }) => ({ id, name, updatedAt }));
 }
 
-export async function getArchivedList(): Promise<
-  Required<Pick<IdbProject, 'id' | 'name' | 'archivedAt'>>[]
-> {
+/**
+ * One thumbnail per project — the first captured scene of the oldest model.
+ * Projects without one are absent from the map.
+ */
+export async function getProjectThumbnails(): Promise<Map<string, string>> {
   const db = await getDb();
-  const all = await db.projects.toArray();
-  return all
-    .filter((p) => !!p.archivedAt)
-    .sort((a, b) => (b.archivedAt! > a.archivedAt! ? 1 : -1))
-    .map(({ id, name, archivedAt }) => ({
-      id,
-      name,
-      archivedAt: archivedAt!,
-    }));
-}
+  const [models, scenes] = await Promise.all([
+    db.models.toArray(),
+    db.scenes.toArray(),
+  ]);
 
-export async function archiveProject(id: string): Promise<void> {
-  const db = await getDb();
-  const existing = await db.projects.get(id);
-  if (!existing) throw new Error(`Project ${id} not found`);
-  await safeWrite(() =>
-    db.projects.put({
-      ...existing,
-      archivedAt: new Date().toISOString(),
-    }),
-  );
-}
+  const modelsByProject = new Map<string, typeof models>();
+  for (const m of models) {
+    const arr = modelsByProject.get(m.projectId) ?? [];
+    arr.push(m);
+    modelsByProject.set(m.projectId, arr);
+  }
 
-export async function unarchiveProject(id: string): Promise<void> {
-  const db = await getDb();
-  const existing = await db.projects.get(id);
-  if (!existing) throw new Error(`Project ${id} not found`);
-  const { archivedAt: _, ...rest } = existing;
-  await safeWrite(() => db.projects.put(rest as IdbProject));
+  const scenesByModel = new Map<string, typeof scenes>();
+  for (const s of scenes) {
+    const arr = scenesByModel.get(s.modelId) ?? [];
+    arr.push(s);
+    scenesByModel.set(s.modelId, arr);
+  }
+
+  const result = new Map<string, string>();
+  for (const [projectId, projModels] of modelsByProject) {
+    const sorted = [...projModels].sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt),
+    );
+    for (const m of sorted) {
+      const projScenes = (scenesByModel.get(m.id) ?? []).sort(
+        (a, b) => a.order - b.order,
+      );
+      const thumb = projScenes.find((s) => s.thumbnailDataUrl);
+      if (thumb?.thumbnailDataUrl) {
+        result.set(projectId, thumb.thumbnailDataUrl);
+        break;
+      }
+    }
+  }
+  return result;
 }
 
 export async function getProjectWithModels(

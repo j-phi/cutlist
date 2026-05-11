@@ -23,7 +23,6 @@ describe('project CRUD', () => {
       showPartNumbers: DEFAULT_SETTINGS.showPartNumbers,
     });
     expect(project.id).toBeDefined();
-    expect(project.archivedAt).toBeUndefined();
   });
 
   it('creates a project with custom options', async () => {
@@ -57,14 +56,16 @@ describe('project CRUD', () => {
     expect(updated.showPartNumbers).toBe(false);
   });
 
-  it('getProjectList includes created projects', async () => {
+  it('getAllProjectsByRecency includes created projects, newest first', async () => {
     const a = await idb.createProject('First');
+    // Force a measurable updatedAt gap — ISO-second resolution on some clocks.
+    await new Promise((r) => setTimeout(r, 5));
     const b = await idb.createProject('Second');
-    const list = await idb.getProjectList();
+    const list = await idb.getAllProjectsByRecency();
     expect(list).toHaveLength(2);
-    const ids = list.map((p) => p.id);
-    expect(ids).toContain(a.id);
-    expect(ids).toContain(b.id);
+    // Newest first.
+    expect(list[0].id).toBe(b.id);
+    expect(list[1].id).toBe(a.id);
   });
 
   it('getProjectWithModels returns project with empty models array', async () => {
@@ -126,43 +127,6 @@ describe('project CRUD', () => {
     expect(result).toBeUndefined();
     const doc = await idb.getBuildDoc(project.id);
     expect(doc).toBeUndefined();
-  });
-});
-
-// ─── Archive / Unarchive ────────────────────────────────────────────────────
-
-describe('archive and unarchive', () => {
-  it('archiveProject removes from active list, appears in archived list', async () => {
-    const project = await idb.createProject('Archivable');
-    await idb.archiveProject(project.id);
-
-    const active = await idb.getProjectList();
-    expect(active.find((p) => p.id === project.id)).toBeUndefined();
-
-    const archived = await idb.getArchivedList();
-    const found = archived.find((p) => p.id === project.id);
-    expect(found).toBeDefined();
-    expect(found!.archivedAt).toBeDefined();
-  });
-
-  it('unarchiveProject restores to active list', async () => {
-    const project = await idb.createProject('Restorable');
-    await idb.archiveProject(project.id);
-    await idb.unarchiveProject(project.id);
-
-    const active = await idb.getProjectList();
-    expect(active.find((p) => p.id === project.id)).toBeDefined();
-
-    const archived = await idb.getArchivedList();
-    expect(archived.find((p) => p.id === project.id)).toBeUndefined();
-  });
-
-  it('archiveProject throws for nonexistent id', async () => {
-    expect(idb.archiveProject('nonexistent')).rejects.toThrow('not found');
-  });
-
-  it('unarchiveProject throws for nonexistent id', async () => {
-    expect(idb.unarchiveProject('nonexistent')).rejects.toThrow('not found');
   });
 });
 
@@ -505,10 +469,8 @@ describe('resetDatabase', () => {
     // After reset, the DB is deleted. A fresh useIdb() call should see
     // empty tables once the DB is re-created on first access.
     const freshIdb = useIdb();
-    const projects = await freshIdb.getProjectList();
+    const projects = await freshIdb.getAllProjectsByRecency();
     expect(projects).toHaveLength(0);
-    const archived = await freshIdb.getArchivedList();
-    expect(archived).toHaveLength(0);
     const doc = await freshIdb.getBuildDoc(project.id);
     expect(doc).toBeUndefined();
   });

@@ -13,21 +13,17 @@ import useProjectCollection, {
   startProjectCollection,
 } from './useProjectCollection';
 import useProjectModels from './useProjectModels';
+import { startOpenTabs } from '~/composables/useOpenTabs';
 import { projectPath } from '~/utils/projectTabs';
 
 export { default as useActiveProject } from './useActiveProject';
 export { default as useProjectCollection } from './useProjectCollection';
 export { default as useProjectModels } from './useProjectModels';
 
-export type {
-  ArchivedProjectItem,
-  ManualPartInput,
-  Model,
-  Project,
-  ProjectListItem,
-} from './types';
+export type { ManualPartInput, Model, Project, ProjectListItem } from './types';
 
 export function startProjects() {
+  startOpenTabs();
   startActiveProjectWatcher();
   startProjectCollection();
 }
