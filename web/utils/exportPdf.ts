@@ -1,9 +1,14 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import type { BoardLayout, BoardLayoutLeftover } from 'cutlist';
+import type {
+  BoardLayoutLeftover,
+  LinearBoardLayout,
+  SheetBoardLayout,
+} from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
 import { drawBomPages, type BomRow } from './pdf/bom';
 import { drawBoardTiles } from './pdf/board';
 import type { Ctx } from './pdf/context';
+import { drawLinearPages } from './pdf/linear';
 
 export type PdfScale = 1 | 5 | 10 | 20 | 50;
 
@@ -19,7 +24,9 @@ export interface ExportPdfOptions {
    * board layouts have been generated yet — e.g. before stock is assigned.
    */
   bomRows: BomRow[];
-  layouts: BoardLayout[];
+  layouts: SheetBoardLayout[];
+  /** Linear (1D timber) layouts. Rendered as a separate section after sheets. */
+  linearLayouts: LinearBoardLayout[];
   leftovers: BoardLayoutLeftover[];
   formatSize: (m: number) => string | undefined;
   showPartNumbers: boolean;
@@ -57,6 +64,9 @@ export async function exportCutlistPdf(
     const boardMeasurements = measurements.filter((m) => m.boardIndex === i);
     drawBoardTiles(ctx, layout, i + 1, opts.layouts.length, boardMeasurements);
   });
+
+  // Pages: linear (timber) shopping list + stick view, after the sheet section.
+  drawLinearPages(ctx, opts.linearLayouts);
 
   // Fill in "Page N of M" placeholders
   const totalPages = ctx.pageCount.value;

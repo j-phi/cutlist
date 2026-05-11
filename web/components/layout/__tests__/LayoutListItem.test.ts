@@ -4,7 +4,7 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { computed, ref } from 'vue';
 
-import type { BoardLayout, BoardLayoutPlacement } from 'cutlist';
+import type { SheetBoardLayout, SheetBoardLayoutPlacement } from 'cutlist';
 
 import LayoutListItem from '../LayoutListItem.vue';
 
@@ -34,8 +34,8 @@ mockNuxtImport('getMaterialColor', () => (_hex: string | undefined) => ({
 }));
 
 function makePlacement(
-  overrides: Partial<BoardLayoutPlacement> = {},
-): BoardLayoutPlacement {
+  overrides: Partial<SheetBoardLayoutPlacement> = {},
+): SheetBoardLayoutPlacement {
   return {
     partNumber: 1,
     instanceNumber: 1,
@@ -53,9 +53,10 @@ function makePlacement(
 }
 
 function makeLayout(
-  placements: BoardLayoutPlacement[] = [makePlacement()],
-): BoardLayout {
+  placements: SheetBoardLayoutPlacement[] = [makePlacement()],
+): SheetBoardLayout {
   return {
+    kind: 'sheet',
     stock: {
       material: 'Plywood',
       widthM: 1.0,
@@ -70,7 +71,7 @@ function makeLayout(
 }
 
 describe('LayoutListItem', () => {
-  function getComponent(layout: BoardLayout, boardIndex = 0) {
+  function getComponent(layout: SheetBoardLayout, boardIndex = 0) {
     return shallowMount(LayoutListItem, {
       props: { layout, boardIndex },
       global: {

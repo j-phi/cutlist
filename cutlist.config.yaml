@@ -75,6 +75,39 @@ stock:
         length: 2440
         thickness: [6, 3]
 
+  - label: CLS 38×89 (mm)
+    default: false
+    material: CLS 38×89
+    color: '#d2b996'
+    kind: linear
+    unit: mm
+    size:
+      crossSectionWidth: 89
+      crossSectionThickness: 38
+      lengths: [2400, 3000, 3600, 4800]
+
+  - label: CLS 47×100 (mm)
+    default: false
+    material: CLS 47×100
+    color: '#d2b996'
+    kind: linear
+    unit: mm
+    size:
+      crossSectionWidth: 100
+      crossSectionThickness: 47
+      lengths: [2400, 3000, 3600, 4800]
+
+  - label: CLS 89×89 (mm)
+    default: false
+    material: CLS 89×89
+    color: '#d2b996'
+    kind: linear
+    unit: mm
+    size:
+      crossSectionWidth: 89
+      crossSectionThickness: 89
+      lengths: [2400, 3000, 3600, 4800]
+
   - label: Plywood (in)
     default: true
     material: Plywood
@@ -129,3 +162,47 @@ stock:
       - width: 11.25
         length: 96
         thickness: [0.75, 1.5]
+
+  - label: Pine 2×4 (in)
+    default: false
+    material: Pine 2×4
+    color: '#d2b996'
+    kind: linear
+    unit: in
+    size:
+      crossSectionWidth: 3.5
+      crossSectionThickness: 1.5
+      lengths: [96, 120, 144, 192]
+
+  - label: Pine 2×6 (in)
+    default: false
+    material: Pine 2×6
+    color: '#d2b996'
+    kind: linear
+    unit: in
+    size:
+      crossSectionWidth: 5.5
+      crossSectionThickness: 1.5
+      lengths: [96, 120, 144, 192]
+
+  - label: Pine 1×4 (in)
+    default: false
+    material: Pine 1×4
+    color: '#d2b996'
+    kind: linear
+    unit: in
+    size:
+      crossSectionWidth: 3.5
+      crossSectionThickness: 0.75
+      lengths: [96, 120, 144, 192]
+
+  - label: Pine 4×4 (in)
+    default: false
+    material: Pine 4×4
+    color: '#d2b996'
+    kind: linear
+    unit: in
+    size:
+      crossSectionWidth: 3.5
+      crossSectionThickness: 3.5
+      lengths: [96, 120, 144, 192]

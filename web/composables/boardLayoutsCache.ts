@@ -9,10 +9,17 @@
  * reactivity on the (potentially large) layout arrays.
  */
 
-import type { BoardLayout, BoardLayoutLeftover } from 'cutlist';
+import type {
+  BoardLayoutLeftover,
+  LinearBoardLayout,
+  SheetBoardLayout,
+} from 'cutlist';
 
 export interface LayoutCacheEntry {
-  layouts: BoardLayout[];
+  /** Sheet (2D) board layouts. */
+  layouts: SheetBoardLayout[];
+  /** Linear (1D) stick layouts, kept separate so re-renders don't re-split. */
+  linearLayouts: LinearBoardLayout[];
   leftovers: BoardLayoutLeftover[];
   fingerprint: string;
 }

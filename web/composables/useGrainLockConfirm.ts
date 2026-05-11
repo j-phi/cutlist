@@ -1,5 +1,4 @@
-import { reduceStockMatrix, type Stock } from 'cutlist';
-import { parseStock } from '~/utils/parseStock';
+import { reduceStockMatrix, isLinearStock, type SheetStock } from 'cutlist';
 import type { GrainLock } from '~/utils/grain';
 import { cycleGrainLock } from '~/utils/grain';
 import { canFitOnAnyBoard } from '~/utils/canFitOnAnyBoard';
@@ -12,16 +11,15 @@ import { canFitOnAnyBoard } from '~/utils/canFitOnAnyBoard';
  */
 export const useGrainLockConfirm = createSharedComposable(() => {
   const { activeId, updatePartGrainLock } = useProjects();
-  const { stock, margin } = useProjectSettings();
+  const { parsedStock, margin } = useProjectSettings();
 
-  const parsedStock = computed<Stock[]>(() => {
-    if (!stock.value) return [];
-    try {
-      return reduceStockMatrix(parseStock(stock.value));
-    } catch {
-      return [];
-    }
-  });
+  // Linear stock has no per-part grain lock concept (cross-section is fixed),
+  // so the fit check only considers sheet boards.
+  const sheetBoards = computed<SheetStock[]>(() =>
+    reduceStockMatrix(parsedStock.value).filter(
+      (s): s is SheetStock => !isLinearStock(s),
+    ),
+  );
 
   /** Margin is stored as mm; reducer outputs are meters, so we convert here. */
   const marginM = computed(() => (margin.value ?? 0) / 1000);
@@ -44,7 +42,7 @@ export const useGrainLockConfirm = createSharedComposable(() => {
     if (!activeId.value) return;
 
     const next = cycleGrainLock(currentGrainLock);
-    const fits = canFitOnAnyBoard(part, next, parsedStock.value, marginM.value);
+    const fits = canFitOnAnyBoard(part, next, sheetBoards.value, marginM.value);
 
     if (fits) {
       updatePartGrainLock(activeId.value, partNumber, next);

@@ -7,15 +7,28 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import CutlistPreview from '../CutlistPreview.vue';
 import { USelectStub } from '~/test-utils/stubs';
 
+type SheetLayout = {
+  stock: {
+    material: string;
+    thicknessM: number;
+    widthM: number;
+    lengthM: number;
+  };
+};
+
+type LinearLayout = {
+  kind: 'linear';
+  stock: {
+    material: string;
+    crossSectionWidthM: number;
+    crossSectionThicknessM: number;
+    lengthM: number;
+  };
+};
+
 type LayoutResult = {
-  layouts: Array<{
-    stock: {
-      material: string;
-      thicknessM: number;
-      widthM: number;
-      lengthM: number;
-    };
-  }>;
+  layouts: SheetLayout[];
+  linearLayouts: LinearLayout[];
   leftovers: Array<{
     material: string;
     thicknessM: number;
@@ -61,8 +74,20 @@ function makeLayout(
   thicknessM: number,
   widthM = 1.22,
   lengthM = 2.44,
-) {
+): SheetLayout {
   return { stock: { material, thicknessM, widthM, lengthM } };
+}
+
+function makeLinearLayout(
+  material: string,
+  lengthM: number,
+  crossSectionWidthM = 0.0889,
+  crossSectionThicknessM = 0.0381,
+): LinearLayout {
+  return {
+    kind: 'linear',
+    stock: { material, crossSectionWidthM, crossSectionThicknessM, lengthM },
+  };
 }
 
 function makeLeftover(
@@ -93,6 +118,11 @@ function getComponent() {
         LayoutList: {
           template:
             '<div data-testid="layout-list" :data-count="layouts.length" />',
+          props: ['layouts'],
+        },
+        LinearLayoutList: {
+          template:
+            '<div data-testid="linear-layout-list" :data-count="layouts.length" />',
           props: ['layouts'],
         },
         PreviewToolbar: true,
@@ -146,7 +176,7 @@ describe('CutlistPreview', () => {
       {
         scenario: 'no-parts empty state when no layouts and no leftovers',
         setup: () => {
-          data.value = { layouts: [], leftovers: [] };
+          data.value = { layouts: [], linearLayouts: [], leftovers: [] };
         },
         expect: (text: string) => {
           expect(text).toContain('No board layouts yet');
@@ -166,6 +196,7 @@ describe('CutlistPreview', () => {
     it('Should render the no-matching-stock empty state with a configure-stock CTA when parts exist but no layouts were produced, and suppress the leftover banner', () => {
       data.value = {
         layouts: [],
+        linearLayouts: [],
         leftovers: [makeLeftover('Plywood', 0.018, 1)],
       };
       const component = getComponent();
@@ -184,6 +215,7 @@ describe('CutlistPreview', () => {
     it('Should still show the leftover banner when some layouts placed but others did not', () => {
       data.value = {
         layouts: [makeLayout('Plywood', 0.018)],
+        linearLayouts: [],
         leftovers: [makeLeftover('MDF', 0.012, 1)],
       };
       expect(getComponent().text()).toContain(
@@ -205,13 +237,14 @@ describe('CutlistPreview', () => {
         visible: true,
       },
     ])('$scenario', ({ layouts, visible }) => {
-      data.value = { layouts, leftovers: [] };
+      data.value = { layouts, linearLayouts: [], leftovers: [] };
       expect(getComponent().find('select').exists()).toBe(visible);
     });
 
     it('Should filter layouts by stock key on change and reset to __all__ when the selected option disappears', async () => {
       data.value = {
         layouts: [makeLayout('Plywood', 0.018), makeLayout('MDF', 0.012)],
+        linearLayouts: [],
         leftovers: [],
       };
       const component = getComponent();
@@ -225,24 +258,97 @@ describe('CutlistPreview', () => {
       expect(list.attributes('data-count')).toBe('1');
 
       // Drop MDF; selection must reset.
-      data.value = { layouts: [makeLayout('Plywood', 0.018)], leftovers: [] };
+      data.value = {
+        layouts: [makeLayout('Plywood', 0.018)],
+        linearLayouts: [],
+        leftovers: [],
+      };
       await nextTick();
       // With one option remaining, dropdown is hidden.
       expect(component.find('select').exists()).toBe(false);
 
       data.value = {
         layouts: [makeLayout('Plywood', 0.018), makeLayout('Birch', 0.018)],
+        linearLayouts: [],
         leftovers: [],
       };
       await nextTick();
       const restored = component.get('select');
       expect((restored.element as HTMLSelectElement).value).toBe('__all__');
     });
+
+    it('Should not include linear stock in the sheet stock filter', () => {
+      data.value = {
+        layouts: [makeLayout('Plywood', 0.018)],
+        linearLayouts: [makeLinearLayout('Pine 2x4', 2.4384)],
+        leftovers: [],
+      };
+      // One sheet stock + one linear stock → sheet filter is hidden because
+      // the sheet side has only one option. Linear stock must not pad the
+      // sheet's option count.
+      expect(getComponent().find('select').exists()).toBe(false);
+    });
+  });
+
+  describe('Sheet vs linear branching', () => {
+    it('Should render both lists with their respective counts when the project mixes sheet and linear', () => {
+      data.value = {
+        layouts: [makeLayout('Plywood', 0.018)],
+        linearLayouts: [
+          makeLinearLayout('Pine 2x4', 2.4384),
+          makeLinearLayout('Pine 2x4', 3.048),
+        ],
+        leftovers: [],
+      };
+      const component = getComponent();
+
+      expect(
+        component.get('[data-testid="layout-list"]').attributes('data-count'),
+      ).toBe('1');
+      expect(
+        component
+          .get('[data-testid="linear-layout-list"]')
+          .attributes('data-count'),
+      ).toBe('2');
+    });
+
+    it('Should render only the linear list for a pure-linear project', () => {
+      data.value = {
+        layouts: [],
+        linearLayouts: [makeLinearLayout('Pine 2x4', 2.4384)],
+        leftovers: [],
+      };
+      const component = getComponent();
+
+      expect(component.find('[data-testid="layout-list"]').exists()).toBe(
+        false,
+      );
+      expect(
+        component
+          .get('[data-testid="linear-layout-list"]')
+          .attributes('data-count'),
+      ).toBe('1');
+    });
+
+    it('Should render only the sheet list for a pure-sheet project', () => {
+      data.value = {
+        layouts: [makeLayout('Plywood', 0.018)],
+        linearLayouts: [],
+        leftovers: [],
+      };
+      const component = getComponent();
+
+      expect(component.find('[data-testid="layout-list"]').exists()).toBe(true);
+      expect(
+        component.find('[data-testid="linear-layout-list"]').exists(),
+      ).toBe(false);
+    });
   });
 
   it('Should switch to the boards tab when the configure-stock CTA is clicked', async () => {
     data.value = {
       layouts: [],
+      linearLayouts: [],
       leftovers: [makeLeftover('Plywood', 0.018, 1)],
     };
     const component = getComponent();

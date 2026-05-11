@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { generateBoardLayouts, type Config, type PartToCut } from '..';
+import {
+  generateBoardLayouts,
+  isLinearBoardLayout,
+  type BoardLayout,
+  type Config,
+  type PartToCut,
+  type SheetBoardLayout,
+} from '..';
+
+function asSheet(layout: BoardLayout): SheetBoardLayout {
+  if (isLinearBoardLayout(layout))
+    throw new Error('expected sheet board layout, got linear');
+  return layout;
+}
 
 function createPart(
   partNumber: number,
@@ -21,6 +34,7 @@ function createPart(
 
 const stock = [
   {
+    kind: 'sheet' as const,
     material: 'MDF',
     sizes: [{ width: 1000, length: 3000, thickness: [18] }],
   },
@@ -98,11 +112,13 @@ describe('generateBoardLayouts', () => {
     // runs its own tournament — verify Plywood ends up column-aligned.
     const mixedStock = [
       {
+        kind: 'sheet' as const,
         material: 'Plywood',
         sizes: [{ width: 1000, length: 3000, thickness: [18] }],
         thicknessAlgorithms: { 18: 'tidy' as const },
       },
       {
+        kind: 'sheet' as const,
         material: 'MDF',
         sizes: [{ width: 1000, length: 3000, thickness: [18] }],
         thicknessAlgorithms: { 18: 'compact' as const },
@@ -132,7 +148,7 @@ describe('generateBoardLayouts', () => {
     // Tidy on equal-width parts → single column.
     for (const board of plywoodBoards) {
       const lefts = new Set(
-        board.placements.map((p) => Math.round(p.leftM * 1e6)),
+        asSheet(board).placements.map((p) => Math.round(p.leftM * 1e6)),
       );
       expect(lefts.size).toBe(1);
     }
@@ -143,6 +159,7 @@ describe('generateBoardLayouts', () => {
     // per-thickness override forces 'tidy' for this stock entry.
     const overrideStock = [
       {
+        kind: 'sheet' as const,
         material: 'MDF',
         sizes: [{ width: 1000, length: 3000, thickness: [18] }],
         thicknessAlgorithms: { 18: 'tidy' as const },
@@ -163,7 +180,9 @@ describe('generateBoardLayouts', () => {
     expect(result.leftovers).toEqual([]);
     // Tidy on equal-sized parts → single column. CNC would scatter them.
     const lefts = new Set(
-      result.layouts[0].placements.map((p) => Math.round(p.leftM * 1e6)),
+      asSheet(result.layouts[0]).placements.map((p) =>
+        Math.round(p.leftM * 1e6),
+      ),
     );
     expect(lefts.size).toBe(1);
   });
@@ -174,11 +193,13 @@ describe('generateBoardLayouts', () => {
     // row sorts first by area.
     const stockWithOverrideOnSecondEntry = [
       {
+        kind: 'sheet' as const,
         material: 'Plywood',
         // Larger area — will sort first.
         sizes: [{ width: 2000, length: 3000, thickness: [18] }],
       },
       {
+        kind: 'sheet' as const,
         material: 'Plywood',
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
         thicknessAlgorithms: { 18: 'tidy' as const },
@@ -196,7 +217,9 @@ describe('generateBoardLayouts', () => {
     });
 
     expect(result.leftovers).toEqual([]);
-    expect(result.layouts.every((l) => l.algorithm === 'tidy')).toBe(true);
+    expect(
+      result.layouts.every((l) => l.kind === 'sheet' && l.algorithm === 'tidy'),
+    ).toBe(true);
   });
 
   it('is deterministic in auto mode', () => {

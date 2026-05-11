@@ -13,6 +13,7 @@ describe('parseStock', () => {
     const result = parseStock(yaml);
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
+      kind: 'sheet',
       material: 'MDF',
       sizes: [{ width: 1220, length: 2440, thickness: [18] }],
     });
@@ -49,6 +50,7 @@ describe('parseStock', () => {
 
     expect(parseStock(yaml)).toEqual([
       {
+        kind: 'sheet',
         material: 'Baltic Birch',
         color: '#d2b996',
         sizes: [{ width: 1220, length: 2440, thickness: [12, 18] }],

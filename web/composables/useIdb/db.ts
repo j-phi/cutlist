@@ -69,12 +69,12 @@ export class CutlistDB extends Dexie {
           });
       });
 
-    // v3 — canonical mm at rest. Project numerics convert from the old
-    // `distanceUnit` (or per-row `unit`) to mm; per-row `unit` field on
-    // stock-YAML rows is dropped. Logic lives in `migrateProjectToMmStorage`
-    // so the export migration runs the same transform. The migration
-    // rewrites the same project-record keys (bladeWidth, margin, stock) so
-    // Object.assign is sufficient — no Dexie field needs deleting here.
+    // v3 — canonical mm at rest, plus the `kind: 'sheet' | 'linear'`
+    // discriminator on stock-YAML rows. Project numerics convert from the
+    // old `distanceUnit` (or per-row `unit`) to mm; per-row `unit` field is
+    // dropped; every existing row gets `kind: 'sheet'` stamped (every pre-v3
+    // row was implicitly sheet). Logic lives in `migrateProjectToMmStorage`
+    // so the export migration runs the same transform.
     this.version(3)
       .stores({})
       .upgrade(async (tx) => {

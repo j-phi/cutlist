@@ -13,7 +13,7 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
-const { distanceUnit, precision } = useProjectSettings();
+const { distanceUnit, precision, linearMaterials } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
 const name = ref(props.initial?.name ?? '');
@@ -23,6 +23,13 @@ const thicknessMm = ref<number | null>(props.initial?.thicknessMm ?? null);
 const qty = ref(props.initial?.qty ?? 1);
 const material = ref(props.initial?.material ?? props.materials[0] ?? '');
 const grainLock = ref<'length' | 'width' | undefined>(props.initial?.grainLock);
+
+const isLinear = computed(() => linearMaterials.value.has(material.value));
+// Linear stock has a fixed grain direction — wipe any stale lock when the
+// user switches a part onto a linear material so it doesn't ship dead state.
+watch(isLinear, (linear) => {
+  if (linear) grainLock.value = undefined;
+});
 
 const { input: widthInput, commit: commitWidth } = useDimensionInput(
   widthMm,
@@ -161,6 +168,7 @@ function onKeydown(e: KeyboardEvent) {
     </div>
     <div class="flex items-center gap-2">
       <button
+        v-if="!isLinear"
         type="button"
         :title="
           grainLock

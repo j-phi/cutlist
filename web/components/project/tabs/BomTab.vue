@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import { mToMm } from 'cutlist';
-import { parseStock } from '~/utils/parseStock';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import { STORAGE_KEYS } from '~/utils/localStorage';
 import type { ManualPartInput } from '~/composables/useProjects';
@@ -23,7 +22,7 @@ const {
 } = useProjects();
 
 const { requestGrainLockChange } = useGrainLockConfirm();
-const { distanceUnit, stock } = useProjectSettings();
+const { distanceUnit, parsedStock, linearMaterials } = useProjectSettings();
 const formatDistance = useFormatDistance();
 const toast = useToast();
 const modelViewer = useModelViewerStore();
@@ -79,14 +78,7 @@ const {
 
 // ── Materials list ───────────────────────────────────────────────────────────
 
-const materials = computed(() => {
-  if (!stock.value) return [];
-  try {
-    return parseStock(stock.value).map((s) => s.material);
-  } catch {
-    return [];
-  }
-});
+const materials = computed(() => parsedStock.value.map((s) => s.material));
 
 // ── Manual part tracking ─────────────────────────────────────────────────────
 
@@ -686,7 +678,12 @@ onUnmounted(() => {
                           {{ formatDim(row.thicknessM) }}
                         </td>
                         <td class="px-4 py-2.5">
-                          <div v-if="activeId" class="flex items-center gap-1">
+                          <div
+                            v-if="
+                              activeId && !linearMaterials.has(row.material)
+                            "
+                            class="flex items-center gap-1"
+                          >
                             <!-- Unlocked state: plain icon button -->
                             <button
                               v-if="!row.grainLock"

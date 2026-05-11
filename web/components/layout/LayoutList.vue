@@ -2,20 +2,20 @@
 import {
   M_PER_IN,
   type Algorithm,
-  type BoardLayout,
+  type SheetBoardLayout,
+  type SheetStockMatrix,
   type StockMatrix,
 } from 'cutlist';
 import YAML from 'js-yaml';
-import { parseStock } from '~/utils/parseStock';
 
 const props = defineProps<{
-  layouts: BoardLayout[];
+  layouts: SheetBoardLayout[];
 }>();
 
 const getPx = useGetPx();
 const gap = getPx(4 * M_PER_IN);
 const formatDistance = useFormatDistance();
-const { stock, defaultAlgorithm } = useProjectSettings();
+const { stock, parsedStock, defaultAlgorithm } = useProjectSettings();
 
 const ALGORITHM_LABEL: Record<Algorithm, string> = {
   auto: 'Auto',
@@ -37,7 +37,7 @@ interface LayoutGroup {
   material: string;
   thickness: string;
   thicknessM: number;
-  layouts: BoardLayout[];
+  layouts: SheetBoardLayout[];
   /** Indices into `props.layouts` for board numbering. */
   indices: number[];
   /** Algorithm that produced this group's boards (never `'auto'`). */
@@ -46,24 +46,22 @@ interface LayoutGroup {
   preference: Algorithm;
 }
 
-/** Single parse of the project's stock YAML; used for picker state. */
-const parsedMatrix = computed<StockMatrix[]>(() => {
-  const yaml = stock.value;
-  if (!yaml) return [];
-  try {
-    return parseStock(yaml);
-  } catch {
-    return [];
-  }
-});
+/**
+ * Sheet-only view of the parsed stock — the algorithm picker on this view is
+ * sheet-only. Linear stock has its own (single) algorithm and is rendered by
+ * a separate list component.
+ */
+const parsedMatrix = computed<SheetStockMatrix[]>(() =>
+  parsedStock.value.filter((m): m is SheetStockMatrix => m.kind === 'sheet'),
+);
 
 /**
  * Match a layout's `thicknessM` back to the YAML thickness key on a single
- * `StockMatrix` row. Stock thicknesses are mm; the key is the mm value
+ * `SheetStockMatrix` row. Stock thicknesses are mm; the key is the mm value
  * stringified (e.g. `"18"` for 18mm, `"19.05"` for 3/4").
  */
 function findThicknessKeyOnItem(
-  item: StockMatrix,
+  item: SheetStockMatrix,
   thicknessM: number,
 ): string | undefined {
   for (const size of item.sizes) {
@@ -127,14 +125,10 @@ const groups = computed<LayoutGroup[]>(() => {
 });
 
 function setOverride(material: string, thicknessM: number, alg: Algorithm) {
-  const yaml = stock.value;
-  if (!yaml) return;
-  let matrix: StockMatrix[];
-  try {
-    matrix = parseStock(yaml);
-  } catch {
-    return;
-  }
+  // Round-trip through JSON to drop Vue reactivity wrappers before mutating.
+  // Bail if the YAML is currently malformed (parsedStock falls back to []).
+  const matrix: StockMatrix[] = JSON.parse(JSON.stringify(parsedStock.value));
+  if (matrix.length === 0) return;
 
   // Apply to every row that matches this (material, thickness). When the same
   // material appears on two rows (e.g. one mm row + one in row), writing only
@@ -143,6 +137,7 @@ function setOverride(material: string, thicknessM: number, alg: Algorithm) {
   const inherited = defaultAlgorithm.value ?? 'auto';
   let touched = false;
   for (const item of matrix) {
+    if (item.kind !== 'sheet') continue;
     if (item.material !== material) continue;
     const key = findThicknessKeyOnItem(item, thicknessM);
     if (!key) continue;
@@ -163,11 +158,7 @@ function setOverride(material: string, thicknessM: number, alg: Algorithm) {
   }
   if (!touched) return;
 
-  // JSON round-trip strips Vue reactivity wrappers before YAML.dump.
-  stock.value = YAML.dump(JSON.parse(JSON.stringify(matrix)), {
-    indent: 2,
-    flowLevel: 3,
-  });
+  stock.value = YAML.dump(matrix, { indent: 2, flowLevel: 3 });
 }
 
 function algorithmMenu(group: LayoutGroup) {

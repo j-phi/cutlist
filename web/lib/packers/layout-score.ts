@@ -1,4 +1,4 @@
-import type { PotentialBoardLayout } from '../types';
+import { type PotentialBoardLayout, isLinearStock } from '../types';
 
 export interface LayoutScore {
   boardsUsed: number;
@@ -50,7 +50,9 @@ export function scoreLayouts(
   let cutComplexity = 0;
 
   for (const layout of layouts) {
-    const boardArea = layout.stock.width * layout.stock.length;
+    const boardArea = isLinearStock(layout.stock)
+      ? layout.stock.crossSectionWidth * layout.stock.length
+      : layout.stock.width * layout.stock.length;
     const usedArea = layout.placements.reduce(
       (total, placement) => total + placement.width * placement.height,
       0,

@@ -1,10 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import {
   generateBoardLayouts,
+  isLinearBoardLayout,
+  type BoardLayout,
   type Config,
   type PartToCut,
+  type SheetBoardLayout,
   type StockMatrix,
 } from '..';
+
+function asSheet(layout: BoardLayout): SheetBoardLayout {
+  if (isLinearBoardLayout(layout))
+    throw new Error('expected sheet board layout, got linear');
+  return layout;
+}
+
+function sheetLayouts(layouts: BoardLayout[]): SheetBoardLayout[] {
+  return layouts.map(asSheet);
+}
 
 const baseConfig: Config = {
   bladeWidth: 0,
@@ -34,6 +47,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('puts all parts in leftovers when material is not in stock', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
@@ -54,11 +68,13 @@ describe('generateBoardLayouts edge cases', () => {
   it('places parts on the correct stock when multiple materials are present', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
       {
+        kind: 'sheet',
         material: 'Plywood',
 
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
@@ -90,6 +106,7 @@ describe('generateBoardLayouts edge cases', () => {
     // Part is 0.995m×0.995m which fits the raw board but not the reduced area
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
@@ -112,6 +129,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('insets placements from all board edges by the margin', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
@@ -126,9 +144,9 @@ describe('generateBoardLayouts edge cases', () => {
 
     expect(result.leftovers).toHaveLength(0);
     expect(result.layouts).toHaveLength(1);
-    expect(result.layouts[0].marginM).toBe(marginM);
+    expect(asSheet(result.layouts[0]).marginM).toBe(marginM);
 
-    for (const p of result.layouts[0].placements) {
+    for (const p of asSheet(result.layouts[0]).placements) {
       expect(p.leftM).toBeGreaterThanOrEqual(marginM - 1e-9);
       expect(p.bottomM).toBeGreaterThanOrEqual(marginM - 1e-9);
       expect(p.rightM).toBeLessThanOrEqual(1 - marginM + 1e-9);
@@ -140,6 +158,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('sets marginM to 0 when no margin is configured', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
@@ -149,13 +168,14 @@ describe('generateBoardLayouts edge cases', () => {
 
     const result = generateBoardLayouts(parts, stock, baseConfig);
 
-    expect(result.layouts[0].marginM).toBe(0);
+    expect(asSheet(result.layouts[0]).marginM).toBe(0);
   });
 
   // 5. Empty parts list → layouts=[], leftovers=[]
   it('returns empty layouts and leftovers for an empty parts list', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
@@ -182,6 +202,7 @@ describe('generateBoardLayouts edge cases', () => {
     // Board is 0.5m×0.5m; each part is 0.4m×0.4m — two parts cannot share one board
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 500, length: 500, thickness: [18] }],
@@ -199,6 +220,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('puts a part that is larger than every stock board into leftovers', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 500, length: 500, thickness: [18] }],
@@ -219,6 +241,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('produces a deterministic result when searchPasses is set to a single pass', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 3000, thickness: [18] }],
@@ -246,11 +269,13 @@ describe('generateBoardLayouts edge cases', () => {
   it('does not change layouts for material B when grain lock changes on material A', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'Plywood',
 
         sizes: [{ width: 1200, length: 2400, thickness: [12] }],
       },
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1200, length: 2400, thickness: [18] }],
@@ -300,6 +325,7 @@ describe('generateBoardLayouts edge cases', () => {
   it('does not change 18mm layouts when grain lock changes on 12mm of the same material', () => {
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'Plywood',
 
         sizes: [{ width: 1200, length: 2400, thickness: [18, 12] }],
@@ -333,10 +359,10 @@ describe('generateBoardLayouts edge cases', () => {
       baseConfig,
     );
 
-    const ply18LayoutsA = resultA.layouts.filter(
+    const ply18LayoutsA = sheetLayouts(resultA.layouts).filter(
       (l) => Math.abs(l.stock.thicknessM - 0.018) < 1e-5,
     );
-    const ply18LayoutsB = resultB.layouts.filter(
+    const ply18LayoutsB = sheetLayouts(resultB.layouts).filter(
       (l) => Math.abs(l.stock.thicknessM - 0.018) < 1e-5,
     );
 
@@ -352,6 +378,7 @@ describe('generateBoardLayouts edge cases', () => {
     // and the 3rd / 4th part must spill onto a second board.
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
 
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
@@ -390,6 +417,7 @@ describe('generateBoardLayouts edge cases', () => {
     // boards.
     const stock: StockMatrix[] = [
       {
+        kind: 'sheet',
         material: 'MDF',
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },

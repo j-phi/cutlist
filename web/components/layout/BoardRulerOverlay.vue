@@ -1,10 +1,10 @@
 <script lang="ts" setup>
-import type { BoardLayout } from 'cutlist';
+import type { SheetBoardLayout } from 'cutlist';
 import type { SnapEdge } from '~/composables/useRulerStore';
 import { PX_PER_M } from '~/composables/useGetPx';
 
 const props = defineProps<{
-  layout: BoardLayout;
+  layout: SheetBoardLayout;
   boardIndex: number;
 }>();
 

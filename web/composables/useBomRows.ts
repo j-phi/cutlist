@@ -5,6 +5,7 @@
  * (fallback) to produce a flat list of BomRow objects for display.
  */
 
+import type { BoardLayoutLeftover } from 'cutlist';
 import { groupPartsByNumber } from '~/lib/utils/bom-utils';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import type { Model } from '~/composables/useProjects';
@@ -84,27 +85,30 @@ export default function useBomRows() {
           (leftoverCounts.get(l.partNumber) ?? 0) + 1,
         );
       }
-      return groupPartsByNumber(
-        data.value.layouts.flatMap((l) => l.placements),
-        data.value.leftovers,
-      ).map((instanceList) => {
-        const part = instanceList[0];
-        const model = modelByPartNumber.value.get(part.partNumber);
-        return {
-          number: part.partNumber,
-          name: part.name,
-          modelId: model?.id ?? '',
-          modelName: model?.name ?? '',
-          qty: instanceList.length,
-          material: part.material,
-          thicknessM: part.thicknessM,
-          widthM: part.widthM,
-          lengthM: part.lengthM,
-          grainLock: part.grainLock,
-          leftoverCount: leftoverCounts.get(part.partNumber) ?? 0,
-          isManual: manualPartNumbers.value.has(part.partNumber),
-        };
-      });
+      const allPlacements: BoardLayoutLeftover[] = [
+        ...data.value.layouts.flatMap((l) => l.placements),
+        ...data.value.linearLayouts.flatMap((l) => l.placements),
+      ];
+      return groupPartsByNumber(allPlacements, data.value.leftovers).map(
+        (instanceList) => {
+          const part = instanceList[0];
+          const model = modelByPartNumber.value.get(part.partNumber);
+          return {
+            number: part.partNumber,
+            name: part.name,
+            modelId: model?.id ?? '',
+            modelName: model?.name ?? '',
+            qty: instanceList.length,
+            material: part.material,
+            thicknessM: part.thicknessM,
+            widthM: part.widthM,
+            lengthM: part.lengthM,
+            grainLock: part.grainLock,
+            leftoverCount: leftoverCounts.get(part.partNumber) ?? 0,
+            isManual: manualPartNumbers.value.has(part.partNumber),
+          };
+        },
+      );
     }
 
     // Fallback: build from raw model parts when engine hasn't run

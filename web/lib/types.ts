@@ -9,6 +9,9 @@ import type { Rectangle } from './geometry';
  * - `compact`: Free-rect n-stage guillotine. Maximum yield within a
  *   guillotine constraint, at the cost of a zigzag cut sequence.
  * - `cnc`: Non-guillotine bottom-left. Maximum yield, requires a CNC router.
+ *
+ * Linear (1D) stock is not represented here — it has only one strategy
+ * (first-fit-decreasing) and is routed outside the algorithm tournament.
  */
 export const Algorithm = z.enum(['auto', 'tidy', 'compact', 'cnc']);
 export type Algorithm = z.infer<typeof Algorithm>;
@@ -29,16 +32,15 @@ export const SearchPass = z.union([
 export type SearchPass = z.infer<typeof SearchPass>;
 
 /**
- * Contains the material and dimensions for a single panel or board.
+ * Engine-side sheet stock: a 2D panel (plywood, MDF, hardboard, …).
+ * All numbers are meters (engine internal unit).
  */
-export interface Stock {
+export interface SheetStock {
+  kind: 'sheet';
   /** The material name, matching what is set in Onshape. */
   material: string;
-  /** In meters. */
   thickness: number;
-  /** In meters. */
   width: number;
-  /** In meters. */
   length: number;
   /** Display color for board previews (hex string). */
   color?: string;
@@ -50,12 +52,39 @@ export interface Stock {
 }
 
 /**
- * For a material, define board sizes and the thicknesses available in each.
+ * Engine-side linear stock: a 1D stick at a single length.
+ * All numbers are meters (engine internal unit).
  *
- * All numeric dimensions are millimetres. The user's display preference
- * (`distanceUnit`) is applied in the UI only.
+ * No `algorithm` override here — `kind: 'linear'` forces the linear
+ * packer; per-material algorithm choice only applies to sheet stock.
  */
-export const StockMatrix = z.object({
+export interface LinearStock {
+  kind: 'linear';
+  material: string;
+  /** Wider face of the cross-section (e.g. 3.5" / 89mm on a 2×4). */
+  crossSectionWidth: number;
+  /** Narrower face of the cross-section (e.g. 1.5" / 38mm on a 2×4). */
+  crossSectionThickness: number;
+  length: number;
+  color?: string;
+}
+
+/**
+ * Engine-side stock. A material has a `kind` (sheet, linear, …) which
+ * determines its form. Add new kinds as new variants in this union.
+ */
+export type Stock = SheetStock | LinearStock;
+
+export const isLinearStock = (s: Stock): s is LinearStock =>
+  s.kind === 'linear';
+export const isSheetStock = (s: Stock): s is SheetStock => s.kind === 'sheet';
+
+/**
+ * Sheet stock matrix: a material sold as 2D panels (plywood, MDF, …).
+ * `kind` defaults to `'sheet'` so freshly-authored literals can omit it.
+ */
+const SheetStockMatrixSchema = z.object({
+  kind: z.literal('sheet').default('sheet'),
   material: z.string(),
   /**
    * Available board sizes. Each entry is a width × length pair with its
@@ -78,7 +107,49 @@ export const StockMatrix = z.object({
    */
   thicknessAlgorithms: z.record(z.string(), Algorithm).optional(),
 });
+
+/**
+ * A linear stock cross-section: a single fixed width × thickness sold in
+ * one or more standard lengths (e.g. a 2×4 in 8 ft / 10 ft / 12 ft).
+ */
+export const LinearStockSize = z.object({
+  /** Cross-section width in millimetres (the wider face). */
+  crossSectionWidth: z.number(),
+  /** Cross-section thickness in millimetres (the narrower face). */
+  crossSectionThickness: z.number(),
+  /** Available stock lengths in millimetres. */
+  lengths: z.array(z.number()),
+});
+export type LinearStockSize = z.infer<typeof LinearStockSize>;
+
+/**
+ * Linear stock matrix: a material sold as 1D sticks (dimensional lumber,
+ * trim, dowels). Cross-section is fixed; only length varies.
+ */
+const LinearStockMatrixSchema = z.object({
+  kind: z.literal('linear'),
+  material: z.string(),
+  size: LinearStockSize,
+  /** Display color for board previews (hex string). */
+  color: z.string().optional(),
+});
+
+/**
+ * For a material, define stock dimensions. A material is sheet OR linear,
+ * never both — the packer routes per material on `kind`. All numeric
+ * dimensions are millimetres; display unit is applied in the UI only.
+ *
+ * Modelled as `z.union` rather than `z.discriminatedUnion` so the sheet
+ * variant's `kind` default fills in for legacy YAML and in-code presets
+ * that bypass the v3 migration — kind-less rows still parse as sheet.
+ */
+export const StockMatrix = z.union([
+  SheetStockMatrixSchema,
+  LinearStockMatrixSchema,
+]);
 export type StockMatrix = z.infer<typeof StockMatrix>;
+export type SheetStockMatrix = z.infer<typeof SheetStockMatrixSchema>;
+export type LinearStockMatrix = z.infer<typeof LinearStockMatrixSchema>;
 
 /**
  * Part info, material, and size. Everything needed to know how to layout the board on stock.
@@ -150,19 +221,8 @@ export const Config = z.object({
 export type Config = z.infer<typeof Config>;
 export type ConfigInput = z.input<typeof Config>;
 
-/**
- * JSON friendly object containing boards and part placements.
- */
-export interface BoardLayout {
-  stock: BoardLayoutStock;
-  placements: BoardLayoutPlacement[];
-  /** Board margin in meters (inset from all edges). 0 when no margin is set. */
-  marginM: number;
-  /** The concrete algorithm that produced this board (never `'auto'`). */
-  algorithm: Exclude<Algorithm, 'auto'>;
-}
-
-export interface BoardLayoutStock {
+/** Per-board info attached to a sheet layout (output side). */
+export interface SheetBoardLayoutStock {
   material: string;
   widthM: number;
   lengthM: number;
@@ -170,6 +230,20 @@ export interface BoardLayoutStock {
   color?: string;
 }
 
+/** Per-board info attached to a linear layout (output side). */
+export interface LinearBoardLayoutStock {
+  material: string;
+  crossSectionWidthM: number;
+  crossSectionThicknessM: number;
+  lengthM: number;
+  color?: string;
+}
+
+/**
+ * A part that wasn't placed (or a placement viewed as a leftover-shaped
+ * record — same field set). Shared between sheet placements and linear
+ * placements so BOM aggregation can treat both uniformly.
+ */
 export interface BoardLayoutLeftover {
   partNumber: number;
   instanceNumber: number;
@@ -181,20 +255,85 @@ export interface BoardLayoutLeftover {
   grainLock?: 'length' | 'width';
 }
 
-export interface BoardLayoutPlacement extends BoardLayoutLeftover {
+/** Sheet placement: leftover shape + 2D bounding rectangle on the board. */
+export interface SheetBoardLayoutPlacement extends BoardLayoutLeftover {
   leftM: number;
   rightM: number;
   topM: number;
   bottomM: number;
 }
 
+/** Linear placement: leftover shape + 1D offset along the stick. */
+export interface LinearBoardLayoutPlacement extends BoardLayoutLeftover {
+  /** Offset from the start of the stick in METERS. */
+  offsetM: number;
+}
+
+/** Engine output for a single sheet. */
+export interface SheetBoardLayout {
+  kind: 'sheet';
+  stock: SheetBoardLayoutStock;
+  placements: SheetBoardLayoutPlacement[];
+  /** Board margin in meters (inset from all edges). 0 when no margin is set. */
+  marginM: number;
+  /** The concrete algorithm that produced this board (never `'auto'`). */
+  algorithm: Exclude<Algorithm, 'auto'>;
+}
+
 /**
- * Intermediate type for storing the board layout with the rectangle class. Not
- * JSON friendly. This gets converted into `BoardLayout`, which doesn't contain
- * any classes, and is safe to convert to and from JSON.
+ * Engine output for a single linear stick. Linear stock has no margin
+ * concept — you don't trim the rip face of a 2×4 — so offsets are absolute
+ * along the stick (`offsetM` measured from the leading end).
  */
-export interface PotentialBoardLayout {
-  stock: Stock;
+export interface LinearBoardLayout {
+  kind: 'linear';
+  stock: LinearBoardLayoutStock;
+  placements: LinearBoardLayoutPlacement[];
+  /** Trailing waste left over after the last cut, in METERS. */
+  wasteEndM: number;
+}
+
+/**
+ * Engine output. A layout has a `kind` matching its stock's `kind`.
+ * Add new layout variants when adding new stock kinds.
+ */
+export type BoardLayout = SheetBoardLayout | LinearBoardLayout;
+
+export const isLinearBoardLayout = (l: BoardLayout): l is LinearBoardLayout =>
+  l.kind === 'linear';
+export const isSheetBoardLayout = (l: BoardLayout): l is SheetBoardLayout =>
+  l.kind === 'sheet';
+
+/**
+ * Intermediate sheet layout — board + rectangles before serialization.
+ * Carries the sheet algorithm that produced it.
+ */
+export interface PotentialSheetBoardLayout {
+  kind: 'sheet';
+  stock: SheetStock;
   placements: Rectangle<PartToCut>[];
   algorithm: Exclude<Algorithm, 'auto'>;
 }
+
+/**
+ * Intermediate linear layout — stick + rectangles before serialization.
+ * Linear stock has no algorithm choice (FFD only).
+ */
+export interface PotentialLinearBoardLayout {
+  kind: 'linear';
+  stock: LinearStock;
+  placements: Rectangle<PartToCut>[];
+}
+
+/**
+ * Intermediate type for storing the board layout with the rectangle class.
+ * Not JSON friendly. This gets converted into `BoardLayout`, which doesn't
+ * contain any classes, and is safe to convert to and from JSON.
+ *
+ * Discriminated on `kind` mirroring `BoardLayout`, so the sheet branch
+ * carries `algorithm` and the linear branch doesn't — no runtime guard
+ * required at serialize time.
+ */
+export type PotentialBoardLayout =
+  | PotentialSheetBoardLayout
+  | PotentialLinearBoardLayout;

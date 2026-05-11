@@ -1,4 +1,4 @@
-import type { Stock } from 'cutlist';
+import type { SheetStock } from 'cutlist';
 import type { GrainLock } from '~/utils/grain';
 
 /**
@@ -14,7 +14,7 @@ export function canFitOnAnyBoard(
     lengthM: number;
   },
   grainLock: GrainLock,
-  boards: Stock[],
+  boards: SheetStock[],
   marginM: number,
 ): boolean {
   const matching = boards.filter(

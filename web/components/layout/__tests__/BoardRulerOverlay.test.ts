@@ -4,7 +4,7 @@ import { ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
-import type { BoardLayout } from 'cutlist';
+import type { SheetBoardLayout } from 'cutlist';
 import type { SnapEdge } from '~/composables/useRulerStore';
 
 import BoardRulerOverlay from '../BoardRulerOverlay.vue';
@@ -36,8 +36,9 @@ mockNuxtImport('useRulerStore', () => () => ({
  * (axes x/y), and each placement contributes its own four edges. Tests construct
  * layouts whose snap edges are the inputs they need.
  */
-function makeLayout(widthM = 1, lengthM = 2): BoardLayout {
+function makeLayout(widthM = 1, lengthM = 2): SheetBoardLayout {
   return {
+    kind: 'sheet',
     stock: { material: 'Plywood', widthM, lengthM, thicknessM: 0.018 },
     placements: [],
     marginM: 0,

@@ -4,7 +4,9 @@ import {
   DEFAULT_INCH_PRECISION,
   DEFAULT_MM_PRECISION,
   type Algorithm,
+  type LinearStockMatrix,
   type Precision,
+  type SheetStockMatrix,
   type StockMatrix,
 } from 'cutlist';
 
@@ -35,7 +37,7 @@ interface StockPreset {
   /** If true, this preset is auto-added to new projects matching `unit`. */
   default: boolean;
   unit: 'mm' | 'in';
-  stock: StockMatrix;
+  stock: SheetStockMatrix | LinearStockMatrix;
 }
 
 export const STOCK_PRESETS: StockPreset[] = [
@@ -45,6 +47,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: true,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'Plywood',
       color: '#d2b996',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9, 6] }],
@@ -55,6 +58,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: true,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'MDF',
       color: '#b09078',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9, 6, 3] }],
@@ -65,6 +69,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'Particle Board',
       color: '#c8b48c',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 16, 12] }],
@@ -75,6 +80,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'Melamine',
       color: '#ebe6de',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 16] }],
@@ -85,6 +91,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'OSB',
       color: '#c3a050',
       sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9] }],
@@ -95,9 +102,55 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'mm',
     stock: {
+      kind: 'sheet',
       material: 'Hardboard',
       color: '#694123',
       sizes: [{ width: 1220, length: 2440, thickness: [6, 3] }],
+    },
+  },
+  {
+    label: 'CLS 38×89 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'CLS 38×89',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 89,
+        crossSectionThickness: 38,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  {
+    label: 'CLS 47×100 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'CLS 47×100',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 100,
+        crossSectionThickness: 47,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  {
+    label: 'CLS 89×89 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'CLS 89×89',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 89,
+        crossSectionThickness: 89,
+        lengths: [2400, 3000, 3600, 4800],
+      },
     },
   },
   // ── Imperial (in) ──────────────────────────────────────
@@ -106,6 +159,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: true,
     unit: 'in',
     stock: {
+      kind: 'sheet',
       material: 'Plywood',
       color: '#d2b996',
       sizes: [{ width: 48, length: 96, thickness: [0.75, 0.5, 0.25] }],
@@ -116,6 +170,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'in',
     stock: {
+      kind: 'sheet',
       material: 'MDF',
       color: '#b09078',
       sizes: [{ width: 48, length: 96, thickness: [0.75, 0.5, 0.25] }],
@@ -129,6 +184,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'in',
     stock: {
+      kind: 'sheet',
       material: 'Hardwood',
       color: '#a5784a',
       sizes: [
@@ -143,6 +199,7 @@ export const STOCK_PRESETS: StockPreset[] = [
     default: false,
     unit: 'in',
     stock: {
+      kind: 'sheet',
       material: 'Softwood',
       color: '#dcc391',
       sizes: [
@@ -151,6 +208,66 @@ export const STOCK_PRESETS: StockPreset[] = [
         { width: 7.25, length: 96, thickness: [0.75, 1.5] },
         { width: 11.25, length: 96, thickness: [0.75, 1.5] },
       ],
+    },
+  },
+  {
+    label: 'Pine 2×4 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 2×4',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 3.5,
+        crossSectionThickness: 1.5,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  {
+    label: 'Pine 2×6 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 2×6',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 5.5,
+        crossSectionThickness: 1.5,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  {
+    label: 'Pine 1×4 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 1×4',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 3.5,
+        crossSectionThickness: 0.75,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  {
+    label: 'Pine 4×4 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 4×4',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 3.5,
+        crossSectionThickness: 3.5,
+        lengths: [96, 120, 144, 192],
+      },
     },
   },
 ];
@@ -163,6 +280,16 @@ export const STOCK_PRESETS: StockPreset[] = [
 export function presetToMmStock(preset: StockPreset): StockMatrix {
   const scale = (n: number) =>
     preset.unit === 'mm' ? n : convertUnits(n, 'in', 'mm');
+  if (preset.stock.kind === 'linear') {
+    return {
+      ...preset.stock,
+      size: {
+        crossSectionWidth: scale(preset.stock.size.crossSectionWidth),
+        crossSectionThickness: scale(preset.stock.size.crossSectionThickness),
+        lengths: preset.stock.size.lengths.map(scale),
+      },
+    };
+  }
   return {
     ...preset.stock,
     sizes: preset.stock.sizes.map((s) => ({

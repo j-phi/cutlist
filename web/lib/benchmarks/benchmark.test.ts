@@ -10,11 +10,16 @@
 import { describe, it } from 'vitest';
 import {
   generateBoardLayouts,
+  isLinearBoardLayout,
   type BoardLayout,
   type ConfigInput,
   type PartToCut,
+  type SheetBoardLayout,
   type StockMatrix,
 } from '..';
+
+const onlySheet = (layouts: BoardLayout[]): SheetBoardLayout[] =>
+  layouts.filter((l): l is SheetBoardLayout => !isLinearBoardLayout(l));
 
 interface Fixture {
   name: string;
@@ -54,11 +59,13 @@ function repeat<T>(n: number, fn: (i: number) => T): T[] {
 }
 
 const PLY_18MM_FULL: StockMatrix = {
+  kind: 'sheet',
   material: 'Plywood',
   sizes: [{ width: 1220, length: 2440, thickness: [18] }],
 };
 
 const PLY_18MM_MULTI: StockMatrix = {
+  kind: 'sheet',
   material: 'Plywood',
   sizes: [
     { width: 1220, length: 2440, thickness: [18] },
@@ -160,7 +167,7 @@ interface Metrics {
 }
 
 function measure(
-  layouts: BoardLayout[],
+  layouts: SheetBoardLayout[],
   runtimeMs: number,
   leftovers: number,
 ): Metrics {
@@ -225,7 +232,7 @@ function runOnce(fixture: Fixture): Metrics {
   const t0 = performance.now();
   const result = generateBoardLayouts(fixture.parts, fixture.stock, config);
   const dt = performance.now() - t0;
-  return measure(result.layouts, dt, result.leftovers.length);
+  return measure(onlySheet(result.layouts), dt, result.leftovers.length);
 }
 
 /** Run a fixture under a forced pass set so we can isolate per-packer behaviour. */
@@ -244,7 +251,7 @@ function runWithPasses(
   const t0 = performance.now();
   const result = generateBoardLayouts(fixture.parts, fixture.stock, config);
   const dt = performance.now() - t0;
-  return measure(result.layouts, dt, result.leftovers.length);
+  return measure(onlySheet(result.layouts), dt, result.leftovers.length);
 }
 
 const VARIANTS: Array<{
