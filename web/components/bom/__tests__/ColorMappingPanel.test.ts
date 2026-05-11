@@ -5,6 +5,7 @@ import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
 import ColorMappingPanel from '../ColorMappingPanel.vue';
+import { UInputStub, USelectStub } from '~/test-utils/stubs';
 
 const STOCK_YAML = `
 - label: Plywood
@@ -79,51 +80,6 @@ const UCheckboxStub = defineComponent({
         onChange: (event: Event) =>
           emit('update:modelValue', (event.target as HTMLInputElement).checked),
       });
-  },
-});
-
-const UInputStub = defineComponent({
-  props: {
-    modelValue: { type: String, default: '' },
-    placeholder: { type: String, default: '' },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h('input', {
-        ...attrs,
-        type: 'text',
-        value: props.modelValue,
-        placeholder: props.placeholder,
-        onInput: (event: Event) =>
-          emit('update:modelValue', (event.target as HTMLInputElement).value),
-      });
-  },
-});
-
-const USelectStub = defineComponent({
-  props: {
-    modelValue: { type: String, default: '' },
-    items: { type: Array, default: () => [] },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h(
-        'select',
-        {
-          ...attrs,
-          value: props.modelValue,
-          onChange: (event: Event) =>
-            emit(
-              'update:modelValue',
-              (event.target as HTMLSelectElement).value,
-            ),
-        },
-        (props.items as Array<{ value: string; label: string }>).map((it) =>
-          h('option', { value: it.value }, it.label),
-        ),
-      );
   },
 });
 

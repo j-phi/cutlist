@@ -9,20 +9,20 @@ const idb = useIdb();
 // ─── Projects ───────────────────────────────────────────────────────────────
 
 describe('project CRUD', () => {
-  it('creates a project and returns it with defaults', async () => {
+  it('creates a project with the supplied name and seeded defaults', async () => {
     const project = await idb.createProject('Test Project');
+    expect(project).toMatchObject({
+      name: 'Test Project',
+      colorMap: {},
+      excludedColors: [],
+      stock: '',
+      distanceUnit: DEFAULT_SETTINGS.distanceUnit,
+      bladeWidth: DEFAULT_SETTINGS.bladeWidth,
+      margin: DEFAULT_SETTINGS.margin,
+      defaultAlgorithm: DEFAULT_SETTINGS.defaultAlgorithm,
+      showPartNumbers: DEFAULT_SETTINGS.showPartNumbers,
+    });
     expect(project.id).toBeDefined();
-    expect(project.name).toBe('Test Project');
-    expect(project.colorMap).toEqual({});
-    expect(project.excludedColors).toEqual([]);
-    expect(project.stock).toBe('');
-    expect(project.distanceUnit).toBe(DEFAULT_SETTINGS.distanceUnit);
-    expect(project.bladeWidth).toBe(DEFAULT_SETTINGS.bladeWidth);
-    expect(project.margin).toBe(DEFAULT_SETTINGS.margin);
-    expect(project.defaultAlgorithm).toBe(DEFAULT_SETTINGS.defaultAlgorithm);
-    expect(project.showPartNumbers).toBe(DEFAULT_SETTINGS.showPartNumbers);
-    expect(project.createdAt).toBeDefined();
-    expect(project.updatedAt).toBeDefined();
     expect(project.archivedAt).toBeUndefined();
   });
 

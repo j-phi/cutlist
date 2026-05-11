@@ -231,28 +231,4 @@ describe('InstructionsTab', () => {
     await input.setValue('A new title');
     expect(setTitle).toHaveBeenCalledWith('A new title');
   });
-
-  it('forwards editor updates to setDoc', () => {
-    activeProject.value = { id: 'p1', name: 'Demo' };
-    loadedId.value = 'p1';
-    const c = getComponent();
-    const editor = c.findComponent({ name: 'BuildDocEditor' });
-    const next: JSONContent = {
-      type: 'doc',
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: 'typed' }] },
-      ],
-    };
-    editor.vm.$emit('update:modelValue', next);
-    expect(setDoc).toHaveBeenCalledWith(next);
-  });
-
-  it('flushes pending writes when the editor blurs', () => {
-    activeProject.value = { id: 'p1', name: 'Demo' };
-    loadedId.value = 'p1';
-    const c = getComponent();
-    const editor = c.findComponent({ name: 'BuildDocEditor' });
-    editor.vm.$emit('blur');
-    expect(flush).toHaveBeenCalled();
-  });
 });

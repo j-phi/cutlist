@@ -104,17 +104,13 @@ function makeAuthor(initial: Set<GroupId> | null = null): SceneAuthor & {
 }
 
 describe('partVisibility', () => {
-  it('Should return all when every Object is visible', () => {
-    expect(partVisibility(3, 3)).toBe('all');
-  });
-  it('Should return none when no Object is visible', () => {
-    expect(partVisibility(0, 3)).toBe('none');
-  });
-  it('Should return mixed when some are visible', () => {
-    expect(partVisibility(1, 3)).toBe('mixed');
-  });
-  it('Should treat zero-Object parts as all-visible', () => {
-    expect(partVisibility(0, 0)).toBe('none');
+  it.each([
+    [3, 3, 'all'],
+    [0, 3, 'none'],
+    [1, 3, 'mixed'],
+    [0, 0, 'none'], // zero-Object parts collapse to 'none'
+  ] as const)('(visible=%i, total=%i) → %s', (visible, total, expected) => {
+    expect(partVisibility(visible, total)).toBe(expected);
   });
 });
 

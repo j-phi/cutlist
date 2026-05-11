@@ -67,6 +67,7 @@ export const UInputStub = defineComponent({
   setup(props, { attrs, emit }) {
     return () =>
       h('input', {
+        type: 'text',
         ...attrs,
         placeholder: props.placeholder,
         disabled: props.disabled || undefined,

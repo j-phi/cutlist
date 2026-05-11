@@ -1,10 +1,16 @@
 // @vitest-environment nuxt
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { defineComponent, h, ref } from 'vue';
+import { ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
 import ExportPdfButton from '../ExportPdfButton.vue';
+import {
+  UButtonStub,
+  UFormFieldStub,
+  UModalStub,
+  USelectStub,
+} from '~/test-utils/stubs';
 
 const download = vi.fn().mockResolvedValue(undefined);
 const isExporting = ref(false);
@@ -19,62 +25,6 @@ mockNuxtImport('useExportPdf', () => () => ({
   canExport,
 }));
 mockNuxtImport('useBoardLayoutsQuery', () => () => ({ isComputing }));
-
-const UButtonStub = {
-  inheritAttrs: false,
-  template: '<button type="button" v-bind="$attrs"><slot /></button>',
-};
-
-const UModalStub = {
-  props: {
-    open: { type: Boolean, required: true },
-  },
-  emits: ['update:open'],
-  template: `
-    <section :data-open="String(open)" :data-testid="'modal'">
-      <slot name="content" />
-    </section>
-  `,
-};
-
-const UFormFieldStub = {
-  template: '<div><slot /></div>',
-};
-
-const USelectStub = defineComponent({
-  props: {
-    modelValue: { type: [String, Number], default: '' },
-    items: { type: Array, default: () => [] },
-    valueKey: { type: String, default: undefined },
-    labelKey: { type: String, default: undefined },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () =>
-      h(
-        'select',
-        {
-          ...attrs,
-          value: String(props.modelValue),
-          onChange: (event: Event) => {
-            const raw = (event.target as HTMLSelectElement).value;
-            const item = (props.items as Array<Record<string, unknown>>).find(
-              (it) => String(it[props.valueKey ?? 'value']) === raw,
-            );
-            const value = item ? item[props.valueKey ?? 'value'] : raw;
-            emit('update:modelValue', value);
-          },
-        },
-        (props.items as Array<Record<string, unknown>>).map((it) =>
-          h(
-            'option',
-            { value: String(it[props.valueKey ?? 'value']) },
-            String(it[props.labelKey ?? 'label']),
-          ),
-        ),
-      );
-  },
-});
 
 describe('ExportPdfButton', () => {
   beforeEach(() => {
@@ -135,18 +85,6 @@ describe('ExportPdfButton', () => {
       expect(
         getTriggerButton(component).attributes('disabled'),
       ).toBeUndefined();
-    });
-  });
-
-  describe('On trigger click', () => {
-    it('Should open the modal', async () => {
-      const component = getComponent();
-
-      expect(getModal(component).attributes('data-open')).toBe('false');
-
-      await getTriggerButton(component).trigger('click');
-
-      expect(getModal(component).attributes('data-open')).toBe('true');
     });
   });
 

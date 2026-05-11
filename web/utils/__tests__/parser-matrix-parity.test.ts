@@ -282,13 +282,10 @@ function makeColladaFixture(): string {
 function expectMatrixClose(
   actual: ArrayLike<number>,
   expected: ArrayLike<number>,
-  tol = 1e-6,
 ): void {
   expect(actual.length).toBe(expected.length);
   for (let i = 0; i < expected.length; i += 1) {
     expect(actual[i]).toBeCloseTo(expected[i]!, 6);
-    // toBeCloseTo with precision=6 ⇒ |Δ| < 5e-7, well within 1e-6.
-    void tol;
   }
 }
 
