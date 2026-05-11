@@ -2,6 +2,7 @@
 @import '@nuxt/ui';
 
 @import './typography.css';
+@import './build-doc.css';
 
 /* ── Base resets ── */
 @layer base {

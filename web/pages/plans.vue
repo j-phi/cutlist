@@ -1,7 +1,9 @@
 <template>
   <AppShell>
     <ClientOnly>
-      <ProjectWorkspace class="flex-1 min-w-0 bg-base relative z-10" />
+      <div class="flex-1 overflow-y-auto">
+        <NuxtPage />
+      </div>
     </ClientOnly>
   </AppShell>
 </template>

@@ -11,3 +11,6 @@ web/dist
 /.claude/worktrees
 /plans
 workbench-build-guide.md
+
+# Generated marketplace assets — rebuilt by scripts/build-plans.ts on pre{dev,build}
+web/public/plans/_build/

@@ -13,7 +13,7 @@ const {
   renameProject,
   reorderProjects,
 } = useProjects();
-const { setActiveProject, goHome } = useProjectNavigation();
+const { setActiveProject } = useProjectNavigation();
 const { exportProject } = useExportProject();
 const { pickAndImport } = useImportProject();
 
@@ -65,11 +65,6 @@ async function handleImportFromMenu() {
 function openNewProjectFromMenu() {
   closeMobileMenu();
   openNewProject();
-}
-
-function goHomeFromMenu() {
-  closeMobileMenu();
-  goHome();
 }
 
 function requestClose(id: string) {
@@ -230,19 +225,25 @@ function openNewProject() {
         >studio</span
       >
     </div>
-    <button
-      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle transition-colors"
-      :class="
-        !activeId
-          ? 'text-teal-400 bg-surface'
-          : 'text-muted hover:text-teal-400 hover:bg-surface'
-      "
+    <NuxtLink
+      to="/"
+      active-class=""
+      exact-active-class="text-teal-400 bg-surface"
+      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
       title="Home"
       aria-label="Home"
-      @click="goHome"
     >
       <UIcon name="i-lucide-house" class="block shrink-0 w-4 h-4" />
-    </button>
+    </NuxtLink>
+    <NuxtLink
+      to="/plans"
+      active-class="text-teal-400 bg-surface"
+      class="hidden sm:flex shrink-0 h-10 px-3 items-center justify-center border-r border-subtle text-muted hover:text-teal-400 hover:bg-surface transition-colors"
+      title="Browse plans"
+      aria-label="Browse plans"
+    >
+      <UIcon name="i-lucide-hammer" class="block shrink-0 w-4 h-4" />
+    </NuxtLink>
     <TabList class="hidden sm:flex flex-1 min-w-0">
       <TabListItem
         v-for="[id, project] in projects"
@@ -379,18 +380,27 @@ function openNewProject() {
         class="sm:hidden absolute top-10 inset-x-0 z-50 bg-elevated border-b border-default shadow-2xl max-h-[calc(100vh-2.5rem)] overflow-y-auto"
       >
         <!-- Home -->
-        <button
-          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle transition-colors"
-          :class="
-            !activeId
-              ? 'text-teal-400 bg-surface'
-              : 'text-body hover:bg-surface'
-          "
-          @click="goHomeFromMenu"
+        <NuxtLink
+          to="/"
+          active-class=""
+          exact-active-class="text-teal-400 bg-surface"
+          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle text-body hover:bg-surface transition-colors"
+          @click="showMobileMenu = false"
         >
           <UIcon name="i-lucide-house" class="w-4 h-4 shrink-0" />
           <span class="text-sm">Home</span>
-        </button>
+        </NuxtLink>
+
+        <!-- Plans -->
+        <NuxtLink
+          to="/plans"
+          active-class="text-teal-400 bg-surface"
+          class="flex items-center gap-3 w-full px-4 py-3 text-left border-b border-subtle text-body hover:bg-surface transition-colors"
+          @click="showMobileMenu = false"
+        >
+          <UIcon name="i-lucide-hammer" class="w-4 h-4 shrink-0" />
+          <span class="text-sm">Plans</span>
+        </NuxtLink>
 
         <!-- Open projects -->
         <div

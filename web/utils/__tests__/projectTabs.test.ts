@@ -82,16 +82,16 @@ describe('projectTabs registry', () => {
     });
 
     it('Should drop the tab segment when the active tab is the default', () => {
-      expect(projectPath('abc', DEFAULT_PROJECT_TAB)).toBe('/abc');
+      expect(projectPath('abc', DEFAULT_PROJECT_TAB)).toBe('/build/abc');
     });
 
     it('Should append the tab segment for non-default tabs', () => {
-      expect(projectPath('abc', 'layout')).toBe('/abc/layout');
-      expect(projectPath('abc', 'settings')).toBe('/abc/settings');
+      expect(projectPath('abc', 'layout')).toBe('/build/abc/layout');
+      expect(projectPath('abc', 'settings')).toBe('/build/abc/settings');
     });
 
     it('Should treat null tab as default', () => {
-      expect(projectPath('abc', null)).toBe('/abc');
+      expect(projectPath('abc', null)).toBe('/build/abc');
     });
   });
 });

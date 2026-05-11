@@ -127,9 +127,6 @@ mockNuxtImport('useToast', () => () => ({
   },
 }));
 
-const tab = ref<string>('bom');
-mockNuxtImport('useProjectTab', () => () => tab);
-
 const hoveredGroupIds = ref<Set<number>>(new Set());
 const selectedGroupIds = ref<Set<number>>(new Set());
 const partIndex = ref<Map<number, number[]>>(new Map());

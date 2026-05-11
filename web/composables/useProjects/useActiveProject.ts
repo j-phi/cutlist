@@ -20,26 +20,32 @@ export function startActiveProjectWatcher() {
   watcherStarted = true;
 
   const idb = useIdb();
-  // Single watcher — loads project data when activeId changes (set by router).
-  watch(activeId, async (id) => {
-    if (!id) {
-      activeProjectData.value = null;
+  // Immediate so a deep-linked /build/<id> hydrates without a second
+  // navigation. Stale-URL projects bounce home; the activeId computed
+  // re-evaluates and this watcher then clears state on the next tick.
+  watch(
+    activeId,
+    async (id) => {
+      if (!id) {
+        activeProjectData.value = null;
+        projectLoading.value = false;
+        return;
+      }
+      if (activeProjectData.value?.id !== id) {
+        activeProjectData.value = null;
+      }
+      projectLoading.value = true;
+      const data = await loadProject(idb, id);
+      if (activeId.value !== id) return; // stale if user switched again
+      if (data) {
+        activeProjectData.value = data;
+      } else {
+        void navigateTo('/');
+      }
       projectLoading.value = false;
-      return;
-    }
-    if (activeProjectData.value?.id !== id) {
-      activeProjectData.value = null;
-    }
-    projectLoading.value = true;
-    const data = await loadProject(idb, id);
-    if (activeId.value !== id) return; // stale if user switched again
-    if (data) {
-      activeProjectData.value = data;
-    } else {
-      activeId.value = null; // stale URL — back to index
-    }
-    projectLoading.value = false;
-  });
+    },
+    { immediate: true },
+  );
 }
 
 export default function useActiveProject() {

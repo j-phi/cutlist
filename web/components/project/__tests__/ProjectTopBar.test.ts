@@ -57,7 +57,6 @@ mockNuxtImport('useProjects', () => () => ({
 
 mockNuxtImport('useProjectNavigation', () => () => ({
   setActiveProject: () => {},
-  goHome: () => {},
 }));
 
 mockNuxtImport('useExportProject', () => () => ({
