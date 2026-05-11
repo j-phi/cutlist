@@ -1,6 +1,5 @@
 // @vitest-environment nuxt
 import { describe, expect, it } from 'vitest';
-import { defineComponent } from 'vue';
 import { mount } from '@vue/test-utils';
 import {
   DEFAULT_INCH_PRECISION,
@@ -8,14 +7,8 @@ import {
   type LinearStockMatrix,
 } from 'cutlist';
 
-import LinearStockInput from '../LinearStockInput.vue';
+import LinearDimensions from '../LinearDimensions.vue';
 import { UButtonStub, UInputStub } from '~/test-utils/stubs';
-
-const MaterialColorPickerStub = defineComponent({
-  props: { modelValue: { type: String, default: '' } },
-  emits: ['update:modelValue'],
-  template: '<div class="color-picker" :data-color="modelValue" />',
-});
 
 function makePine24(): LinearStockMatrix {
   return {
@@ -46,14 +39,13 @@ function makeCls(): LinearStockMatrix {
 function mountInput(modelValue: LinearStockMatrix, unit: 'mm' | 'in' = 'mm') {
   const precision =
     unit === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION;
-  return mount(LinearStockInput, {
+  return mount(LinearDimensions, {
     props: { modelValue, distanceUnit: unit, precision },
     global: {
       stubs: {
         UInput: UInputStub,
         UButton: UButtonStub,
         UIcon: true,
-        MaterialColorPicker: MaterialColorPickerStub,
       },
     },
   });
@@ -80,7 +72,7 @@ function crossSectionInputs(wrapper: ReturnType<typeof mountInput>) {
   };
 }
 
-describe('LinearStockInput', () => {
+describe('LinearDimensions', () => {
   describe('Cross-section editing', () => {
     it('renders cross-section dimensions in the active unit (mm)', () => {
       const { thickness, width } = crossSectionInputs(

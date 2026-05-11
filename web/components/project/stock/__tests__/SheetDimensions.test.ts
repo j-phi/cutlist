@@ -1,6 +1,5 @@
 // @vitest-environment nuxt
 import { describe, expect, it } from 'vitest';
-import { defineComponent, h } from 'vue';
 import { mount } from '@vue/test-utils';
 import {
   DEFAULT_INCH_PRECISION,
@@ -8,23 +7,8 @@ import {
   type SheetStockMatrix,
 } from 'cutlist';
 
-import SheetStockInput from '../SheetStockInput.vue';
+import SheetDimensions from '../SheetDimensions.vue';
 import { UButtonStub, UInputStub } from '~/test-utils/stubs';
-
-const MaterialColorPickerStub = defineComponent({
-  props: { modelValue: { type: String, default: '' } },
-  emits: ['update:modelValue'],
-  setup(props, { emit }) {
-    return () =>
-      h('button', {
-        class: 'color-picker',
-        type: 'button',
-        'data-testid': 'sheet-color-picker',
-        'data-color': props.modelValue,
-        onClick: () => emit('update:modelValue', '#ff0000'),
-      });
-  },
-});
 
 function makePlywood(): SheetStockMatrix {
   return {
@@ -41,14 +25,13 @@ function makePlywood(): SheetStockMatrix {
 function mountInput(modelValue: SheetStockMatrix, unit: 'mm' | 'in' = 'mm') {
   const precision =
     unit === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION;
-  return mount(SheetStockInput, {
+  return mount(SheetDimensions, {
     props: { modelValue, distanceUnit: unit, precision },
     global: {
       stubs: {
         UInput: UInputStub,
         UButton: UButtonStub,
         UIcon: true,
-        MaterialColorPicker: MaterialColorPickerStub,
       },
     },
   });
@@ -62,7 +45,7 @@ function emittedLatest(
   return events[events.length - 1][0] as SheetStockMatrix;
 }
 
-describe('SheetStockInput', () => {
+describe('SheetDimensions', () => {
   describe('Render state', () => {
     it('renders one size row per size in modelValue', () => {
       const wrapper = mountInput(makePlywood(), 'mm');
@@ -80,37 +63,75 @@ describe('SheetStockInput', () => {
       ).toHaveLength(2);
     });
 
-    it('displays dimensions in mm when distanceUnit is mm', () => {
-      const text = mountInput(makePlywood(), 'mm')
-        .find('[data-testid="sheet-size-row"]')
-        .text();
-      expect(text).toContain('1220');
-      expect(text).toContain('2440');
+    it('renders existing dimensions in the size inputs (mm)', () => {
+      const wrapper = mountInput(makePlywood(), 'mm');
+      const w0 = wrapper.find('[data-testid="sheet-size-width-0"]')
+        .element as HTMLInputElement;
+      const l0 = wrapper.find('[data-testid="sheet-size-length-0"]')
+        .element as HTMLInputElement;
+      expect(w0.value).toBe('1220');
+      expect(l0.value).toBe('2440');
     });
 
-    it('displays dimensions in inches when distanceUnit is in', () => {
-      const text = mountInput(makePlywood(), 'in')
-        .find('[data-testid="sheet-size-row"]')
-        .text();
-      // 1220mm ≈ 48", 2440mm ≈ 96".
-      expect(text).toContain('48');
-      expect(text).toContain('96');
+    it('renders existing dimensions converted to the active unit (in)', () => {
+      const wrapper = mountInput(makePlywood(), 'in');
+      // 1220mm ≈ 48", 2440mm ≈ 96". 1220 isn't an exact inch multiple so
+      // 1/32" precision renders "48 1/32"; the test cares that the inputs
+      // show the inch reading, not the mm fixture.
+      const w0 = wrapper.find('[data-testid="sheet-size-width-0"]')
+        .element as HTMLInputElement;
+      const l0 = wrapper.find('[data-testid="sheet-size-length-0"]')
+        .element as HTMLInputElement;
+      expect(w0.value).toMatch(/^48/);
+      expect(l0.value).toMatch(/^96/);
     });
   });
 
   describe('Size editing', () => {
-    it('adding a valid size emits update:modelValue with the new size appended', async () => {
+    it('clicking "Add size" appends a seeded 4×8 default (mm)', async () => {
       const wrapper = mountInput(makePlywood(), 'mm');
-      await wrapper.find('[data-testid="sheet-size-width"]').setValue('600');
-      await wrapper.find('[data-testid="sheet-size-length"]').setValue('900');
       await wrapper.find('[data-testid="sheet-size-add"]').trigger('click');
       const sizes = emittedLatest(wrapper)?.sizes;
       expect(sizes).toHaveLength(3);
       expect(sizes![2]).toMatchObject({
-        width: 600,
-        length: 900,
+        width: 1220,
+        length: 2440,
         thickness: [],
       });
+    });
+
+    it('clicking "Add size" seeds the inch equivalent in an inch project', async () => {
+      const wrapper = mountInput(makePlywood(), 'in');
+      await wrapper.find('[data-testid="sheet-size-add"]').trigger('click');
+      const sizes = emittedLatest(wrapper)?.sizes;
+      // 48" × 96" → 1219.2 × 2438.4 mm (canonical storage).
+      expect(sizes![sizes!.length - 1].width).toBeCloseTo(1219.2, 1);
+      expect(sizes![sizes!.length - 1].length).toBeCloseTo(2438.4, 1);
+    });
+
+    it('editing an existing size width commits to size[i].width on blur', async () => {
+      const wrapper = mountInput(makePlywood(), 'mm');
+      const input = wrapper.find('[data-testid="sheet-size-width-0"]');
+      await input.setValue('600');
+      await input.trigger('blur');
+      expect(emittedLatest(wrapper)?.sizes[0].width).toBe(600);
+    });
+
+    it('editing an existing size length in inches converts to mm on commit', async () => {
+      const wrapper = mountInput(makePlywood(), 'in');
+      const input = wrapper.find('[data-testid="sheet-size-length-0"]');
+      await input.setValue('120');
+      await input.trigger('blur');
+      // 120" → 3048mm
+      expect(emittedLatest(wrapper)?.sizes[0].length).toBeCloseTo(3048, 1);
+    });
+
+    it('invalid size-dim input is discarded without emitting', async () => {
+      const wrapper = mountInput(makePlywood(), 'mm');
+      const input = wrapper.find('[data-testid="sheet-size-width-0"]');
+      await input.setValue('not a number');
+      await input.trigger('blur');
+      expect(wrapper.emitted('update:modelValue')).toBeFalsy();
     });
 
     it('removing a size emits update:modelValue without it', async () => {
@@ -150,28 +171,6 @@ describe('SheetStockInput', () => {
       await removes[0].trigger('click');
       const sizes = emittedLatest(wrapper)?.sizes;
       expect(sizes![1].thickness).toEqual([18]);
-    });
-  });
-
-  describe('Material header', () => {
-    it('typing a material name emits update:modelValue with the new name', async () => {
-      const wrapper = mountInput(makePlywood(), 'mm');
-      await wrapper
-        .find('[data-testid="sheet-material-name"]')
-        .setValue('My Plywood');
-      expect(emittedLatest(wrapper)?.material).toBe('My Plywood');
-    });
-
-    it('changing color emits update:modelValue with the new color', async () => {
-      const wrapper = mountInput(makePlywood(), 'mm');
-      await wrapper.find('[data-testid="sheet-color-picker"]').trigger('click');
-      expect(emittedLatest(wrapper)?.color).toBe('#ff0000');
-    });
-
-    it('clicking remove emits remove', async () => {
-      const wrapper = mountInput(makePlywood(), 'mm');
-      await wrapper.find('[data-testid="sheet-remove"]').trigger('click');
-      expect(wrapper.emitted('remove')).toBeTruthy();
     });
   });
 });
