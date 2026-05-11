@@ -19,8 +19,6 @@ describe('ProjectWorkspaceNav', () => {
         stubs: {
           UIcon: true,
           Transition: false,
-          // Render NuxtLink as <a :href="to"> so the slot mounts and the
-          // wired URL is visible to the assertions below.
           NuxtLink: {
             props: ['to'],
             template: '<a :href="to" role="tab"><slot /></a>',

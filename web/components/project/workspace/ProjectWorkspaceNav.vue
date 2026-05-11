@@ -47,8 +47,6 @@ onBeforeUnmount(() => {
   ro?.disconnect();
 });
 
-// Active-tab tracking for the auto-scroll behaviour. `route.path` changes
-// on every tab navigation, which is what we want.
 watch(
   () => route.path,
   () => {
@@ -79,22 +77,14 @@ watch(
                 :to="projectPath(activeId, definition.id)"
                 replace
                 role="tab"
-                :aria-label="definition.label"
                 active-class="text-teal-400 tab-link-active"
-                :exact-active-class="
-                  definition.urlSegment === ''
-                    ? 'text-teal-400 tab-link-active'
-                    : ''
-                "
-                class="group relative flex items-center gap-2 px-3 h-10 text-sm whitespace-nowrap transition-colors text-muted hover:text-body"
+                class="flex items-center gap-2 px-3 h-10 text-sm whitespace-nowrap transition-colors text-muted hover:text-body"
               >
-                <span
-                  class="shrink-0 inline-flex items-center justify-center"
-                  style="width: 16px; height: 16px"
+                <UIcon
+                  :name="definition.icon"
+                  class="shrink-0 w-4 h-4"
                   aria-hidden="true"
-                >
-                  <UIcon :name="definition.icon" class="w-4 h-4" />
-                </span>
+                />
                 <span>{{ definition.label }}</span>
               </NuxtLink>
             </li>
