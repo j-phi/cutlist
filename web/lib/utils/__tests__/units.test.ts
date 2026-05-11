@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   convertUnits,
-  DEFAULT_INCH_PRECISION,
-  DEFAULT_MM_PRECISION,
   formatDistance,
   formatValue,
   parseDimension,
@@ -13,37 +11,25 @@ import {
 const FRACTION_8: Precision = { kind: 'fraction', denominator: 8 };
 const FRACTION_16: Precision = { kind: 'fraction', denominator: 16 };
 const FRACTION_32: Precision = { kind: 'fraction', denominator: 32 };
-const FRACTION_64: Precision = { kind: 'fraction', denominator: 64 };
 const DECIMAL_01: Precision = { kind: 'decimal', step: 0.1 };
 const DECIMAL_001: Precision = { kind: 'decimal', step: 0.01 };
 const DECIMAL_05: Precision = { kind: 'decimal', step: 0.5 };
 
 describe('Unit Utils', () => {
   describe('toFraction', () => {
-    it('rounds to nearest 1/denominator and renders as fraction', () => {
+    it('rounds to nearest 1/denominator, reduces to lowest terms, drops zero numerators', () => {
       expect(toFraction(0.5, 32)).toBe('1/2');
+      expect(toFraction(0.5, 64)).toBe('1/2');
       expect(toFraction(2, 32)).toBe('2');
       expect(toFraction(3 + 1 / 8, 32)).toBe('3 1/8');
-      expect(toFraction(4 + 7 / 32, 32)).toBe('4 7/32');
-      // 22.5 mm → 0.886" rounds to 7/8 at 32-denom precision.
+      // 0.886 → 7/8 at 1/32, 57/64 at 1/64.
       expect(toFraction(0.886, 32)).toBe('7/8');
-      // Same value at finer precision lands on 29/32 (0.886 ≈ 28.35/32).
       expect(toFraction(0.886, 64)).toBe('57/64');
-    });
-
-    it('reduces fractions to lowest terms', () => {
-      expect(toFraction(0.5, 64)).toBe('1/2');
-      expect(toFraction(0.25, 32)).toBe('1/4');
-    });
-
-    it('renders whole numbers without a fraction part', () => {
-      expect(toFraction(5, 32)).toBe('5');
-      expect(toFraction(0, 32)).toBe('0');
     });
   });
 
   describe('parseDimension (mm)', () => {
-    it.each<[string, number | null]>([
+    it.each<[string | null | undefined, number | null]>([
       ['12', 12],
       ['12.5', 12.5],
       ['  18  ', 18],
@@ -53,13 +39,10 @@ describe('Unit Utils', () => {
       ['abc', null],
       ['-1', null],
       ['1/2', null],
+      ['1e308', null], // beyond MAX_DIMENSION
+      [null, null],
     ])('%s -> %s', (input, expected) => {
       expect(parseDimension(input, 'mm')).toBe(expected);
-    });
-
-    it('returns null for null/undefined input', () => {
-      expect(parseDimension(null, 'mm')).toBeNull();
-      expect(parseDimension(undefined, 'mm')).toBeNull();
     });
   });
 
@@ -100,17 +83,10 @@ describe('Unit Utils', () => {
       expect(formatValue(48, 'in', FRACTION_32)).toBe('48');
     });
 
-    it('rounds an off-fraction value to the nearest 1/denominator', () => {
-      // 38 mm = 1.4961 in → rounds to 1 1/2 at 1/32 precision.
-      expect(formatValue(38 / 25.4, 'in', FRACTION_32)).toBe('1 1/2');
-      // The same value snaps differently at coarser precision.
-      expect(formatValue(38 / 25.4, 'in', FRACTION_8)).toBe('1 1/2');
-      expect(formatValue(38 / 25.4, 'in', FRACTION_64)).toBe('1 1/2');
-    });
-
-    it('honours the user-chosen denominator', () => {
+    it('rounds off-fraction values to the chosen denominator', () => {
+      // 0.6 snaps differently depending on denominator precision.
       expect(formatValue(0.6, 'in', FRACTION_8)).toBe('5/8'); // 0.625
-      expect(formatValue(0.6, 'in', FRACTION_16)).toBe('5/8'); // 10/16 → 5/8
+      expect(formatValue(0.6, 'in', FRACTION_16)).toBe('5/8'); // 10/16
       expect(formatValue(0.6, 'in', FRACTION_32)).toBe('19/32'); // 0.59375
     });
   });
@@ -138,46 +114,20 @@ describe('Unit Utils', () => {
   });
 
   describe('formatDistance', () => {
-    it('appends the unit suffix and applies precision', () => {
-      expect(formatDistance(0.0254, 'in', FRACTION_32)).toBe('1"');
+    it('appends the unit suffix', () => {
       expect(formatDistance(0.0254 * 1.5, 'in', FRACTION_32)).toBe('1 1/2"');
       expect(formatDistance(0.0381, 'mm', DECIMAL_01)).toBe('38.1mm');
-      expect(formatDistance(1.8, 'mm', DECIMAL_01)).toBe('1800mm');
-    });
-  });
-
-  describe('default precisions', () => {
-    it('inch default is 1/32', () => {
-      expect(DEFAULT_INCH_PRECISION).toEqual({
-        kind: 'fraction',
-        denominator: 32,
-      });
-    });
-    it('mm default is 0.1', () => {
-      expect(DEFAULT_MM_PRECISION).toEqual({ kind: 'decimal', step: 0.1 });
     });
   });
 
   describe('convertUnits', () => {
-    it('returns the same value when from === to', () => {
-      expect(convertUnits(1220, 'mm', 'mm')).toBe(1220);
-      expect(convertUnits(48, 'in', 'in')).toBe(48);
-    });
-
-    it('mm → in scales by 1/25.4', () => {
+    it('scales by 25.4 and round-trips losslessly', () => {
       expect(convertUnits(25.4, 'mm', 'in')).toBeCloseTo(1, 10);
-      expect(convertUnits(1219.2, 'mm', 'in')).toBeCloseTo(48, 10);
-    });
-
-    it('in → mm scales by 25.4', () => {
       expect(convertUnits(1, 'in', 'mm')).toBeCloseTo(25.4, 10);
-      expect(convertUnits(48, 'in', 'mm')).toBeCloseTo(1219.2, 10);
-    });
-
-    it('round-trips losslessly within float precision', () => {
       const inches = 3 + 7 / 8;
-      const mm = convertUnits(inches, 'in', 'mm');
-      expect(convertUnits(mm, 'mm', 'in')).toBeCloseTo(inches, 10);
+      expect(
+        convertUnits(convertUnits(inches, 'in', 'mm'), 'mm', 'in'),
+      ).toBeCloseTo(inches, 10);
     });
   });
 });

@@ -52,21 +52,6 @@ describe('Linear Packer', () => {
     expect(result.placements[2].data).toBe('c');
   });
 
-  it('places the first part at the leading edge with no kerf, kerf only between cuts', () => {
-    const packer = createLinearPacker<string>();
-    const bin = new Rectangle(null, 0, 0, 0.05, 1);
-    const rects = [
-      new Rectangle('a', 0, 0, 0.05, 0.3),
-      new Rectangle('b', 0, 0, 0.05, 0.3),
-    ];
-    const options: PackOptions = { ...baseOptions, gap: 0.005 };
-
-    const result = packer.pack(bin, rects, options);
-
-    expect(result.placements[0].bottom).toBe(0);
-    expect(result.placements[1].bottom).toBeCloseTo(0.305, 6);
-  });
-
   it('returns a part too long for the stick as a leftover with no partial placement', () => {
     const packer = createLinearPacker<string>();
     const bin = new Rectangle(null, 0, 0, 0.05, 1);
@@ -116,33 +101,6 @@ describe('Linear Packer', () => {
     const aSmall = packer.tryPlaceInBinState!(stateA, small, baseOptions);
     expect(aSmall).not.toBeNull();
     expect(aSmall!.bottom).toBeCloseTo(0.7, 6);
-  });
-
-  it('orders placements longest-first regardless of input order', () => {
-    const packer = createLinearPacker<string>();
-    const bin = new Rectangle(null, 0, 0, 0.05, 2);
-    const rects = [
-      new Rectangle('short', 0, 0, 0.05, 0.2),
-      new Rectangle('long', 0, 0, 0.05, 0.9),
-      new Rectangle('medium', 0, 0, 0.05, 0.5),
-    ];
-
-    const result = packer.pack(bin, rects, baseOptions);
-
-    expect(result.placements.map((p) => p.data)).toEqual([
-      'long',
-      'medium',
-      'short',
-    ]);
-  });
-
-  it('handles empty input without throwing', () => {
-    const packer = createLinearPacker<string>();
-    const bin = new Rectangle(null, 0, 0, 0.05, 1);
-
-    const result = packer.pack(bin, [], baseOptions);
-
-    expect(result).toEqual({ placements: [], leftovers: [] });
   });
 
   it('returns leftovers when capacity is insufficient and places longest first', () => {

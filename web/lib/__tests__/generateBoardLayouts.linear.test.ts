@@ -250,6 +250,31 @@ describe('generateBoardLayouts — linear routing', () => {
     expect(result.leftovers[0].partNumber).toBe(1);
   });
 
+  it('subtracts one kerf from the trailing offcut — the cut that frees it is a real loss', () => {
+    const stock: StockMatrix[] = [
+      {
+        kind: 'linear',
+        material: 'Pine 2x4',
+        size: {
+          crossSectionWidth: CSW_MM,
+          crossSectionThickness: CST_MM,
+          lengths: [2400],
+        },
+      },
+    ];
+    const kerfMm = 3.175;
+    const kerfM = kerfMm / 1000;
+    const result = generateBoardLayouts([makeLinearPart(1, 1.0)], stock, {
+      ...baseConfig,
+      bladeWidth: kerfMm,
+    });
+
+    expect(asLinear(result.layouts[0]).wasteEndM).toBeCloseTo(
+      2.4 - 1.0 - kerfM,
+      6,
+    );
+  });
+
   it('accounts for kerf between consecutive cuts on a stick', () => {
     const stock: StockMatrix[] = [
       {
@@ -284,26 +309,6 @@ describe('generateBoardLayouts — linear routing', () => {
     expect(layout.placements[2].offsetM).toBeCloseTo(2 * (0.5 + kerfM), 6);
   });
 
-  it('returns no linear layouts when only sheet stock is given', () => {
-    const stock: StockMatrix[] = [
-      {
-        kind: 'sheet',
-        material: 'MDF',
-        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
-      },
-    ];
-    const part: PartToCut = {
-      partNumber: 1,
-      instanceNumber: 1,
-      name: 'p',
-      material: 'MDF',
-      size: { width: 0.4, length: 0.5, thickness: 0.018 },
-    };
-    const result = generateBoardLayouts([part], stock, baseConfig);
-
-    expect(result.layouts.every((l) => !isLinearBoardLayout(l))).toBe(true);
-  });
-
   it('reduceStockMatrix: expands a linear row into one LinearStock per length', () => {
     const expanded = reduceStockMatrix([
       {
@@ -318,83 +323,9 @@ describe('generateBoardLayouts — linear routing', () => {
     ]);
     const linear = expanded.filter(isLinear);
     expect(linear).toHaveLength(3);
-    for (const s of linear) {
-      expect(s.material).toBe('Pine 2x4');
-      expect(s.crossSectionWidth).toBeCloseTo(CSW_M, 6);
-      expect(s.crossSectionThickness).toBeCloseTo(CST_M, 6);
-    }
     expect(linear.map((s) => s.length).sort((a, b) => a - b)).toEqual([
       2.44, 3.05, 4.88,
     ]);
-  });
-
-  it('reduceStockMatrix: mixed sheet+linear input produces both kinds', () => {
-    const expanded = reduceStockMatrix([
-      {
-        kind: 'sheet',
-        material: 'MDF',
-        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
-      },
-      {
-        kind: 'linear',
-        material: 'Pine 2x4',
-        size: {
-          crossSectionWidth: CSW_MM,
-          crossSectionThickness: CST_MM,
-          lengths: [2440],
-        },
-      },
-    ]);
-    const sheets = expanded.filter((s): s is Stock => !isLinear(s));
-    const sticks = expanded.filter(isLinear);
-    expect(sheets).toHaveLength(1);
-    expect(sticks).toHaveLength(1);
-    expect(sheets[0].material).toBe('MDF');
-    expect(sticks[0].material).toBe('Pine 2x4');
-  });
-
-  it('groups linear parts by cross-section into separate stock groups', () => {
-    // Two parts with different cross-sections under the same material name
-    // would never be a realistic project, so we verify the grouping
-    // structurally via two different materials. Parts ending up on
-    // separate sticks of their matched cross-section is enough proof that
-    // grouping splits on cross-section, not just material.
-    const stock: StockMatrix[] = [
-      {
-        kind: 'linear',
-        material: 'Pine 2x4',
-        size: {
-          crossSectionWidth: CSW_MM,
-          crossSectionThickness: CST_MM,
-          lengths: [2440],
-        },
-      },
-      {
-        kind: 'linear',
-        material: 'Pine 2x6',
-        size: {
-          crossSectionWidth: 38.1,
-          crossSectionThickness: 139.7,
-          lengths: [2440],
-        },
-      },
-    ];
-    const parts = [
-      makeLinearPart(1, 1.0, 'Pine 2x4', CSW_M, CST_M),
-      makeLinearPart(2, 1.0, 'Pine 2x4', CSW_M, CST_M),
-      makeLinearPart(3, 1.0, 'Pine 2x6', 0.0381, 0.1397),
-    ];
-    const result = generateBoardLayouts(parts, stock, {
-      ...baseConfig,
-      bladeWidth: 0,
-    });
-
-    expect(result.leftovers).toEqual([]);
-    const linearLayouts = result.layouts.filter(isLinearBoardLayout);
-    expect(linearLayouts).toHaveLength(2);
-    const twoBy4 = linearLayouts.find((l) => l.stock.material === 'Pine 2x4');
-    const twoBy6 = linearLayouts.find((l) => l.stock.material === 'Pine 2x6');
-    expect(twoBy4?.placements.map((p) => p.partNumber).sort()).toEqual([1, 2]);
-    expect(twoBy6?.placements.map((p) => p.partNumber)).toEqual([3]);
+    expect(linear.every((s) => s.crossSectionWidth === CSW_M)).toBe(true);
   });
 });

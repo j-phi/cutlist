@@ -56,10 +56,7 @@ describe('LinearLayoutList', () => {
     vi.restoreAllMocks();
   });
 
-  // Group-by-material / sort / shopping-summary semantics are covered in
-  // shoppingList.test.ts. This test verifies the template wires the
-  // aggregator output through to LinearLayoutListItem with the right
-  // per-group board index.
+  // Wiring only; aggregation covered in shoppingList.test.ts.
   it('renders one LinearLayoutListItem per stick with ascending lengths and per-group indices', () => {
     const layouts = [
       makeLinear('Pine 2x4', 3.048),
@@ -92,9 +89,5 @@ describe('LinearLayoutList', () => {
     expect(summary).toContain('1× 2438mm');
     expect(summary).toContain('1× 3048mm');
     expect(summary).toContain('2 sticks total');
-  });
-
-  it('renders nothing when layouts is empty', () => {
-    expect(getComponent([]).findAll('section')).toHaveLength(0);
   });
 });

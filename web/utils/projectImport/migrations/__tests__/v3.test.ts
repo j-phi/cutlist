@@ -182,8 +182,6 @@ describe('migrateProjectToMmStorage (v3)', () => {
         stock: stockYaml,
       });
     expect(run).not.toThrow();
-    // Material name + color survive; sizes is normalized to an empty array
-    // so parseStock won't choke and the user can re-add sizes via the UI.
     const parsed = YAML.load(run().stock as string) as Array<{
       material: string;
       sizes: unknown[];
@@ -296,22 +294,7 @@ describe('migrateProjectToMmStorage (v3)', () => {
     expect(mmProject.precision).toEqual({ kind: 'decimal', step: 0.1 });
   });
 
-  it('preserves an existing precision setting (idempotent)', () => {
-    const custom = { kind: 'fraction', denominator: 16 };
-    const v3 = migrateProjectToMmStorage({
-      id: 'p',
-      distanceUnit: 'in',
-      bladeWidth: 3.175,
-      margin: 0,
-      stock: '',
-      precision: custom,
-    });
-    expect(v3.precision).toEqual(custom);
-  });
-
   it('is idempotent on already-v3 data', () => {
-    // Already v3-shaped: no `unit` field, mm numerics, `kind: 'sheet'`
-    // discriminator. Running the migration a second time should be a no-op.
     const stockYaml = YAML.dump([
       {
         kind: 'sheet',

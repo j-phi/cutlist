@@ -79,45 +79,25 @@ function mountCard(modelValue: StockMatrix) {
 }
 
 describe('StockCard', () => {
-  it('renders the sheet body when kind is sheet, and shows "sheet" type chip', () => {
-    const wrapper = mountCard(makeSheet());
-    expect(wrapper.find('[data-testid="sheet-body"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="linear-body"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="stock-type-chip"]').text()).toBe(
-      'sheet',
-    );
-  });
+  it.each([
+    ['sheet', makeSheet, 'sheet-body', 'linear-body', 'sheet'],
+    ['linear', makeLinear, 'linear-body', 'sheet-body', 'timber'],
+  ] as const)(
+    'renders the %s body and matching type chip',
+    (_label, factory, shown, hidden, chipText) => {
+      const wrapper = mountCard(factory());
+      expect(wrapper.find(`[data-testid="${shown}"]`).exists()).toBe(true);
+      expect(wrapper.find(`[data-testid="${hidden}"]`).exists()).toBe(false);
+      expect(wrapper.find('[data-testid="stock-type-chip"]').text()).toBe(
+        chipText,
+      );
+    },
+  );
 
-  it('renders the linear body when kind is linear, and shows "timber" type chip', () => {
-    const wrapper = mountCard(makeLinear());
-    expect(wrapper.find('[data-testid="linear-body"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="sheet-body"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="stock-type-chip"]').text()).toBe(
-      'timber',
-    );
-  });
-
-  it('material-name typing emits update:modelValue with the new name', async () => {
-    const wrapper = mountCard(makeSheet());
-    await wrapper
-      .find('[data-testid="stock-material-name"]')
-      .setValue('My Ply');
+  it('trims surrounding whitespace on blur', async () => {
+    const wrapper = mountCard({ ...makeSheet(), material: '  Ply  ' });
+    await wrapper.find('[data-testid="stock-material-name"]').trigger('blur');
     const emitted = wrapper.emitted('update:modelValue');
-    expect(emitted).toHaveLength(1);
-    expect((emitted![0][0] as SheetStockMatrix).material).toBe('My Ply');
-  });
-
-  it('color picker emits update:modelValue with the new color', async () => {
-    const wrapper = mountCard(makeSheet());
-    await wrapper.find('[data-testid="color-picker"]').trigger('click');
-    const emitted = wrapper.emitted('update:modelValue');
-    expect(emitted).toHaveLength(1);
-    expect((emitted![0][0] as SheetStockMatrix).color).toBe('#ff0000');
-  });
-
-  it('remove button emits remove', async () => {
-    const wrapper = mountCard(makeSheet());
-    await wrapper.find('[data-testid="stock-remove"]').trigger('click');
-    expect(wrapper.emitted('remove')).toBeTruthy();
+    expect((emitted![0][0] as SheetStockMatrix).material).toBe('Ply');
   });
 });

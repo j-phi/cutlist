@@ -24,11 +24,8 @@ import { z } from 'zod';
 import type { IdbRecord, RecordMigration } from './types';
 
 /**
- * Apply the v3 transform to a project record. Idempotent on already-v3
- * data — the stock YAML normaliser drops any leftover `unit:` field.
- *
- * Also seeds the `precision` field (added in v3) with the unit-appropriate
- * default; pre-v3 records had no precision setting.
+ * Apply the v3 transform: convert bladeWidth/margin to mm, normalise stock
+ * YAML, seed `precision` if missing. Idempotent on already-v3 data.
  */
 export function migrateProjectToMmStorage(record: IdbRecord): IdbRecord {
   const oldUnit: 'mm' | 'in' = record.distanceUnit === 'in' ? 'in' : 'mm';
@@ -49,7 +46,6 @@ export function migrateProjectToMmStorage(record: IdbRecord): IdbRecord {
   return next;
 }
 
-/** Registry entry — `./index.ts` re-exports this in the canonical order. */
 export const v3Migration: RecordMigration = {
   version: 3,
   store: 'projects',
@@ -98,7 +94,6 @@ function migrateStockYamlToMm(yaml: string, projectUnit: 'mm' | 'in'): string {
   return YAML.dump(cleaned, { indent: 2, flowLevel: 2 });
 }
 
-/** Convert one row, returning `null` for rows that can't be salvaged. */
 function convertRow(
   row: (OldStockMatrix & { kind?: string }) | null | undefined,
   projectUnit: 'mm' | 'in',
@@ -108,9 +103,8 @@ function convertRow(
     return null;
   }
 
-  // Forward-compat: a row already declaring `kind` (sheet or linear) is
-  // v3-shaped and passes through. Pre-v3 rows have no `kind` and follow
-  // the sheet-conversion path below — they're all implicitly sheet.
+  // A row already declaring `kind` is v3-shaped — pass through. Pre-v3
+  // rows have no `kind` and follow the sheet-conversion path below.
   if (row.kind != null) {
     const next: IdbRecord = { ...row };
     delete next.unit;
@@ -133,20 +127,16 @@ function convertRow(
     sizes.push({ width, length, thickness });
   }
 
-  // Spread the original row, replace `sizes` with the converted set, drop
-  // the per-row `unit:` field, and stamp the `kind: 'sheet'` discriminator
-  // every pre-v3 row implicitly had.
+  // Stamp the `kind: 'sheet'` discriminator that every pre-v3 row implicitly had.
   const next: IdbRecord = { kind: 'sheet', ...row, sizes };
   delete next.unit;
   return next;
 }
 
 /**
- * Parse one stock dimension into mm. Returns `null` for unparseable input
- * so the caller can drop the size cleanly — never returns NaN.
- *
- * Numbers use the row's unit. Strings either carry their own suffix
- * (`"18mm"`, `"3/4in"`, `"4ft"`) or are parsed as the row's unit.
+ * Parse one stock dimension into mm. Strings with a trailing unit
+ * (`"18mm"`, `"3/4in"`) self-tag; otherwise the row's unit applies.
+ * Returns null on bad input — never NaN.
  */
 function dimToMm(
   dim: number | string | null | undefined,
