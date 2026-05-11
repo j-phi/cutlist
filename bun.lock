@@ -36,7 +36,6 @@
         "lint-staged": "^15.5.2",
         "nuxt": "^4.0.0",
         "prettier": "^3.8.3",
-        "simple-analytics-vue": "^3.1.0",
         "simple-git-hooks": "^2.13.1",
         "tailwindcss": "^4.0.0",
         "typescript": "^6.0.0",
@@ -1714,8 +1713,6 @@
     "siginfo": ["siginfo@2.0.0", "", {}, "sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g=="],
 
     "signal-exit": ["signal-exit@4.1.0", "", {}, ""],
-
-    "simple-analytics-vue": ["simple-analytics-vue@3.1.0", "", { "dependencies": { "vue": "^3.0.0" } }, "sha512-8Pwjbh3e0UDKwhLgDOokGOWe3Ot7bZsTbNHMaQylqFebTxoWe80gH+h1jcNbWPCBQ+/nEWHdqbRLpc/4vg2gow=="],
 
     "simple-git": ["simple-git@3.36.0", "", { "dependencies": { "@kwsites/file-exists": "^1.1.1", "@kwsites/promise-deferred": "^1.1.1", "@simple-git/args-pathspec": "^1.0.3", "@simple-git/argv-parser": "^1.1.0", "debug": "^4.4.0" } }, "sha512-cGQjLjK8bxJw4QuYT7gxHw3/IouVESbhahSsHrX97MzCL1gu2u7oy38W6L2ZIGECEfIBG4BabsWDPjBxJENv9Q=="],
 

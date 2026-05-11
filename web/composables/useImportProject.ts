@@ -1,5 +1,5 @@
-import * as Sentry from '@sentry/nuxt';
 import { importProjectFromFile as importProjectFromCompressedFile } from '~/utils/projectImport';
+import { trackEvent } from '~/utils/analytics';
 import { reportError } from './useAppErrors';
 
 export default function useImportProject() {
@@ -10,13 +10,10 @@ export default function useImportProject() {
   async function importFromFile(file: File) {
     const newProjectId = await importProjectFromCompressedFile(file, idb);
     await appendProject(newProjectId);
-    setActiveProject(newProjectId);
     // `useBuildDoc` watches `activeId` at module scope and reloads the
     // doc when the navigation lands.
-    Sentry.metrics.count('project.imported');
-    Sentry.metrics.distribution('project.import.size', file.size, {
-      unit: 'byte',
-    });
+    setActiveProject(newProjectId);
+    trackEvent('project-imported', { sizeBytes: file.size });
   }
 
   function pickAndImport() {

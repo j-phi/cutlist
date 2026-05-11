@@ -64,6 +64,15 @@ export default defineNuxtConfig({
             'Import GLTF assemblies and generate optimised cutlists for boards and panels.',
         },
       ],
+      script:
+        process.env.NODE_ENV === 'production'
+          ? [
+              {
+                async: true,
+                src: 'https://scripts.simpleanalyticscdn.com/latest.js',
+              },
+            ]
+          : [],
     },
   },
 });

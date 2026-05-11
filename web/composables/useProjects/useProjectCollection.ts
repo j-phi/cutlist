@@ -8,8 +8,8 @@
  * The Projects page reads IDB directly so it can show closed projects too.
  */
 import { computed } from 'vue';
-import * as Sentry from '@sentry/nuxt';
 import type { Precision } from 'cutlist';
+import { trackEvent } from '~/utils/analytics';
 import { getDefaultStockYaml } from '~/utils/settings';
 import { useIdb } from '~/composables/useIdb';
 import { resetDatabase as idbResetDatabase } from '~/composables/useIdb/db';
@@ -81,7 +81,7 @@ export default function useProjectCollection() {
     // through loadProject for data we already have.
     activeProjectData.value = { ...project, models: [] };
     await navigateTo(projectPath(project.id, null));
-    Sentry.metrics.count('project.created', 1, { attributes: { unit } });
+    trackEvent('project-created', { unit });
   }
 
   async function closeProject(id: string) {

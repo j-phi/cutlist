@@ -1,5 +1,5 @@
-import * as Sentry from '@sentry/nuxt';
 import type { Algorithm, Precision } from 'cutlist';
+import { trackEvent } from '~/utils/analytics';
 import type {
   IdbAnnotation,
   IdbAsset,
@@ -163,11 +163,9 @@ export default function useExportProject() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    Sentry.metrics.count('project.exported', 1, {
-      attributes: { hasModels: data.models.length > 0 },
-    });
-    Sentry.metrics.distribution('project.export.size', blob.size, {
-      unit: 'byte',
+    trackEvent('project-exported', {
+      hasModels: data.models.length > 0,
+      sizeBytes: blob.size,
     });
   }
 
