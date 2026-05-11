@@ -40,8 +40,16 @@ interface StockPreset {
   stock: SheetStockMatrix | LinearStockMatrix;
 }
 
+/**
+ * Dimensions reflect what's actually stocked at big-box / lumber yards in
+ * each market. Sources cross-checked against Home Depot stocking lists,
+ * UK CLS (kiln-dried planed studwork) standards, and BS EN 336 for
+ * regularised carcassing. Hardwood is deliberately absent — it's sold
+ * random-width / random-length, so a preset is misleading; users add
+ * their own per project.
+ */
 export const STOCK_PRESETS: StockPreset[] = [
-  // ── Metric (mm) ────────────────────────────────────────
+  // ── Metric sheet goods (mm) ────────────────────────────
   {
     label: 'Plywood (mm)',
     default: true,
@@ -50,7 +58,9 @@ export const STOCK_PRESETS: StockPreset[] = [
       kind: 'sheet',
       material: 'Plywood',
       color: '#d2b996',
-      sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9, 6] }],
+      sizes: [
+        { width: 1220, length: 2440, thickness: [4, 6, 9, 12, 15, 18, 25] },
+      ],
     },
   },
   {
@@ -61,7 +71,33 @@ export const STOCK_PRESETS: StockPreset[] = [
       kind: 'sheet',
       material: 'MDF',
       color: '#b09078',
-      sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9, 6, 3] }],
+      sizes: [{ width: 1220, length: 2440, thickness: [6, 9, 12, 18, 25] }],
+    },
+  },
+  {
+    // Baltic birch is sold at 1525×1525mm (5×5ft) specifically — it's why
+    // woodworkers buy it. The 2440×1220 cut is also available but the
+    // square sheet is the differentiator.
+    label: 'Baltic Birch (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'sheet',
+      material: 'Baltic Birch',
+      color: '#f0e0b0',
+      sizes: [{ width: 1525, length: 1525, thickness: [6, 12, 18] }],
+    },
+  },
+  {
+    // Melamine-faced chipboard — the standard cabinet-carcass material.
+    label: 'MFC (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'sheet',
+      material: 'MFC',
+      color: '#ebe6de',
+      sizes: [{ width: 1220, length: 2440, thickness: [15, 18, 25] }],
     },
   },
   {
@@ -72,21 +108,13 @@ export const STOCK_PRESETS: StockPreset[] = [
       kind: 'sheet',
       material: 'Particle Board',
       color: '#c8b48c',
-      sizes: [{ width: 1220, length: 2440, thickness: [18, 16, 12] }],
+      // 22mm is "floor chipboard"; 18mm is the carcass/shelf default.
+      sizes: [{ width: 1220, length: 2440, thickness: [12, 18, 22] }],
     },
   },
   {
-    label: 'Melamine (mm)',
-    default: false,
-    unit: 'mm',
-    stock: {
-      kind: 'sheet',
-      material: 'Melamine',
-      color: '#ebe6de',
-      sizes: [{ width: 1220, length: 2440, thickness: [18, 16] }],
-    },
-  },
-  {
+    // Sold under metric labels but the thicknesses are 7/16, 1/2, 5/8,
+    // 3/4" inch sheathing converted.
     label: 'OSB (mm)',
     default: false,
     unit: 'mm',
@@ -94,7 +122,7 @@ export const STOCK_PRESETS: StockPreset[] = [
       kind: 'sheet',
       material: 'OSB',
       color: '#c3a050',
-      sizes: [{ width: 1220, length: 2440, thickness: [18, 12, 9] }],
+      sizes: [{ width: 1220, length: 2440, thickness: [9, 11, 15, 18] }],
     },
   },
   {
@@ -105,12 +133,30 @@ export const STOCK_PRESETS: StockPreset[] = [
       kind: 'sheet',
       material: 'Hardboard',
       color: '#694123',
-      sizes: [{ width: 1220, length: 2440, thickness: [6, 3] }],
+      sizes: [{ width: 1220, length: 2440, thickness: [3, 6] }],
+    },
+  },
+  // ── Metric timber (mm) ─────────────────────────────────
+  // UK CLS (Canadian Lumber Standard) — kiln-dried planed studwork, always
+  // 38mm thick. Three widths cover stud, plate, and wide stud uses.
+  {
+    label: 'CLS 38×63 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'CLS 38×63',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 63,
+        crossSectionThickness: 38,
+        lengths: [2400, 3000, 3600, 4800],
+      },
     },
   },
   {
     label: 'CLS 38×89 (mm)',
-    default: false,
+    default: true,
     unit: 'mm',
     stock: {
       kind: 'linear',
@@ -124,12 +170,29 @@ export const STOCK_PRESETS: StockPreset[] = [
     },
   },
   {
-    label: 'CLS 47×100 (mm)',
+    label: 'CLS 38×140 (mm)',
     default: false,
     unit: 'mm',
     stock: {
       kind: 'linear',
-      material: 'CLS 47×100',
+      material: 'CLS 38×140',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 140,
+        crossSectionThickness: 38,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  // UK C24 regularised carcassing — structural softwood for joists,
+  // rafters, plates. Always 47mm thick; widths step up from stud to joist.
+  {
+    label: 'C24 47×100 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'C24 47×100',
       color: '#d2b996',
       size: {
         crossSectionWidth: 100,
@@ -139,21 +202,83 @@ export const STOCK_PRESETS: StockPreset[] = [
     },
   },
   {
-    label: 'CLS 89×89 (mm)',
+    label: 'C24 47×150 (mm)',
     default: false,
     unit: 'mm',
     stock: {
       kind: 'linear',
-      material: 'CLS 89×89',
+      material: 'C24 47×150',
       color: '#d2b996',
       size: {
-        crossSectionWidth: 89,
-        crossSectionThickness: 89,
+        crossSectionWidth: 150,
+        crossSectionThickness: 47,
         lengths: [2400, 3000, 3600, 4800],
       },
     },
   },
-  // ── Imperial (in) ──────────────────────────────────────
+  {
+    label: 'C24 47×200 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'C24 47×200',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 200,
+        crossSectionThickness: 47,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  // Australian structural pine (Bunnings stocking) — different cross-section
+  // convention to UK CLS / C24; users in AU recognise these labels.
+  {
+    label: 'AU Pine 70×45 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'AU Pine 70×45',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 70,
+        crossSectionThickness: 45,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  {
+    label: 'AU Pine 90×45 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'AU Pine 90×45',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 90,
+        crossSectionThickness: 45,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  {
+    label: 'AU Pine 140×45 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'AU Pine 140×45',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 140,
+        crossSectionThickness: 45,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  // ── Imperial sheet goods (in) ──────────────────────────
   {
     label: 'Plywood (in)',
     default: true,
@@ -162,7 +287,7 @@ export const STOCK_PRESETS: StockPreset[] = [
       kind: 'sheet',
       material: 'Plywood',
       color: '#d2b996',
-      sizes: [{ width: 48, length: 96, thickness: [0.75, 0.5, 0.25] }],
+      sizes: [{ width: 48, length: 96, thickness: [0.25, 0.5, 0.75] }],
     },
   },
   {
@@ -173,43 +298,107 @@ export const STOCK_PRESETS: StockPreset[] = [
       kind: 'sheet',
       material: 'MDF',
       color: '#b09078',
-      sizes: [{ width: 48, length: 96, thickness: [0.75, 0.5, 0.25] }],
+      sizes: [{ width: 48, length: 96, thickness: [0.25, 0.5, 0.75] }],
     },
   },
   {
-    // Real hardwood is sold in random widths and lengths, so a fixed-size
-    // preset is misleading as an auto-default. Kept in the dropdown for
-    // users who do buy standardized board widths (1×6, 1×8, 1×12 S4S).
-    label: 'Hardwood Lumber (in)',
+    label: 'Baltic Birch (in)',
     default: false,
     unit: 'in',
     stock: {
       kind: 'sheet',
-      material: 'Hardwood',
-      color: '#a5784a',
-      sizes: [
-        { width: 6, length: 96, thickness: [0.75, 1, 1.5] },
-        { width: 8, length: 96, thickness: [0.75, 1, 1.5] },
-        { width: 12, length: 96, thickness: [0.75, 1, 1.5] },
-      ],
+      material: 'Baltic Birch',
+      color: '#f0e0b0',
+      sizes: [{ width: 60, length: 60, thickness: [0.25, 0.5, 0.75] }],
     },
   },
   {
-    label: 'Softwood Lumber (in)',
+    label: 'OSB (in)',
     default: false,
     unit: 'in',
     stock: {
       kind: 'sheet',
-      material: 'Softwood',
-      color: '#dcc391',
-      sizes: [
-        { width: 3.5, length: 96, thickness: [0.75, 1.5] },
-        { width: 5.5, length: 96, thickness: [0.75, 1.5] },
-        { width: 7.25, length: 96, thickness: [0.75, 1.5] },
-        { width: 11.25, length: 96, thickness: [0.75, 1.5] },
-      ],
+      material: 'OSB',
+      color: '#c3a050',
+      // 7/16" sheathing, 1/2" general, 23/32" subfloor.
+      sizes: [{ width: 48, length: 96, thickness: [0.4375, 0.5, 0.71875] }],
     },
   },
+  {
+    label: 'Hardboard (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'sheet',
+      material: 'Hardboard',
+      color: '#694123',
+      sizes: [{ width: 48, length: 96, thickness: [0.125] }],
+    },
+  },
+  // ── Imperial timber (in) ───────────────────────────────
+  // Nominal → actual S4S softwood (Pine/Fir/SPF). Width = wider face.
+  // 1× boards (0.75" thick):
+  {
+    label: 'Pine 1×4 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 1×4',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 3.5,
+        crossSectionThickness: 0.75,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  {
+    label: 'Pine 1×6 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 1×6',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 5.5,
+        crossSectionThickness: 0.75,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  {
+    label: 'Pine 1×8 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 1×8',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 7.25,
+        crossSectionThickness: 0.75,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  {
+    label: 'Pine 1×12 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 1×12',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 11.25,
+        crossSectionThickness: 0.75,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  // 2× lumber (1.5" thick):
   {
     label: 'Pine 2×4 (in)',
     default: false,
@@ -241,20 +430,51 @@ export const STOCK_PRESETS: StockPreset[] = [
     },
   },
   {
-    label: 'Pine 1×4 (in)',
+    label: 'Pine 2×8 (in)',
     default: false,
     unit: 'in',
     stock: {
       kind: 'linear',
-      material: 'Pine 1×4',
+      material: 'Pine 2×8',
       color: '#d2b996',
       size: {
-        crossSectionWidth: 3.5,
-        crossSectionThickness: 0.75,
+        crossSectionWidth: 7.25,
+        crossSectionThickness: 1.5,
         lengths: [96, 120, 144, 192],
       },
     },
   },
+  {
+    label: 'Pine 2×10 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 2×10',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 9.25,
+        crossSectionThickness: 1.5,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  {
+    label: 'Pine 2×12 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 2×12',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 11.25,
+        crossSectionThickness: 1.5,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  // Posts:
   {
     label: 'Pine 4×4 (in)',
     default: false,
@@ -266,6 +486,21 @@ export const STOCK_PRESETS: StockPreset[] = [
       size: {
         crossSectionWidth: 3.5,
         crossSectionThickness: 3.5,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  {
+    label: 'Pine 6×6 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 6×6',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 5.5,
+        crossSectionThickness: 5.5,
         lengths: [96, 120, 144, 192],
       },
     },
