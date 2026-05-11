@@ -243,6 +243,7 @@ async function onDrop(e: DragEvent) {
                 Optimized cutting plans, one click away
               </p>
               <p class="text-sm text-muted max-w-md mx-auto">
+                Pack sheet goods and dimensional lumber in the same project.
                 Multiple packing strategies compete to find the layout with the
                 fewest boards and least waste. Tweak blade kerf, margins, and
                 stock filters in real time.
@@ -367,6 +368,23 @@ async function onDrop(e: DragEvent) {
                     Tidy column-aligned strips for table saws, Compact for
                     tighter yield, or CNC for routers. Set a project default and
                     override per material.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex gap-3">
+                <UIcon
+                  name="i-lucide-square"
+                  class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
+                />
+                <div>
+                  <p class="text-body font-medium text-hi">
+                    Sheet goods + timber
+                  </p>
+                  <p class="text-sm text-muted mt-0.5">
+                    Pack plywood and MDF alongside 2×4s, CLS, and dowels in the
+                    same project. Parts route to the matching stock kind
+                    automatically.
                   </p>
                 </div>
               </div>

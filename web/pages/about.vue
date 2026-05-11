@@ -18,10 +18,10 @@
         <div>
           <p>
             Thanks for stopping by! I wanted a simple way to take a 3D model and
-            lay it out onto sheet material &mdash; something that would tell me
-            exactly how to cut my boards with minimal waste. The tools that
-            existed were either expensive, clunky, or didn't produce cuts you
-            could actually make with a track saw.
+            lay it out onto sheet goods and dimensional lumber &mdash; something
+            that would tell me exactly how to cut my boards and sticks with
+            minimal waste. The tools that existed were either expensive, clunky,
+            or didn't produce cuts you could actually make with a track saw.
           </p>
           <p class="mt-3">
             I'm currently building out my own workshop and have been using
@@ -44,11 +44,12 @@
             and Sketchup imports: (<strong class="text-white">GLTF</strong>,
             <strong class="text-white">GLB</strong>, or
             <strong class="text-white">COLLADA/.dae</strong>) or enter parts by
-            hand. Assign stock materials, and the app figures out how to fit
-            everything onto the fewest boards possible. Export a PDF cutting
-            diagram to take to the workshop, or save the project as a
-            <code class="text-teal-300">.cutlist</code> file to share with
-            others.
+            hand. Assign stock materials &mdash; sheet goods like plywood or
+            MDF, or dimensional lumber like 2×4s &mdash; and the app figures out
+            how to fit everything onto the fewest boards and sticks possible.
+            Export a PDF cutting diagram to take to the workshop, or save the
+            project as a <code class="text-teal-300">.cutlist</code> file to
+            share with others.
           </p>
         </div>
 
@@ -59,7 +60,7 @@
             The cutting engine
           </h2>
           <p>
-            The engine runs a
+            For sheet stock, the engine runs a
             <strong class="text-white">tournament</strong> &mdash; multiple
             packing strategies compete against each other and the best layout
             wins. There are three voices:
@@ -71,6 +72,15 @@
             that can cut anywhere on a sheet). You can pin a strategy per
             project, or per material if one stock prefers one style and another
             stock prefers another.
+          </p>
+          <p class="mt-3">
+            For dimensional lumber, the engine runs a
+            <strong class="text-white">1D first-fit-decreasing</strong> packer:
+            parts are matched to sticks of the same cross-section and laid out
+            longest-first with kerf between cuts. Short offcuts get reused on
+            earlier sticks via the same multi-board lookback as the sheet
+            packers, and the shopping list tells you how many sticks of each
+            length to buy.
           </p>
           <p class="mt-3">
             Tidy is the closest to how I'd actually lay parts out by hand on a
@@ -163,6 +173,12 @@ const features = [
     title: 'Tournament optimizer',
     description:
       'Tidy, compact, and CNC packers compete — the cleanest layout with the fewest boards and least waste wins.',
+  },
+  {
+    icon: 'i-lucide-square',
+    title: 'Sheet goods + dimensional lumber',
+    description:
+      'Pack plywood / MDF and 2×4s / CLS / dowels in the same project. The engine routes each part to the right stock kind automatically.',
   },
   {
     icon: 'i-lucide-scissors',
