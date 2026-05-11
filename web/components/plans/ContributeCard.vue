@@ -87,7 +87,7 @@ const steps = [
         <div class="flex items-center gap-2">
           <UIcon name="i-lucide-scale" class="w-4 h-4 text-teal-400" />
           <h3 class="text-sm font-semibold text-body uppercase tracking-wider">
-            Licensing, in plain English
+            Licensing
           </h3>
         </div>
         <p class="mt-3 text-sm text-muted">
