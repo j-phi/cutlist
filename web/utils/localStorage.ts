@@ -20,6 +20,10 @@ export const STORAGE_KEYS = {
     projectBomModelsExpanded(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/bom-models-expanded/v1`;
     },
+    // Whether the "How stock works" tray on the Stock tab is expanded, scoped per project.
+    projectStockHelpExpanded(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/stock-help-expanded/v1`;
+    },
   },
 } as const;
 

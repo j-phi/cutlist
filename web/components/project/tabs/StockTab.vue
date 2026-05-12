@@ -9,6 +9,7 @@ import { FALLBACK_PALETTE } from '~/utils/materialColors';
 import { useStockMutations } from '~/composables/useStockMutations';
 
 const { parsedStock, distanceUnit, precision } = useProjectSettings();
+const { activeId } = useProjects();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 const { add, update, remove } = useStockMutations();
 
@@ -43,8 +44,6 @@ const presetItems = computed<DropdownItem[][]>(() => {
   if (timber.length > 0) groups.push(presetGroup('Timber', timber));
   return groups;
 });
-
-const helpOpen = ref(false);
 
 const customItems: DropdownItem[][] = [
   [
@@ -120,21 +119,10 @@ function addCustomLinear() {
     <div
       class="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
     >
-      <div class="flex items-center gap-2 min-w-0">
-        <p class="text-sm text-muted">
-          Add the stock you have available. Parts will be laid out onto these
-          materials.
-        </p>
-        <UButton
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-circle-help"
-          aria-label="How stock works"
-          data-testid="stock-help-trigger"
-          @click="helpOpen = true"
-        />
-      </div>
+      <p class="text-sm text-muted">
+        Add the stock you have available. Parts will be laid out onto these
+        materials.
+      </p>
       <div class="flex items-center gap-2 shrink-0">
         <UDropdownMenu
           :items="presetItems"
@@ -166,6 +154,8 @@ function addCustomLinear() {
         </UDropdownMenu>
       </div>
     </div>
+
+    <StockHelpTray v-if="activeId" :project-id="activeId" />
 
     <div
       v-if="entries.length === 0"
@@ -219,7 +209,5 @@ function addCustomLinear() {
         @remove="remove(idx)"
       />
     </div>
-
-    <StockHelpModal v-model:open="helpOpen" />
   </div>
 </template>
