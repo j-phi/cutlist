@@ -1,4 +1,4 @@
-import type { SheetStock } from 'cutlist';
+import { STOCK_MATCH_TOLERANCE_M, type SheetStock } from 'cutlist';
 import type { GrainLock } from '~/utils/grain';
 
 /**
@@ -20,7 +20,7 @@ export function canFitOnAnyBoard(
   const matching = boards.filter(
     (b) =>
       b.material === part.material &&
-      Math.abs(b.thickness - part.thicknessM) < 1e-4,
+      Math.abs(b.thickness - part.thicknessM) <= STOCK_MATCH_TOLERANCE_M,
   );
   if (matching.length === 0) return false;
 

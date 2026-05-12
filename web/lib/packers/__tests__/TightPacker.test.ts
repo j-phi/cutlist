@@ -17,7 +17,7 @@ describe('Tight Bin Packer', () => {
     const options: PackOptions = {
       allowRotations: false,
       gap: 0,
-      precision: 0,
+      placementEpsilon: 0,
     };
 
     expect(packer.pack(bin, rects, options)).toEqual({
@@ -58,7 +58,7 @@ describe('Tight Bin Packer', () => {
     const options: PackOptions = {
       allowRotations: false,
       gap: 0,
-      precision: 0,
+      placementEpsilon: 0,
     };
 
     expect(packer.pack(bin, rects, options)).toEqual({
@@ -90,7 +90,7 @@ describe('Tight Bin Packer', () => {
     const options: PackOptions = {
       allowRotations: false,
       gap: 2,
-      precision: 0.001,
+      placementEpsilon: 0.001,
     };
 
     const result = packer.pack(bin, rects, options);
@@ -116,7 +116,7 @@ describe('Tight Bin Packer', () => {
     const options: PackOptions = {
       allowRotations: true,
       gap: 0,
-      precision: 0,
+      placementEpsilon: 0,
     };
 
     expect(packer.pack(bin, rects, options)).toEqual({

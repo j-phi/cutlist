@@ -361,6 +361,22 @@ Single source of truth, exported through the `cutlist` library entry:
   - `formatDistance(meters, unit, precision)` — same plus the unit suffix. Used by every display site (BOM, layout, PDF, viewer labels).
   - `toFraction(value, denominator)` — internal building block; rounds to nearest `1/denominator` and reduces.
 
+### Tolerances
+
+Three tolerances, three regimes. They are _not_ interchangeable.
+
+| Constant                                         | Value  | Regime                                                                                     | Used by                                 |
+| ------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------ | --------------------------------------- |
+| `GROUP_TOLERANCE_M` (`groupPartInfos.ts`)        | 1 mm   | **Grouping** — "two mesh extents are the same physical cut" (absorbs exporter / OBB drift) | `clusterByGap` for BOM-row coherence    |
+| `STOCK_MATCH_TOLERANCE_M` (`lib/utils/units.ts`) | 0.5 mm | **Identity** — "this part fits this stock" (label vs. measurement gap)                     | `stock-utils.ts`, `canFitOnAnyBoard.ts` |
+| `Config.placementEpsilon` (`lib/types.ts`)       | 1e-5 m | **Placement geometry** — rectangle overlap, free-rect fit, coord equality                  | Packers, `Rectangle`, layout-score      |
+
+Rules:
+
+- Identity (material+thickness matching) is _always_ absolute — values cluster near 0.01–0.05 m, where relative epsilon collapses to sub-µm and rejects legitimate matches. Use `STOCK_MATCH_TOLERANCE_M`, not `placementEpsilon`, not `isNearlyEqual`.
+- Placement (board coordinates) is bounded away from zero by part sizes and can use the relative `isNearlyEqual` — but watch the `a === 0` foot-gun at bin-origin coordinates.
+- Grouping noise is always strictly larger than identity noise (1 mm > 0.5 mm) and identity is strictly larger than placement (0.5 mm > 0.01 µm). Don't invert.
+
 ### The settings layer — `web/composables/useProjectSettings.ts`
 
 `distanceUnit` and `precision` are reactive writable computeds. `precision` is `Ref<Precision>` (never undefined — falls back to the unit's default when no project is loaded). Flipping `distanceUnit` resets `precision` to that unit's default in the same write — fractional precision in mm and decimal-mm steps in inches are nonsense, so we don't try to carry one across.

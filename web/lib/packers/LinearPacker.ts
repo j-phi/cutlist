@@ -58,10 +58,12 @@ export function createLinearPacker<T>(): Packer<T> {
     options: PackOptions<T>,
   ): Rectangle<T> | null {
     const state = rawState as LinearBinState<T>;
-    if (Math.abs(rect.width - state.bin.width) > options.precision) return null;
+    if (Math.abs(rect.width - state.bin.width) > options.placementEpsilon)
+      return null;
     const gap = state.placements.length === 0 ? 0 : options.gap;
     const start = state.cursor + gap;
-    if (start + rect.height > state.bin.top + options.precision) return null;
+    if (start + rect.height > state.bin.top + options.placementEpsilon)
+      return null;
     const placed = new Rectangle(
       rect.data,
       state.bin.left,

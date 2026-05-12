@@ -87,7 +87,7 @@ export default createSharedComposable(() => {
       bladeWidth: bw,
       margin: mg,
       defaultAlgorithm: alg,
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     };
     return {
       projectId: pid,

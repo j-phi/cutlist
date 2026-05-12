@@ -8,7 +8,7 @@ import type { Point } from '../../geometry';
 const defaultOptions: PackOptions = {
   allowRotations: false,
   gap: 0,
-  precision: 0,
+  placementEpsilon: 0,
 };
 
 /** Build a packer that uses getAllPossiblePlacements with no custom sort. */

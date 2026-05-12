@@ -107,7 +107,7 @@ export function createTidyPacker<T>(
     // The strip's stage-1 cut stays intact; the residual costs one extra
     // (stage-3) rip to recover later.
     const sideWaste = strip.span - rect.width;
-    if (sideWaste > options.gap + options.precision) {
+    if (sideWaste > options.gap + options.placementEpsilon) {
       strip.freeRects.push({
         left: left + rect.width + options.gap,
         bottom,
@@ -135,7 +135,7 @@ export function createTidyPacker<T>(
 
     if (splitHorizontal) {
       const rightW = leftoverW - options.gap;
-      if (rightW > options.precision) {
+      if (rightW > options.placementEpsilon) {
         replacements.push({
           left: fr.left + rect.width + options.gap,
           bottom: fr.bottom,
@@ -144,7 +144,7 @@ export function createTidyPacker<T>(
         });
       }
       const topH = leftoverH - options.gap;
-      if (topH > options.precision) {
+      if (topH > options.placementEpsilon) {
         replacements.push({
           left: fr.left,
           bottom: fr.bottom + rect.height + options.gap,
@@ -154,7 +154,7 @@ export function createTidyPacker<T>(
       }
     } else {
       const topH = leftoverH - options.gap;
-      if (topH > options.precision) {
+      if (topH > options.placementEpsilon) {
         replacements.push({
           left: fr.left,
           bottom: fr.bottom + rect.height + options.gap,
@@ -163,7 +163,7 @@ export function createTidyPacker<T>(
         });
       }
       const rightW = leftoverW - options.gap;
-      if (rightW > options.precision) {
+      if (rightW > options.placementEpsilon) {
         replacements.push({
           left: fr.left + rect.width + options.gap,
           bottom: fr.bottom,
@@ -185,8 +185,9 @@ export function createTidyPacker<T>(
     const isFirst = state.strips.length === 0;
     const start = isFirst ? state.binLeft : state.cursor + options.gap;
     if (
-      start + rect.width > state.binLeft + state.binWidth + options.precision ||
-      rect.height > state.binHeight + options.precision
+      start + rect.width >
+        state.binLeft + state.binWidth + options.placementEpsilon ||
+      rect.height > state.binHeight + options.placementEpsilon
     ) {
       return null;
     }
@@ -218,9 +219,9 @@ export function createTidyPacker<T>(
     } | null = null;
     for (const oriented of orientations) {
       for (const strip of state.strips) {
-        if (oriented.width > strip.span + options.precision) continue;
+        if (oriented.width > strip.span + options.placementEpsilon) continue;
         const remaining = strip.crossSpan - (strip.cursor - state.binBottom);
-        if (oriented.height > remaining + options.precision) continue;
+        if (oriented.height > remaining + options.placementEpsilon) continue;
         const sideWaste = strip.span - oriented.width;
         if (!bestStripFit || sideWaste < bestStripFit.sideWaste) {
           bestStripFit = { strip, oriented, sideWaste };
@@ -243,8 +244,8 @@ export function createTidyPacker<T>(
       for (const strip of state.strips) {
         for (let i = 0; i < strip.freeRects.length; i++) {
           const fr = strip.freeRects[i];
-          if (oriented.width > fr.width + options.precision) continue;
-          if (oriented.height > fr.height + options.precision) continue;
+          if (oriented.width > fr.width + options.placementEpsilon) continue;
+          if (oriented.height > fr.height + options.placementEpsilon) continue;
           return placeInResidual(strip, i, oriented, options);
         }
       }

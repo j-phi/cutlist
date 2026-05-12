@@ -91,7 +91,7 @@ export function createCompactPacker<T>(
     state.freeRects.splice(candidate.freeIndex, 1, ...splits);
 
     if (rectMerge) {
-      mergeFreeRects(state.freeRects, options.precision);
+      mergeFreeRects(state.freeRects, options.placementEpsilon);
     }
 
     return placement;
@@ -152,8 +152,8 @@ function pickBestPlacement<T>(
 
     for (const candidateRect of orientations) {
       if (
-        candidateRect.width > free.width + options.precision ||
-        candidateRect.height > free.height + options.precision
+        candidateRect.width > free.width + options.placementEpsilon ||
+        candidateRect.height > free.height + options.placementEpsilon
       ) {
         continue;
       }
@@ -167,8 +167,8 @@ function pickBestPlacement<T>(
 
       if (
         best == null ||
-        score < best.score - options.precision ||
-        (Math.abs(score - best.score) <= options.precision &&
+        score < best.score - options.placementEpsilon ||
+        (Math.abs(score - best.score) <= options.placementEpsilon &&
           tieBreak < best.tieBreak)
       ) {
         best = { rect: candidateRect, freeIndex: i, score, tieBreak };
@@ -219,7 +219,7 @@ function splitFreeRect<T>(
   if (splitHorizontal) {
     // Right of placement, same height as placement.
     const rightWidth = leftoverW - options.gap;
-    if (rightWidth > options.precision) {
+    if (rightWidth > options.placementEpsilon) {
       splits.push({
         left: free.left + placement.width + options.gap,
         bottom: free.bottom,
@@ -229,7 +229,7 @@ function splitFreeRect<T>(
     }
     // Above placement, full free width.
     const topHeight = leftoverH - options.gap;
-    if (topHeight > options.precision) {
+    if (topHeight > options.placementEpsilon) {
       splits.push({
         left: free.left,
         bottom: free.bottom + placement.height + options.gap,
@@ -240,7 +240,7 @@ function splitFreeRect<T>(
   } else {
     // Above placement, same width as placement.
     const topHeight = leftoverH - options.gap;
-    if (topHeight > options.precision) {
+    if (topHeight > options.placementEpsilon) {
       splits.push({
         left: free.left,
         bottom: free.bottom + placement.height + options.gap,
@@ -250,7 +250,7 @@ function splitFreeRect<T>(
     }
     // Right of placement, full free height.
     const rightWidth = leftoverW - options.gap;
-    if (rightWidth > options.precision) {
+    if (rightWidth > options.placementEpsilon) {
       splits.push({
         left: free.left + placement.width + options.gap,
         bottom: free.bottom,
@@ -295,7 +295,7 @@ function chooseSplitAxis<T>(
   return horizontalSmall <= verticalSmall;
 }
 
-function mergeFreeRects(freeRects: FreeRect[], precision: number): void {
+function mergeFreeRects(freeRects: FreeRect[], placementEpsilon: number): void {
   // Merge pairs of free rects that share a full edge — recovers contiguous
   // space that was unnecessarily fragmented by an earlier split. Iterate
   // until stable; merges typically converge in 1–2 passes.
@@ -309,16 +309,16 @@ function mergeFreeRects(freeRects: FreeRect[], precision: number): void {
 
         // Same vertical band, stacked vertically.
         if (
-          isNearlyEqual(a.left, b.left, precision) &&
-          isNearlyEqual(a.width, b.width, precision)
+          isNearlyEqual(a.left, b.left, placementEpsilon) &&
+          isNearlyEqual(a.width, b.width, placementEpsilon)
         ) {
-          if (isNearlyEqual(a.bottom + a.height, b.bottom, precision)) {
+          if (isNearlyEqual(a.bottom + a.height, b.bottom, placementEpsilon)) {
             a.height += b.height;
             freeRects.splice(j, 1);
             merged = true;
             break outer;
           }
-          if (isNearlyEqual(b.bottom + b.height, a.bottom, precision)) {
+          if (isNearlyEqual(b.bottom + b.height, a.bottom, placementEpsilon)) {
             a.bottom = b.bottom;
             a.height += b.height;
             freeRects.splice(j, 1);
@@ -329,16 +329,16 @@ function mergeFreeRects(freeRects: FreeRect[], precision: number): void {
 
         // Same horizontal band, stacked horizontally.
         if (
-          isNearlyEqual(a.bottom, b.bottom, precision) &&
-          isNearlyEqual(a.height, b.height, precision)
+          isNearlyEqual(a.bottom, b.bottom, placementEpsilon) &&
+          isNearlyEqual(a.height, b.height, placementEpsilon)
         ) {
-          if (isNearlyEqual(a.left + a.width, b.left, precision)) {
+          if (isNearlyEqual(a.left + a.width, b.left, placementEpsilon)) {
             a.width += b.width;
             freeRects.splice(j, 1);
             merged = true;
             break outer;
           }
-          if (isNearlyEqual(b.left + b.width, a.left, precision)) {
+          if (isNearlyEqual(b.left + b.width, a.left, placementEpsilon)) {
             a.left = b.left;
             a.width += b.width;
             freeRects.splice(j, 1);

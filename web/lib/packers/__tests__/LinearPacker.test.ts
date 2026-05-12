@@ -6,7 +6,7 @@ import { Rectangle } from '../../geometry';
 const baseOptions: PackOptions = {
   allowRotations: false,
   gap: 0,
-  precision: 1e-6,
+  placementEpsilon: 1e-6,
 };
 
 describe('Linear Packer', () => {

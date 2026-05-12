@@ -16,15 +16,15 @@ export function isValidPlacement<T>(
   bin: Rectangle<unknown>,
   placements: Rectangle<T>[],
   rect: Rectangle<T>,
-  precision: number,
+  placementEpsilon: number,
   gap: number = 0,
 ): boolean {
   return (
-    rect.isInside(bin, precision) &&
+    rect.isInside(bin, placementEpsilon) &&
     placements.every((p) => {
       const padded =
         gap > 0 ? p.pad({ left: gap, right: gap, top: gap, bottom: gap }) : p;
-      return !rect.isIntersecting(padded, precision);
+      return !rect.isIntersecting(padded, placementEpsilon);
     })
   );
 }

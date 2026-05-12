@@ -39,7 +39,8 @@ export interface Packer<T> {
 
 export interface PackOptions<T = unknown> {
   gap: number;
-  precision: number;
+  /** Placement-geometry tolerance — see `Config.placementEpsilon`. */
+  placementEpsilon: number;
   allowRotations: boolean;
   /** Optional per-rect override. When provided, a rect can only be rotated if both
    * `allowRotations` is true AND this function returns true for that rect's data. */

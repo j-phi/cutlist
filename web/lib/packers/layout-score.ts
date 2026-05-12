@@ -27,22 +27,22 @@ const RIP_WEIGHT = 10;
 export function compareLayoutScores(
   a: LayoutScore,
   b: LayoutScore,
-  precision: number,
+  placementEpsilon: number,
 ): number {
-  if (Math.abs(a.boardsUsed - b.boardsUsed) > precision)
+  if (Math.abs(a.boardsUsed - b.boardsUsed) > placementEpsilon)
     return a.boardsUsed - b.boardsUsed;
-  if (Math.abs(a.wasteArea - b.wasteArea) > precision)
+  if (Math.abs(a.wasteArea - b.wasteArea) > placementEpsilon)
     return a.wasteArea - b.wasteArea;
-  if (Math.abs(a.wasteConcentration - b.wasteConcentration) > precision)
+  if (Math.abs(a.wasteConcentration - b.wasteConcentration) > placementEpsilon)
     return a.wasteConcentration - b.wasteConcentration;
-  if (Math.abs(a.cutComplexity - b.cutComplexity) > precision)
+  if (Math.abs(a.cutComplexity - b.cutComplexity) > placementEpsilon)
     return a.cutComplexity - b.cutComplexity;
   return 0;
 }
 
 export function scoreLayouts(
   layouts: PotentialBoardLayout[],
-  precision: number,
+  placementEpsilon: number,
 ): LayoutScore {
   const boardsUsed = layouts.length;
   let wasteArea = 0;
@@ -70,8 +70,8 @@ export function scoreLayouts(
     // Rip axis = whichever dimension has fewer unique edges (a few rip
     // cuts partition the board into strips of many crosscuts). Ties go
     // to x — table-saw rip-first convention.
-    const xCount = countUniqueLevels(xLevels, precision);
-    const yCount = countUniqueLevels(yLevels, precision);
+    const xCount = countUniqueLevels(xLevels, placementEpsilon);
+    const yCount = countUniqueLevels(yLevels, placementEpsilon);
     const ripCount = Math.min(xCount, yCount);
     const crossCount = Math.max(xCount, yCount);
     cutComplexity += ripCount * RIP_WEIGHT + crossCount;
@@ -85,14 +85,14 @@ export function scoreLayouts(
   };
 }
 
-function countUniqueLevels(values: number[], precision: number): number {
+function countUniqueLevels(values: number[], placementEpsilon: number): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   let count = 1;
   let last = sorted[0];
   for (let i = 1; i < sorted.length; i++) {
     const value = sorted[i];
-    if (Math.abs(value - last) > precision) {
+    if (Math.abs(value - last) > placementEpsilon) {
       count++;
       last = value;
     }

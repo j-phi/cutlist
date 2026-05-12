@@ -18,7 +18,7 @@ export function createTightPacker<T>(): Packer<T> {
     getPossiblePlacements: getAllPossiblePlacements,
     sortPlacements(a, b, options) {
       // sort bottom most first, leftmost second
-      if (!isNearlyEqual(a.y, b.y, options.precision)) return a.y - b.y;
+      if (!isNearlyEqual(a.y, b.y, options.placementEpsilon)) return a.y - b.y;
       return a.x - b.x;
     },
   });
@@ -48,7 +48,7 @@ function tryPlaceInTightState<T>(
   // Match the sortPlacements above so single-rect placement is consistent
   // with batch packing.
   points.sort((a, b) =>
-    isNearlyEqual(a.y, b.y, options.precision) ? a.x - b.x : a.y - b.y,
+    isNearlyEqual(a.y, b.y, options.placementEpsilon) ? a.x - b.x : a.y - b.y,
   );
 
   for (const point of points) {
@@ -63,7 +63,7 @@ function tryPlaceInTightState<T>(
           state.bin,
           state.placements,
           placement,
-          options.precision,
+          options.placementEpsilon,
           options.gap,
         )
       ) {

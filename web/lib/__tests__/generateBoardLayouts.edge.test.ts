@@ -23,7 +23,7 @@ const baseConfig: Config = {
   bladeWidth: 0,
   margin: 0,
   defaultAlgorithm: 'auto',
-  precision: 1e-5,
+  placementEpsilon: 1e-5,
 };
 
 function makePart(

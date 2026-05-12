@@ -226,7 +226,7 @@ function runOnce(fixture: Fixture): Metrics {
     bladeWidth: 3.175,
     margin: 0,
     defaultAlgorithm: 'auto',
-    precision: 1e-5,
+    placementEpsilon: 1e-5,
     ...fixture.config,
   };
   const t0 = performance.now();
@@ -244,7 +244,7 @@ function runWithPasses(
     bladeWidth: 3.175,
     margin: 0,
     defaultAlgorithm: 'auto',
-    precision: 1e-5,
+    placementEpsilon: 1e-5,
     ...fixture.config,
     searchPasses: passes,
   };

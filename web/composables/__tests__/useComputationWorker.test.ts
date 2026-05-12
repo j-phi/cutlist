@@ -76,7 +76,7 @@ const CONFIG: ConfigInput = {
   bladeWidth: 0.003,
   margin: 0,
   defaultAlgorithm: 'auto',
-  precision: 1e-5,
+  placementEpsilon: 1e-5,
 };
 
 const emptyResult = () => ({ layouts: [], leftovers: [] });

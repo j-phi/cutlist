@@ -278,7 +278,7 @@ function runMultiPassSearch(
 
   // Per-group tournament — changing one group's constraints (e.g. grain
   // lock) can't bleed into unrelated groups' winning passes.
-  const groups = groupPartsByStock(parts, stock, config.precision);
+  const groups = groupPartsByStock(parts, stock);
   const allLayouts: PotentialBoardLayout[] = [];
   const allLeftovers: PartToCut[] = [];
 
@@ -311,7 +311,7 @@ function runMultiPassSearch(
 
         if (
           best == null ||
-          isBetterSearchResult(candidate, best, config.precision)
+          isBetterSearchResult(candidate, best, config.placementEpsilon)
         ) {
           best = candidate;
         }
@@ -327,7 +327,7 @@ function runMultiPassSearch(
   return {
     layouts: allLayouts,
     leftovers: allLeftovers,
-    score: scoreLayouts(allLayouts, config.precision),
+    score: scoreLayouts(allLayouts, config.placementEpsilon),
   };
 }
 
@@ -359,7 +359,7 @@ function runSearchPass(
   return {
     layouts: minimizedLayouts,
     leftovers,
-    score: scoreLayouts(minimizedLayouts, config.precision),
+    score: scoreLayouts(minimizedLayouts, config.placementEpsilon),
   };
 }
 
@@ -392,20 +392,20 @@ function runLinearPass(
   return {
     layouts: minimizedLayouts,
     leftovers,
-    score: scoreLayouts(minimizedLayouts, config.precision),
+    score: scoreLayouts(minimizedLayouts, config.placementEpsilon),
   };
 }
 
 function isBetterSearchResult(
   candidate: SearchPassResult,
   best: SearchPassResult,
-  precision: number,
+  placementEpsilon: number,
 ): boolean {
   if (candidate.leftovers.length !== best.leftovers.length) {
     return candidate.leftovers.length < best.leftovers.length;
   }
 
-  return compareLayoutScores(candidate.score, best.score, precision) < 0;
+  return compareLayoutScores(candidate.score, best.score, placementEpsilon) < 0;
 }
 
 type PlaceOptions = {
@@ -461,7 +461,7 @@ function placeAllPartsWithLookback(
   const { packerOptions } = options;
   const sortedParts = sortPartsForPlacement(
     parts,
-    config.precision,
+    config.placementEpsilon,
     options.partSortMode,
     options.randomSeed,
   );
@@ -476,7 +476,7 @@ function placeAllPartsWithLookback(
     // Try every already-opened board first.
     let placed = false;
     for (const board of openBoards) {
-      if (!canPartFitStock(board.stock, part, config.precision)) continue;
+      if (!canPartFitStock(board.stock, part)) continue;
       const placement = tryPlaceInBinState(
         board.binState,
         makePartRect(part, board.stock),
@@ -490,7 +490,7 @@ function placeAllPartsWithLookback(
     }
     if (placed) continue;
 
-    const board = stock.find((s) => canPartFitStock(s, part, config.precision));
+    const board = stock.find((s) => canPartFitStock(s, part));
     if (!board) {
       leftovers.push(part);
       continue;
@@ -557,7 +557,7 @@ function makePartRect(part: PartToCut, stock: Stock): Rectangle<PartToCut> {
 
 function sortPartsForPlacement(
   parts: PartToCut[],
-  precision: number,
+  placementEpsilon: number,
   mode: PartSortMode,
   seed: number | undefined,
 ): PartToCut[] {
@@ -567,11 +567,11 @@ function sortPartsForPlacement(
     if (materialCompare !== 0) return materialCompare;
 
     const thicknessCompare = b.size.thickness - a.size.thickness;
-    if (Math.abs(thicknessCompare) > precision) return thicknessCompare;
+    if (Math.abs(thicknessCompare) > placementEpsilon) return thicknessCompare;
 
     const metricCompare =
       getSortMetric(b, mode, seed) - getSortMetric(a, mode, seed);
-    if (Math.abs(metricCompare) > precision) return metricCompare;
+    if (Math.abs(metricCompare) > placementEpsilon) return metricCompare;
 
     if (mode === 'area-random') {
       const randomizedCompare =
@@ -581,7 +581,7 @@ function sortPartsForPlacement(
 
     const areaCompare =
       b.size.width * b.size.length - a.size.width * a.size.length;
-    if (Math.abs(areaCompare) > precision) return areaCompare;
+    if (Math.abs(areaCompare) > placementEpsilon) return areaCompare;
 
     return comparePartIdentity(a, b);
   });
@@ -661,9 +661,7 @@ function minimizeLayoutStock<L extends PotentialBoardLayout>(
 
   // Get alternative stock, smaller (length for linear, area for sheet) first.
   const altStock = stock
-    .filter((s) =>
-      areStocksEquivalent(originalLayout.stock, s, config.precision),
-    )
+    .filter((s) => areStocksEquivalent(originalLayout.stock, s))
     .toSorted((a, b) => stockSortMetric(a) - stockSortMetric(b));
 
   for (const smallerStock of altStock) {
@@ -693,19 +691,13 @@ interface StockGroup {
  * A part can match at most one group — material+kind exclusivity is the
  * design contract (a material is sheet-only or linear-only per project).
  */
-function groupPartsByStock(
-  parts: PartToCut[],
-  stock: Stock[],
-  precision: number,
-): StockGroup[] {
+function groupPartsByStock(parts: PartToCut[], stock: Stock[]): StockGroup[] {
   // Collect unique stock types: sheet types group by ~thickness; linear
   // types group by ~(crossSectionWidth, crossSectionThickness) in either
   // orientation.
   const stockTypes: Stock[][] = [];
   for (const s of stock) {
-    const match = stockTypes.find((t) =>
-      areStocksEquivalent(t[0], s, precision),
-    );
+    const match = stockTypes.find((t) => areStocksEquivalent(t[0], s));
     if (match) match.push(s);
     else stockTypes.push([s]);
   }
@@ -715,7 +707,7 @@ function groupPartsByStock(
 
   for (const part of parts) {
     const type = stockTypes.find((t) =>
-      t.some((s) => canPartFitStock(s, part, precision)),
+      t.some((s) => canPartFitStock(s, part)),
     );
     if (type) {
       let group = grouped.get(type);
@@ -746,7 +738,7 @@ function getPackerOptions(config: Config): PackOptions<PartToCut> {
   return {
     allowRotations: true,
     gap: mmToM(config.bladeWidth),
-    precision: config.precision,
+    placementEpsilon: config.placementEpsilon,
     canRotateRect: (data: PartToCut) => !data.grainLock,
   };
 }

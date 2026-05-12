@@ -2,6 +2,14 @@
 export const MM_PER_IN = 25.4;
 export const M_PER_IN = MM_PER_IN / 1000;
 
+/**
+ * Absolute tolerance for part↔stock identity matching (sheet thickness,
+ * linear cross-section). Wider than OBB / mesh-extent drift, narrower than
+ * the smallest legitimate stock-thickness step (3 mm). See CLAUDE.md
+ * "Tolerances" for the regime split.
+ */
+export const STOCK_MATCH_TOLERANCE_M = 5e-4;
+
 export const mmToM = (mm: number) => mm / 1000;
 export const mToMm = (m: number) => m * 1000;
 

@@ -18,7 +18,7 @@ const baseConfig: Config = {
   bladeWidth: 3.175,
   margin: 0,
   defaultAlgorithm: 'auto',
-  precision: 1e-5,
+  placementEpsilon: 1e-5,
 };
 
 // Cross-section: 1.5" × 3.5" → 0.0381m × 0.0889m. We keep the round numbers

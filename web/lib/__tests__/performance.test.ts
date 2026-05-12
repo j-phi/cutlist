@@ -122,7 +122,7 @@ describe('generateBoardLayouts large fixture smoke tests', () => {
       bladeWidth: 3.175,
       margin: 0,
       defaultAlgorithm: 'auto',
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     });
 
     expect(result.layouts.length).toBeGreaterThan(0);
@@ -136,7 +136,7 @@ describe('generateBoardLayouts large fixture smoke tests', () => {
       bladeWidth: 3.175,
       margin: 0,
       defaultAlgorithm: 'cnc',
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     });
 
     expect(result.layouts.length).toBeGreaterThan(0);

@@ -252,7 +252,9 @@ export const Config = z.object({
    * Optional pass override for the multi-pass optimizer.
    */
   searchPasses: z.array(SearchPass).optional(),
-  precision: z.number().default(1e-5),
+  /** Tolerance for placement geometry inside the packers. Not for
+   *  stock-identity — see CLAUDE.md "Tolerances". */
+  placementEpsilon: z.number().default(1e-5),
 });
 export type Config = z.infer<typeof Config>;
 export type ConfigInput = z.input<typeof Config>;

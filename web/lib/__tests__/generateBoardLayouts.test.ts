@@ -46,7 +46,7 @@ describe('generateBoardLayouts', () => {
       bladeWidth: 0,
       margin: 0,
       defaultAlgorithm: 'auto',
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     };
     const result = generateBoardLayouts([createPart(1, 2, 1)], stock, config);
 
@@ -69,7 +69,7 @@ describe('generateBoardLayouts', () => {
       bladeWidth: 0,
       margin: 0,
       defaultAlgorithm: 'cnc',
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     };
     const result = generateBoardLayouts([createPart(1, 2, 1)], stock, config);
 
@@ -102,14 +102,14 @@ describe('generateBoardLayouts', () => {
       defaultAlgorithm: 'auto',
       maxSearchPasses: 1,
       searchPasses: ['cnc-area', 'cnc-perimeter', 'compact-bssf-area'],
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     });
     const firstPassOnly = generateBoardLayouts(parts, stock, {
       bladeWidth: 0,
       margin: 0,
       defaultAlgorithm: 'auto',
       searchPasses: ['cnc-area'],
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     });
 
     expect(budgeted).toEqual(firstPassOnly);
@@ -145,7 +145,12 @@ describe('generateBoardLayouts', () => {
     const result = generateBoardLayouts(
       [...plywoodParts, ...mdfParts],
       mixedStock,
-      { bladeWidth: 0, margin: 0, defaultAlgorithm: 'cnc', precision: 1e-5 },
+      {
+        bladeWidth: 0,
+        margin: 0,
+        defaultAlgorithm: 'cnc',
+        placementEpsilon: 1e-5,
+      },
     );
 
     expect(result.leftovers).toEqual([]);
@@ -182,7 +187,7 @@ describe('generateBoardLayouts', () => {
       bladeWidth: 0,
       margin: 0,
       defaultAlgorithm: 'cnc',
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     });
 
     expect(result.leftovers).toEqual([]);
@@ -221,7 +226,7 @@ describe('generateBoardLayouts', () => {
       bladeWidth: 0,
       margin: 0,
       defaultAlgorithm: 'cnc', // Must lose to the per-thickness 'tidy' override.
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     });
 
     expect(result.leftovers).toEqual([]);
@@ -235,7 +240,7 @@ describe('generateBoardLayouts', () => {
       bladeWidth: 0,
       margin: 0,
       defaultAlgorithm: 'auto',
-      precision: 1e-5,
+      placementEpsilon: 1e-5,
     };
     const parts = [
       createPart(1, 1, 1),

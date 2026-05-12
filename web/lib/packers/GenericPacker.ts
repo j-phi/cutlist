@@ -48,7 +48,7 @@ export function createGenericPacker<T>({
             bin,
             res.placements,
             placement,
-            options.precision,
+            options.placementEpsilon,
             options.gap,
           ),
         );
