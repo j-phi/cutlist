@@ -24,15 +24,17 @@ Formatting runs automatically via lint-staged on commit (Prettier).
 
 ## Architecture
 
-**Cutlist** is a browser-only SPA (Nuxt 3, SSR disabled) for generating optimized wood cutting plans. Users import GLTF assemblies or enter parts manually, assign stock materials, and the app produces board layouts with a PDF export.
+**Cutlist** is a browser-only SPA (Nuxt 3, SSR disabled) for generating optimized wood cutting plans. Users import 3D model assemblies (`.gltf`, `.glb`, `.dae`, `.fbx`) or enter parts manually, assign stock materials, and the app produces board layouts with a PDF export.
 
 ### Core Data Flow
 
 ```
-GLTF / COLLADA file import
-  → parseGltf / parseCollada (web/utils/)
-  → stores parts, colors, nodePartMap + rawSource (GLTF JSON or COLLADA XML)
-    in IndexedDB
+GLTF / DAE / FBX / GLB file import
+  → parseGltf for `.gltf` (native fast path); parseAssimp for everything
+    else (Assimp WASM converts to glTF JSON in-browser, then runs
+    buildGltfObjectGraph on the result)
+  → stores parts, colors, nodePartMap + rawSource (always glTF JSON for
+    new imports, regardless of source format) in IndexedDB
 
 Manual parts
   → user enters via BOM tab
@@ -99,7 +101,7 @@ State is composable-based (no Pinia). Key composables:
 
 - `useProjects` — project CRUD + active project state
 - `useIdb` — IndexedDB persistence (projects, models, scenes, annotations, build docs, assets)
-- `useModels` — module-level `ObjectGraph` cache, keyed by modelId. Avoids re-running GLTFLoader/ColladaLoader on dropdown switches
+- `useModels` — module-level `ObjectGraph` cache, keyed by modelId. Avoids re-running GLTFLoader on dropdown switches
 - `useProjectSettings` — per-project settings (blade width, optimization mode)
 - `useProjectTabMap` — tab state per project
 - `useBoardLayoutsQuery` — runs packing engine reactively
@@ -252,7 +254,9 @@ Cascade: deleting a project deletes its models, build doc, scenes, annotations, 
 
 ### IdbModel — what's stored
 
-Both GLTF and manual models store their `parts`, `colors`, and `nodePartMap` directly in IndexedDB. GLTF models also keep `rawSource` (the GLTF JSON object) and COLLADA models keep `rawSource` (the XML string) for the 3D viewer. The viewer derives an `ObjectGraph` from `rawSource` on first open via `resolveModelScene`; `useModels` caches the derived graph in memory so subsequent opens of the same model are instant.
+All non-manual models store `parts`, `colors`, `nodePartMap`, and `rawSource` (a glTF JSON object) directly in IndexedDB. The `source` field labels the original format (`'gltf'` for native glTF, `'collada'` for anything Assimp-routed) but the stored payload is always glTF JSON since DAE/FBX/GLB are converted at import time. The viewer derives an `ObjectGraph` from `rawSource` on first open via `resolveModelScene`; `useModels` caches the derived graph in memory so subsequent opens of the same model are instant.
+
+Legacy IDB records (`source: 'collada'` written before the Assimp switch) may still hold a raw XML string in `rawSource`. `resolveModelScene` detects this (`typeof rawSource === 'string'`) and re-runs Assimp on the XML — a one-time cost per legacy model; the converted glTF is not written back, so the conversion repeats on each open. Acceptable since "the app is still in development" per the existing schema versioning policy.
 
 `IdbModelMeta = Omit<IdbModel, 'rawSource'>` — what the reactive `useProjects().enabledModels` exposes, so the heavy raw payload doesn't leak into reactive state. Use `useIdb().getModelRawSource(id)` (or, preferably, `useModels().getModelGraph(id)`) to fetch on demand.
 
@@ -349,7 +353,7 @@ Every input boundary canonicalizes to a fixed 1 µm grid — `toCanonicalMm` for
 Single source of truth, exported through the `cutlist` library entry:
 
 - **Conversion**: `MM_PER_IN`, `M_PER_IN`, `mmToM(mm)`, `mToMm(m)`, `convertUnits(value, from, to)`. The 25.4 constant lives only in `MM_PER_IN`.
-- **Canonicalization**: `toCanonicalMm(value, from)` snaps user/YAML values to 0.001 mm at the storage boundary (cancels `value * 25.4` FP slop on inch-source). `toCanonicalM(m)` is the meters sibling, used in `groupPartInfos` for raw mesh extents from GLTF/COLLADA.
+- **Canonicalization**: `toCanonicalMm(value, from)` snaps user/YAML values to 0.001 mm at the storage boundary (cancels `value * 25.4` FP slop on inch-source). `toCanonicalM(m)` is the meters sibling, used in `groupPartInfos` for raw mesh extents from imported models.
 - **Precision type**: `Precision = { kind: 'fraction', denominator: 8|16|32|64 } | { kind: 'decimal', step: number }`. Defaults: `DEFAULT_INCH_PRECISION = 1/32"`, `DEFAULT_MM_PRECISION = 0.1mm`.
 - **Parsing**: `parseDimension(string, unit)` accepts decimals, fractions (`"3/4"`), mixed numbers (`"1 1/2"`, `"1-1/2"`), feet+inches (`"1' 6\""`, `"1ft 6in"`), and unit glyphs. Returns null on empty or unparseable input.
 - **Formatting**:
