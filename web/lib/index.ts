@@ -840,9 +840,9 @@ function serializePartToCutPlacement(
     rightM: placement.right,
     topM: placement.top,
     bottomM: placement.bottom,
-    lengthM: placement.height,
+    widthM: placement.data.size.width,
+    lengthM: placement.data.size.length,
     thicknessM: placement.data.size.thickness,
-    widthM: placement.width,
     allowanceWidthM: rotated ? oversize.length : oversize.crossSection,
     allowanceLengthM: rotated ? oversize.crossSection : oversize.length,
   };

@@ -23,8 +23,11 @@ function onKeyActivate() {
 
 const getPx = useGetPx();
 
-const width = computed(() => getPx(props.placement.widthM));
-const height = computed(() => getPx(props.placement.lengthM));
+const widthM = computed(() => props.placement.rightM - props.placement.leftM);
+const heightM = computed(() => props.placement.topM - props.placement.bottomM);
+
+const width = computed(() => getPx(widthM.value));
+const height = computed(() => getPx(heightM.value));
 const left = computed(() => getPx(props.placement.leftM));
 const bottom = computed(() => getPx(props.placement.bottomM));
 
@@ -39,13 +42,11 @@ const allowanceLengthPx = computed(() =>
     : null,
 );
 
-const fontSize = computed(() =>
-  getPx(Math.min(props.placement.widthM / 2, M_PER_IN)),
-);
+const fontSize = computed(() => getPx(Math.min(widthM.value / 2, M_PER_IN)));
 
-/** Icon size scales with the smaller part dimension, clamped 14–28px */
+/** Clamped 14–28px so the icon stays legible on tiny parts and proportional on large ones. */
 const iconSize = computed(() => {
-  const minDimM = Math.min(props.placement.widthM, props.placement.lengthM);
+  const minDimM = Math.min(widthM.value, heightM.value);
   const raw = parseFloat(getPx(minDimM * 0.45));
   return `${Math.max(14, Math.min(28, raw))}px`;
 });

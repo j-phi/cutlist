@@ -52,10 +52,15 @@ describe('generateBoardLayouts', () => {
 
     expect(result.leftovers).toHaveLength(0);
     expect(result.layouts).toHaveLength(1);
+    // Intrinsic widthM/lengthM stay as given; rotation shows only on corners.
     expect(result.layouts[0].placements).toEqual([
       expect.objectContaining({
-        widthM: 1,
-        lengthM: 2,
+        widthM: 2,
+        lengthM: 1,
+        leftM: 0,
+        rightM: 1,
+        bottomM: 0,
+        topM: 2,
       }),
     ]);
   });
@@ -73,8 +78,12 @@ describe('generateBoardLayouts', () => {
     expect(result.layouts).toHaveLength(1);
     expect(result.layouts[0].placements).toEqual([
       expect.objectContaining({
-        widthM: 1,
-        lengthM: 2,
+        widthM: 2,
+        lengthM: 1,
+        leftM: 0,
+        rightM: 1,
+        bottomM: 0,
+        topM: 2,
       }),
     ]);
   });
