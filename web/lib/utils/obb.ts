@@ -25,11 +25,15 @@ type Vec3 = [number, number, number];
 
 const CLUSTER_COSINE_THRESHOLD = 0.995; // ~5.7°
 const PERPENDICULAR_DOT_MAX = 0.3;
+/** OBB-vs-AABB agreement window. AABB is bit-stable across mesh instances;
+ *  OBB drifts by microns from triangulation noise. Within this window the
+ *  AABB is preferred so grouping isn't destabilised. */
+const AABB_PREFERENCE_M = 1e-4;
 
 /**
- * Returns sorted dims `[thickness, width, length]`. `fallback` is the
- * extents from any AABB-derived calc — used when clustering can't find two
- * perpendicular axes (degenerate geometry).
+ * Returns sorted dims `[thickness, width, length]`. `fallback` is the AABB
+ * extents — used when clustering can't find two perpendicular axes, and
+ * preferred when OBB agrees with it (stability across instances).
  */
 export function obbDimsFromMeshes(
   meshes: readonly ObbMeshInput[],
@@ -63,11 +67,18 @@ export function obbDimsFromMeshes(
   ]);
   const axis3 = normalize(cross(axis1, axis2));
 
-  return [
+  const obb = [
     extentAlong(worldPositions, axis1),
     extentAlong(worldPositions, axis2),
     extentAlong(worldPositions, axis3),
   ].sort((a, b) => a - b) as Vec3;
+
+  if (
+    obb.every((v, i) => Math.abs(v - sortedFallback[i]) < AABB_PREFERENCE_M)
+  ) {
+    return sortedFallback;
+  }
+  return obb;
 }
 
 function collectWorldPositions(meshes: readonly ObbMeshInput[]): Float32Array {

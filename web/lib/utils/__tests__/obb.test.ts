@@ -136,6 +136,19 @@ describe('obbDimsFromMeshes', () => {
     expect(out[2]).toBeCloseTo(0.362, 6);
   });
 
+  it('prefers AABB fallback when OBB agrees within 0.1mm', () => {
+    // A boxy axis-aligned mesh: face-normal clustering may produce sub-mm
+    // OBB drift on identical instances. When the answer is already inside the
+    // AABB-preference window we return the (bit-stable) fallback verbatim so
+    // grouping doesn't split otherwise-identical parts.
+    const geo = makeBox(0.00953, 0.04128, 0.44768); // ~3/4 × 3¼ × 35¼ in mm
+    const out = obbDimsFromMeshes(
+      [{ geometry: geo, matrixWorld: new THREE.Matrix4() }],
+      [0.01905, 0.0826, 0.89535],
+    );
+    expect(out).toEqual([0.01905, 0.0826, 0.89535]);
+  });
+
   it('works with an indexed BufferGeometry', () => {
     const geo = makeBox(0.009, 0.15, 0.181);
     const triCount = geo.attributes.position!.count / 3;

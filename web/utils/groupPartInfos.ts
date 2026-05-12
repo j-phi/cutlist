@@ -24,8 +24,10 @@ export interface PartInfo {
   nodeIndex: number;
 }
 
-/** Coarser tolerance for grouping — parts within 0.1mm are the same cut. */
-const GROUP_PRECISION = 1e-4;
+/** Grouping tolerance — parts within 1mm are the same cut. Coarse enough to
+ *  absorb sub-mm vertex noise that some exporters (e.g. FBX) introduce
+ *  between meshes that represent the same physical part. */
+const GROUP_PRECISION = 1e-3;
 
 /**
  * Group raw part infos by stock identity + canonical dimensions.
