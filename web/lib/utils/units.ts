@@ -85,6 +85,13 @@ export function toCanonicalMm(value: number, from: 'mm' | 'in'): number {
   return Math.round(value * MM_PER_IN * 1000) / 1000;
 }
 
+/**
+ * Snap a meter value to the same 0.001 mm grid as `toCanonicalMm`. Used at
+ * import boundaries where dimensions arrive as raw mesh extents (GLTF /
+ * COLLADA) so they compare bit-equal to canonical-mm stock.
+ */
+export const toCanonicalM = (m: number) => Math.round(m * 1e6) / 1e6;
+
 // Cap on a plausible workshop dimension. Past this it's a typo or pasted
 // scientific notation; reject before 1e308 lands in storage.
 const MAX_DIMENSION = 1e5;

@@ -13,6 +13,7 @@ import type {
   NodePartMapping,
   DeriveResult,
 } from './modelTypes';
+import { toCanonicalM } from '~/lib/utils/units';
 
 export interface PartInfo {
   name: string;
@@ -52,12 +53,14 @@ export function groupPartInfos(partInfos: PartInfo[]): DeriveResult {
       existing.quantity += 1;
       existing.nodeIndices.push(info.nodeIndex);
     } else {
+      // Snap to the 1 µm grid so mesh-extent FP noise can't desync part
+      // dims from canonical-mm stock dims at exact-equality fit checks.
       groups.set(key, {
         ...info,
         size: {
-          thickness: info.size.thickness,
-          width: canonicalWidth,
-          length: canonicalLength,
+          thickness: toCanonicalM(info.size.thickness),
+          width: toCanonicalM(canonicalWidth),
+          length: toCanonicalM(canonicalLength),
         },
         quantity: 1,
         nodeIndices: [info.nodeIndex],

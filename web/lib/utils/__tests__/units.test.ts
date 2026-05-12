@@ -4,6 +4,7 @@ import {
   formatDistance,
   formatValue,
   parseDimension,
+  toCanonicalM,
   toCanonicalMm,
   toFraction,
   type Precision,
@@ -44,6 +45,14 @@ describe('Unit Utils', () => {
     it('passes mm-source values through unchanged', () => {
       expect(toCanonicalMm(12.345, 'mm')).toBe(12.345);
       expect(toCanonicalMm(0, 'mm')).toBe(0);
+    });
+  });
+
+  describe('toCanonicalM', () => {
+    it('produces bit-equal doubles for the same dim via different paths', () => {
+      const fromMmCanonical = toCanonicalMm(48, 'in') / 1000;
+      expect(toCanonicalM(48 * 0.0254)).toBe(fromMmCanonical);
+      expect(toCanonicalM(1.2192)).toBe(fromMmCanonical);
     });
   });
 
