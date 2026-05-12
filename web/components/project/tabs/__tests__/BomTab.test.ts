@@ -28,11 +28,11 @@ import { UButtonStub, UInputStub, UModalStub } from '~/test-utils/stubs';
 let parseGltfImpl: (file: File) => Promise<unknown> = async () => {
   throw new Error('parseGltf not configured');
 };
-let parseColladaImpl: (file: File) => Promise<unknown> = async () => {
-  throw new Error('parseCollada not configured');
+let parseAssimpImpl: (file: File) => Promise<unknown> = async () => {
+  throw new Error('parseAssimp not configured');
 };
 const parseGltfCalls: File[] = [];
-const parseColladaCalls: File[] = [];
+const parseAssimpCalls: File[] = [];
 
 vi.mock('~/utils/parseGltf', () => ({
   parseGltf: (file: File) => {
@@ -40,12 +40,16 @@ vi.mock('~/utils/parseGltf', () => ({
     return parseGltfImpl(file);
   },
 }));
-vi.mock('~/utils/parseCollada', () => ({
-  parseCollada: (file: File) => {
-    parseColladaCalls.push(file);
-    return parseColladaImpl(file);
-  },
-}));
+vi.mock('~/utils/parseAssimp', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~/utils/parseAssimp')>();
+  return {
+    ...actual,
+    parseAssimp: (file: File) => {
+      parseAssimpCalls.push(file);
+      return parseAssimpImpl(file);
+    },
+  };
+});
 
 // ── Recording stand-ins for composables ──────────────────────────────────────
 
@@ -234,11 +238,11 @@ beforeEach(() => {
   parseGltfImpl = async () => {
     throw new Error('parseGltf not configured');
   };
-  parseColladaImpl = async () => {
-    throw new Error('parseCollada not configured');
+  parseAssimpImpl = async () => {
+    throw new Error('parseAssimp not configured');
   };
   parseGltfCalls.length = 0;
-  parseColladaCalls.length = 0;
+  parseAssimpCalls.length = 0;
   addModelCalls.length = 0;
   renameCalls.length = 0;
   toastCalls.length = 0;
@@ -261,7 +265,7 @@ describe('BomTab — drag-and-drop import', () => {
     await flushImport(component);
 
     expect(parseGltfCalls.map((f) => f.name)).toEqual(['cabinet.gltf']);
-    expect(parseColladaCalls).toEqual([]);
+    expect(parseAssimpCalls).toEqual([]);
     expect(addModelCalls).toHaveLength(1);
     expect(addModelCalls[0].projectId).toBe('project-1');
     expect(addModelCalls[0].model.source).toBe('gltf');
@@ -270,13 +274,13 @@ describe('BomTab — drag-and-drop import', () => {
   });
 
   it('Should parse a .dae file and forward it to addModel as a collada source', async () => {
-    parseColladaImpl = async () => ({ ...baseParseResult, rawSource: '<x/>' });
+    parseAssimpImpl = async () => ({ ...baseParseResult, rawSource: '<x/>' });
     const component = getComponent();
 
     fireDrop(component, [makeFile('cabinet.dae')]);
     await flushImport(component);
 
-    expect(parseColladaCalls.map((f) => f.name)).toEqual(['cabinet.dae']);
+    expect(parseAssimpCalls.map((f) => f.name)).toEqual(['cabinet.dae']);
     expect(parseGltfCalls).toEqual([]);
     expect(addModelCalls).toHaveLength(1);
     expect(addModelCalls[0].model.source).toBe('collada');

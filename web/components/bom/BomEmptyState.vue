@@ -27,9 +27,11 @@ defineEmits<{
         <p class="text-base font-semibold text-hi">Drag your model here</p>
         <p class="text-sm text-muted leading-relaxed">
           Import a
-          <span class="font-mono text-dim">.gltf</span> from Onshape or
-          <span class="font-mono text-dim">.dae</span> from SketchUp to
-          automatically generate your cut list, or add parts manually.
+          <span class="font-mono text-dim">.gltf</span>,
+          <span class="font-mono text-dim">.glb</span>,
+          <span class="font-mono text-dim">.dae</span>, or
+          <span class="font-mono text-dim">.fbx</span> 3D model to automatically
+          generate your cut list &mdash; or add parts manually.
         </p>
       </div>
       <div class="flex items-center justify-center gap-2">

@@ -251,6 +251,32 @@ describe('useBomImport', () => {
       expect(typeof model.rawSource).toBe('object');
     });
 
+    it('Should toggle isImporting around an in-flight parse and expose the active filename', async () => {
+      const rec = makeRecorder();
+      const activeId = ref<string | null>('p1');
+      const api = scope.run(() =>
+        useBomImport({ activeId, onModelParsed: rec.onModelParsed }),
+      )!;
+
+      expect(api.isImporting.value).toBe(false);
+      expect(api.importingFile.value).toBe(null);
+
+      const file = makeFile('cabinet.gltf', gltfFixtureText());
+      // Don't await — peek at the in-flight state.
+      const inflight = api.bind.dropZone.onDrop(makeDragEvent('drop', [file]));
+
+      // Synchronously after the call begins, the flags should be set so the
+      // overlay shows up. (parseGltf is async; the loop yields immediately.)
+      expect(api.isImporting.value).toBe(true);
+      expect(api.importingFile.value).toBe('cabinet.gltf');
+
+      await inflight;
+
+      // And cleared once the parse settles.
+      expect(api.isImporting.value).toBe(false);
+      expect(api.importingFile.value).toBe(null);
+    });
+
     it('Should parse a .dae file and dispatch a Model with source=collada', async () => {
       const rec = makeRecorder();
       const activeId = ref<string | null>('p1');
@@ -265,9 +291,9 @@ describe('useBomImport', () => {
       const model = rec.models[0]!;
       expect(model.source).toBe('collada');
       expect(model.filename).toBe('cabinet.dae');
-      // rawSource for COLLADA is the raw XML string.
-      expect(typeof model.rawSource).toBe('string');
-      expect(model.rawSource as string).toContain('<COLLADA');
+      // DAE is converted to glTF JSON via Assimp at import time; we persist
+      // the converted object so re-derive runs the fast glTF path.
+      expect(typeof model.rawSource).toBe('object');
     });
 
     it('Should ignore files that are not .gltf or .dae', async () => {

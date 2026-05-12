@@ -101,61 +101,78 @@ const items = computed(() =>
     <template #sketchup-body>
       <div class="space-y-3 text-sm text-muted leading-relaxed">
         <p>
-          <strong class="text-body">SketchUp</strong> exports to
-          <span class="font-mono text-dim">.dae</span>
-          (COLLADA) which Cutlist Studio supports natively.
+          <strong class="text-body">SketchUp</strong> can export to
+          <span class="font-mono text-dim">.dae</span> or
+          <span class="font-mono text-dim">.fbx</span>. Both work; each has a
+          gotcha noted below.
         </p>
         <ol class="space-y-2 list-decimal list-inside">
           <li>
             Model each part as a
-            <strong class="text-body">separate component</strong>. Apply a
-            different material/colour to each wood type.
+            <strong class="text-body">separate component</strong> (not just a
+            group). Apply a different material / colour per wood type.
           </li>
           <li>
-            Go to
             <strong class="text-body">File &rarr; Export &rarr; 3D Model</strong
-            >, choose <span class="font-mono text-dim">COLLADA (.dae)</span>,
-            and save.
+            >, choose either
+            <span class="font-mono text-dim">COLLADA (.dae)</span> or
+            <span class="font-mono text-dim">Autodesk FBX (.fbx)</span>.
           </li>
-          <li>
-            Drag the <span class="font-mono text-dim">.dae</span> file into
-            Cutlist Studio, or click
-            <strong class="text-body">Import Model</strong> inside your project.
-          </li>
+          <li>Drag the file into Cutlist Studio.</li>
         </ol>
+        <div
+          class="mt-2 p-3 rounded-lg border border-subtle bg-surface space-y-2"
+        >
+          <p>
+            <strong class="text-body">If exporting .dae:</strong>
+            click <strong class="text-body">Options&hellip;</strong> and enable
+            <em>&ldquo;Triangulate all faces.&rdquo;</em> Non-triangulated DAE
+            files won&rsquo;t import.
+          </p>
+          <p>
+            <strong class="text-body">If exporting .fbx:</strong>
+            in the export dialog, set
+            <strong class="text-body">Units</strong> to
+            <span class="font-mono text-dim">Meters</span>. SketchUp tags the
+            file&rsquo;s unit but the importer always reads numbers as meters
+            &mdash; if you leave it on Inches, every part imports at 39&times;
+            its real size.
+          </p>
+        </div>
       </div>
     </template>
 
     <template #other-body>
       <div class="space-y-3 text-sm text-muted leading-relaxed">
-        <p>
-          Any tool that exports
-          <strong class="text-body">GLTF</strong> or
-          <strong class="text-body">COLLADA (.dae)</strong> will work. This
-          includes:
-        </p>
-        <ul class="space-y-1.5 ml-4 list-disc">
+        <p>Cutlist Studio reads these 3D formats:</p>
+        <ul class="space-y-2 ml-4 list-disc">
           <li>
-            <strong class="text-body">Fusion 360</strong> &mdash; export as GLTF
-            or use a COLLADA exporter
+            <span class="font-mono text-dim">.gltf</span> /
+            <span class="font-mono text-dim">.glb</span> &mdash; preferred; unit
+            + axis info is always correct (Onshape, Blender, FreeCAD).
           </li>
           <li>
-            <strong class="text-body">Blender</strong> &mdash; File &rarr;
-            Export &rarr; glTF 2.0
+            <span class="font-mono text-dim">.dae</span> &mdash; Rhino, Maya,
+            FreeCAD, etc. Units and up-axis are read from the file. SketchUp
+            users: enable <em>&ldquo;Triangulate all faces&rdquo;</em> on
+            export.
           </li>
           <li>
-            <strong class="text-body">FreeCAD</strong> &mdash; export as GLTF
-            via the Mesh workbench
-          </li>
-          <li>
-            <strong class="text-body">SolidWorks</strong> &mdash; export as
-            COLLADA or use a GLTF plugin
+            <span class="font-mono text-dim">.fbx</span> &mdash; Fusion 360,
+            Maya, AutoCAD, SketchUp Pro.
+            <strong class="text-body">Watch out:</strong> the FBX importer
+            ignores embedded unit tags and treats coordinates as meters. If your
+            tool offers a units choice on export, pick
+            <span class="font-mono text-dim">Meters</span>; otherwise your parts
+            will import at the wrong scale.
           </li>
         </ul>
         <p>
-          The key: assign
-          <strong class="text-body">distinct colours per material</strong>
-          so the importer can tell your wood types apart.
+          The key in any format: each wood part should be a
+          <strong class="text-body">separate component / object</strong> and
+          materials should have
+          <strong class="text-body">distinct colours</strong> so the importer
+          can tell your wood types apart.
         </p>
       </div>
     </template>

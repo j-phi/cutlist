@@ -1,6 +1,6 @@
 import type { ObjectGraph } from './types';
 import { buildGltfObjectGraph } from './parseGltf';
-import { buildColladaObjectGraph } from './parseCollada';
+import { fileBytesToGltfJson } from './assimpToGltf';
 
 interface ResolveInput {
   source: 'gltf' | 'collada' | 'manual';
@@ -8,18 +8,21 @@ interface ResolveInput {
 }
 
 /**
- * Re-derive the canonical ObjectGraph for a stored model. The raw source is
- * persisted at import time; this re-runs the parser to recover per-Object
- * geometry, transforms, and edges on demand.
+ * Re-derive the canonical ObjectGraph for a stored model. New imports persist
+ * glTF JSON regardless of source format, so the common path is the fast glTF
+ * derive. The `string`-rawSource branch handles legacy IDB records written
+ * before the Assimp switch — those re-run the WASM converter once.
  */
 export async function resolveModelScene(
   model: ResolveInput,
 ): Promise<ObjectGraph | null> {
-  if (model.source === 'gltf' && model.rawSource) {
-    return buildGltfObjectGraph(model.rawSource as object);
+  if (!model.rawSource) return null;
+  if (typeof model.rawSource === 'object') {
+    return buildGltfObjectGraph(model.rawSource);
   }
-  if (model.source === 'collada' && model.rawSource) {
-    return buildColladaObjectGraph(model.rawSource as string);
+  if (model.source === 'collada') {
+    const bytes = new TextEncoder().encode(model.rawSource);
+    return buildGltfObjectGraph(await fileBytesToGltfJson(bytes, 'model.dae'));
   }
   return null;
 }
