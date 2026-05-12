@@ -133,7 +133,7 @@ File-based routing with dynamic segments:
 
 ### UI (`web/components/`)
 
-Project sidebar and tabbed main area. Tabs (in order): BOM, Layout, Model (3D viewer), Build (rich-text instructions, Tiptap), Stock, Settings. Tab metadata is owned by `web/utils/projectTabs.ts` (id, label, icon, URL segment) — update there when adding/renaming tabs.
+Project sidebar and tabbed main area. Tabs (in order): BOM, Stock, Layout, Model (3D viewer), Build (rich-text instructions, Tiptap), Settings. Tab metadata is owned by `web/utils/projectTabs.ts` (id, label, icon, URL segment) — update there when adding/renaming tabs.
 
 Styling: Tailwind CSS v4 + Nuxt UI, dark mode by default, custom "mist" color palette (`tailwind.config.ts`), teal accent (`app.config.ts`).
 
