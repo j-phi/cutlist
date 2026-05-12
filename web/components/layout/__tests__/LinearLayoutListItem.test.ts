@@ -38,6 +38,7 @@ function makePlacement(
     thicknessM: 0.038,
     lengthM: 0.5,
     offsetM: 0,
+    allowanceLengthM: 0,
     ...overrides,
   };
 }

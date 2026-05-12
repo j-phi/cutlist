@@ -297,12 +297,27 @@ export interface SheetBoardLayoutPlacement extends BoardLayoutLeftover {
   rightM: number;
   topM: number;
   bottomM: number;
+  /**
+   * Slice of `widthM` consumed by the cross-section allowance (planing
+   * waste) at the +X edge. Zero when no stock allowance is set.
+   */
+  allowanceWidthM: number;
+  /**
+   * Slice of `lengthM` consumed by the length allowance (crosscut waste)
+   * at the +Y edge. Zero when no stock allowance is set.
+   */
+  allowanceLengthM: number;
 }
 
 /** Linear placement: leftover shape + 1D offset along the stick. */
 export interface LinearBoardLayoutPlacement extends BoardLayoutLeftover {
   /** Offset from the start of the stick in METERS. */
   offsetM: number;
+  /**
+   * Slice of `lengthM` consumed by the length allowance (crosscut waste)
+   * at the trailing end. Zero when no stock allowance is set.
+   */
+  allowanceLengthM: number;
 }
 
 /** Engine output for a single sheet. */

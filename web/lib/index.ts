@@ -765,9 +765,12 @@ function serializeSheetLayout(
   marginM: number,
 ): SheetBoardLayout {
   const { stock } = layout;
+  const oversize = effectiveOversize(stock);
   return {
     kind: 'sheet',
-    placements: layout.placements.map(serializePartToCutPlacement),
+    placements: layout.placements.map((p) =>
+      serializePartToCutPlacement(p, oversize),
+    ),
     stock: {
       material: stock.material,
       thicknessM: stock.thickness,
@@ -785,6 +788,7 @@ function serializeLinearLayout(
   kerfM: number,
 ): LinearBoardLayout {
   const { stock } = layout;
+  const oversize = effectiveOversize(stock);
   const sorted = [...layout.placements].sort((a, b) => a.bottom - b.bottom);
   const placements: LinearBoardLayoutPlacement[] = sorted.map((p) => ({
     partNumber: p.data.partNumber,
@@ -795,6 +799,7 @@ function serializeLinearLayout(
     thicknessM: p.data.size.thickness,
     lengthM: p.height,
     offsetM: p.bottom,
+    allowanceLengthM: oversize.length,
   }));
   const lastTop = sorted.length > 0 ? sorted[sorted.length - 1].top : 0;
   // The cut that frees the trailing offcut consumes one kerf; with no
@@ -817,7 +822,14 @@ function serializeLinearLayout(
 
 function serializePartToCutPlacement(
   placement: Rectangle<PartToCut>,
+  oversize: Oversize,
 ): SheetBoardLayoutPlacement {
+  // The packer may rotate sheet parts; pick the allowance axis that matches
+  // the rect's width axis after rotation.
+  const effW = placement.data.size.width + oversize.crossSection;
+  const effL = placement.data.size.length + oversize.length;
+  const rotated =
+    Math.abs(placement.width - effW) > Math.abs(placement.width - effL);
   return {
     instanceNumber: placement.data.instanceNumber,
     partNumber: placement.data.partNumber,
@@ -831,6 +843,8 @@ function serializePartToCutPlacement(
     lengthM: placement.height,
     thicknessM: placement.data.size.thickness,
     widthM: placement.width,
+    allowanceWidthM: rotated ? oversize.length : oversize.crossSection,
+    allowanceLengthM: rotated ? oversize.crossSection : oversize.length,
   };
 }
 

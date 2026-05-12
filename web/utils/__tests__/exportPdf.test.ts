@@ -270,6 +270,7 @@ describe('exportCutlistPdf', () => {
             thicknessM: 0.0381,
             lengthM: 0.762,
             offsetM: 0,
+            allowanceLengthM: 0,
           },
           {
             partNumber: 1,
@@ -280,6 +281,7 @@ describe('exportCutlistPdf', () => {
             thicknessM: 0.0381,
             lengthM: 0.762,
             offsetM: 0.762,
+            allowanceLengthM: 0,
           },
         ],
       },
@@ -303,6 +305,7 @@ describe('exportCutlistPdf', () => {
             thicknessM: 0.0381,
             lengthM: 1.524,
             offsetM: 0,
+            allowanceLengthM: 0,
           },
         ],
       },

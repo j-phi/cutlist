@@ -35,6 +35,8 @@ interface ChipView {
   leftPct: number;
   widthPct: number;
   label: string;
+  /** Width of the trailing allowance strip, as % of the chip. */
+  allowancePct: number;
 }
 
 const chips = computed<ChipView[]>(() => {
@@ -46,6 +48,7 @@ const chips = computed<ChipView[]>(() => {
       key: `${p.partNumber}:${p.instanceNumber}`,
       leftPct: (p.offsetM / totalM) * 100,
       widthPct: (p.lengthM / totalM) * 100,
+      allowancePct: (p.allowanceLengthM / p.lengthM) * 100,
       label: showPartNumbers.value
         ? `${p.partNumber} · ${lengthLabel}`
         : lengthLabel,
@@ -87,10 +90,16 @@ const wasteStyle = computed(() => {
       <div
         v-for="chip in chips"
         :key="chip.key"
-        class="cut-chip absolute top-0 bottom-0 flex items-center justify-center px-1 border-r border-black/30 last:border-r-0"
+        class="cut-chip absolute top-0 bottom-0 flex items-center justify-center"
         :style="`left:${chip.leftPct}%;width:${chip.widthPct}%`"
         :title="chip.label"
       >
+        <div
+          v-if="chip.allowancePct > 0"
+          class="chip-allowance absolute top-0 bottom-0 right-0 pointer-events-none"
+          :style="`width:${chip.allowancePct}%`"
+          aria-hidden="true"
+        />
         <span class="chip-label text-[11px] font-semibold whitespace-nowrap">
           {{ chip.label }}
         </span>
@@ -110,19 +119,15 @@ const wasteStyle = computed(() => {
   background: var(--chip-color, #67787c);
   color: var(--chip-text, #222);
 }
+.chip-allowance {
+  background: rgb(99 102 241 / 0.7);
+}
 .chip-label {
   text-overflow: ellipsis;
   overflow: hidden;
   max-width: 100%;
 }
 .waste-tail {
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.08),
-    rgba(255, 255, 255, 0.08) 4px,
-    rgba(0, 0, 0, 0.35) 4px,
-    rgba(0, 0, 0, 0.35) 8px
-  );
-  border-left: 1px dashed rgba(255, 255, 255, 0.25);
+  background: rgb(0 0 0 / 0.35);
 }
 </style>

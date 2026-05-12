@@ -235,6 +235,12 @@ function drawStick(
       borderColor: rgb(0, 0, 0),
       borderWidth: 0.3,
     });
+    // Length-allowance strip at the trailing end of the chip.
+    const allowW = placement.allowanceLengthM * 1000 * ptPerMm;
+    if (allowW > 0) {
+      const allowX = chipX + chipW - allowW;
+      drawHatch(page, allowX, barBottomPt, allowW, barHeightPt, INDIGO);
+    }
     const lengthLabel = formatSize(placement.lengthM) ?? '';
     const showNumbers = ctx.opts.showPartNumbers;
     const fullLabel = showNumbers
@@ -266,7 +272,7 @@ function drawStick(
     }
   }
 
-  // Hatched waste tail
+  // Waste tail — solid muted fill, matches the on-screen treatment.
   if (layout.wasteEndM > 0) {
     const wasteX = barLeftPt + (totalM - layout.wasteEndM) * 1000 * ptPerMm;
     const wasteW = layout.wasteEndM * 1000 * ptPerMm;
@@ -276,13 +282,6 @@ function drawStick(
       width: wasteW,
       height: barHeightPt,
       color: rgb(0.78, 0.78, 0.78),
-    });
-    drawHatch(page, wasteX, barBottomPt, wasteW, barHeightPt);
-    page.drawLine({
-      start: { x: wasteX, y: barBottomPt },
-      end: { x: wasteX, y: barBottomPt + barHeightPt },
-      thickness: 0.5,
-      color: rgb(0.3, 0.3, 0.3),
     });
   }
 
@@ -311,15 +310,17 @@ function drawStick(
   });
 }
 
+const INDIGO = rgb(0.388, 0.4, 0.945);
+
 function drawHatch(
   page: PDFPage,
   x: number,
   y: number,
   w: number,
   h: number,
+  color: ReturnType<typeof rgb>,
 ): void {
   const step = 4;
-  const color = rgb(0.45, 0.45, 0.45);
   for (let d = -h; d < w; d += step) {
     const x1 = x + Math.max(0, d);
     const y1 = y + Math.max(0, -d);
