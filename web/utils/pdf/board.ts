@@ -13,8 +13,11 @@ import {
   MM,
 } from './constants';
 import { addPage, type Ctx } from './context';
-import { drawClippedRect, drawTileBorder } from './geometry';
+import { drawClippedHatch, drawClippedRect, drawTileBorder } from './geometry';
 import { drawMeasurement } from './measurements';
+
+/** Indigo-500 (Tailwind) for material-allowance hatching. */
+const ALLOWANCE_COLOR = rgb(0.388, 0.4, 0.945);
 
 interface TileGeom {
   pageWmm: number;
@@ -177,6 +180,39 @@ function drawBoardTilePage(
       borderWidth: 0.5,
       color: rgb(1, 1, 1),
     });
+
+    // Indigo allowance hatch on the +X / +Y edges; the two strips overlap
+    // at the corner to mark the L-shaped allowance region.
+    const allowWpt = ((placement.allowanceWidthM * 1000) / scale) * MM;
+    const allowHpt = ((placement.allowanceLengthM * 1000) / scale) * MM;
+    if (allowWpt > 0) {
+      drawClippedHatch(
+        page,
+        px + pw - allowWpt,
+        py,
+        allowWpt,
+        ph,
+        tileXpt,
+        tileYpt,
+        tileWpt,
+        tileHpt,
+        { color: ALLOWANCE_COLOR, spacing: 2, thickness: 0.3 },
+      );
+    }
+    if (allowHpt > 0) {
+      drawClippedHatch(
+        page,
+        px,
+        py + ph - allowHpt,
+        pw,
+        allowHpt,
+        tileXpt,
+        tileYpt,
+        tileWpt,
+        tileHpt,
+        { color: ALLOWANCE_COLOR, spacing: 2, thickness: 0.3 },
+      );
+    }
     if (showPartNumbers) {
       // Part number sizing: half part width, capped at 1 inch real-world
       // (matches PartListItem.vue), then scaled to paper coordinates.

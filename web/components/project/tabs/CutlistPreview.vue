@@ -4,6 +4,7 @@ import { projectPath } from '~/utils/projectTabs';
 
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
 const { activeId } = useProjects();
+const { parsedStock } = useProjectSettings();
 
 const container = ref<HTMLDivElement>();
 const gridEl = ref<HTMLDivElement>();
@@ -74,6 +75,31 @@ const unplacedCount = computed(() => data.value?.leftovers.length ?? 0);
 const showLeftoverBanner = computed(
   () => unplacedCount.value > 0 && totalVisibleLayouts.value > 0,
 );
+
+const emptyState = computed(() => {
+  if (parsedStock.value.length === 0) {
+    return {
+      icon: 'i-lucide-warehouse',
+      title: 'No stock configured',
+      body: 'Add stock materials so we can generate cut layouts for your parts.',
+      cta: true,
+    };
+  }
+  if (unplacedCount.value > 0) {
+    return {
+      icon: 'i-lucide-layers',
+      title: 'No matching stock',
+      body: "We couldn't find any boards in your stock that match the thicknesses your parts need.",
+      cta: true,
+    };
+  }
+  return {
+    icon: 'i-lucide-layers',
+    title: 'No board layouts yet',
+    body: 'Add parts in the BOM tab to generate cut layouts.',
+    cta: false,
+  };
+});
 </script>
 
 <template>
@@ -87,21 +113,18 @@ const showLeftoverBanner = computed(
           v-if="totalVisibleLayouts === 0"
           class="m-auto max-w-sm text-center bg-base border border-default rounded-lg p-6"
         >
-          <UIcon name="i-lucide-layers" class="w-8 h-8 text-dim mx-auto mb-3" />
+          <UIcon
+            :name="emptyState.icon"
+            class="w-8 h-8 text-dim mx-auto mb-3"
+          />
           <h3 class="text-base text-hi font-medium mb-1">
-            {{
-              unplacedCount > 0 ? 'No matching stock' : 'No board layouts yet'
-            }}
+            {{ emptyState.title }}
           </h3>
           <p class="text-sm text-muted mb-4">
-            {{
-              unplacedCount > 0
-                ? "We couldn't find any boards in your stock that match the thicknesses your parts need."
-                : 'Add parts in the BOM tab to generate cut layouts.'
-            }}
+            {{ emptyState.body }}
           </p>
           <UButton
-            v-if="unplacedCount > 0"
+            v-if="emptyState.cta"
             size="sm"
             color="primary"
             icon="i-lucide-warehouse"

@@ -133,7 +133,7 @@ File-based routing with dynamic segments:
 
 ### UI (`web/components/`)
 
-Project sidebar and tabbed main area. Tabs (in order): BOM, Layout, Model (3D viewer), Build (rich-text instructions, Tiptap), Stock, Settings. Tab metadata is owned by `web/utils/projectTabs.ts` (id, label, icon, URL segment) — update there when adding/renaming tabs.
+Project sidebar and tabbed main area. Tabs (in order): BOM, Stock, Layout, Model (3D viewer), Build (rich-text instructions, Tiptap), Settings. Tab metadata is owned by `web/utils/projectTabs.ts` (id, label, icon, URL segment) — update there when adding/renaming tabs.
 
 Styling: Tailwind CSS v4 + Nuxt UI, dark mode by default, custom "mist" color palette (`tailwind.config.ts`), teal accent (`app.config.ts`).
 
@@ -336,19 +336,20 @@ Current schema: **v3**. v2 normalised `optimize` → `defaultAlgorithm`; v3 cano
 
 The app handles distances in three layers, modelled after SketchUp / Fusion / AutoCAD:
 
-| Layer       | Unit                                            | Where                                                                             |
-| ----------- | ----------------------------------------------- | --------------------------------------------------------------------------------- |
-| **Storage** | Millimetres (raw, no rounding)                  | `IdbProject.{bladeWidth, margin}`, stock YAML, `Part.size.*` (after `mmToM` to m) |
-| **Engine**  | Meters                                          | `web/lib/index.ts` and packers — converted at the boundary via `mmToM` / `mToMm`  |
-| **Display** | User's `distanceUnit` rounded to user precision | BOM, layout, PDF, viewer labels, edit-prefill                                     |
+| Layer       | Unit                                            | Where                                                                                            |
+| ----------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Storage** | Millimetres, snapped to 0.001 mm at boundaries  | `IdbProject.{bladeWidth, margin}`, stock YAML; `Part.size.*` stores meters on the same 1 µm grid |
+| **Engine**  | Meters                                          | `web/lib/index.ts` and packers — converted at the boundary via `mmToM` / `mToMm`                 |
+| **Display** | User's `distanceUnit` rounded to user precision | BOM, layout, PDF, viewer labels, edit-prefill                                                    |
 
-Storage stays raw forever. The user's `distanceUnit` (mm or in) and `precision` setting (fractional or decimal) only affect rendering and how typed input is reformatted on blur. Typing `1.95"` stores 49.53 mm; flipping precision to `1/32` displays `1 15/16"`; flipping to `Decimal (0.01")` displays `1.95"`. Storage is unchanged either way.
+Every input boundary canonicalizes to a fixed 1 µm grid — `toCanonicalMm` for user-typed and YAML values, `toCanonicalM` for raw mesh extents in `groupPartInfos`. This is two orders finer than the finest display precision (0.1 mm) and lets exact-equality comparisons between part and stock dims work bit-for-bit. The user's `distanceUnit` (mm or in) and `precision` setting (fractional or decimal) are independent of this — they only affect rendering and how typed input is reformatted on blur. Typing `1.95"` stores 49.53 mm; flipping precision to `1/32` displays `1 15/16"`; flipping to `Decimal (0.01")` displays `1.95"`. Storage is unchanged either way.
 
 ### The units module — `web/lib/utils/units.ts`
 
 Single source of truth, exported through the `cutlist` library entry:
 
 - **Conversion**: `MM_PER_IN`, `M_PER_IN`, `mmToM(mm)`, `mToMm(m)`, `convertUnits(value, from, to)`. The 25.4 constant lives only in `MM_PER_IN`.
+- **Canonicalization**: `toCanonicalMm(value, from)` snaps user/YAML values to 0.001 mm at the storage boundary (cancels `value * 25.4` FP slop on inch-source). `toCanonicalM(m)` is the meters sibling, used in `groupPartInfos` for raw mesh extents from GLTF/COLLADA.
 - **Precision type**: `Precision = { kind: 'fraction', denominator: 8|16|32|64 } | { kind: 'decimal', step: number }`. Defaults: `DEFAULT_INCH_PRECISION = 1/32"`, `DEFAULT_MM_PRECISION = 0.1mm`.
 - **Parsing**: `parseDimension(string, unit)` accepts decimals, fractions (`"3/4"`), mixed numbers (`"1 1/2"`, `"1-1/2"`), feet+inches (`"1' 6\""`, `"1ft 6in"`), and unit glyphs. Returns null on empty or unparseable input.
 - **Formatting**:

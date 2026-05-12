@@ -42,7 +42,8 @@ const EMPTY_RESULT: LayoutResult = {
 export default createSharedComposable(() => {
   const { activeProject, activeId, enabledModels, projectLoading } =
     useProjects();
-  const { bladeWidth, defaultAlgorithm, margin, stock } = useProjectSettings();
+  const { bladeWidth, defaultAlgorithm, margin, stock, parsedStock } =
+    useProjectSettings();
 
   const parts = computed<PartToCut[] | undefined>(() => {
     const project = activeProject.value;
@@ -166,6 +167,17 @@ export default createSharedComposable(() => {
       if (cached?.fingerprint === fp) return;
 
       setError(projectId, null);
+
+      // Engine throws when stock is empty; skip the worker.
+      if (parsedStock.value.length === 0) {
+        layoutCache.set(projectId, {
+          layouts: [],
+          linearLayouts: [],
+          leftovers: [],
+          fingerprint: fp,
+        });
+        return;
+      }
 
       computeLayouts(projectId, inputs.parts, inputs.stock, inputs.config)
         .then((result) => {

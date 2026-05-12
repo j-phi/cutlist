@@ -116,6 +116,18 @@ describe('deriveFromGltf dimensions for rotated nodes', () => {
   });
 });
 
+describe('deriveFromGltf dimension canonicalization', () => {
+  it('snaps mesh extents to the canonical mm grid', () => {
+    const result = deriveFromGltf(
+      makeGltf([{ name: 'Top', size: [1.2192, 0.9144, 0.01905], material: 0 }]),
+    );
+    const size = result.parts[0].size;
+    expect(size.length).toBe(1219.2 / 1000);
+    expect(size.width).toBe(914.4 / 1000);
+    expect(size.thickness).toBe(19.05 / 1000);
+  });
+});
+
 describe('deriveFromGltf grouping', () => {
   it('merges same stock + same size with different names into one group using first name', () => {
     const result = deriveFromGltf(

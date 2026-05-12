@@ -51,6 +51,9 @@ mockNuxtImport('useBoardLayoutsQuery', () => () => ({
 const activeId = ref<string | null>('proj-1');
 mockNuxtImport('useProjects', () => () => ({ activeId }));
 
+const parsedStock = ref<Array<unknown>>([{ material: 'Plywood' }]);
+mockNuxtImport('useProjectSettings', () => () => ({ parsedStock }));
+
 const scale = ref<number | undefined>(1);
 const resetZoom = vi.fn();
 const zoomIn = vi.fn();
@@ -139,6 +142,7 @@ beforeEach(() => {
   isComputing.value = false;
   error.value = null;
   partCountWarning.value = null;
+  parsedStock.value = [{ material: 'Plywood' }];
   scale.value = 1;
   resetZoom.mockClear();
   zoomIn.mockClear();
@@ -190,6 +194,17 @@ describe('CutlistPreview', () => {
       expect(component.find('[data-testid="layout-list"]').exists()).toBe(
         layoutListVisible,
       );
+    });
+
+    it('Should render the no-stock empty state with a configure-stock CTA when no stock is configured', () => {
+      parsedStock.value = [];
+      data.value = { layouts: [], linearLayouts: [], leftovers: [] };
+      const component = getComponent();
+
+      expect(component.text()).toContain('No stock configured');
+      expect(
+        component.find('[data-testid="configure-stock-button"]').exists(),
+      ).toBe(true);
     });
 
     it('Should render the no-matching-stock empty state with a configure-stock CTA when parts exist but no layouts were produced, and suppress the leftover banner', () => {

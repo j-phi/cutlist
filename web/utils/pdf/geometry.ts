@@ -130,6 +130,50 @@ export function drawTileBorder(
   });
 }
 
+/**
+ * Fill a rectangle with parallel +45° lines (slope 1), clipped to a tile.
+ * Each line has the form y = x - c; iterating c by `spacing * √2` keeps the
+ * perpendicular distance between lines equal to `spacing`. Quantising the
+ * starting c snaps the pattern to a global grid so adjacent rects align.
+ */
+export function drawClippedHatch(
+  page: PDFPage,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  cx: number,
+  cy: number,
+  cw: number,
+  ch: number,
+  opts: {
+    color: ReturnType<typeof rgb>;
+    spacing: number;
+    thickness: number;
+  },
+) {
+  const ix = Math.max(x, cx);
+  const iy = Math.max(y, cy);
+  const ax = Math.min(x + w, cx + cw);
+  const ay = Math.min(y + h, cy + ch);
+  if (ax <= ix || ay <= iy) return;
+  const step = opts.spacing * Math.SQRT2;
+  const cMin = x - (y + h);
+  const cMax = x + w - y;
+  for (let c = Math.ceil(cMin / step) * step; c <= cMax; c += step) {
+    // For y = x - c, clipping to the rect∩tile reduces to an interval on x.
+    const xLo = Math.max(x, y + c, ix, iy + c);
+    const xHi = Math.min(x + w, y + h + c, ax, ay + c);
+    if (xHi <= xLo) continue;
+    page.drawLine({
+      start: { x: xLo, y: xLo - c },
+      end: { x: xHi, y: xHi - c },
+      thickness: opts.thickness,
+      color: opts.color,
+    });
+  }
+}
+
 // Draw a rectangle clipped to a clip rectangle. Fill is drawn for the visible
 // intersection, but borders are drawn on the original rectangle's edges only
 // where they fall inside the clip region (i.e., dropped if not visible).

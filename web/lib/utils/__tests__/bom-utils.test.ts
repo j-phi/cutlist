@@ -31,6 +31,8 @@ function makePlacement(
     rightM: 0.1,
     topM: 0,
     bottomM: 0.2,
+    allowanceWidthM: 0,
+    allowanceLengthM: 0,
   };
 }
 

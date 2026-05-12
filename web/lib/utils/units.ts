@@ -72,6 +72,20 @@ export function convertUnits(
   return from === 'mm' ? value / MM_PER_IN : value * MM_PER_IN;
 }
 
+/**
+ * The app's canonical storage resolution. 0.001 mm preserves anything a
+ * woodworker could intentionally model (1/64″ = 0.397 mm) and flattens
+ * sub-micron FP noise from `value * 25.4` and from raw mesh extents.
+ */
+const snapMm = (mm: number) => Math.round(mm * 1000) / 1000;
+
+/** User/YAML input (mm or in) → canonical mm. */
+export const toCanonicalMm = (value: number, from: 'mm' | 'in') =>
+  snapMm(from === 'in' ? value * MM_PER_IN : value);
+
+/** Raw meters (GLTF/COLLADA mesh extents) → canonical meters. */
+export const toCanonicalM = (m: number) => snapMm(m * 1000) / 1000;
+
 // Cap on a plausible workshop dimension. Past this it's a typo or pasted
 // scientific notation; reject before 1e308 lands in storage.
 const MAX_DIMENSION = 1e5;

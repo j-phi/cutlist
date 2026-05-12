@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { areStocksEquivalent, canPartFitStock } from '../stock-utils';
-import type { Stock, PartToCut } from '../../types';
+import type { LinearStock, Stock, PartToCut } from '../../types';
 
 const EPSILON = 1e-5;
 
@@ -61,6 +61,66 @@ describe('canPartFitStock', () => {
         EPSILON,
       ),
     ).toBe(true);
+  });
+});
+
+describe('canPartFitStock — linear with oversize', () => {
+  const makeStock = (overrides: Partial<LinearStock> = {}): LinearStock => ({
+    kind: 'linear',
+    material: 'Pine',
+    crossSectionWidth: 0.07,
+    crossSectionThickness: 0.045,
+    length: 2.4,
+    ...overrides,
+  });
+  const makePart = (w: number, t: number, l: number): PartToCut => ({
+    partNumber: 1,
+    instanceNumber: 1,
+    name: 'p',
+    material: 'Pine',
+    size: { width: w, thickness: t, length: l },
+  });
+
+  it('accepts a finished part when stock has a matching cross-section allowance', () => {
+    // 66×41 part on 70×45 stock with 4 mm plane-down: fits.
+    expect(
+      canPartFitStock(
+        makeStock({ oversize: { length: 0, crossSection: 0.004 } }),
+        makePart(0.066, 0.041, 1.5),
+        EPSILON,
+      ),
+    ).toBe(true);
+    // Same part, only 2 mm allowance: does not fit.
+    expect(
+      canPartFitStock(
+        makeStock({ oversize: { length: 0, crossSection: 0.002 } }),
+        makePart(0.066, 0.041, 1.5),
+        EPSILON,
+      ),
+    ).toBe(false);
+  });
+
+  it('reserves stock length for the part length allowance', () => {
+    const stock = makeStock({
+      length: 2.0,
+      oversize: { length: 0.025, crossSection: 0 },
+    });
+    expect(canPartFitStock(stock, makePart(0.07, 0.045, 1.98), EPSILON)).toBe(
+      false,
+    );
+    expect(canPartFitStock(stock, makePart(0.07, 0.045, 1.97), EPSILON)).toBe(
+      true,
+    );
+  });
+
+  it('treats absent oversize as zero allowance (regression)', () => {
+    const stock = makeStock();
+    expect(canPartFitStock(stock, makePart(0.07, 0.045, 1.5), EPSILON)).toBe(
+      true,
+    );
+    expect(canPartFitStock(stock, makePart(0.066, 0.045, 1.5), EPSILON)).toBe(
+      false,
+    );
   });
 });
 

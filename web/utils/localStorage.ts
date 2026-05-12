@@ -20,6 +20,10 @@ export const STORAGE_KEYS = {
     projectBomModelsExpanded(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/bom-models-expanded/v1`;
     },
+    // Whether the "How stock works" sidebar on the Stock tab is collapsed, scoped per project.
+    projectStockHelpCollapsed(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/stock-help-collapsed/v1`;
+    },
   },
 } as const;
 

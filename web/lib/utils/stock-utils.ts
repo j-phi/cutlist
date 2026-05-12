@@ -1,5 +1,6 @@
 import { isNearlyEqual } from './floating-point-utils';
 import {
+  effectiveOversize,
   type LinearStock,
   type PartToCut,
   type SheetStock,
@@ -23,8 +24,9 @@ export function isValidSheetStock(
 }
 
 /**
- * Linear stock fits a part when the part's cross-section matches the stick's
- * cross-section in either orientation (W×T or T×W) and the part length fits.
+ * Linear stock fits a part when the part's cross-section + allowance
+ * matches the stick's cross-section in either orientation, and the part
+ * length + allowance fits the stick.
  */
 export function isValidLinearStockForPart(
   stock: LinearStock,
@@ -32,15 +34,16 @@ export function isValidLinearStockForPart(
   epsilon: number,
 ): boolean {
   if (stock.material !== part.material) return false;
-  const w = part.size.width;
-  const t = part.size.thickness;
+  const o = effectiveOversize(stock);
+  const w = part.size.width + o.crossSection;
+  const t = part.size.thickness + o.crossSection;
   const sw = stock.crossSectionWidth;
   const st = stock.crossSectionThickness;
   const crossSectionMatches =
     (isNearlyEqual(w, sw, epsilon) && isNearlyEqual(t, st, epsilon)) ||
     (isNearlyEqual(w, st, epsilon) && isNearlyEqual(t, sw, epsilon));
   if (!crossSectionMatches) return false;
-  return part.size.length <= stock.length + epsilon;
+  return part.size.length + o.length <= stock.length + epsilon;
 }
 
 /**

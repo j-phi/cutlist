@@ -74,6 +74,8 @@ function makeLayout(args: LayoutFactoryArgs): SheetBoardLayout {
       rightM: 0.3,
       topM: 0.6,
       bottomM: 0,
+      allowanceWidthM: 0,
+      allowanceLengthM: 0,
       ...p,
     }),
   );

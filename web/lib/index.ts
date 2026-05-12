@@ -4,9 +4,11 @@ import {
   type BoardLayoutLeftover,
   Config,
   type ConfigInput,
+  effectiveOversize,
   type LinearBoardLayout,
   type LinearBoardLayoutPlacement,
   type LinearStock,
+  type Oversize,
   type PartToCut,
   type PotentialBoardLayout,
   type PotentialLinearBoardLayout,
@@ -209,6 +211,12 @@ function stockSortMetric(stock: Stock): number {
  */
 export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
   return matrix.flatMap<Stock>((item) => {
+    const oversize: Oversize | undefined = item.oversize
+      ? {
+          length: mmToM(item.oversize.length ?? 0),
+          crossSection: mmToM(item.oversize.crossSection ?? 0),
+        }
+      : undefined;
     if (item.kind === 'linear') {
       return item.size.lengths.map<LinearStock>((lenMm) => ({
         kind: 'linear',
@@ -217,6 +225,7 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
         crossSectionThickness: mmToM(item.size.crossSectionThickness),
         length: mmToM(lenMm),
         color: item.color,
+        oversize,
       }));
     }
     return item.sizes.flatMap<Stock>((size) =>
@@ -228,6 +237,7 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
         length: mmToM(size.length),
         color: item.color,
         algorithm: item.thicknessAlgorithms?.[String(thickness)],
+        oversize,
       })),
     );
   });
@@ -525,18 +535,24 @@ function makeBoardRect(board: Stock, margin: number): Rectangle<Stock> {
 }
 
 function makePartRect(part: PartToCut, stock: Stock): Rectangle<PartToCut> {
+  const o = effectiveOversize(stock);
   if (isLinearStock(stock)) {
-    // Linear: cross-section on X (must equal stock cross-section width),
-    // length on Y. The user might enter the part with W/T swapped, so we
-    // pin the rect width to the stock's cross-section width and put the
-    // cut length on Y.
-    return new Rectangle(part, 0, 0, stock.crossSectionWidth, part.size.length);
+    // X is pinned to the full stick width; Y is the part length plus
+    // crosscut-waste allowance.
+    return new Rectangle(
+      part,
+      0,
+      0,
+      stock.crossSectionWidth,
+      part.size.length + o.length,
+    );
   }
-  // grainLock='width': pre-rotate so part.width is on Y-axis (with grain).
+  const effW = part.size.width + o.crossSection;
+  const effL = part.size.length + o.length;
   if (part.grainLock === 'width') {
-    return new Rectangle(part, 0, 0, part.size.length, part.size.width);
+    return new Rectangle(part, 0, 0, effL, effW);
   }
-  return new Rectangle(part, 0, 0, part.size.width, part.size.length);
+  return new Rectangle(part, 0, 0, effW, effL);
 }
 
 function sortPartsForPlacement(
@@ -749,9 +765,12 @@ function serializeSheetLayout(
   marginM: number,
 ): SheetBoardLayout {
   const { stock } = layout;
+  const oversize = effectiveOversize(stock);
   return {
     kind: 'sheet',
-    placements: layout.placements.map(serializePartToCutPlacement),
+    placements: layout.placements.map((p) =>
+      serializePartToCutPlacement(p, oversize),
+    ),
     stock: {
       material: stock.material,
       thicknessM: stock.thickness,
@@ -769,6 +788,7 @@ function serializeLinearLayout(
   kerfM: number,
 ): LinearBoardLayout {
   const { stock } = layout;
+  const oversize = effectiveOversize(stock);
   const sorted = [...layout.placements].sort((a, b) => a.bottom - b.bottom);
   const placements: LinearBoardLayoutPlacement[] = sorted.map((p) => ({
     partNumber: p.data.partNumber,
@@ -779,6 +799,7 @@ function serializeLinearLayout(
     thicknessM: p.data.size.thickness,
     lengthM: p.height,
     offsetM: p.bottom,
+    allowanceLengthM: oversize.length,
   }));
   const lastTop = sorted.length > 0 ? sorted[sorted.length - 1].top : 0;
   // The cut that frees the trailing offcut consumes one kerf; with no
@@ -801,7 +822,14 @@ function serializeLinearLayout(
 
 function serializePartToCutPlacement(
   placement: Rectangle<PartToCut>,
+  oversize: Oversize,
 ): SheetBoardLayoutPlacement {
+  // The packer may rotate sheet parts; pick the allowance axis that matches
+  // the rect's width axis after rotation.
+  const effW = placement.data.size.width + oversize.crossSection;
+  const effL = placement.data.size.length + oversize.length;
+  const rotated =
+    Math.abs(placement.width - effW) > Math.abs(placement.width - effL);
   return {
     instanceNumber: placement.data.instanceNumber,
     partNumber: placement.data.partNumber,
@@ -815,6 +843,8 @@ function serializePartToCutPlacement(
     lengthM: placement.height,
     thicknessM: placement.data.size.thickness,
     widthM: placement.width,
+    allowanceWidthM: rotated ? oversize.length : oversize.crossSection,
+    allowanceLengthM: rotated ? oversize.crossSection : oversize.length,
   };
 }
 

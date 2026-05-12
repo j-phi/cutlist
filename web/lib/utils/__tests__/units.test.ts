@@ -4,6 +4,8 @@ import {
   formatDistance,
   formatValue,
   parseDimension,
+  toCanonicalM,
+  toCanonicalMm,
   toFraction,
   type Precision,
 } from '../units';
@@ -25,6 +27,27 @@ describe('Unit Utils', () => {
       // 0.886 → 7/8 at 1/32, 57/64 at 1/64.
       expect(toFraction(0.886, 32)).toBe('7/8');
       expect(toFraction(0.886, 64)).toBe('57/64');
+    });
+  });
+
+  describe('toCanonicalMm', () => {
+    it('rounds inch-source values to 0.001 mm, killing FP slop', () => {
+      // Raw 3.5 * 25.4 = 88.89999999999999. Cleaned: exactly 88.9.
+      expect(toCanonicalMm(3.5, 'in')).toBe(88.9);
+      expect(toCanonicalMm(1.5, 'in')).toBe(38.1);
+      expect(toCanonicalMm(96, 'in')).toBe(2438.4);
+    });
+
+    it('preserves precise inch values like 1/8″ = 3.175 mm exactly', () => {
+      expect(toCanonicalMm(0.125, 'in')).toBe(3.175);
+    });
+  });
+
+  describe('toCanonicalM', () => {
+    it('produces bit-equal doubles for the same dim via different paths', () => {
+      const fromMmCanonical = toCanonicalMm(48, 'in') / 1000;
+      expect(toCanonicalM(48 * 0.0254)).toBe(fromMmCanonical);
+      expect(toCanonicalM(1.2192)).toBe(fromMmCanonical);
     });
   });
 

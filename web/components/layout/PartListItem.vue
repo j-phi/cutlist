@@ -28,6 +28,17 @@ const height = computed(() => getPx(props.placement.lengthM));
 const left = computed(() => getPx(props.placement.leftM));
 const bottom = computed(() => getPx(props.placement.bottomM));
 
+const allowanceWidthPx = computed(() =>
+  props.placement.allowanceWidthM > 0
+    ? getPx(props.placement.allowanceWidthM)
+    : null,
+);
+const allowanceLengthPx = computed(() =>
+  props.placement.allowanceLengthM > 0
+    ? getPx(props.placement.allowanceLengthM)
+    : null,
+);
+
 const fontSize = computed(() =>
   getPx(Math.min(props.placement.widthM / 2, M_PER_IN)),
 );
@@ -57,6 +68,18 @@ const { showPartNumbers } = useProjectSettings();
       class="overflow-hidden relative rounded-xs part-piece transition-colors"
       :style="`width:${width};height:${height}`"
     >
+      <div
+        v-if="allowanceWidthPx"
+        class="absolute top-0 right-0 bottom-0 part-allowance pointer-events-none"
+        :style="`width:${allowanceWidthPx}`"
+        aria-hidden="true"
+      />
+      <div
+        v-if="allowanceLengthPx"
+        class="absolute top-0 left-0 right-0 part-allowance pointer-events-none"
+        :style="`height:${allowanceLengthPx}`"
+        aria-hidden="true"
+      />
       <p
         v-if="showPartNumbers"
         class="w-full text-clip part-number text-right p-px font-semibold"
@@ -110,6 +133,9 @@ const { showPartNumbers } = useProjectSettings();
 <style scoped>
 .part-piece {
   background: var(--part-color, #67787c);
+}
+.part-allowance {
+  background: rgb(99 102 241 / 0.7);
 }
 .is-hovered .part-piece {
   background: var(--part-hover, #67787c);

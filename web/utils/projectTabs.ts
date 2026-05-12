@@ -29,6 +29,12 @@ export const DEFAULT_PROJECT_TAB: ProjectTabId = 'bom';
 export const PROJECT_TABS: readonly ProjectTabDefinition[] = [
   { id: 'bom', label: 'BOM', icon: 'i-lucide-table', urlSegment: '' },
   {
+    id: 'boards',
+    label: 'Stock',
+    icon: 'i-lucide-warehouse',
+    urlSegment: 'boards',
+  },
+  {
     id: 'layout',
     label: 'Layout',
     icon: 'i-lucide-layers',
@@ -40,12 +46,6 @@ export const PROJECT_TABS: readonly ProjectTabDefinition[] = [
     label: 'Build',
     icon: 'i-lucide-book-open',
     urlSegment: 'instructions',
-  },
-  {
-    id: 'boards',
-    label: 'Stock',
-    icon: 'i-lucide-warehouse',
-    urlSegment: 'boards',
   },
   {
     id: 'settings',

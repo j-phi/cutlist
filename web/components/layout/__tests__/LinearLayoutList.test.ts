@@ -35,6 +35,7 @@ function makeLinear(
       thicknessM: 0.038,
       lengthM: 0.3,
       offsetM: 0,
+      allowanceLengthM: 0,
     })),
     wasteEndM: 0,
   };

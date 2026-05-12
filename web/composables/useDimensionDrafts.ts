@@ -2,6 +2,7 @@ import {
   convertUnits,
   formatValue,
   parseDimension,
+  toCanonicalMm,
   type Precision,
 } from 'cutlist';
 import { ref, watch, type Ref } from 'vue';
@@ -38,17 +39,21 @@ export function useDimensionDrafts(
 
   /**
    * Parse a free-text dimension in the active unit, returning canonical
-   * mm if valid. Useful for one-shot inputs (e.g. chip-style add) that
-   * don't participate in the draft/commit lifecycle.
-   *
-   * Returns null for unparseable input AND for zero/negative values —
-   * callers treat that as "discard"; zero-length stock is never useful.
+   * mm if valid. Returns null for unparseable input. By default zero and
+   * negative values also return null (zero-length stock is never useful);
+   * pass `allowZero: true` for fields where zero is a valid choice (e.g.
+   * material allowances), in which case empty input is also treated as 0.
    */
-  function parse(raw: string | undefined): number | null {
+  function parse(
+    raw: string | undefined,
+    opts: { allowZero?: boolean } = {},
+  ): number | null {
     if (raw == null) return null;
+    if (opts.allowZero && raw.trim() === '') return 0;
     const parsed = parseDimension(raw, unit.value);
-    if (parsed == null || parsed <= 0) return null;
-    return convertUnits(parsed, unit.value, 'mm');
+    if (parsed == null) return null;
+    if (opts.allowZero ? parsed < 0 : parsed <= 0) return null;
+    return toCanonicalMm(parsed, unit.value);
   }
 
   /** What the input should render: the user's draft if typing, else canonical. */
@@ -61,14 +66,17 @@ export function useDimensionDrafts(
   }
 
   /**
-   * Parse and clear the draft. Returns the mm value if valid (positive
-   * number that parses), else null. Always clears the draft so the input
-   * reverts to canonical on the next render.
+   * Parse and clear the draft. Returns the mm value if valid, else null.
+   * Always clears the draft so the input reverts to canonical on the next
+   * render. Pass `allowZero: true` to accept "0" / "" as zero.
    */
-  function commit(key: string): number | null {
+  function commit(
+    key: string,
+    opts: { allowZero?: boolean } = {},
+  ): number | null {
     const raw = drafts.value[key];
     delete drafts.value[key];
-    return parse(raw);
+    return parse(raw, opts);
   }
 
   /** Drop every draft. Use after a structural change (add/remove) so an
