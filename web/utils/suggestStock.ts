@@ -87,34 +87,37 @@ function score(
 ): Scored | null {
   if (preset.stock.kind !== 'linear') return null;
   const matrix = presetToMmStock(preset) as LinearStockMatrix;
-  const pw = matrix.size.crossSectionWidth;
-  const pt = matrix.size.crossSectionThickness;
-  // Matcher accepts either cross-section orientation.
-  const candidates = [
-    { gapW: pw - cluster.widthMm, gapT: pt - cluster.thicknessMm },
-    { gapW: pt - cluster.widthMm, gapT: pw - cluster.thicknessMm },
-  ];
-  let best: { gapW: number; gapT: number } | null = null;
-  for (const c of candidates) {
-    if (c.gapW < -CLUSTER_TOL_MM || c.gapT < -CLUSTER_TOL_MM) continue;
-    if (c.gapW > MAX_PLANE_DOWN_MM || c.gapT > MAX_PLANE_DOWN_MM) continue;
-    if (!best || c.gapW + c.gapT < best.gapW + best.gapT) best = c;
-  }
-  if (!best) return null;
+  // Cluster axes are pre-sorted (widthMm ≥ thicknessMm), so we sort the
+  // preset axes too and compare like-for-like — no need to try both
+  // orientations.
+  const pMajor = Math.max(
+    matrix.size.crossSectionWidth,
+    matrix.size.crossSectionThickness,
+  );
+  const pMinor = Math.min(
+    matrix.size.crossSectionWidth,
+    matrix.size.crossSectionThickness,
+  );
+  const gapMajor = pMajor - cluster.widthMm;
+  const gapMinor = pMinor - cluster.thicknessMm;
+  if (gapMajor < -CLUSTER_TOL_MM || gapMinor < -CLUSTER_TOL_MM) return null;
+  if (gapMajor > MAX_PLANE_DOWN_MM || gapMinor > MAX_PLANE_DOWN_MM) return null;
   const lengthFits = matrix.size.lengths.some(
     (l) => l >= cluster.longestPartMm + lengthAllowanceMm,
   );
   if (!lengthFits) return null;
   // Round to 0.1 mm — the engine's display-precision floor. Smaller values
-  // are FP noise from float32 model files / inch-mm conversion and are
-  // well below the packer's relative match tolerance, so they don't
-  // represent a real plane-down requirement.
-  const rawGap = Math.max(best.gapW, best.gapT);
-  const crossSectionGapMm = Math.max(0, Math.round(rawGap * 10) / 10);
+  // are FP noise from float32 model files / inch-mm conversion, well below
+  // the packer's relative match tolerance, so they don't represent a real
+  // plane-down requirement.
+  const crossSectionGapMm = Math.max(
+    0,
+    Math.round(Math.max(gapMajor, gapMinor) * 10) / 10,
+  );
   return {
     preset,
     matrix,
-    totalGapMm: best.gapW + best.gapT,
+    totalGapMm: gapMajor + gapMinor,
     crossSectionGapMm,
   };
 }
