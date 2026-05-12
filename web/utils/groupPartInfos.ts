@@ -1,12 +1,3 @@
-/**
- * Shared grouping logic for parsed model parts (GLTF and COLLADA).
- *
- * Both parsers extract a flat list of PartInfo entries from their
- * respective scene graphs, then run the same grouping step to
- * deduplicate identical parts and produce the DeriveResult consumed
- * by the rest of the app.
- */
-
 import type {
   Part,
   ColorInfo,
@@ -24,17 +15,13 @@ export interface PartInfo {
   nodeIndex: number;
 }
 
-/** Tolerance for treating two dim values as "the same cut". Coarse enough to
- *  absorb sub-mm vertex noise some exporters (e.g. FBX) introduce between
- *  meshes that represent the same physical part. */
+/** Two dim values within this much are the same cut. Loose enough to absorb
+ *  sub-mm vertex noise some exporters introduce between meshes that
+ *  represent the same physical part; tight enough to keep real cuts apart. */
 const GROUP_TOLERANCE_M = 1e-3;
 
-/**
- * Walk sorted unique values; merge each into the previous if their gap is
- * ≤ tolerance. Returns a map from input value to its cluster's leader.
- * Unlike grid-snap rounding this has no FP boundary problems — leader
- * selection is order-stable for identical input sets.
- */
+/** Map each value to its cluster's leader. Sorted-and-merge: a new cluster
+ *  starts whenever the gap from the previous value exceeds the tolerance. */
 function clusterByGap(values: Iterable<number>): Map<number, number> {
   const unique = [...new Set(values)].sort((a, b) => a - b);
   const out = new Map<number, number>();
@@ -78,10 +65,8 @@ export function groupPartInfos(partInfos: PartInfo[]): DeriveResult {
       existing.quantity += 1;
       existing.nodeIndices.push(info.nodeIndex);
     } else {
-      // Snap stored dims to the 1 µm grid so mesh-extent FP noise can't
-      // desync part dims from canonical-mm stock dims at exact-equality
-      // fit checks. We store the cluster leader (a real input value), not
-      // the per-info raw value, so all members share the same stored dims.
+      // Snap to the 1 µm grid so mesh-extent FP noise can't desync part dims
+      // from canonical-mm stock dims at exact-equality fit checks.
       groups.set(key, {
         ...info,
         size: {

@@ -292,12 +292,9 @@ export interface BoardLayoutLeftover {
 }
 
 /**
- * Sheet placement: leftover shape + 2D bounding rectangle on the board.
- *
- * `widthM` / `lengthM` (inherited) are intrinsic part dims, identical across
- * instances. The on-board footprint is the rectangle (`rightM - leftM`,
- * `topM - bottomM`) — may be the intrinsic dims swapped when the packer
- * rotated the part to fit.
+ * Sheet placement. Inherits intrinsic `widthM` / `lengthM` (identical across
+ * instances); the on-board footprint is the corner rectangle, which may
+ * swap those when the packer rotates the part to fit.
  */
 export interface SheetBoardLayoutPlacement extends BoardLayoutLeftover {
   leftM: number;

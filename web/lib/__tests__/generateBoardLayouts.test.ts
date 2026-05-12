@@ -52,7 +52,6 @@ describe('generateBoardLayouts', () => {
 
     expect(result.leftovers).toHaveLength(0);
     expect(result.layouts).toHaveLength(1);
-    // Intrinsic widthM/lengthM stay as given; rotation shows only on corners.
     expect(result.layouts[0].placements).toEqual([
       expect.objectContaining({
         widthM: 2,
