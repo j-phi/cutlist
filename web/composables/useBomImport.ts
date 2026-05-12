@@ -2,7 +2,6 @@ import { ref, type Ref } from 'vue';
 import { parseGltf } from '~/utils/parseGltf';
 import {
   parseAssimp,
-  ASSIMP_EXTENSIONS,
   getFileExtension,
   isAssimpExtension,
 } from '~/utils/parseAssimp';
@@ -13,7 +12,8 @@ export interface UseBomImportOptions {
   onModelParsed: (model: Model) => void;
 }
 
-const SUPPORTED_EXTENSIONS = ['gltf', ...ASSIMP_EXTENSIONS] as const;
+const isSupportedExtension = (ext: string) =>
+  ext === 'gltf' || isAssimpExtension(ext);
 
 /**
  * File picker + drag/drop wiring for the BOM tab. Returns `bind.dropZone`
@@ -110,9 +110,7 @@ export function useBomImport({ activeId, onModelParsed }: UseBomImportOptions) {
     e.preventDefault();
     isDragging.value = false;
     const files = [...(e.dataTransfer?.files ?? [])].filter((f) =>
-      (SUPPORTED_EXTENSIONS as readonly string[]).includes(
-        getFileExtension(f.name),
-      ),
+      isSupportedExtension(getFileExtension(f.name)),
     );
     await importFiles(files);
   }

@@ -6,14 +6,12 @@ import type { ObjectGraph } from './types';
  * Curated subset of Assimp-readable formats that map cleanly to per-part
  * cut-list output. Single-mesh (`stl`, `ply`) and split-per-face (`obj`)
  * formats are intentionally excluded — re-enable once we have a UI for
- * merging or splitting parts after import.
- *
- * `gltf` is omitted because it has a native fast path in `parseGltf`;
- * `glb` goes through Assimp because that path only handles JSON glTF.
+ * merging or splitting parts after import. `gltf` has a native fast path
+ * in `parseGltf`; `glb` routes here because that path only handles JSON.
  */
-export const ASSIMP_EXTENSIONS = ['dae', 'fbx', 'glb'] as const;
+const ASSIMP_EXTENSIONS = ['dae', 'fbx', 'glb'] as const;
 
-export type AssimpExtension = (typeof ASSIMP_EXTENSIONS)[number];
+type AssimpExtension = (typeof ASSIMP_EXTENSIONS)[number];
 
 export interface ParseAssimpResult extends ObjectGraph {
   rawSource: object;

@@ -57,11 +57,8 @@ async function fetchWasmBinary(): Promise<Uint8Array> {
       import('node:url'),
     ]);
     const pkgUrl = await import.meta.resolve!('assimpjs/package.json');
-    const wasmPath = fileURLToPath(pkgUrl).replace(
-      /package\.json$/,
-      'dist/assimpjs.wasm',
-    );
-    return new Uint8Array(await readFile(wasmPath));
+    const wasmUrl = new URL('./dist/assimpjs.wasm', pkgUrl);
+    return new Uint8Array(await readFile(fileURLToPath(wasmUrl)));
   }
   const resp = await fetch(wasmUrl);
   if (!resp.ok) {
@@ -97,9 +94,8 @@ const CHUNK_BIN = 0x004e4942; // 'BIN\0'
 
 /**
  * Parse a binary glTF (.glb) and return the JSON document with its BIN
- * chunk inlined as a base64 data URI. glTF JSON refs `buffers[0].uri`;
- * inlining there makes the document self-contained so we can hand it
- * straight to GLTFLoader.
+ * chunk inlined as a base64 data URI on `buffers[0].uri`, so the result
+ * is self-contained for GLTFLoader.
  */
 function glbToInlinedGltf(glb: Uint8Array): object {
   const view = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);

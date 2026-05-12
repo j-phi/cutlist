@@ -20,8 +20,8 @@ export interface PartInfo {
  *  represent the same physical part; tight enough to keep real cuts apart. */
 const GROUP_TOLERANCE_M = 1e-3;
 
-/** Map each value to its cluster's leader. Sorted-and-merge: a new cluster
- *  starts whenever the gap from the previous value exceeds the tolerance. */
+/** Map each value to its cluster's leader: sort unique values, start a new
+ *  cluster whenever the gap from the previous value exceeds tolerance. */
 function clusterByGap(values: Iterable<number>): Map<number, number> {
   const unique = [...new Set(values)].sort((a, b) => a - b);
   const out = new Map<number, number>();

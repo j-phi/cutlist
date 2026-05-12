@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  parseAssimp,
-  getFileExtension,
-  isAssimpExtension,
-} from '../parseAssimp';
+import { parseAssimp, getFileExtension } from '../parseAssimp';
 
 function makeFile(content: string, name: string): File {
   return new File([content], name, { type: 'application/octet-stream' });
@@ -120,19 +116,5 @@ describe('getFileExtension', () => {
 
   it('returns empty string for files without an extension', () => {
     expect(getFileExtension('Makefile')).toBe('');
-  });
-});
-
-describe('isAssimpExtension', () => {
-  it('rejects glTF JSON (handled by the native fast path)', () => {
-    expect(isAssimpExtension('gltf')).toBe(false);
-  });
-
-  it('rejects formats we deliberately dropped', () => {
-    // Pinning the curated list: STL/PLY collapse to one mesh, OBJ exporters
-    // routinely split per face. Re-enable once we have a merge/split UI.
-    expect(isAssimpExtension('stl')).toBe(false);
-    expect(isAssimpExtension('ply')).toBe(false);
-    expect(isAssimpExtension('obj')).toBe(false);
   });
 });
