@@ -16,11 +16,13 @@ interface MockPart {
 const enabledModels = ref<Array<{ parts: MockPart[] }>>([]);
 const stock = ref<string>('');
 const distanceUnit = ref<'mm' | 'in'>('mm');
+const precision = ref({ kind: 'decimal' as const, step: 0.1 });
 
 mockNuxtImport('useProjects', () => () => ({ enabledModels }));
 mockNuxtImport('useProjectSettings', () => () => ({
   stock,
   distanceUnit,
+  precision,
   parsedStock: ref([]),
 }));
 

@@ -1,8 +1,8 @@
 import YAML from 'js-yaml';
 import {
-  convertUnits,
   DEFAULT_INCH_PRECISION,
   DEFAULT_MM_PRECISION,
+  toCanonicalMm,
   type Algorithm,
   type LinearStockMatrix,
   type Precision,
@@ -668,17 +668,8 @@ export const STOCK_PRESETS: StockPreset[] = [
   },
 ];
 
-/**
- * Convert a preset's authored dimensions to the canonical mm form used at
- * rest. Inch values are rounded to 0.01 mm after conversion so raw FP slop
- * (3.5″ → 88.89999999999999 mm) doesn't leak into the suggester gap math,
- * the nonnegative oversize schema, or the UI.
- */
-const roundMm = (mm: number) => Math.round(mm * 100) / 100;
-
 export function presetToMmStock(preset: StockPreset): StockMatrix {
-  const scale = (n: number) =>
-    roundMm(preset.unit === 'mm' ? n : convertUnits(n, 'in', 'mm'));
+  const scale = (n: number) => toCanonicalMm(n, preset.unit);
   if (preset.stock.kind === 'linear') {
     return {
       ...preset.stock,

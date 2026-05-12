@@ -1,10 +1,12 @@
 <script lang="ts" setup>
 import { suggestStockForProject, type Suggestion } from '~/utils/suggestStock';
 import { useStockMutations } from '~/composables/useStockMutations';
+import useFormatDistance from '~/composables/useFormatDistance';
 
 const { enabledModels } = useProjects();
 const { stock, distanceUnit } = useProjectSettings();
 const { add } = useStockMutations();
+const formatDistance = useFormatDistance();
 
 const dismissed = ref(false);
 
@@ -64,7 +66,8 @@ function addAll() {
           <template v-if="(s.matrix.oversize?.crossSection ?? 0) > 0">
             <span class="mx-1.5 text-dim">·</span>
             <span class="text-amber-400">
-              +{{ s.matrix.oversize?.crossSection }}mm to plane down
+              +{{ formatDistance(s.matrix.oversize!.crossSection / 1000) }}
+              extra material
             </span>
           </template>
         </li>

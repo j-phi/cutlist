@@ -2,6 +2,7 @@ import {
   convertUnits,
   formatValue,
   parseDimension,
+  toCanonicalMm,
   type Precision,
 } from 'cutlist';
 import { ref, watch, type Ref } from 'vue';
@@ -69,7 +70,7 @@ export function useDimensionInput(
     if (s === lastWrittenByUs) return;
     const parsed = parseDimension(s, unit.value);
     if (parsed == null) return;
-    const next = convertUnits(parsed, unit.value, 'mm');
+    const next = toCanonicalMm(parsed, unit.value);
     if (mm.value == null || Math.abs(next - mm.value) >= 1e-6) {
       mm.value = next;
     }

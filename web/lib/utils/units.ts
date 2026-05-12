@@ -72,6 +72,19 @@ export function convertUnits(
   return from === 'mm' ? value / MM_PER_IN : value * MM_PER_IN;
 }
 
+/**
+ * Convert a value to canonical mm storage. Inch-source values are rounded
+ * to 0.001 mm: `value * 25.4` produces FP slop (3.5″ → 88.8999999999…)
+ * that leaks into suggester gap math, the nonnegative-oversize schema,
+ * and the UI. 0.001 mm preserves precise values like 1/8″ = 3.175 mm
+ * while flattening sub-micron noise to a clean zero. Pure mm-source
+ * values pass through unchanged.
+ */
+export function toCanonicalMm(value: number, from: 'mm' | 'in'): number {
+  if (from === 'mm') return value;
+  return Math.round(value * MM_PER_IN * 1000) / 1000;
+}
+
 // Cap on a plausible workshop dimension. Past this it's a typo or pasted
 // scientific notation; reject before 1e308 lands in storage.
 const MAX_DIMENSION = 1e5;

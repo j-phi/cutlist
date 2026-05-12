@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import {
-  convertUnits,
+  toCanonicalMm,
   type LinearStockMatrix,
   type SheetStockMatrix,
 } from 'cutlist';
@@ -98,18 +98,15 @@ function addCustomSheet() {
 
 function addCustomLinear() {
   // Seed with 96″ / 2400 mm — the most common framing length in each unit.
-  const seedLengthMm =
-    unit.value === 'in' ? convertUnits(96, 'in', 'mm') : 2400;
+  const seed = (n: number) => toCanonicalMm(n, unit.value);
   const blank: LinearStockMatrix = {
     kind: 'linear',
     material: 'New Timber',
     color: nextPaletteColor(),
     size: {
-      crossSectionWidth:
-        unit.value === 'in' ? convertUnits(3.5, 'in', 'mm') : 89,
-      crossSectionThickness:
-        unit.value === 'in' ? convertUnits(1.5, 'in', 'mm') : 38,
-      lengths: [seedLengthMm],
+      crossSectionWidth: unit.value === 'in' ? seed(3.5) : 89,
+      crossSectionThickness: unit.value === 'in' ? seed(1.5) : 38,
+      lengths: [unit.value === 'in' ? seed(96) : 2400],
     },
   };
   add([blank]);

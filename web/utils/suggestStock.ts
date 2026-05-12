@@ -105,12 +105,17 @@ function score(
     (l) => l >= cluster.longestPartMm + lengthAllowanceMm,
   );
   if (!lengthFits) return null;
-  // Clamp tiny FP negatives from cluster*1000; presets are already clean.
+  // Round to 0.1 mm — the engine's display-precision floor. Smaller values
+  // are FP noise from float32 model files / inch-mm conversion and are
+  // well below the packer's relative match tolerance, so they don't
+  // represent a real plane-down requirement.
+  const rawGap = Math.max(best.gapW, best.gapT);
+  const crossSectionGapMm = Math.max(0, Math.round(rawGap * 10) / 10);
   return {
     preset,
     matrix,
     totalGapMm: best.gapW + best.gapT,
-    crossSectionGapMm: Math.max(0, Math.max(best.gapW, best.gapT)),
+    crossSectionGapMm,
   };
 }
 

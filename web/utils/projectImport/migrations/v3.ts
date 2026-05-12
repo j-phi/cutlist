@@ -13,11 +13,11 @@
  */
 
 import {
-  convertUnits,
   DEFAULT_INCH_PRECISION,
   DEFAULT_MM_PRECISION,
   parseDimension,
   StockMatrix,
+  toCanonicalMm,
 } from 'cutlist';
 import YAML from 'js-yaml';
 import { z } from 'zod';
@@ -31,10 +31,10 @@ export function migrateProjectToMmStorage(record: IdbRecord): IdbRecord {
   const oldUnit: 'mm' | 'in' = record.distanceUnit === 'in' ? 'in' : 'mm';
   const next: IdbRecord = { ...record };
   if (typeof next.bladeWidth === 'number') {
-    next.bladeWidth = convertUnits(next.bladeWidth, oldUnit, 'mm');
+    next.bladeWidth = toCanonicalMm(next.bladeWidth, oldUnit);
   }
   if (typeof next.margin === 'number') {
-    next.margin = convertUnits(next.margin, oldUnit, 'mm');
+    next.margin = toCanonicalMm(next.margin, oldUnit);
   }
   if (typeof next.stock === 'string' && next.stock.trim() !== '') {
     next.stock = migrateStockYamlToMm(next.stock, oldUnit);
@@ -143,7 +143,7 @@ function dimToMm(
   rowUnit: 'mm' | 'in',
 ): number | null {
   if (typeof dim === 'number') {
-    return Number.isFinite(dim) ? convertUnits(dim, rowUnit, 'mm') : null;
+    return Number.isFinite(dim) ? toCanonicalMm(dim, rowUnit) : null;
   }
   if (typeof dim !== 'string') return null;
   const s = dim.trim();
@@ -152,7 +152,7 @@ function dimToMm(
   // the row's unit.
   const unit: 'mm' | 'in' = stringUnit(s) ?? rowUnit;
   const v = parseDimension(s, unit);
-  return v == null ? null : convertUnits(v, unit, 'mm');
+  return v == null ? null : toCanonicalMm(v, unit);
 }
 
 function stringUnit(s: string): 'mm' | 'in' | null {

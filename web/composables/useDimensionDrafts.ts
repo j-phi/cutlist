@@ -2,6 +2,7 @@ import {
   convertUnits,
   formatValue,
   parseDimension,
+  toCanonicalMm,
   type Precision,
 } from 'cutlist';
 import { ref, watch, type Ref } from 'vue';
@@ -52,7 +53,7 @@ export function useDimensionDrafts(
     const parsed = parseDimension(raw, unit.value);
     if (parsed == null) return null;
     if (opts.allowZero ? parsed < 0 : parsed <= 0) return null;
-    return convertUnits(parsed, unit.value, 'mm');
+    return toCanonicalMm(parsed, unit.value);
   }
 
   /** What the input should render: the user's draft if typing, else canonical. */
