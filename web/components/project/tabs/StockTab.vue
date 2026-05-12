@@ -44,6 +44,8 @@ const presetItems = computed<DropdownItem[][]>(() => {
   return groups;
 });
 
+const helpOpen = ref(false);
+
 const customItems: DropdownItem[][] = [
   [
     { label: 'Sheet', icon: 'i-lucide-layers', onSelect: addCustomSheet },
@@ -118,10 +120,21 @@ function addCustomLinear() {
     <div
       class="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
     >
-      <p class="text-sm text-muted">
-        Add the stock you have available. Parts will be laid out onto these
-        materials.
-      </p>
+      <div class="flex items-center gap-2 min-w-0">
+        <p class="text-sm text-muted">
+          Add the stock you have available. Parts will be laid out onto these
+          materials.
+        </p>
+        <UButton
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-circle-help"
+          aria-label="How stock works"
+          data-testid="stock-help-trigger"
+          @click="helpOpen = true"
+        />
+      </div>
       <div class="flex items-center gap-2 shrink-0">
         <UDropdownMenu
           :items="presetItems"
@@ -206,5 +219,7 @@ function addCustomLinear() {
         @remove="remove(idx)"
       />
     </div>
+
+    <StockHelpModal v-model:open="helpOpen" />
   </div>
 </template>
