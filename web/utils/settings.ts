@@ -28,16 +28,19 @@ export function defaultPrecisionForUnit(unit: 'mm' | 'in'): Precision {
 
 /**
  * A stock preset, authored in whichever unit reads naturally for that
- * material (sheet goods in mm, North-American lumber in inches). Converted
- * to mm before being added to a project — the catalog is human-facing, the
- * stored matrix is canonical mm.
+ * material. Converted to mm by `presetToMmStock` before being added to a
+ * project. `oversize` is omitted from the literal shape — the suggester
+ * writes a per-cluster allowance onto the added matrix.
  */
+type LinearStockMatrixAuthor = Omit<LinearStockMatrix, 'oversize'>;
+type SheetStockMatrixAuthor = Omit<SheetStockMatrix, 'oversize'>;
+
 interface StockPreset {
   label: string;
-  /** If true, this preset is auto-added to new projects matching `unit`. */
+  /** Auto-added to new projects matching `unit`. */
   default: boolean;
   unit: 'mm' | 'in';
-  stock: SheetStockMatrix | LinearStockMatrix;
+  stock: SheetStockMatrixAuthor | LinearStockMatrixAuthor;
 }
 
 /**
@@ -278,6 +281,149 @@ export const STOCK_PRESETS: StockPreset[] = [
       },
     },
   },
+  // Smaller AU DAR sizes — common for frames, trim, and small drawer parts.
+  {
+    label: 'AU Pine 70×35 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'AU Pine 70×35',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 70,
+        crossSectionThickness: 35,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  {
+    label: 'AU Pine 90×35 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'AU Pine 90×35',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 90,
+        crossSectionThickness: 35,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  {
+    label: 'AU Pine 42×19 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'AU Pine 42×19',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 42,
+        crossSectionThickness: 19,
+        lengths: [2400, 3000, 3600],
+      },
+    },
+  },
+  {
+    label: 'AU Pine 35×35 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'AU Pine 35×35',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 35,
+        crossSectionThickness: 35,
+        lengths: [2400, 3000, 3600],
+      },
+    },
+  },
+  // AU pine posts — 90×90 nominal sold dressed to ~86×86, but Bunnings
+  // commonly stocks both. Match the nominal label users recognise.
+  {
+    label: 'AU Pine 90×90 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'AU Pine 90×90',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 90,
+        crossSectionThickness: 90,
+        lengths: [2400, 3000, 3600, 4800, 5400],
+      },
+    },
+  },
+  // EU C24 mid widths — 75/125/175 fill the stud→joist gap left by the
+  // existing 100/150/200 set.
+  {
+    label: 'C24 47×75 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'C24 47×75',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 75,
+        crossSectionThickness: 47,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  {
+    label: 'C24 47×125 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'C24 47×125',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 125,
+        crossSectionThickness: 47,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  {
+    label: 'C24 47×175 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'C24 47×175',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 175,
+        crossSectionThickness: 47,
+        lengths: [2400, 3000, 3600, 4800],
+      },
+    },
+  },
+  // Pine glue panel — solid laminated pine sold in fixed widths; great for
+  // tabletops, shelves, drawer fronts. The 30mm panel is the dimensional
+  // sweet spot in the user's Workbench model.
+  {
+    label: 'Pine glue panel 30×400 (mm)',
+    default: false,
+    unit: 'mm',
+    stock: {
+      kind: 'linear',
+      material: 'Pine glue panel 30×400',
+      color: '#e6cda1',
+      size: {
+        crossSectionWidth: 400,
+        crossSectionThickness: 30,
+        lengths: [1200, 1800, 2400, 3000],
+      },
+    },
+  },
   // ── Imperial sheet goods (in) ──────────────────────────
   {
     label: 'Plywood (in)',
@@ -378,6 +524,21 @@ export const STOCK_PRESETS: StockPreset[] = [
       color: '#d2b996',
       size: {
         crossSectionWidth: 7.25,
+        crossSectionThickness: 0.75,
+        lengths: [96, 120, 144, 192],
+      },
+    },
+  },
+  {
+    label: 'Pine 1×10 (in)',
+    default: false,
+    unit: 'in',
+    stock: {
+      kind: 'linear',
+      material: 'Pine 1×10',
+      color: '#d2b996',
+      size: {
+        crossSectionWidth: 9.25,
         crossSectionThickness: 0.75,
         lengths: [96, 120, 144, 192],
       },
@@ -509,12 +670,15 @@ export const STOCK_PRESETS: StockPreset[] = [
 
 /**
  * Convert a preset's authored dimensions to the canonical mm form used at
- * rest. Always returns a fresh deep object so callers can mutate the
- * result without touching the shared module-scope preset.
+ * rest. Inch values are rounded to 0.01 mm after conversion so raw FP slop
+ * (3.5″ → 88.89999999999999 mm) doesn't leak into the suggester gap math,
+ * the nonnegative oversize schema, or the UI.
  */
+const roundMm = (mm: number) => Math.round(mm * 100) / 100;
+
 export function presetToMmStock(preset: StockPreset): StockMatrix {
   const scale = (n: number) =>
-    preset.unit === 'mm' ? n : convertUnits(n, 'in', 'mm');
+    roundMm(preset.unit === 'mm' ? n : convertUnits(n, 'in', 'mm'));
   if (preset.stock.kind === 'linear') {
     return {
       ...preset.stock,

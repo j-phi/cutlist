@@ -1,16 +1,16 @@
 <script lang="ts" setup>
-import YAML from 'js-yaml';
 import {
   convertUnits,
   type LinearStockMatrix,
   type SheetStockMatrix,
-  type StockMatrix,
 } from 'cutlist';
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
 import { FALLBACK_PALETTE } from '~/utils/materialColors';
+import { useStockMutations } from '~/composables/useStockMutations';
 
-const { stock, parsedStock, distanceUnit, precision } = useProjectSettings();
+const { parsedStock, distanceUnit, precision } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
+const { add, update, remove } = useStockMutations();
 
 interface DropdownItem {
   label: string;
@@ -27,16 +27,13 @@ function presetGroup(
     { label, type: 'label' },
     ...presets.map((preset) => ({
       label: preset.label,
-      onSelect: () => addPreset(preset),
+      onSelect: () => add([presetToMmStock(preset)]),
     })),
   ];
 }
 
-/**
- * Presets filtered to the project's active unit. Showing inch presets in
- * an mm project (or vice versa) hands the user raw scaled values they
- * didn't expect (e.g. Pine 2×4 → 88.9 mm × 38.1 mm), so we narrow the menu.
- */
+// Narrow to the project's unit — mixing presets gives users surprise scaled
+// values (e.g. Pine 2×4 → 88.9 mm × 38.1 mm).
 const presetItems = computed<DropdownItem[][]>(() => {
   const presetsInUnit = STOCK_PRESETS.filter((p) => p.unit === unit.value);
   const sheets = presetsInUnit.filter((p) => p.stock.kind === 'sheet');
@@ -49,16 +46,8 @@ const presetItems = computed<DropdownItem[][]>(() => {
 
 const customItems: DropdownItem[][] = [
   [
-    {
-      label: 'Sheet',
-      icon: 'i-lucide-layers',
-      onSelect: () => addCustomSheet(),
-    },
-    {
-      label: 'Timber',
-      icon: 'i-lucide-square',
-      onSelect: () => addCustomLinear(),
-    },
+    { label: 'Sheet', icon: 'i-lucide-layers', onSelect: addCustomSheet },
+    { label: 'Timber', icon: 'i-lucide-square', onSelect: addCustomLinear },
   ],
 ];
 
@@ -73,85 +62,47 @@ const makeKey = () => `e${++nextKeyId}`;
 watch(
   () => entries.value.length,
   (len) => {
-    if (entryKeys.value.length !== len) {
-      entryKeys.value = Array.from({ length: len }, makeKey);
-    }
+    while (entryKeys.value.length < len) entryKeys.value.push(makeKey());
+    if (entryKeys.value.length > len) entryKeys.value.length = len;
   },
   { immediate: true },
 );
-
-function writeEntries(next: StockMatrix[]) {
-  stock.value = YAML.dump(next, { indent: 2, flowLevel: 3 });
-}
 
 function nextPaletteColor(): string {
   return FALLBACK_PALETTE[entries.value.length % FALLBACK_PALETTE.length];
 }
 
-function normalizeName(name: string): string {
-  return name.trim().toLowerCase();
-}
-
-/**
- * Materials are name-keyed everywhere (colorMap, PDF shopping aggregation,
- * stock→part grouping). Two rows sharing a name silently confuse the packer
- * (first match wins), so we auto-suffix on add and flag collisions on edit.
- * Comparison is trim+case-insensitive: users read "Pine" and "pine " as one.
- */
-function uniqueMaterialName(name: string, existing: StockMatrix[]): string {
-  const trimmed = name.trim();
-  const taken = new Set(existing.map((e) => normalizeName(e.material)));
-  if (!taken.has(normalizeName(trimmed))) return trimmed;
-  let n = 2;
-  while (taken.has(normalizeName(`${trimmed} (${n})`))) n++;
-  return `${trimmed} (${n})`;
-}
-
 const duplicateNames = computed<Set<string>>(() => {
   const counts = new Map<string, number>();
   for (const e of entries.value) {
-    const key = normalizeName(e.material);
+    const key = e.material.trim().toLowerCase();
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-  const dupKeys = new Set(
-    [...counts.entries()].filter(([, n]) => n > 1).map(([k]) => k),
-  );
+  const dup = new Set([...counts].filter(([, n]) => n > 1).map(([k]) => k));
   return new Set(
     entries.value
-      .filter((e) => dupKeys.has(normalizeName(e.material)))
+      .filter((e) => dup.has(e.material.trim().toLowerCase()))
       .map((e) => e.material),
   );
 });
 
-function appendEntry(next: StockMatrix) {
-  entryKeys.value.push(makeKey());
-  writeEntries([...entries.value, next]);
-}
-
-function addPreset(preset: (typeof STOCK_PRESETS)[number]) {
-  const next = presetToMmStock(preset);
-  next.material = uniqueMaterialName(next.material, entries.value);
-  appendEntry(next);
-}
-
 function addCustomSheet() {
   const blank: SheetStockMatrix = {
     kind: 'sheet',
-    material: uniqueMaterialName('New Material', entries.value),
+    material: 'New Material',
     sizes: [],
     color: nextPaletteColor(),
   };
-  appendEntry(blank);
+  add([blank]);
 }
 
 function addCustomLinear() {
-  // Seed with one length so the card isn't a blank slate: 96″ / 2400mm
-  // matches the most common framing-lumber length in each unit.
+  // Seed with 96″ / 2400 mm — the most common framing length in each unit.
   const seedLengthMm =
     unit.value === 'in' ? convertUnits(96, 'in', 'mm') : 2400;
   const blank: LinearStockMatrix = {
     kind: 'linear',
-    material: uniqueMaterialName('New Timber', entries.value),
+    material: 'New Timber',
     color: nextPaletteColor(),
     size: {
       crossSectionWidth:
@@ -161,18 +112,7 @@ function addCustomLinear() {
       lengths: [seedLengthMm],
     },
   };
-  appendEntry(blank);
-}
-
-function updateEntry(idx: number, next: StockMatrix) {
-  const list = entries.value.slice();
-  list[idx] = next;
-  writeEntries(list);
-}
-
-function removeEntry(idx: number) {
-  entryKeys.value.splice(idx, 1);
-  writeEntries(entries.value.filter((_, i) => i !== idx));
+  add([blank]);
 }
 </script>
 
@@ -265,8 +205,8 @@ function removeEntry(idx: number) {
         :distance-unit="unit"
         :precision="precision"
         :duplicate-name="duplicateNames.has(entry.material)"
-        @update:model-value="(next) => updateEntry(idx, next)"
-        @remove="removeEntry(idx)"
+        @update:model-value="(next) => update(idx, next)"
+        @remove="remove(idx)"
       />
     </div>
   </div>

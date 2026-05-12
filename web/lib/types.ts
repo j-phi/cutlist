@@ -32,6 +32,17 @@ export const SearchPass = z.union([
 export type SearchPass = z.infer<typeof SearchPass>;
 
 /**
+ * Per-part allowances. `crossSection` is applied to both cross-section
+ * axes for linear stock (S4S removes material on all four faces) and to
+ * the width axis only for sheet stock. Engine values are meters; matrix
+ * values are millimetres (see `OversizeSchema`).
+ */
+export interface Oversize {
+  length: number;
+  crossSection: number;
+}
+
+/**
  * Engine-side sheet stock: a 2D panel (plywood, MDF, hardboard, …).
  * All numbers are meters (engine internal unit).
  */
@@ -49,6 +60,8 @@ export interface SheetStock {
    * `StockMatrix.thicknessAlgorithms`. Falls back to `Config.defaultAlgorithm`.
    */
   algorithm?: Algorithm;
+  /** Allowances added to the part footprint at placement time. */
+  oversize?: Oversize;
 }
 
 /**
@@ -67,7 +80,15 @@ export interface LinearStock {
   crossSectionThickness: number;
   length: number;
   color?: string;
+  /** Allowances added to the part's effective length on the stick. */
+  oversize?: Oversize;
 }
+
+const ZERO_OVERSIZE: Oversize = Object.freeze({ length: 0, crossSection: 0 });
+
+/** Read `stock.oversize` with a zero default — never returns undefined. */
+export const effectiveOversize = (s: SheetStock | LinearStock): Oversize =>
+  s.oversize ?? ZERO_OVERSIZE;
 
 /**
  * Engine-side stock. A material has a `kind` (sheet, linear, …) which
@@ -82,6 +103,13 @@ export const isSheetStock = (s: Stock): s is SheetStock => s.kind === 'sheet';
 // Reject 0, negatives, NaN, infinity at the schema boundary — they
 // propagate as silent bugs or blow up layout math downstream.
 const PositiveDimension = z.number().positive().finite();
+
+const NonNegativeMm = z.number().nonnegative().finite();
+
+export const OversizeSchema = z.object({
+  length: NonNegativeMm.default(0),
+  crossSection: NonNegativeMm.default(0),
+});
 
 /**
  * Sheet stock matrix: a material sold as 2D panels (plywood, MDF, …).
@@ -110,6 +138,8 @@ const SheetStockMatrixSchema = z.object({
    * `Config.defaultAlgorithm` when omitted.
    */
   thicknessAlgorithms: z.record(z.string(), Algorithm).optional(),
+  /** Rough-cut allowance applied to each part's footprint (mm). */
+  oversize: OversizeSchema.optional(),
 });
 
 /**
@@ -136,6 +166,8 @@ const LinearStockMatrixSchema = z.object({
   size: LinearStockSize,
   /** Display color for board previews (hex string). */
   color: z.string().optional(),
+  /** Rough-cut allowance applied to length and cross-section (mm). */
+  oversize: OversizeSchema.optional(),
 });
 
 /**

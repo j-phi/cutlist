@@ -19,6 +19,14 @@ const drafts = useDimensionDrafts(unit, precisionRef);
 const lengthKey = (idx: number) => `length-${idx}`;
 const crossKey = (field: 'crossSectionWidth' | 'crossSectionThickness') =>
   `cross-${field}`;
+const allowanceKey = (field: 'length' | 'crossSection') => `allowance-${field}`;
+
+const allowanceOpen = ref(false);
+
+const hasAllowance = computed(() => {
+  const o = props.modelValue.oversize;
+  return !!o && (o.length > 0 || o.crossSection > 0);
+});
 
 function emitLengths(next: number[]) {
   // Index-keyed length drafts shift on add/remove; clear before re-emit.
@@ -42,8 +50,6 @@ function removeLength(idx: number) {
 }
 
 function addLength() {
-  // Seed with the longest existing length so a quick edit lands on a
-  // sensible value; fall back to 96″ / 2400 mm when starting from empty.
   const existing = props.modelValue.size.lengths;
   const seed =
     existing.length > 0
@@ -65,7 +71,19 @@ function commitCrossSection(
   });
 }
 
-/** Pretty side-label for foot-multiple inches: "(8 ft)". */
+function commitAllowance(field: 'length' | 'crossSection') {
+  const mm = drafts.commit(allowanceKey(field), { allowZero: true });
+  if (mm == null) return;
+  const existing = props.modelValue.oversize ?? { length: 0, crossSection: 0 };
+  const merged = { ...existing, [field]: mm };
+  const allZero = merged.length === 0 && merged.crossSection === 0;
+  emit('update:modelValue', {
+    ...props.modelValue,
+    oversize: allZero ? undefined : merged,
+  });
+}
+
+/** Side-label "(8 ft)" for foot-multiple inches. */
 function footLabel(mm: number): string {
   if (unit.value !== 'in') return '';
   const inches = convertUnits(mm, 'mm', 'in');
@@ -166,6 +184,82 @@ function footLabel(mm: number): string {
       >
         Add length
       </UButton>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <button
+        type="button"
+        class="flex items-center gap-1.5 text-left group"
+        :aria-expanded="allowanceOpen"
+        data-testid="linear-allowance-toggle"
+        @click="allowanceOpen = !allowanceOpen"
+      >
+        <UIcon
+          :name="
+            allowanceOpen ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'
+          "
+          class="w-3.5 h-3.5 text-dim group-hover:text-body shrink-0"
+        />
+        <span class="text-xs font-medium text-muted uppercase tracking-wider">
+          Material allowance
+        </span>
+        <span
+          v-if="hasAllowance"
+          class="text-xs text-teal-400 font-mono"
+          data-testid="linear-allowance-chip"
+        >
+          +{{ drafts.format(modelValue.oversize?.crossSection ?? 0) }} across,
+          +{{ drafts.format(modelValue.oversize?.length ?? 0) }} long
+        </span>
+      </button>
+      <div v-if="allowanceOpen" class="pl-5 flex flex-col gap-2">
+        <p class="text-xs text-dim">
+          Extra material reserved per part for planing or end-trimming. Leave at
+          zero to treat modeled dimensions as stock dimensions.
+        </p>
+        <div class="flex items-center gap-2">
+          <div class="flex-1 flex flex-col gap-1">
+            <label class="text-xs text-dim"
+              >Across cross-section ({{ unit }})</label
+            >
+            <UInput
+              :model-value="
+                drafts.display(
+                  allowanceKey('crossSection'),
+                  modelValue.oversize?.crossSection ?? 0,
+                )
+              "
+              class="font-mono"
+              placeholder="0"
+              data-testid="linear-allowance-cross"
+              @update:model-value="
+                (v: string) => drafts.set(allowanceKey('crossSection'), v)
+              "
+              @blur="commitAllowance('crossSection')"
+              @keydown.enter="commitAllowance('crossSection')"
+            />
+          </div>
+          <div class="flex-1 flex flex-col gap-1">
+            <label class="text-xs text-dim">Along length ({{ unit }})</label>
+            <UInput
+              :model-value="
+                drafts.display(
+                  allowanceKey('length'),
+                  modelValue.oversize?.length ?? 0,
+                )
+              "
+              class="font-mono"
+              placeholder="0"
+              data-testid="linear-allowance-length"
+              @update:model-value="
+                (v: string) => drafts.set(allowanceKey('length'), v)
+              "
+              @blur="commitAllowance('length')"
+              @keydown.enter="commitAllowance('length')"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

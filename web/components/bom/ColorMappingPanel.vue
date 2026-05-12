@@ -114,6 +114,7 @@ function commitBatchName(colorKey: string) {
       >
     </button>
     <template v-if="expanded">
+      <StockSuggestionBanner />
       <p v-if="hasParseError" class="text-xs text-amber-400">
         Stock has invalid YAML. Open Settings to fix it.
       </p>
