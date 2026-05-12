@@ -41,11 +41,6 @@ describe('Unit Utils', () => {
     it('preserves precise inch values like 1/8″ = 3.175 mm exactly', () => {
       expect(toCanonicalMm(0.125, 'in')).toBe(3.175);
     });
-
-    it('passes mm-source values through unchanged', () => {
-      expect(toCanonicalMm(12.345, 'mm')).toBe(12.345);
-      expect(toCanonicalMm(0, 'mm')).toBe(0);
-    });
   });
 
   describe('toCanonicalM', () => {

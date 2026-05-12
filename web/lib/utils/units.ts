@@ -73,24 +73,18 @@ export function convertUnits(
 }
 
 /**
- * Convert a value to canonical mm storage. Inch-source values are rounded
- * to 0.001 mm: `value * 25.4` produces FP slop (3.5″ → 88.8999999999…)
- * that leaks into suggester gap math, the nonnegative-oversize schema,
- * and the UI. 0.001 mm preserves precise values like 1/8″ = 3.175 mm
- * while flattening sub-micron noise to a clean zero. Pure mm-source
- * values pass through unchanged.
+ * The app's canonical storage resolution. 0.001 mm preserves anything a
+ * woodworker could intentionally model (1/64″ = 0.397 mm) and flattens
+ * sub-micron FP noise from `value * 25.4` and from raw mesh extents.
  */
-export function toCanonicalMm(value: number, from: 'mm' | 'in'): number {
-  if (from === 'mm') return value;
-  return Math.round(value * MM_PER_IN * 1000) / 1000;
-}
+const snapMm = (mm: number) => Math.round(mm * 1000) / 1000;
 
-/**
- * Snap a meter value to the same 0.001 mm grid as `toCanonicalMm`. Used at
- * import boundaries where dimensions arrive as raw mesh extents (GLTF /
- * COLLADA) so they compare bit-equal to canonical-mm stock.
- */
-export const toCanonicalM = (m: number) => Math.round(m * 1e6) / 1e6;
+/** User/YAML input (mm or in) → canonical mm. */
+export const toCanonicalMm = (value: number, from: 'mm' | 'in') =>
+  snapMm(from === 'in' ? value * MM_PER_IN : value);
+
+/** Raw meters (GLTF/COLLADA mesh extents) → canonical meters. */
+export const toCanonicalM = (m: number) => snapMm(m * 1000) / 1000;
 
 // Cap on a plausible workshop dimension. Past this it's a typo or pasted
 // scientific notation; reject before 1e308 lands in storage.
