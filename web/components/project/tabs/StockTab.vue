@@ -7,11 +7,41 @@ import {
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
 import { FALLBACK_PALETTE } from '~/utils/materialColors';
 import { useStockMutations } from '~/composables/useStockMutations';
+import ViewerSidePanel from '~/components/viewer/ViewerSidePanel.vue';
+import {
+  STORAGE_KEYS,
+  getLocalStorageJson,
+  setLocalStorageJson,
+} from '~/utils/localStorage';
 
 const { parsedStock, distanceUnit, precision } = useProjectSettings();
 const { activeId } = useProjects();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 const { add, update, remove } = useStockMutations();
+
+function loadHelpCollapsed(projectId: string): boolean {
+  const stored = getLocalStorageJson<boolean>(
+    STORAGE_KEYS.ui.projectStockHelpCollapsed(projectId),
+  );
+  return typeof stored === 'boolean' ? stored : false;
+}
+
+const helpCollapsed = ref(
+  activeId.value ? loadHelpCollapsed(activeId.value) : false,
+);
+
+watch(activeId, (id) => {
+  if (id) helpCollapsed.value = loadHelpCollapsed(id);
+});
+
+watch(helpCollapsed, (value) => {
+  if (activeId.value) {
+    setLocalStorageJson(
+      STORAGE_KEYS.ui.projectStockHelpCollapsed(activeId.value),
+      value,
+    );
+  }
+});
 
 interface DropdownItem {
   label: string;
@@ -115,99 +145,109 @@ function addCustomLinear() {
 </script>
 
 <template>
-  <div class="absolute inset-0 flex flex-col p-4 gap-4 overflow-y-auto">
-    <div
-      class="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+  <div class="absolute inset-0 grid overflow-hidden grid-cols-[auto_1fr]">
+    <ViewerSidePanel
+      title="How stock works"
+      :collapsed="helpCollapsed"
+      @update:collapsed="(v) => (helpCollapsed = v)"
     >
-      <p class="text-sm text-muted">
-        Add the stock you have available. Parts will be laid out onto these
-        materials.
-      </p>
-      <div class="flex items-center gap-2 shrink-0">
-        <UDropdownMenu
-          :items="presetItems"
-          :disabled="presetItems.length === 0"
-        >
-          <UButton
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-plus"
-            trailing-icon="i-lucide-chevron-down"
-            size="sm"
-            :disabled="presetItems.length === 0"
-            data-testid="stock-add-preset"
-          >
-            Add preset
-          </UButton>
-        </UDropdownMenu>
-        <UDropdownMenu :items="customItems">
-          <UButton
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-plus"
-            trailing-icon="i-lucide-chevron-down"
-            size="sm"
-            data-testid="stock-add-custom"
-          >
-            Add custom
-          </UButton>
-        </UDropdownMenu>
-      </div>
-    </div>
-
-    <StockHelpTray v-if="activeId" :project-id="activeId" />
+      <StockHelpContent />
+    </ViewerSidePanel>
 
     <div
-      v-if="entries.length === 0"
-      class="flex-1 flex items-center justify-center"
-      data-testid="stock-empty-state"
+      class="col-start-2 min-w-0 min-h-0 flex flex-col p-4 gap-4 overflow-hidden"
     >
       <div
-        class="max-w-sm text-center bg-base border border-default rounded-lg p-6 flex flex-col gap-4"
+        class="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
       >
-        <UIcon name="i-lucide-warehouse" class="w-8 h-8 text-dim mx-auto" />
-        <div>
-          <h3 class="text-base text-hi font-medium mb-1">No stock yet</h3>
-          <p class="text-sm text-muted">
-            Add the boards or timber you have available. Parts you import or
-            enter manually will be laid out onto this stock.
-          </p>
-        </div>
-        <div class="flex items-center justify-center gap-2">
-          <UButton
-            size="sm"
-            color="primary"
-            icon="i-lucide-layers"
-            data-testid="stock-empty-add-sheet"
-            @click="addCustomSheet"
+        <p class="text-sm text-muted">
+          Add the stock you have available. Parts will be laid out onto these
+          materials.
+        </p>
+        <div class="flex items-center gap-2 shrink-0">
+          <UDropdownMenu
+            :items="presetItems"
+            :disabled="presetItems.length === 0"
           >
-            Add sheet
-          </UButton>
-          <UButton
-            size="sm"
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-square"
-            data-testid="stock-empty-add-timber"
-            @click="addCustomLinear"
-          >
-            Add timber
-          </UButton>
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-plus"
+              trailing-icon="i-lucide-chevron-down"
+              size="sm"
+              :disabled="presetItems.length === 0"
+              data-testid="stock-add-preset"
+            >
+              Add preset
+            </UButton>
+          </UDropdownMenu>
+          <UDropdownMenu :items="customItems">
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-plus"
+              trailing-icon="i-lucide-chevron-down"
+              size="sm"
+              data-testid="stock-add-custom"
+            >
+              Add custom
+            </UButton>
+          </UDropdownMenu>
         </div>
       </div>
-    </div>
 
-    <div v-else class="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
-      <StockCard
-        v-for="(entry, idx) in entries"
-        :key="entryKeys[idx]"
-        :model-value="entry"
-        :distance-unit="unit"
-        :precision="precision"
-        :duplicate-name="duplicateNames.has(entry.material)"
-        @update:model-value="(next) => update(idx, next)"
-        @remove="remove(idx)"
-      />
+      <div
+        v-if="entries.length === 0"
+        class="flex-1 flex items-center justify-center"
+        data-testid="stock-empty-state"
+      >
+        <div
+          class="max-w-sm text-center bg-base border border-default rounded-lg p-6 flex flex-col gap-4"
+        >
+          <UIcon name="i-lucide-warehouse" class="w-8 h-8 text-dim mx-auto" />
+          <div>
+            <h3 class="text-base text-hi font-medium mb-1">No stock yet</h3>
+            <p class="text-sm text-muted">
+              Add the boards or timber you have available. Parts you import or
+              enter manually will be laid out onto this stock.
+            </p>
+          </div>
+          <div class="flex items-center justify-center gap-2">
+            <UButton
+              size="sm"
+              color="primary"
+              icon="i-lucide-layers"
+              data-testid="stock-empty-add-sheet"
+              @click="addCustomSheet"
+            >
+              Add sheet
+            </UButton>
+            <UButton
+              size="sm"
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-square"
+              data-testid="stock-empty-add-timber"
+              @click="addCustomLinear"
+            >
+              Add timber
+            </UButton>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
+        <StockCard
+          v-for="(entry, idx) in entries"
+          :key="entryKeys[idx]"
+          :model-value="entry"
+          :distance-unit="unit"
+          :precision="precision"
+          :duplicate-name="duplicateNames.has(entry.material)"
+          @update:model-value="(next) => update(idx, next)"
+          @remove="remove(idx)"
+        />
+      </div>
     </div>
   </div>
 </template>
