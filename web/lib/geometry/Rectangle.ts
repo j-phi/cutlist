@@ -19,14 +19,10 @@ export class Rectangle<T> {
     width: Micrometres,
     height: Micrometres,
   ) {
-    this.left = Math.min(x + width, x) as Micrometres;
-    this.bottom = Math.min(y + height, y) as Micrometres;
-    this.width = Math.abs(width) as Micrometres;
-    this.height = Math.abs(height) as Micrometres;
-  }
-
-  toString() {
-    return JSON.stringify(this);
+    this.left = x;
+    this.bottom = y;
+    this.width = width;
+    this.height = height;
   }
 
   get right(): Micrometres {
@@ -47,10 +43,6 @@ export class Rectangle<T> {
 
   get bottomRight(): Point {
     return new Point(this.right, this.bottom);
-  }
-
-  get topRight(): Point {
-    return new Point(this.right, this.top);
   }
 
   clone(changes?: {
@@ -91,27 +83,6 @@ export class Rectangle<T> {
       bottom: (this.bottom - db) as Micrometres,
       width: (this.width + dl + dr) as Micrometres,
       height: (this.height + db + dt) as Micrometres,
-    });
-  }
-
-  translate(x: Micrometres, y: Micrometres): Rectangle<T> {
-    return this.clone({
-      left: (this.left + x) as Micrometres,
-      bottom: (this.bottom + y) as Micrometres,
-    });
-  }
-
-  /** Expand to contain `other`. */
-  swallow(other: Rectangle<unknown>): Rectangle<T> {
-    const left = Math.min(this.left, other.left) as Micrometres;
-    const bottom = Math.min(this.bottom, other.bottom) as Micrometres;
-    const right = Math.max(this.right, other.right) as Micrometres;
-    const top = Math.max(this.top, other.top) as Micrometres;
-    return this.clone({
-      left,
-      bottom,
-      width: (right - left) as Micrometres,
-      height: (top - bottom) as Micrometres,
     });
   }
 

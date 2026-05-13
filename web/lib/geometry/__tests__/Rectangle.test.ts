@@ -33,17 +33,6 @@ describe('Rectangle', () => {
     expect(actual).toEqual(expected);
   });
 
-  describe('swallow', () => {
-    it('should produce the same expanded rectangle regardless of the order', () => {
-      const rect1 = rect(0, 0, 1, 1);
-      const rect2 = rect(4, 4, 1, 1);
-      const expected = rect(0, 0, 5, 5);
-
-      expect(rect1.swallow(rect2)).toEqual(expected);
-      expect(rect2.swallow(rect1)).toEqual(expected);
-    });
-  });
-
   describe('flipOrientation', () => {
     it('should flip the width and height', () => {
       const r = rect(1, 1, 1, 2);
