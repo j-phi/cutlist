@@ -70,10 +70,7 @@ export default createGlobalState(() => {
     if (!meta) return null;
     const rawSource = await idb.getModelRawSource(modelId);
     if (rawSource == null) return null;
-    const graph = await resolveModelScene({
-      source: meta.source,
-      rawSource,
-    });
+    const graph = await resolveModelScene({ rawSource });
     if (!graph) return null;
     cache.set(modelId, graph);
     return graph;

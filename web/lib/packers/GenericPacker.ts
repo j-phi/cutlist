@@ -3,6 +3,13 @@ import type { PackOptions, PackResult, Packer } from './Packer';
 import { isValidPlacement } from './utils';
 import type { Micrometres } from '../utils/units';
 
+/**
+ * Building block for packers that share the `pack` / `addToPack` walk.
+ * Callers (e.g. `TightPacker`) supply the bin-state methods to satisfy the
+ * full `Packer<T>` contract.
+ */
+export type GenericPackerCore<T> = Pick<Packer<T>, 'pack' | 'addToPack'>;
+
 export function createGenericPacker<T>({
   sortPlacements,
   getPossiblePlacements,
@@ -13,7 +20,7 @@ export function createGenericPacker<T>({
     placements: Rectangle<T>[],
     gap: Micrometres,
   ) => Point[];
-}): Packer<T> {
+}): GenericPackerCore<T> {
   return {
     pack(bin, rects, options) {
       const res: PackResult<T> = { leftovers: [], placements: [] };

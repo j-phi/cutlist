@@ -128,28 +128,15 @@ describe('Compact Packer', () => {
     const packer = createCompactPacker<string>();
     const bin = r(null, 0, 0, 10, 10);
 
-    // Build state via createBinState; place rects via tryPlaceInBinState.
-    // Same algorithm as pack() but state is reusable across calls so the
-    // caller can keep one state per opened board.
-    expect(packer.createBinState).toBeDefined();
-    expect(packer.tryPlaceInBinState).toBeDefined();
-    const state = packer.createBinState!(bin);
+    const state = packer.createBinState(bin);
 
-    const a = packer.tryPlaceInBinState!(
-      state,
-      r('a', 0, 0, 6, 6),
-      baseOptions,
-    );
-    const b = packer.tryPlaceInBinState!(
-      state,
-      r('b', 0, 0, 4, 4),
-      baseOptions,
-    );
+    const a = packer.tryPlaceInBinState(state, r('a', 0, 0, 6, 6), baseOptions);
+    const b = packer.tryPlaceInBinState(state, r('b', 0, 0, 4, 4), baseOptions);
     expect(a).not.toBeNull();
     expect(b).not.toBeNull();
     // Once the bin is full of parts whose combined footprint exceeds the
     // remaining free space, the next call returns null without mutating state.
-    const tooBig = packer.tryPlaceInBinState!(
+    const tooBig = packer.tryPlaceInBinState(
       state,
       r('c', 0, 0, 9, 9),
       baseOptions,

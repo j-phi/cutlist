@@ -183,24 +183,14 @@ describe('Tidy Packer', () => {
     const packer = createTidyPacker<string>({ axis: 'rip-first' });
     const bin = r(null, 0, 0, 10, 10);
 
-    expect(packer.createBinState).toBeDefined();
-    expect(packer.tryPlaceInBinState).toBeDefined();
-    const state = packer.createBinState!(bin);
+    const state = packer.createBinState(bin);
 
-    const a = packer.tryPlaceInBinState!(
-      state,
-      r('a', 0, 0, 6, 6),
-      baseOptions,
-    );
-    const b = packer.tryPlaceInBinState!(
-      state,
-      r('b', 0, 0, 4, 4),
-      baseOptions,
-    );
+    const a = packer.tryPlaceInBinState(state, r('a', 0, 0, 6, 6), baseOptions);
+    const b = packer.tryPlaceInBinState(state, r('b', 0, 0, 4, 4), baseOptions);
     expect(a).not.toBeNull();
     expect(b).not.toBeNull();
     // Bin is now full enough that an 11×11 won't fit — state stays unchanged.
-    const tooBig = packer.tryPlaceInBinState!(
+    const tooBig = packer.tryPlaceInBinState(
       state,
       r('c', 0, 0, 11, 11),
       baseOptions,

@@ -384,31 +384,13 @@ type PlaceOptions = {
 
 type RawLayout = { stock: Stock; placements: Rectangle<PartToCut>[] };
 
-function placeAllParts(
-  config: Config,
-  parts: PartToCut[],
-  stock: Stock[],
-  packer: Packer<PartToCut>,
-  options: PlaceOptions,
-): { layouts: RawLayout[]; leftovers: PartToCut[] } {
-  if (
-    typeof packer.createBinState !== 'function' ||
-    typeof packer.tryPlaceInBinState !== 'function'
-  ) {
-    throw Error(
-      'Packer must expose createBinState/tryPlaceInBinState for lookback',
-    );
-  }
-  return placeAllPartsWithLookback(config, parts, stock, packer, options);
-}
-
 interface OpenBoard {
   stock: Stock;
   binState: unknown;
   placements: Rectangle<PartToCut>[];
 }
 
-function placeAllPartsWithLookback(
+function placeAllParts(
   config: Config,
   parts: PartToCut[],
   stock: Stock[],
@@ -425,14 +407,11 @@ function placeAllPartsWithLookback(
   const leftovers: PartToCut[] = [];
   const openBoards: OpenBoard[] = [];
 
-  const createBinState = packer.createBinState!;
-  const tryPlaceInBinState = packer.tryPlaceInBinState!;
-
   for (const part of sortedParts) {
     let placed = false;
     for (const board of openBoards) {
       if (!canPartFitStock(board.stock, part)) continue;
-      const placement = tryPlaceInBinState(
+      const placement = packer.tryPlaceInBinState(
         board.binState,
         makePartRect(part, board.stock),
         packerOptions,
@@ -450,8 +429,8 @@ function placeAllPartsWithLookback(
       leftovers.push(part);
       continue;
     }
-    const binState = createBinState(makeBoardRect(board, margin));
-    const placement = tryPlaceInBinState(
+    const binState = packer.createBinState(makeBoardRect(board, margin));
+    const placement = packer.tryPlaceInBinState(
       binState,
       makePartRect(part, board),
       packerOptions,

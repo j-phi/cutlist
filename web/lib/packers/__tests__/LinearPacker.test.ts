@@ -70,10 +70,10 @@ describe('Linear Packer', () => {
   it('rejects parts whose cross-section does not match the bin', () => {
     const packer = createLinearPacker<string>();
     const bin = r(null, 0, 0, 50, 1000);
-    const state = packer.createBinState!(bin);
+    const state = packer.createBinState(bin);
     const wrongCrossSection = r('x', 0, 0, 70, 500);
 
-    const placement = packer.tryPlaceInBinState!(
+    const placement = packer.tryPlaceInBinState(
       state,
       wrongCrossSection,
       baseOptions,
@@ -86,23 +86,23 @@ describe('Linear Packer', () => {
     const packer = createLinearPacker<string>();
     const binA = r(null, 0, 0, 50, 1000);
     const binB = r(null, 0, 0, 50, 1000);
-    const stateA = packer.createBinState!(binA);
-    const stateB = packer.createBinState!(binB);
+    const stateA = packer.createBinState(binA);
+    const stateB = packer.createBinState(binB);
 
     const big = r('big', 0, 0, 50, 700);
     const medium = r('medium', 0, 0, 50, 600);
     const small = r('small', 0, 0, 50, 200);
 
-    const a1 = packer.tryPlaceInBinState!(stateA, big, baseOptions);
+    const a1 = packer.tryPlaceInBinState(stateA, big, baseOptions);
     expect(a1).not.toBeNull();
 
-    const aFail = packer.tryPlaceInBinState!(stateA, medium, baseOptions);
+    const aFail = packer.tryPlaceInBinState(stateA, medium, baseOptions);
     expect(aFail).toBeNull();
 
-    const b1 = packer.tryPlaceInBinState!(stateB, medium, baseOptions);
+    const b1 = packer.tryPlaceInBinState(stateB, medium, baseOptions);
     expect(b1).not.toBeNull();
 
-    const aSmall = packer.tryPlaceInBinState!(stateA, small, baseOptions);
+    const aSmall = packer.tryPlaceInBinState(stateA, small, baseOptions);
     expect(aSmall).not.toBeNull();
     expect(aSmall!.bottom).toBe(700);
   });

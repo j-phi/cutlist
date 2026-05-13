@@ -2,9 +2,11 @@ import type { Rectangle } from '../geometry/Rectangle';
 import type { Micrometres } from '../utils/units';
 
 /**
- * Bin-packing interface. Optional `createBinState` / `tryPlaceInBinState`
- * give a packer multi-board lookback: callers keep per-board state and try
- * fitting a part on previously-opened boards before opening a new one.
+ * Bin-packing interface. `createBinState` / `tryPlaceInBinState` give the
+ * engine multi-board lookback: it keeps per-board state and tries fitting a
+ * part on previously-opened boards before opening a new one. `addToPack` is
+ * a building block exposed for `GenericPacker`-based composition; most
+ * packers stub it.
  */
 export interface Packer<T> {
   pack(
@@ -19,13 +21,13 @@ export interface Packer<T> {
     options: PackOptions<T>,
   ): void;
   /** Build the per-bin state used by `tryPlaceInBinState`. Opaque to callers. */
-  createBinState?(bin: Rectangle<unknown>): unknown;
+  createBinState(bin: Rectangle<unknown>): unknown;
   /**
    * Place a single rect using the bin state. Mutates `state` and returns
    * the translated placement on success, or `null` when the rect doesn't
    * fit (state is unchanged in that case).
    */
-  tryPlaceInBinState?(
+  tryPlaceInBinState(
     state: unknown,
     rect: Rectangle<T>,
     options: PackOptions<T>,
