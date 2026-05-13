@@ -15,14 +15,9 @@ export function uniqueMaterialName(
   return `${trimmed} (${n})`;
 }
 
-/**
- * Stock list mutations with cross-reference cascade.
- *
- * `colorMap` references a stock by its material *name*, so renaming or
- * deleting a stock would silently orphan those references. `update` and
- * `remove` here patch `colorMap` alongside the stocks change; the
- * `queuePatch` debounce merges both writes into a single IDB update.
- */
+// `colorMap` references stock by material *name*, so renaming or removing a
+// stock cascades into colorMap. The shared debounce in useProjectSettings
+// collapses the two writes into one IDB patch.
 export function useStockMutations() {
   const { activeProject } = useProjects();
   const { stocks, queuePatch } = useProjectSettings();
@@ -37,17 +32,12 @@ export function useStockMutations() {
 
   function update(idx: number, matrix: StockMatrix): void {
     const old = stocks.value[idx];
-    const list = stocks.value.slice();
-    list[idx] = matrix;
-    stocks.value = list;
+    stocks.value = stocks.value.map((s, i) => (i === idx ? matrix : s));
     if (old && old.material !== matrix.material && activeProject.value) {
-      queuePatch({
-        colorMap: renameColorMap(
-          activeProject.value.colorMap,
-          old.material,
-          matrix.material,
-        ),
-      });
+      const entries = Object.entries(activeProject.value.colorMap).map(
+        ([k, v]) => [k, v === old.material ? matrix.material : v] as const,
+      );
+      queuePatch({ colorMap: Object.fromEntries(entries) });
     }
   }
 
@@ -55,34 +45,12 @@ export function useStockMutations() {
     const old = stocks.value[idx];
     stocks.value = stocks.value.filter((_, i) => i !== idx);
     if (old && activeProject.value) {
-      queuePatch({
-        colorMap: dropFromColorMap(activeProject.value.colorMap, old.material),
-      });
+      const entries = Object.entries(activeProject.value.colorMap).filter(
+        ([, v]) => v !== old.material,
+      );
+      queuePatch({ colorMap: Object.fromEntries(entries) });
     }
   }
 
   return { add, update, remove };
-}
-
-function renameColorMap(
-  cm: Record<string, string>,
-  oldName: string,
-  newName: string,
-): Record<string, string> {
-  const next: Record<string, string> = {};
-  for (const [k, v] of Object.entries(cm)) {
-    next[k] = v === oldName ? newName : v;
-  }
-  return next;
-}
-
-function dropFromColorMap(
-  cm: Record<string, string>,
-  name: string,
-): Record<string, string> {
-  const next: Record<string, string> = {};
-  for (const [k, v] of Object.entries(cm)) {
-    if (v !== name) next[k] = v;
-  }
-  return next;
 }

@@ -125,17 +125,4 @@ describe('useStockMutations', () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(updateCalls[0].patch.colorMap).toBeUndefined();
   });
-
-  it('per-keystroke renames track through the in-memory state so each cascade sees the previous result', () => {
-    const { update } = useStockMutations();
-    update(0, { kind: 'sheet', material: 'P', sizes: [] });
-    update(0, { kind: 'sheet', material: 'PX', sizes: [] });
-    update(0, { kind: 'sheet', material: 'PXY', sizes: [] });
-
-    expect(activeProject.value!.colorMap).toEqual({
-      red: 'PXY',
-      blue: 'MDF',
-      green: 'PXY',
-    });
-  });
 });

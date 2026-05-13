@@ -137,8 +137,7 @@ export class CutlistDB extends Dexie {
           .toCollection()
           .modify((p: Record<string, unknown>) => {
             Object.assign(p, migrateProjectStockToArray(p));
-            // Object.assign can't remove keys — the migration returns an object
-            // without `stock`, so we drop it from the in-place record too.
+            // Object.assign can't remove the now-stale `stock` key.
             delete p.stock;
           });
       });

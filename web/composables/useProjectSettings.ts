@@ -67,9 +67,7 @@ export default createSharedComposable(() => {
     const project = activeProject.value;
     if (!project) return;
     patchActiveProject(patch);
-    // Strip Vue reactivity before stashing for IDB — structured clone rejects
-    // Proxies, and nested fields (e.g. stocks[].sizes) arrive deeply reactive
-    // from component spreads.
+    // IDB writes go through structured clone, which rejects Vue Proxies.
     const plain = JSON.parse(JSON.stringify(patch)) as Partial<IdbProject>;
     const pending = pendingPatches.get(project.id) ?? {};
     Object.assign(pending, plain);
@@ -170,11 +168,7 @@ export default createSharedComposable(() => {
     precision,
     isLoading,
     linearMaterials,
-    /**
-     * Generic debounced write into the active project. Use this when a single
-     * user action mutates multiple fields and must land atomically — e.g.
-     * renaming a stock material rewrites both `stocks` and `colorMap`.
-     */
+    /** Debounced multi-field write — merges with sibling field writes in the same tick. */
     queuePatch: queueWrite,
   };
 });

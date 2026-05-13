@@ -52,11 +52,8 @@ const sheetStocks = computed<SheetStockMatrix[]>(() =>
   stocks.value.filter((m): m is SheetStockMatrix => m.kind === 'sheet'),
 );
 
-/**
- * Match a layout's `thicknessUm` back to the `thicknessAlgorithms` key on a
- * stock row. Stock thicknesses are mm; the key is the mm value stringified
- * (e.g. `"18"` for 18mm, `"19.05"` for 3/4").
- */
+// `thicknessAlgorithms` is keyed by the mm thickness value stringified
+// (e.g. `"18"` for 18 mm, `"19.05"` for 3/4").
 function findThicknessKeyOnItem(
   item: SheetStockMatrix,
   thicknessUm: number,
@@ -122,9 +119,8 @@ const groups = computed<LayoutGroup[]>(() => {
 });
 
 function setOverride(material: string, thicknessUm: number, alg: Algorithm) {
-  // Apply to every row that matches this (material, thickness). When the same
-  // material appears on two rows (e.g. one mm row + one in row), writing only
-  // the first would split the engine's group-level resolution across rows.
+  // Apply to every row matching (material, thickness) — the engine groups
+  // across rows, so writing only the first would split the resolution.
   const inherited = defaultAlgorithm.value ?? 'auto';
   stocks.value = stocks.value.map((item): StockMatrix => {
     if (item.kind !== 'sheet' || item.material !== material) return item;
@@ -133,10 +129,9 @@ function setOverride(material: string, thicknessUm: number, alg: Algorithm) {
     const algorithms = { ...item.thicknessAlgorithms };
     if (alg === inherited) delete algorithms[key];
     else algorithms[key] = alg;
-    const { thicknessAlgorithms: _drop, ...rest } = item;
-    return Object.keys(algorithms).length > 0
-      ? { ...rest, thicknessAlgorithms: algorithms }
-      : rest;
+    const next: SheetStockMatrix = { ...item, thicknessAlgorithms: algorithms };
+    if (Object.keys(algorithms).length === 0) delete next.thicknessAlgorithms;
+    return next;
   });
 }
 
