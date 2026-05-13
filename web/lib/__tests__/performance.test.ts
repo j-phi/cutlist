@@ -120,29 +120,19 @@ function expectAllPartsAccountedFor(
 // ─── Large fixture smoke tests ───────────────────────────────────────────────
 
 describe('generateBoardLayouts large fixture smoke tests', () => {
-  it('Should account for every part in auto mode', () => {
-    const { parts, stock } = generateLargeFixture(50);
+  it.each(['auto', 'cnc'] as const)(
+    'Should account for every part in %s mode',
+    (defaultAlgorithm) => {
+      const { parts, stock } = generateLargeFixture(50);
 
-    const result = generateBoardLayouts(parts, stock, {
-      bladeWidth: mmToUm(3.175),
-      margin: 0,
-      defaultAlgorithm: 'auto',
-    });
+      const result = generateBoardLayouts(parts, stock, {
+        bladeWidth: mmToUm(3.175),
+        margin: 0,
+        defaultAlgorithm,
+      });
 
-    expect(result.layouts.length).toBeGreaterThan(0);
-    expectAllPartsAccountedFor(result, parts);
-  });
-
-  it('Should account for every part in cnc mode', () => {
-    const { parts, stock } = generateLargeFixture(50);
-
-    const result = generateBoardLayouts(parts, stock, {
-      bladeWidth: mmToUm(3.175),
-      margin: 0,
-      defaultAlgorithm: 'cnc',
-    });
-
-    expect(result.layouts.length).toBeGreaterThan(0);
-    expectAllPartsAccountedFor(result, parts);
-  });
+      expect(result.layouts.length).toBeGreaterThan(0);
+      expectAllPartsAccountedFor(result, parts);
+    },
+  );
 });

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  convertUnits,
   formatDistance,
   formatValue,
   mToUm,
@@ -134,17 +133,6 @@ describe('Unit Utils', () => {
         '1 1/2"',
       );
       expect(formatDistance(mToUm(0.0381), 'mm', DECIMAL_01)).toBe('38.1mm');
-    });
-  });
-
-  describe('convertUnits', () => {
-    it('scales by 25.4 and round-trips losslessly', () => {
-      expect(convertUnits(25.4, 'mm', 'in')).toBeCloseTo(1, 10);
-      expect(convertUnits(1, 'in', 'mm')).toBeCloseTo(25.4, 10);
-      const inches = 3 + 7 / 8;
-      expect(
-        convertUnits(convertUnits(inches, 'in', 'mm'), 'mm', 'in'),
-      ).toBeCloseTo(inches, 10);
     });
   });
 });

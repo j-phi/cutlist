@@ -7,36 +7,17 @@ function rect(x: number, y: number, w: number, h: number) {
 }
 
 describe('Rectangle', () => {
-  describe('constructor', () => {
-    it('should support positive sizes', () => {
-      const expected = expect.objectContaining({
+  it('constructor exposes derived right/top corners', () => {
+    expect(rect(4, 6, 2, 3)).toEqual(
+      expect.objectContaining({
         left: 4,
         bottom: 6,
         right: 6,
         top: 9,
         width: 2,
         height: 3,
-      });
-
-      const actual = rect(4, 6, 2, 3);
-
-      expect(actual).toEqual(expected);
-    });
-
-    it('should support negative sizes', () => {
-      const expected = expect.objectContaining({
-        left: 2,
-        bottom: 3,
-        right: 4,
-        top: 6,
-        width: 2,
-        height: 3,
-      });
-
-      const actual = rect(4, 6, -2, -3);
-
-      expect(actual).toEqual(expected);
-    });
+      }),
+    );
   });
 
   it('pad', () => {

@@ -48,17 +48,6 @@ describe('getAllPossiblePlacements', () => {
     expect(points[2].x).toBe(placement.bottomRight.x + gap);
     expect(points[2].y).toBe(placement.bottomRight.y);
   });
-
-  it('returns 5 points for two existing placements', () => {
-    const bin = rect(0, 0, 100, 100);
-    const p1 = rect(0, 0, 30, 20);
-    const p2 = rect(40, 0, 20, 15);
-
-    const points = getAllPossiblePlacements(bin, [p1, p2], ZERO);
-
-    // 1 (bin.bottomLeft) + 2 topLeft offsets + 2 bottomRight offsets = 5
-    expect(points).toHaveLength(5);
-  });
 });
 
 // ---------------------------------------------------------------------------

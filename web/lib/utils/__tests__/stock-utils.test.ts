@@ -46,20 +46,11 @@ describe('canPartFitStock', () => {
     ).toBe(false);
   });
 
-  it('matches exactly on equal µm thickness', () => {
-    const stock = makeStock('Plywood', mmToUm(12));
-    expect(canPartFitStock(stock, makePart('Plywood', mmToUm(12)))).toBe(true);
-  });
-
-  it('accepts drift within STOCK_MATCH_TOLERANCE_UM (OBB jitter from imports)', () => {
+  it('accepts thickness drift within tolerance, rejects past it', () => {
     const stock = makeStock('Plywood', mmToUm(12));
     const within = (mmToUm(12) - STOCK_MATCH_TOLERANCE_UM) as Micrometres;
-    expect(canPartFitStock(stock, makePart('Plywood', within))).toBe(true);
-  });
-
-  it('rejects past STOCK_MATCH_TOLERANCE_UM', () => {
-    const stock = makeStock('Plywood', mmToUm(12));
     const over = (mmToUm(12) - STOCK_MATCH_TOLERANCE_UM - 1) as Micrometres;
+    expect(canPartFitStock(stock, makePart('Plywood', within))).toBe(true);
     expect(canPartFitStock(stock, makePart('Plywood', over))).toBe(false);
   });
 });

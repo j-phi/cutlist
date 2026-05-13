@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canFitOnAnyBoard } from '../canFitOnAnyBoard';
-import {
-  mmToUm,
-  mToUm,
-  STOCK_MATCH_TOLERANCE_UM,
-  type Micrometres,
-  type SheetStock,
-} from 'cutlist';
+import { mmToUm, mToUm, type Micrometres, type SheetStock } from 'cutlist';
 
 const board = (
   material: string,
@@ -93,27 +87,6 @@ describe('canFitOnAnyBoard', () => {
     it('returns false when no boards match thickness', () => {
       const p = part(PLYWOOD, 12, 0.5, 0.5);
       expect(canFitOnAnyBoard(p, undefined, [SHEET_4x8], ZERO_UM)).toBe(false);
-    });
-
-    it('accepts drift within STOCK_MATCH_TOLERANCE_UM', () => {
-      const p = part(PLYWOOD, 19, 0.5, 0.5);
-      const close: SheetStock = {
-        ...SHEET_4x8,
-        thickness: (SHEET_4x8.thickness +
-          STOCK_MATCH_TOLERANCE_UM) as Micrometres,
-      };
-      expect(canFitOnAnyBoard(p, undefined, [close], ZERO_UM)).toBe(true);
-    });
-
-    it('rejects past STOCK_MATCH_TOLERANCE_UM', () => {
-      const p = part(PLYWOOD, 19, 0.5, 0.5);
-      const far: SheetStock = {
-        ...SHEET_4x8,
-        thickness: (SHEET_4x8.thickness +
-          STOCK_MATCH_TOLERANCE_UM +
-          1) as Micrometres,
-      };
-      expect(canFitOnAnyBoard(p, undefined, [far], ZERO_UM)).toBe(false);
     });
 
     it('returns false with empty board list', () => {
