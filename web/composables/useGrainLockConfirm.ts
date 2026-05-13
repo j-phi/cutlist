@@ -16,12 +16,12 @@ import { canFitOnAnyBoard } from '~/utils/canFitOnAnyBoard';
  */
 export const useGrainLockConfirm = createSharedComposable(() => {
   const { activeId, updatePartGrainLock } = useProjects();
-  const { parsedStock, margin } = useProjectSettings();
+  const { stocks, margin } = useProjectSettings();
 
   // Linear stock has no per-part grain lock concept (cross-section is fixed),
   // so the fit check only considers sheet boards.
   const sheetBoards = computed<SheetStock[]>(() =>
-    reduceStockMatrix(parsedStock.value).filter(
+    reduceStockMatrix(stocks.value).filter(
       (s): s is SheetStock => !isLinearStock(s),
     ),
   );

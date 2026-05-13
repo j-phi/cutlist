@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import YAML from 'js-yaml';
+import { StockMatrix } from 'cutlist';
 import {
   clusterParts,
   suggestStock,
   type SuggesterPart,
 } from '../suggestStock';
-import { parseStock } from '../parseStock';
 
 const mm = (n: number) => n / 1000;
 
@@ -108,17 +107,16 @@ describe('suggestStock', () => {
     ).toBe('Pine 2×4');
   });
 
-  it('produces a YAML-round-trippable matrix for inch presets (regression)', () => {
+  it('produces a schema-valid matrix for inch presets (regression)', () => {
     // 3.5″×1.5″ used to scale to 88.89999… / 38.09999… mm; the resulting
     // sub-pico negative oversize gap failed the nonnegative schema and
-    // dropped the row on round-trip. roundMm at presetToMmStock kills the
-    // slop, suggester clamp catches anything residual.
+    // dropped the row. roundMm at presetToMmStock kills the slop,
+    // suggester clamp catches anything residual.
     const [s] = suggestStock([part(38.1, 88.9, 1200)], 'in', new Set());
     expect(s.matrix.material).toBe('Pine 2×4');
     expect(s.matrix.oversize?.crossSection).toBe(0);
     expect(s.matrix.size.crossSectionWidth).toBe(88.9);
     expect(s.matrix.size.crossSectionThickness).toBe(38.1);
-    const yaml = YAML.dump([s.matrix], { indent: 2, flowLevel: 3 });
-    expect(parseStock(yaml)).toHaveLength(1);
+    expect(StockMatrix.safeParse(s.matrix).success).toBe(true);
   });
 });

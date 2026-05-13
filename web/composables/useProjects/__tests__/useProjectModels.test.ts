@@ -22,7 +22,7 @@ function makeProject(id: string, models: Project['models'] = []): Project {
     models,
     colorMap: {},
     excludedColors: [],
-    stock: '',
+    stocks: [],
     distanceUnit: DEFAULT_SETTINGS.distanceUnit,
     precision: DEFAULT_SETTINGS.precision,
     bladeWidth: DEFAULT_SETTINGS.bladeWidth,

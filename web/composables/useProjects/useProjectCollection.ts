@@ -10,7 +10,7 @@
 import { computed } from 'vue';
 import type { Precision } from 'cutlist';
 import { trackEvent } from '~/utils/analytics';
-import { getDefaultStockYaml } from '~/utils/settings';
+import { getDefaultStocks } from '~/utils/settings';
 import { useIdb } from '~/composables/useIdb';
 import { resetDatabase as idbResetDatabase } from '~/composables/useIdb/db';
 import {
@@ -69,7 +69,7 @@ export default function useProjectCollection() {
     const project = await idb.createProject(name, {
       distanceUnit: unit,
       precision,
-      stock: getDefaultStockYaml(unit),
+      stocks: getDefaultStocks(unit),
     });
     projectList.value = [
       { id: project.id, name: project.name, updatedAt: project.updatedAt },

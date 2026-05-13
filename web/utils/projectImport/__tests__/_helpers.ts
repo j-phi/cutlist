@@ -3,6 +3,7 @@
  * and IDB-mock shapes in sync across the suite — when the export schema gains
  * a field, only this file needs to change.
  */
+import type { StockMatrix } from 'cutlist';
 import { SCHEMA_VERSION } from '../../versions';
 
 export const FIXTURE_PROJECT_ID = 'proj-1';
@@ -17,7 +18,7 @@ interface FixturePayload {
     name: string;
     colorMap: Record<string, string>;
     excludedColors: string[];
-    stock: string;
+    stocks: StockMatrix[];
     distanceUnit: 'mm' | 'in';
     bladeWidth: number;
     margin: number;
@@ -62,8 +63,13 @@ export function makePayload(
       name: 'Test Project',
       colorMap: { '#abc123': 'Plywood' },
       excludedColors: [],
-      stock:
-        '- material: Plywood\n  unit: mm\n  thickness: [18]\n  sizes: [{ width: 1220, length: 2440 }]\n',
+      stocks: [
+        {
+          kind: 'sheet',
+          material: 'Plywood',
+          sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+        },
+      ],
       distanceUnit: 'mm',
       bladeWidth: 3,
       margin: 0,

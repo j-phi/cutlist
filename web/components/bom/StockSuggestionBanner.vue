@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import { mmToUm } from 'cutlist';
-import { suggestStockForProject, type Suggestion } from '~/utils/suggestStock';
+import { suggestStock, type Suggestion } from '~/utils/suggestStock';
 import { useStockMutations } from '~/composables/useStockMutations';
 import useFormatDistance from '~/composables/useFormatDistance';
 
 const { enabledModels } = useProjects();
-const { stock, distanceUnit } = useProjectSettings();
+const { stocks, distanceUnit } = useProjectSettings();
 const { add } = useStockMutations();
 const formatDistance = useFormatDistance();
 
@@ -17,11 +17,8 @@ const parts = computed(() =>
 
 const suggestions = computed<Suggestion[]>(() => {
   if (parts.value.length === 0) return [];
-  return suggestStockForProject(
-    parts.value,
-    distanceUnit.value ?? 'mm',
-    stock.value ?? '',
-  );
+  const existing = new Set(stocks.value.map((s) => s.material));
+  return suggestStock(parts.value, distanceUnit.value ?? 'mm', existing);
 });
 
 const visible = computed(

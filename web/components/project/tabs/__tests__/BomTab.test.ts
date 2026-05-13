@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { computed, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
+import type { StockMatrix } from 'cutlist';
 
 import BomTab from '../BomTab.vue';
 import { UButtonStub, UInputStub, UModalStub } from '~/test-utils/stubs';
@@ -103,13 +104,11 @@ mockNuxtImport('useGrainLockConfirm', () => () => ({
 }));
 
 const distanceUnit = ref<'mm' | 'in'>('mm');
-const stock = ref<string | null>(null);
-const parsedStock = computed(() => []);
+const stocks = ref<StockMatrix[]>([]);
 const linearMaterials = computed(() => new Set<string>());
 mockNuxtImport('useProjectSettings', () => () => ({
   distanceUnit,
-  stock,
-  parsedStock,
+  stocks,
   linearMaterials,
 }));
 

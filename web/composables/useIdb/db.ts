@@ -19,6 +19,7 @@ import {
   migrateProjectToMmStorage,
   migrateProjectScalarsToUm,
   migrateModelToV5,
+  migrateProjectStockToArray,
 } from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
@@ -124,6 +125,20 @@ export class CutlistDB extends Dexie {
           .toCollection()
           .modify((m: Record<string, unknown>) => {
             Object.assign(m, migrateModelToV5(m));
+          });
+      });
+
+    // v6 — project `stock: string` (YAML) → `stocks: StockMatrix[]`.
+    this.version(6)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateProjectStockToArray(p));
+            // Object.assign can't remove the now-stale `stock` key.
+            delete p.stock;
           });
       });
   }

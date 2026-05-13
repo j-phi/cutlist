@@ -1,4 +1,4 @@
-import type { Algorithm, Micrometres, Precision } from 'cutlist';
+import type { Algorithm, Micrometres, Precision, StockMatrix } from 'cutlist';
 import { trackEvent } from '~/utils/analytics';
 import type {
   IdbAnnotation,
@@ -32,7 +32,7 @@ export interface ProjectExport {
     name: string;
     colorMap: Record<string, string>;
     excludedColors: string[];
-    stock: string;
+    stocks: StockMatrix[];
     distanceUnit: 'in' | 'mm';
     precision: Precision;
     bladeWidth: Micrometres;
@@ -121,7 +121,7 @@ export async function buildExportData(
       name: idbProject.name,
       colorMap: idbProject.colorMap,
       excludedColors: idbProject.excludedColors,
-      stock: idbProject.stock,
+      stocks: idbProject.stocks,
       distanceUnit: idbProject.distanceUnit,
       precision: idbProject.precision,
       bladeWidth: idbProject.bladeWidth,

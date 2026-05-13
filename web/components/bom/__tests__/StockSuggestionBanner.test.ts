@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { ref } from 'vue';
 import { mount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
+import type { StockMatrix } from 'cutlist';
 
 import StockSuggestionBanner from '../StockSuggestionBanner.vue';
 import { UButtonStub } from '~/test-utils/stubs';
@@ -14,16 +15,15 @@ interface MockPart {
 }
 
 const enabledModels = ref<Array<{ parts: MockPart[] }>>([]);
-const stock = ref<string>('');
+const stocks = ref<StockMatrix[]>([]);
 const distanceUnit = ref<'mm' | 'in'>('mm');
 const precision = ref({ kind: 'decimal' as const, step: 0.1 });
 
 mockNuxtImport('useProjects', () => () => ({ enabledModels }));
 mockNuxtImport('useProjectSettings', () => () => ({
-  stock,
+  stocks,
   distanceUnit,
   precision,
-  parsedStock: ref([]),
 }));
 
 function makePart(
@@ -48,7 +48,7 @@ const mountBanner = () =>
 describe('StockSuggestionBanner', () => {
   beforeEach(() => {
     enabledModels.value = [];
-    stock.value = '';
+    stocks.value = [];
     distanceUnit.value = 'mm';
   });
 
@@ -69,11 +69,11 @@ describe('StockSuggestionBanner', () => {
     ).toContain('2 parts');
   });
 
-  it('writes the suggestion to project YAML on Add all and self-dismisses', async () => {
+  it('appends the suggestion to the structured stocks on Add all and self-dismisses', async () => {
     enabledModels.value = [{ parts: [makePart(45, 70, 1500)] }];
     const w = mountBanner();
     await w.find('[data-testid="stock-suggestion-add-all"]').trigger('click');
-    expect(stock.value).toContain('AU Pine 70×45');
+    expect(stocks.value.map((s) => s.material)).toContain('AU Pine 70×45');
     expect(w.find('[data-testid="stock-suggestion-banner"]').exists()).toBe(
       false,
     );
@@ -86,6 +86,6 @@ describe('StockSuggestionBanner', () => {
     expect(w.find('[data-testid="stock-suggestion-banner"]').exists()).toBe(
       false,
     );
-    expect(stock.value).toBe('');
+    expect(stocks.value).toEqual([]);
   });
 });

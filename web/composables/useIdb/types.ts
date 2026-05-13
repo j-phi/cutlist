@@ -9,7 +9,7 @@
  */
 
 import type { JSONContent } from '@tiptap/core';
-import type { Algorithm, Micrometres, Precision } from 'cutlist';
+import type { Algorithm, Micrometres, Precision, StockMatrix } from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 import type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
 
@@ -19,11 +19,8 @@ export interface IdbProject {
   colorMap: Record<string, string>;
   /** Color keys excluded from BOM (unchecked in mapping panel). */
   excludedColors: string[];
-  /**
-   * Per-project stock definition (YAML string). All numeric dimensions are
-   * millimetres; rows do not carry a unit field.
-   */
-  stock: string;
+  /** Per-project stock definition. All numeric dimensions are millimetres. */
+  stocks: StockMatrix[];
   /** Display preference for distances. Storage is always integer µm. */
   distanceUnit: 'in' | 'mm';
   /**
@@ -37,7 +34,7 @@ export interface IdbProject {
   /** Packing margin, integer micrometres. */
   margin: Micrometres;
   /**
-   * Default packing algorithm. Used for materials in `stock` that don't
+   * Default packing algorithm. Used for materials in `stocks` that don't
    * carry their own `algorithm` override.
    */
   defaultAlgorithm: Algorithm;

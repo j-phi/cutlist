@@ -4,7 +4,7 @@
  * orphans.
  */
 
-import type { Algorithm, Micrometres, Precision } from 'cutlist';
+import type { Algorithm, Micrometres, Precision, StockMatrix } from 'cutlist';
 import { DEFAULT_SETTINGS, defaultPrecisionForUnit } from '~/utils/settings';
 import { getDb, safeWrite } from './db';
 import { applyProjectDefaults, applyModelDefaults } from './defaults';
@@ -71,7 +71,7 @@ export async function getProjectWithModels(
 export async function createProject(
   name: string,
   opts?: {
-    stock?: string;
+    stocks?: StockMatrix[];
     distanceUnit?: 'in' | 'mm';
     precision?: Precision;
     bladeWidth?: Micrometres;
@@ -88,7 +88,7 @@ export async function createProject(
     name,
     colorMap: {},
     excludedColors: [],
-    stock: opts?.stock ?? '',
+    stocks: opts?.stocks ?? [],
     distanceUnit: unit,
     precision: opts?.precision ?? defaultPrecisionForUnit(unit),
     bladeWidth: opts?.bladeWidth ?? DEFAULT_SETTINGS.bladeWidth,

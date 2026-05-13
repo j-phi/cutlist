@@ -9,7 +9,6 @@ import {
   STOCK_PRESETS,
   type CutlistSettings,
 } from './settings';
-import { parseStock } from './parseStock';
 import type { LinearStockMatrix } from 'cutlist';
 
 const LINEAR_ASPECT_RATIO_MIN = 3;
@@ -30,7 +29,7 @@ export interface SuggesterPart {
 }
 
 export interface Suggestion {
-  /** Ready to splice into the user's stock YAML — lengths trimmed, allowance set. */
+  /** Ready to append to the user's stocks — lengths trimmed, allowance set. */
   matrix: LinearStockMatrix;
   partsCovered: number;
 }
@@ -173,18 +172,4 @@ export function suggestStock(
     });
   }
   return out.sort((a, b) => b.partsCovered - a.partsCovered);
-}
-
-export function suggestStockForProject(
-  parts: SuggesterPart[],
-  unit: CutlistSettings['distanceUnit'],
-  stockYaml: string,
-): Suggestion[] {
-  let existing: Set<string>;
-  try {
-    existing = new Set(parseStock(stockYaml).map((s) => s.material));
-  } catch {
-    existing = new Set();
-  }
-  return suggestStock(parts, unit, existing);
 }

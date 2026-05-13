@@ -22,7 +22,7 @@ const {
 } = useProjects();
 
 const { requestGrainLockChange } = useGrainLockConfirm();
-const { distanceUnit, parsedStock, linearMaterials } = useProjectSettings();
+const { distanceUnit, stocks, linearMaterials } = useProjectSettings();
 const formatDistance = useFormatDistance();
 const toast = useToast();
 const modelViewer = useModelViewerStore();
@@ -80,7 +80,7 @@ const {
 
 // ── Materials list ───────────────────────────────────────────────────────────
 
-const materials = computed(() => parsedStock.value.map((s) => s.material));
+const materials = computed(() => stocks.value.map((s) => s.material));
 
 // ── Manual part tracking ─────────────────────────────────────────────────────
 
