@@ -4,6 +4,7 @@ import {
   isLinearBoardLayout,
   mmToUm,
   mToUm,
+  um,
   type BoardLayout,
   type Config,
   type PartToCut,
@@ -356,7 +357,7 @@ describe('generateBoardLayouts edge cases', () => {
       },
     ];
 
-    const noBladeConfig: Config = { ...baseConfig, bladeWidth: 0 };
+    const noBladeConfig: Config = { ...baseConfig, bladeWidth: um(0) };
     const withBladeConfig: Config = { ...baseConfig, bladeWidth: mmToUm(30) };
 
     const parts = [

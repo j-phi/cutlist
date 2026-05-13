@@ -172,11 +172,13 @@ export function generateBoardLayouts(
 
   const searchResult = runMultiPassSearch(normalizedConfig, parts, boards);
 
-  const marginUm = normalizedConfig.margin as Micrometres;
-  const kerfUm = normalizedConfig.bladeWidth as Micrometres;
   return {
     layouts: searchResult.layouts.map((l) =>
-      serializeBoardLayoutRectangles(l, marginUm, kerfUm),
+      serializeBoardLayoutRectangles(
+        l,
+        normalizedConfig.margin,
+        normalizedConfig.bladeWidth,
+      ),
     ),
     leftovers: searchResult.leftovers.map(serializePartToCut),
   };
@@ -397,7 +399,7 @@ function placeAllParts(
   packer: Packer<PartToCut>,
   options: PlaceOptions,
 ): { layouts: RawLayout[]; leftovers: PartToCut[] } {
-  const margin = config.margin as Micrometres;
+  const margin = config.margin;
   const { packerOptions } = options;
   const sortedParts = sortPartsForPlacement(
     parts,
@@ -581,7 +583,7 @@ function minimizeLayoutStock<L extends PotentialBoardLayout>(
   packer: Packer<PartToCut>,
   packerOptions: PackOptions<PartToCut>,
 ): L {
-  const margin = config.margin as Micrometres;
+  const margin = config.margin;
 
   const altStock = stock
     .filter((s) => areStocksEquivalent(originalLayout.stock, s))
@@ -655,7 +657,7 @@ function groupPartsByStock(parts: PartToCut[], stock: Stock[]): StockGroup[] {
 function getPackerOptions(config: Config): PackOptions<PartToCut> {
   return {
     allowRotations: true,
-    gap: config.bladeWidth as Micrometres,
+    gap: config.bladeWidth,
     canRotateRect: (data: PartToCut) => !data.grainLock,
   };
 }

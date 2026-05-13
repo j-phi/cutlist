@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import {
-  mmToUm,
-  MM_PER_IN,
+  ONE_INCH_UM,
   type Micrometres,
   type SheetBoardLayoutPlacement,
 } from 'cutlist';
@@ -27,7 +26,6 @@ function onKeyActivate() {
 }
 
 const getPx = useGetPx();
-const ONE_INCH_UM = mmToUm(MM_PER_IN);
 
 const widthUm = computed(
   () => (props.placement.rightUm - props.placement.leftUm) as Micrometres,

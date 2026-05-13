@@ -2,6 +2,12 @@ import { z } from 'zod';
 import type { Rectangle } from './geometry';
 import { type Micrometres, mmToUm, um } from './utils/units';
 
+const MicrometresSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .transform((n) => n as Micrometres);
+
 /**
  * Per-material packing algorithm choice.
  * - `auto`: Run all guillotine variants (Tidy + Compact passes), score picks.
@@ -170,9 +176,9 @@ export interface PartToCut {
  * a 1/8″ kerf (3175 µm) and no margin.
  */
 export const Config = z.object({
-  bladeWidth: z.number().int().nonnegative().default(mmToUm(3.175)),
+  bladeWidth: MicrometresSchema.default(mmToUm(3.175)),
   defaultAlgorithm: Algorithm.default('auto'),
-  margin: z.number().int().nonnegative().default(0),
+  margin: MicrometresSchema.default(um(0)),
   /**
    * Optional cap on the number of search passes run per stock group in
    * `auto` mode. When unset, every pass in the default list (or the

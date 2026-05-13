@@ -27,6 +27,9 @@ export const mToUm = (m: number): Micrometres => um(m * 1_000_000);
 export const umToMm = (u: Micrometres): number => u / 1_000;
 export const umToM = (u: Micrometres): number => u / 1_000_000;
 
+/** One inch as integer µm. Handy for UI thresholds that read in inches. */
+export const ONE_INCH_UM = mmToUm(MM_PER_IN);
+
 /**
  * Display precision. Storage stays raw; precision controls only how
  * values are rendered.
