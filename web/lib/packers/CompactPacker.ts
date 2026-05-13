@@ -100,9 +100,6 @@ export function createCompactPacker<T>(
 
       return res;
     },
-    addToPack() {
-      throw Error('Not supported');
-    },
     createBinState(bin) {
       return createInitialState(bin);
     },

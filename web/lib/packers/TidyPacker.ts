@@ -258,9 +258,6 @@ export function createTidyPacker<T>(
       }
       return res;
     },
-    addToPack() {
-      throw Error('Not supported');
-    },
     createBinState(bin) {
       return createInitialState(maybeTranspose(bin));
     },

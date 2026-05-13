@@ -79,24 +79,6 @@ describe('createGenericPacker', () => {
     });
   });
 
-  describe('addToPack', () => {
-    it('appends placements to an existing result', () => {
-      const packer = makePacker<string>();
-      const bin = r(null, 0, 0, 10, 5);
-      const options = defaultOptions;
-
-      // First pack: one 5×5 piece
-      const result = packer.pack(bin, [r('a', 0, 0, 5, 5)], options);
-      expect(result.placements).toHaveLength(1);
-
-      // addToPack: add another 5×5 piece that fits to the right
-      packer.addToPack(result, bin, [r('b', 0, 0, 5, 5)], options);
-      expect(result.placements).toHaveLength(2);
-      expect(result.placements.map((p) => p.data)).toContain('b');
-      expect(result.leftovers).toEqual([]);
-    });
-  });
-
   describe('sortPlacements', () => {
     it('uses sortPlacements to influence which point is tried first', () => {
       // We need a scenario where two candidate points are BOTH valid so the sort order

@@ -4,9 +4,7 @@ import type { Micrometres } from '../utils/units';
 /**
  * Bin-packing interface. `createBinState` / `tryPlaceInBinState` give the
  * engine multi-board lookback: it keeps per-board state and tries fitting a
- * part on previously-opened boards before opening a new one. `addToPack` is
- * a building block exposed for `GenericPacker`-based composition; most
- * packers stub it.
+ * part on previously-opened boards before opening a new one.
  */
 export interface Packer<T> {
   pack(
@@ -14,12 +12,6 @@ export interface Packer<T> {
     rects: Rectangle<T>[],
     options: PackOptions<T>,
   ): PackResult<T>;
-  addToPack(
-    res: PackResult<T>,
-    bin: Rectangle<unknown>,
-    rects: Rectangle<T>[],
-    options: PackOptions<T>,
-  ): void;
   /** Build the per-bin state used by `tryPlaceInBinState`. Opaque to callers. */
   createBinState(bin: Rectangle<unknown>): unknown;
   /**

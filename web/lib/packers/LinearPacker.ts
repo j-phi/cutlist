@@ -15,38 +15,19 @@ interface LinearBinState<T> {
  * Rotation is ignored: cross-section is fixed, so `allowRotations` is a no-op.
  */
 export function createLinearPacker<T>(): Packer<T> {
-  return { pack, addToPack, createBinState, tryPlaceInBinState };
+  return { pack, createBinState, tryPlaceInBinState };
 
   function pack(
     bin: Rectangle<unknown>,
     rects: Rectangle<T>[],
     options: PackOptions<T>,
   ): PackResult<T> {
-    const res: PackResult<T> = { placements: [], leftovers: [] };
-    addToPack(res, bin, rects, options);
-    return res;
-  }
-
-  function addToPack(
-    res: PackResult<T>,
-    bin: Rectangle<unknown>,
-    rects: Rectangle<T>[],
-    options: PackOptions<T>,
-  ): void {
-    const sorted = [...rects].sort((a, b) => b.height - a.height);
-    const cursor = res.placements.reduce<Micrometres>(
-      (top, p) => Math.max(top, p.top) as Micrometres,
-      bin.bottom,
-    );
-    const state: LinearBinState<T> = {
-      bin,
-      cursor,
-      placements: res.placements,
-    };
-    for (const rect of sorted) {
-      const placed = tryPlaceInBinState(state, rect, options);
-      if (!placed) res.leftovers.push(rect.data);
+    const state = createBinState(bin);
+    const leftovers: T[] = [];
+    for (const rect of [...rects].sort((a, b) => b.height - a.height)) {
+      if (!tryPlaceInBinState(state, rect, options)) leftovers.push(rect.data);
     }
+    return { placements: state.placements, leftovers };
   }
 
   function createBinState(bin: Rectangle<unknown>): LinearBinState<T> {

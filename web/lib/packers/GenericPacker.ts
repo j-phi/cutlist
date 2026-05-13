@@ -4,11 +4,11 @@ import { isValidPlacement } from './utils';
 import type { Micrometres } from '../utils/units';
 
 /**
- * Building block for packers that share the `pack` / `addToPack` walk.
- * Callers (e.g. `TightPacker`) supply the bin-state methods to satisfy the
- * full `Packer<T>` contract.
+ * Building block for packers that share the `pack` walk. Callers
+ * (e.g. `TightPacker`) supply the bin-state methods to complete the
+ * `Packer<T>` contract.
  */
-export type GenericPackerCore<T> = Pick<Packer<T>, 'pack' | 'addToPack'>;
+export type GenericPackerCore<T> = Pick<Packer<T>, 'pack'>;
 
 export function createGenericPacker<T>({
   sortPlacements,
@@ -24,11 +24,7 @@ export function createGenericPacker<T>({
   return {
     pack(bin, rects, options) {
       const res: PackResult<T> = { leftovers: [], placements: [] };
-      this.addToPack(res, bin, rects, options);
-      return res;
-    },
-    addToPack(res, bin, rects, options) {
-      return rects.reduce<PackResult<T>>((res, rect) => {
+      for (const rect of rects) {
         const possiblePoints = getPossiblePlacements(
           bin,
           res.placements,
@@ -46,16 +42,13 @@ export function createGenericPacker<T>({
           return [moved];
         });
 
-        const validPlacements = possiblePlacements.filter((placement) =>
+        const valid = possiblePlacements.find((placement) =>
           isValidPlacement(bin, res.placements, placement, options.gap),
         );
-        if (validPlacements.length > 0) {
-          res.placements.push(validPlacements[0]);
-        } else {
-          res.leftovers.push(rect.data);
-        }
-        return res;
-      }, res);
+        if (valid) res.placements.push(valid);
+        else res.leftovers.push(rect.data);
+      }
+      return res;
     },
   };
 }
