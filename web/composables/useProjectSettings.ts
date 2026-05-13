@@ -67,8 +67,12 @@ export default createSharedComposable(() => {
     const project = activeProject.value;
     if (!project) return;
     patchActiveProject(patch);
+    // Strip Vue reactivity before stashing for IDB — structured clone rejects
+    // Proxies, and nested fields (e.g. stocks[].sizes) arrive deeply reactive
+    // from component spreads.
+    const plain = JSON.parse(JSON.stringify(patch)) as Partial<IdbProject>;
     const pending = pendingPatches.get(project.id) ?? {};
-    Object.assign(pending, patch);
+    Object.assign(pending, plain);
     pendingPatches.set(project.id, pending);
     scheduleFlush(idb);
   }
