@@ -1,12 +1,3 @@
-/**
- * Shared grouping logic for parsed model parts (GLTF and COLLADA).
- *
- * Both parsers extract a flat list of PartInfo entries from their
- * respective scene graphs, then run the same grouping step to
- * deduplicate identical parts and produce the DeriveResult consumed
- * by the rest of the app.
- */
-
 import type {
   Part,
   ColorInfo,
@@ -24,43 +15,64 @@ export interface PartInfo {
   nodeIndex: number;
 }
 
-/** Coarser tolerance for grouping — parts within 0.1mm are the same cut. */
-const GROUP_PRECISION = 1e-4;
+/** Two dim values within this much are the same cut. Loose enough to absorb
+ *  sub-mm vertex noise some exporters introduce between meshes that
+ *  represent the same physical part; tight enough to keep real cuts apart. */
+const GROUP_TOLERANCE_M = 1e-3;
+
+/** Map each value to its cluster's leader: sort unique values, start a new
+ *  cluster whenever the gap from the previous value exceeds tolerance. */
+function clusterByGap(values: Iterable<number>): Map<number, number> {
+  const unique = [...new Set(values)].sort((a, b) => a - b);
+  const out = new Map<number, number>();
+  if (unique.length === 0) return out;
+  let leader = unique[0]!;
+  out.set(leader, leader);
+  for (let i = 1; i < unique.length; i += 1) {
+    const v = unique[i]!;
+    if (v - unique[i - 1]! > GROUP_TOLERANCE_M) leader = v;
+    out.set(v, leader);
+  }
+  return out;
+}
 
 /**
  * Group raw part infos by stock identity + canonical dimensions.
  * Produces deduplicated Part[], NodePartMapping[], and ColorInfo[].
  */
 export function groupPartInfos(partInfos: PartInfo[]): DeriveResult {
-  const roundGroup = (n: number) =>
-    Math.round(n / GROUP_PRECISION) * GROUP_PRECISION;
+  const widthOf = (info: PartInfo) =>
+    Math.min(info.size.width, info.size.length);
+  const lengthOf = (info: PartInfo) =>
+    Math.max(info.size.width, info.size.length);
+
+  const tMap = clusterByGap(partInfos.map((p) => p.size.thickness));
+  const wMap = clusterByGap(partInfos.map(widthOf));
+  const lMap = clusterByGap(partInfos.map(lengthOf));
+
   const groups = new Map<
     string,
     PartInfo & { quantity: number; nodeIndices: number[] }
   >();
 
   for (const info of partInfos) {
-    const canonicalWidth = Math.min(info.size.width, info.size.length);
-    const canonicalLength = Math.max(info.size.width, info.size.length);
-    const key = [
-      info.colorKey,
-      roundGroup(info.size.thickness),
-      roundGroup(canonicalWidth),
-      roundGroup(canonicalLength),
-    ].join('|');
+    const t = tMap.get(info.size.thickness)!;
+    const w = wMap.get(widthOf(info))!;
+    const l = lMap.get(lengthOf(info))!;
+    const key = [info.colorKey, t, w, l].join('|');
     const existing = groups.get(key);
     if (existing) {
       existing.quantity += 1;
       existing.nodeIndices.push(info.nodeIndex);
     } else {
-      // Snap to the 1 µm grid so mesh-extent FP noise can't desync part
-      // dims from canonical-mm stock dims at exact-equality fit checks.
+      // Snap to the 1 µm grid so mesh-extent FP noise can't desync part dims
+      // from canonical-mm stock dims at exact-equality fit checks.
       groups.set(key, {
         ...info,
         size: {
-          thickness: toCanonicalM(info.size.thickness),
-          width: toCanonicalM(canonicalWidth),
-          length: toCanonicalM(canonicalLength),
+          thickness: toCanonicalM(t),
+          width: toCanonicalM(w),
+          length: toCanonicalM(l),
         },
         quantity: 1,
         nodeIndices: [info.nodeIndex],

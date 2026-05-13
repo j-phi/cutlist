@@ -171,10 +171,12 @@ function drawBoardTilePage(
 
   // Parts
   for (const placement of layout.placements) {
+    const placedWidthM = placement.rightM - placement.leftM;
+    const placedLengthM = placement.topM - placement.bottomM;
     const px = boardX + ((placement.leftM * 1000) / scale) * MM;
     const py = boardY + ((placement.bottomM * 1000) / scale) * MM;
-    const pw = ((placement.widthM * 1000) / scale) * MM;
-    const ph = ((placement.lengthM * 1000) / scale) * MM;
+    const pw = ((placedWidthM * 1000) / scale) * MM;
+    const ph = ((placedLengthM * 1000) / scale) * MM;
     drawClippedRect(page, px, py, pw, ph, tileXpt, tileYpt, tileWpt, tileHpt, {
       borderColor: rgb(0.1, 0.1, 0.1),
       borderWidth: 0.5,
@@ -217,7 +219,7 @@ function drawBoardTilePage(
       // Part number sizing: half part width, capped at 1 inch real-world
       // (matches PartListItem.vue), then scaled to paper coordinates.
       const ONE_INCH_M = 0.0254;
-      const realCapM = Math.min(placement.widthM / 2, ONE_INCH_M);
+      const realCapM = Math.min(placedWidthM / 2, ONE_INCH_M);
       const fontPt = ((realCapM * 1000) / scale) * MM;
       const MIN_PART_LABEL_PT = 4;
       const MAX_PART_LABEL_PT = 14;

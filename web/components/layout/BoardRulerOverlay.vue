@@ -28,13 +28,9 @@ const snapEdges = computed<SnapEdge[]>(() => {
   ];
   for (const p of props.layout.placements) {
     edges.push({ axis: 'x', positionM: p.leftM, boardIndex: idx });
-    edges.push({ axis: 'x', positionM: p.leftM + p.widthM, boardIndex: idx });
+    edges.push({ axis: 'x', positionM: p.rightM, boardIndex: idx });
     edges.push({ axis: 'y', positionM: p.bottomM, boardIndex: idx });
-    edges.push({
-      axis: 'y',
-      positionM: p.bottomM + p.lengthM,
-      boardIndex: idx,
-    });
+    edges.push({ axis: 'y', positionM: p.topM, boardIndex: idx });
   }
   // Deduplicate co-located edges (e.g. board edge meeting a part edge).
   const seen = new Set<string>();

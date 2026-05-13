@@ -291,21 +291,19 @@ export interface BoardLayoutLeftover {
   grainLock?: 'length' | 'width';
 }
 
-/** Sheet placement: leftover shape + 2D bounding rectangle on the board. */
+/**
+ * Sheet placement. Inherits intrinsic `widthM` / `lengthM` (identical across
+ * instances); the on-board footprint is the corner rectangle, which may
+ * swap those when the packer rotates the part to fit.
+ */
 export interface SheetBoardLayoutPlacement extends BoardLayoutLeftover {
   leftM: number;
   rightM: number;
   topM: number;
   bottomM: number;
-  /**
-   * Slice of `widthM` consumed by the cross-section allowance (planing
-   * waste) at the +X edge. Zero when no stock allowance is set.
-   */
+  /** Allowance slice along the +X edge of the placed rectangle. */
   allowanceWidthM: number;
-  /**
-   * Slice of `lengthM` consumed by the length allowance (crosscut waste)
-   * at the +Y edge. Zero when no stock allowance is set.
-   */
+  /** Allowance slice along the +Y edge of the placed rectangle. */
   allowanceLengthM: number;
 }
 

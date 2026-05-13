@@ -60,8 +60,9 @@ describe('exportCutlistPdf', () => {
                 lengthM: 0.8,
                 thicknessM: 0.018,
                 leftM: 0,
+                rightM: 0.5,
                 bottomM: 0,
-                rotated: false,
+                topM: 0.8,
               },
               {
                 partNumber: 1,
@@ -72,8 +73,9 @@ describe('exportCutlistPdf', () => {
                 lengthM: 0.8,
                 thicknessM: 0.018,
                 leftM: 0.5,
+                rightM: 1.0,
                 bottomM: 0,
-                rotated: false,
+                topM: 0.8,
               },
             ],
             wasteRatio: 0.3,
@@ -113,18 +115,23 @@ describe('exportCutlistPdf', () => {
   });
 
   it('handles large BOM (many parts) without error', async () => {
-    const placements = Array.from({ length: 50 }, (_, i) => ({
-      partNumber: i + 1,
-      instanceNumber: 1,
-      name: `Part ${i + 1}`,
-      material: 'Plywood',
-      widthM: 0.1 + (i % 5) * 0.05,
-      lengthM: 0.2 + (i % 3) * 0.1,
-      thicknessM: 0.018,
-      leftM: 0,
-      bottomM: 0,
-      rotated: false,
-    }));
+    const placements = Array.from({ length: 50 }, (_, i) => {
+      const widthM = 0.1 + (i % 5) * 0.05;
+      const lengthM = 0.2 + (i % 3) * 0.1;
+      return {
+        partNumber: i + 1,
+        instanceNumber: 1,
+        name: `Part ${i + 1}`,
+        material: 'Plywood',
+        widthM,
+        lengthM,
+        thicknessM: 0.018,
+        leftM: 0,
+        rightM: widthM,
+        bottomM: 0,
+        topM: lengthM,
+      };
+    });
 
     const result = await exportCutlistPdf(
       makeOptions({
@@ -167,8 +174,9 @@ describe('exportCutlistPdf', () => {
                 lengthM: 0.8,
                 thicknessM: 0.018,
                 leftM: 0,
+                rightM: 0.5,
                 bottomM: 0,
-                rotated: false,
+                topM: 0.8,
               },
             ],
             wasteRatio: 0.3,

@@ -65,12 +65,7 @@ function hitTest(e: PointerEvent): number | null {
   const placements = props.layout.placements;
   for (let i = 0; i < placements.length; i++) {
     const p = placements[i];
-    if (
-      xM >= p.leftM &&
-      xM <= p.leftM + p.widthM &&
-      yM >= p.bottomM &&
-      yM <= p.bottomM + p.lengthM
-    ) {
+    if (xM >= p.leftM && xM <= p.rightM && yM >= p.bottomM && yM <= p.topM) {
       return i;
     }
   }

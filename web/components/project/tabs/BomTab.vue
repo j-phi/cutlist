@@ -66,6 +66,8 @@ const splitContainer = ref<HTMLDivElement | null>(null);
 
 const {
   isDragging,
+  isImporting,
+  importingFile,
   fileInput,
   pickFile,
   bind: importBind,
@@ -273,7 +275,7 @@ onUnmounted(() => {
     <input
       ref="fileInput"
       type="file"
-      accept=".gltf,.dae"
+      accept=".gltf,.glb,.dae,.fbx"
       multiple
       class="hidden"
       aria-label="Import model files"
@@ -299,7 +301,43 @@ onUnmounted(() => {
           <UIcon name="i-lucide-download" class="w-7 h-7 text-teal-400" />
         </div>
         <p class="text-sm font-semibold text-teal-400">
-          Drop .gltf or .dae file to import
+          Drop a 3D model file to import
+        </p>
+      </div>
+    </Transition>
+
+    <!-- Import progress overlay -->
+    <Transition
+      enter-active-class="transition-opacity duration-150"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-200"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="isImporting"
+        class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-overlay rounded-lg m-1"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div
+          class="w-14 h-14 rounded-2xl bg-teal-400/10 flex items-center justify-center"
+        >
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="w-7 h-7 text-teal-400 animate-spin"
+          />
+        </div>
+        <p class="text-sm font-semibold text-teal-400">
+          Importing
+          <span v-if="importingFile" class="font-mono">{{
+            importingFile
+          }}</span>
+          <span v-else>model</span>&hellip;
+        </p>
+        <p class="text-xs text-muted max-w-xs text-center">
+          First import may take a few seconds while the converter loads.
         </p>
       </div>
     </Transition>
