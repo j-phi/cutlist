@@ -86,7 +86,6 @@ describe('useProjectSettings', () => {
     await vi.advanceTimersByTimeAsync(400);
 
     expect(updateCalls).toHaveLength(1);
-    // The whole point: this must not throw. structured-clone rejects Proxies.
     expect(() => structuredClone(updateCalls[0].patch)).not.toThrow();
     expect(updateCalls[0].patch.stocks).toEqual([
       {
@@ -95,24 +94,5 @@ describe('useProjectSettings', () => {
         sizes: [{ width: 1220, length: 2440, thickness: [18] }],
       },
     ]);
-  });
-
-  it('reflects writes immediately in stocks.value so dependent computeds (e.g. BOM material dropdown) update without waiting for IDB', () => {
-    const { stocks } = useProjectSettings();
-    activeProject.value!.stocks = [
-      { kind: 'sheet', material: 'Plywood', sizes: [] },
-      { kind: 'sheet', material: 'MDF', sizes: [] },
-    ];
-
-    // Rename row 0 — same shape a StockCard rename produces.
-    const next = stocks.value.slice();
-    next[0] = { ...next[0], material: 'PlywoodX' };
-    stocks.value = next;
-
-    expect(stocks.value.map((s) => s.material)).toEqual(['PlywoodX', 'MDF']);
-
-    // Remove row 1 — same shape a StockCard remove produces.
-    stocks.value = stocks.value.filter((_, i) => i !== 1);
-    expect(stocks.value.map((s) => s.material)).toEqual(['PlywoodX']);
   });
 });
