@@ -2,9 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createLinearPacker } from '../LinearPacker';
 import type { PackOptions } from '../Packer';
 import { Rectangle } from '../../geometry';
-import type { Micrometres } from '../../utils/units';
-
-const um = (n: number) => n as Micrometres;
+import { um } from '~/test-utils/units';
 
 const baseOptions: PackOptions = {
   allowRotations: false,

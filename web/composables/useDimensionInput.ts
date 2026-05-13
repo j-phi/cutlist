@@ -12,17 +12,7 @@ import { ref, watch, type Ref } from 'vue';
 /**
  * Bridge a µm-stored ref to a free-text input string. Storage stays
  * canonical; rounding lives only at the formatting boundary.
- *
- * Wire: `<UInput v-model="input" @blur="commit" />`
- *
- * Two guards protect each direction:
- * - `lastWrittenByUs` lets the input → storage watcher ignore writes
- *   it didn't originate, so seeding the field from storage on mount
- *   can't push a rounded display value back into storage.
- * - `isEcho` lets the storage → input watcher skip reformat whenever
- *   the current string still parses back to the same stored value,
- *   so mid-typing keystrokes like `"1.95"` aren't snapped while the
- *   user is still typing.
+ * Wire: `<UInput v-model="input" @blur="commit" />`.
  */
 export function useDimensionInput(
   um: Ref<Micrometres | null | undefined>,
@@ -52,7 +42,9 @@ export function useDimensionInput(
     return mmToUm(convertUnits(parsed, unit.value, 'mm'));
   }
 
-  /** True when `input.value` already represents `um.value` exactly. */
+  // The input → storage watcher relies on `lastWrittenByUs` to ignore
+  // writes it didn't originate, and `isEcho` lets the storage → input
+  // watcher skip reformat while the user is mid-typing.
   function isEcho(): boolean {
     if (um.value == null) return input.value === '';
     const next = parseToUm(input.value);
@@ -79,11 +71,8 @@ export function useDimensionInput(
     if (next !== um.value) um.value = next;
   });
 
-  /**
-   * Re-render the input from current storage. Called by the consumer on
-   * blur — matches how SketchUp / Fusion behave: typed text wins while
-   * focused; canonical formatted text wins after blur.
-   */
+  /** Re-render from canonical storage. Typed text wins while focused;
+   * canonical wins on blur. */
   function commit() {
     if (um.value != null) writeDisplay(display(um.value));
   }

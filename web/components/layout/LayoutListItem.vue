@@ -60,16 +60,16 @@ function hitTest(e: PointerEvent): number | null {
   const v = (e.clientY - rect.top) / rect.height;
   if (u < 0 || u > 1 || v < 0 || v > 1) return null;
   const { widthUm, lengthUm } = props.layout.stock;
-  const xM = u * widthUm;
-  const yM = (1 - v) * lengthUm;
+  const xUm = u * widthUm;
+  const yUm = (1 - v) * lengthUm;
   const placements = props.layout.placements;
   for (let i = 0; i < placements.length; i++) {
     const p = placements[i];
     if (
-      xM >= p.leftUm &&
-      xM <= p.rightUm &&
-      yM >= p.bottomUm &&
-      yM <= p.topUm
+      xUm >= p.leftUm &&
+      xUm <= p.rightUm &&
+      yUm >= p.bottomUm &&
+      yUm <= p.topUm
     ) {
       return i;
     }

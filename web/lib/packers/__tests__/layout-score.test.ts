@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { Rectangle } from '../../geometry';
 import type { PartToCut, PotentialBoardLayout, SheetStock } from '../../types';
-import type { Micrometres } from '../../utils/units';
 import { compareLayoutScores, scoreLayouts } from '../layout-score';
-
-const um = (n: number) => n as Micrometres;
+import { um } from '~/test-utils/units';
 
 const stock10x10: SheetStock = {
   kind: 'sheet',

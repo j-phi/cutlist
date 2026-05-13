@@ -4,9 +4,7 @@ import { Rectangle } from '../../geometry';
 import { getAllPossiblePlacements } from '../utils';
 import type { PackOptions } from '../Packer';
 import type { Point } from '../../geometry';
-import type { Micrometres } from '../../utils/units';
-
-const um = (n: number) => n as Micrometres;
+import { um } from '~/test-utils/units';
 
 function r<T>(data: T, x: number, y: number, w: number, h: number) {
   return new Rectangle<T>(data, um(x), um(y), um(w), um(h));

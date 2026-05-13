@@ -136,8 +136,8 @@ describe('LayoutListItem', () => {
 
     it('Should call requestGrainLockChange on a near-stationary click over a placement', async () => {
       // Placement: leftUm=0, widthUm=0.3, bottomUm=0, lengthUm=0.6.
-      // Board mapped 1m × 2m → 100 × 200 px. Place pointer at (15, 170) which
-      // maps to xM=0.15, yM=0.3 — inside the placement.
+      // Board mapped to 100 × 200 px. Pointer (15, 170) maps to
+      // xUm=0.15, yUm=0.3 — inside the placement.
       const placement = makePlacement({
         partNumber: 11,
         grainLock: 'length',
@@ -177,7 +177,7 @@ describe('LayoutListItem', () => {
       const component = getComponent(makeLayout());
       setBoardRect(component);
 
-      // (90, 10) maps to xM=0.9, yM=1.95 — outside the only placement.
+      // (90, 10) maps to xUm=0.9, yUm=1.95 — outside the only placement.
       const board = component.find('.rounded.relative');
       await board.trigger('pointerdown', { clientX: 90, clientY: 10 });
       document.dispatchEvent(

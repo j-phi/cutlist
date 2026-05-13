@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Rectangle } from '../Rectangle';
-import type { Micrometres } from '../../utils/units';
-
-const um = (n: number) => n as Micrometres;
+import { um } from '~/test-utils/units';
 
 function rect(x: number, y: number, w: number, h: number) {
   return new Rectangle<null>(null, um(x), um(y), um(w), um(h));

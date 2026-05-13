@@ -1,6 +1,4 @@
-/** Single source for the 25.4 constant. Derived: M_PER_IN. */
 export const MM_PER_IN = 25.4;
-export const M_PER_IN = MM_PER_IN / 1000;
 
 /**
  * Integer micrometres — the engine and storage domain. Brand makes
@@ -31,8 +29,7 @@ export const umToM = (u: Micrometres): number => u / 1_000_000;
 
 /**
  * Display precision. Storage stays raw; precision controls only how
- * values are rendered (and re-rendered on edit). Modelled the same way
- * as SketchUp / Fusion / AutoCAD: a per-unit user preference.
+ * values are rendered.
  *
  * - `fraction`: round to nearest `1/denominator` (inch only).
  * - `decimal`: round to nearest `step` and render with matching dp.
