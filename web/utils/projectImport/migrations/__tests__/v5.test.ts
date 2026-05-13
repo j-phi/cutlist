@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { migrateProjectScalarsToUm, migrateModelPartsToUm } from '../v5';
+import {
+  migrateModelPartsToUm,
+  migrateModelSourceLabel,
+  migrateProjectScalarsToUm,
+} from '../v5';
 
 describe('migrateProjectScalarsToUm', () => {
   it('converts finite mm scalars to integer µm', () => {
@@ -41,17 +45,6 @@ describe('migrateModelPartsToUm', () => {
     });
   });
 
-  it("renames source: 'collada' to 'assimp'", () => {
-    expect(migrateModelPartsToUm({ source: 'collada', parts: [] })).toEqual({
-      source: 'assimp',
-      parts: [],
-    });
-    expect(migrateModelPartsToUm({ source: 'gltf', parts: [] })).toEqual({
-      source: 'gltf',
-      parts: [],
-    });
-  });
-
   it('zeroes malformed dimensions rather than throwing', () => {
     const out = migrateModelPartsToUm({
       parts: [
@@ -68,5 +61,16 @@ describe('migrateModelPartsToUm', () => {
     });
     expect(parts[1]).toEqual({ partNumber: 2 });
     expect(parts[2]).toBeNull();
+  });
+});
+
+describe('migrateModelSourceLabel', () => {
+  it("renames source: 'collada' to 'assimp', passes others through", () => {
+    expect(migrateModelSourceLabel({ source: 'collada' })).toEqual({
+      source: 'assimp',
+    });
+    expect(migrateModelSourceLabel({ source: 'gltf' })).toEqual({
+      source: 'gltf',
+    });
   });
 });

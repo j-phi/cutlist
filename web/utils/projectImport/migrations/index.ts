@@ -33,7 +33,12 @@ import { v5ProjectMigration, v5ModelMigration } from './v5';
 export type { IdbRecord, RecordMigration, StoreName } from './types';
 export { migrateProjectToMmStorage } from './v3';
 export { migrateProjectDropArchivedAt } from './v4';
-export { migrateProjectScalarsToUm, migrateModelPartsToUm } from './v5';
+export {
+  migrateProjectScalarsToUm,
+  migrateModelToV5,
+  migrateModelPartsToUm,
+  migrateModelSourceLabel,
+} from './v5';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [

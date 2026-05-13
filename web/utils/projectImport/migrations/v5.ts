@@ -30,26 +30,35 @@ export function migrateProjectScalarsToUm(record: IdbRecord): IdbRecord {
 }
 
 export function migrateModelPartsToUm(record: IdbRecord): IdbRecord {
-  const next: IdbRecord = { ...record };
-  if (record.source === 'collada') next.source = 'assimp';
   const parts = record.parts;
-  if (!Array.isArray(parts)) return next;
-  next.parts = parts.map((part) => {
-    if (!part || typeof part !== 'object') return part;
-    const p = part as IdbRecord;
-    const size = p.size as IdbRecord | undefined;
-    if (!size) return p;
-    return {
-      ...p,
-      size: {
-        ...size,
-        thickness: toUmFrom(M_TO_UM, size.thickness),
-        width: toUmFrom(M_TO_UM, size.width),
-        length: toUmFrom(M_TO_UM, size.length),
-      },
-    };
-  });
-  return next;
+  if (!Array.isArray(parts)) return record;
+  return {
+    ...record,
+    parts: parts.map((part) => {
+      if (!part || typeof part !== 'object') return part;
+      const p = part as IdbRecord;
+      const size = p.size as IdbRecord | undefined;
+      if (!size) return p;
+      return {
+        ...p,
+        size: {
+          ...size,
+          thickness: toUmFrom(M_TO_UM, size.thickness),
+          width: toUmFrom(M_TO_UM, size.width),
+          length: toUmFrom(M_TO_UM, size.length),
+        },
+      };
+    }),
+  };
+}
+
+export function migrateModelSourceLabel(record: IdbRecord): IdbRecord {
+  if (record.source !== 'collada') return record;
+  return { ...record, source: 'assimp' };
+}
+
+export function migrateModelToV5(record: IdbRecord): IdbRecord {
+  return migrateModelSourceLabel(migrateModelPartsToUm(record));
 }
 
 export const v5ProjectMigration: RecordMigration = {
@@ -61,5 +70,5 @@ export const v5ProjectMigration: RecordMigration = {
 export const v5ModelMigration: RecordMigration = {
   version: 5,
   store: 'models',
-  migrate: migrateModelPartsToUm,
+  migrate: migrateModelToV5,
 };

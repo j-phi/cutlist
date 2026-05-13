@@ -18,7 +18,7 @@ import { FutureSchemaError, SCHEMA_VERSION } from '~/utils/versions';
 import {
   migrateProjectToMmStorage,
   migrateProjectScalarsToUm,
-  migrateModelPartsToUm,
+  migrateModelToV5,
 } from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
@@ -105,10 +105,11 @@ export class CutlistDB extends Dexie {
           });
       });
 
-    // v5 — integer micrometres become the engine and storage domain.
-    // Project scalars (mm → µm) and model part sizes (m → µm). The export
-    // pipeline runs the same transforms via `migrateProjectScalarsToUm`
-    // and `migrateModelPartsToUm`.
+    // v5 — integer micrometres become the engine and storage domain, and the
+    // model `source` enum drops `'collada'` in favour of `'assimp'`. Project
+    // scalars (mm → µm) and model part sizes (m → µm). The export pipeline
+    // runs the same transforms via `migrateProjectScalarsToUm` and
+    // `migrateModelToV5`.
     this.version(5)
       .stores({})
       .upgrade(async (tx) => {
@@ -122,7 +123,7 @@ export class CutlistDB extends Dexie {
           .table('models')
           .toCollection()
           .modify((m: Record<string, unknown>) => {
-            Object.assign(m, migrateModelPartsToUm(m));
+            Object.assign(m, migrateModelToV5(m));
           });
       });
   }
