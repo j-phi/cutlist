@@ -96,13 +96,13 @@ export default function useBomFilter(
         cmp = a.qty - b.qty;
         break;
       case 'thickness':
-        cmp = a.thicknessM - b.thicknessM;
+        cmp = a.thicknessUm - b.thicknessUm;
         break;
       case 'width':
-        cmp = a.widthM - b.widthM;
+        cmp = a.widthUm - b.widthUm;
         break;
       case 'length':
-        cmp = a.lengthM - b.lengthM;
+        cmp = a.lengthUm - b.lengthUm;
         break;
     }
     return sortDir.value === 'desc' ? -cmp : cmp;

@@ -17,33 +17,26 @@ export interface LayoutScore {
   cutComplexity: number;
 }
 
-/**
- * Per-rip-edge weight relative to per-crosscut-edge weight in
- * `cutComplexity`. Calibrated against the benchmark fixtures so tidy
- * passes win the `auto` tournament when board count and waste tie.
- */
 const RIP_WEIGHT = 10;
 
-export function compareLayoutScores(
-  a: LayoutScore,
-  b: LayoutScore,
-  precision: number,
-): number {
-  if (Math.abs(a.boardsUsed - b.boardsUsed) > precision)
-    return a.boardsUsed - b.boardsUsed;
-  if (Math.abs(a.wasteArea - b.wasteArea) > precision)
-    return a.wasteArea - b.wasteArea;
-  if (Math.abs(a.wasteConcentration - b.wasteConcentration) > precision)
+/**
+ * Lexicographic comparison: board count, then waste area, then waste
+ * concentration, then cut complexity. `wasteConcentration` is `µm⁴` and
+ * can exceed `Number.MAX_SAFE_INTEGER` past a few large boards — it's
+ * compared as a float, which is fine because both sides come from the
+ * same deterministic arithmetic on the same inputs.
+ */
+export function compareLayoutScores(a: LayoutScore, b: LayoutScore): number {
+  if (a.boardsUsed !== b.boardsUsed) return a.boardsUsed - b.boardsUsed;
+  if (a.wasteArea !== b.wasteArea) return a.wasteArea - b.wasteArea;
+  if (a.wasteConcentration !== b.wasteConcentration)
     return a.wasteConcentration - b.wasteConcentration;
-  if (Math.abs(a.cutComplexity - b.cutComplexity) > precision)
+  if (a.cutComplexity !== b.cutComplexity)
     return a.cutComplexity - b.cutComplexity;
   return 0;
 }
 
-export function scoreLayouts(
-  layouts: PotentialBoardLayout[],
-  precision: number,
-): LayoutScore {
+export function scoreLayouts(layouts: PotentialBoardLayout[]): LayoutScore {
   const boardsUsed = layouts.length;
   let wasteArea = 0;
   let wasteConcentration = 0;
@@ -67,32 +60,24 @@ export function scoreLayouts(
       xLevels.push(placement.left, placement.right);
       yLevels.push(placement.bottom, placement.top);
     }
-    // Rip axis = whichever dimension has fewer unique edges (a few rip
-    // cuts partition the board into strips of many crosscuts). Ties go
-    // to x — table-saw rip-first convention.
-    const xCount = countUniqueLevels(xLevels, precision);
-    const yCount = countUniqueLevels(yLevels, precision);
+    const xCount = countUniqueLevels(xLevels);
+    const yCount = countUniqueLevels(yLevels);
     const ripCount = Math.min(xCount, yCount);
     const crossCount = Math.max(xCount, yCount);
     cutComplexity += ripCount * RIP_WEIGHT + crossCount;
   }
 
-  return {
-    boardsUsed,
-    wasteArea,
-    wasteConcentration,
-    cutComplexity,
-  };
+  return { boardsUsed, wasteArea, wasteConcentration, cutComplexity };
 }
 
-function countUniqueLevels(values: number[], precision: number): number {
+function countUniqueLevels(values: number[]): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   let count = 1;
   let last = sorted[0];
   for (let i = 1; i < sorted.length; i++) {
     const value = sorted[i];
-    if (Math.abs(value - last) > precision) {
+    if (value !== last) {
       count++;
       last = value;
     }

@@ -5,6 +5,7 @@
  * so the test seeds both before exercising the functions.
  */
 import { describe, expect, it, beforeEach } from 'vitest';
+import { mmToUm } from 'cutlist';
 import { useIdb } from '~/composables/useIdb';
 import type { Part } from '~/utils/modelTypes';
 import type { Project, ManualPartInput } from '../types';
@@ -48,7 +49,11 @@ function makePart(partNumber: number, overrides?: Partial<Part>): Part {
     instanceNumber: 1,
     name: `Part ${partNumber}`,
     colorKey: '#aaa',
-    size: { width: 0.3, length: 0.5, thickness: 0.018 },
+    size: {
+      width: mmToUm(300),
+      length: mmToUm(500),
+      thickness: mmToUm(18),
+    },
     ...overrides,
   };
 }
@@ -56,9 +61,9 @@ function makePart(partNumber: number, overrides?: Partial<Part>): Part {
 function makeInput(overrides?: Partial<ManualPartInput>): ManualPartInput {
   return {
     name: 'Side Panel',
-    widthMm: 300,
-    lengthMm: 600,
-    thicknessMm: 18,
+    widthUm: mmToUm(300),
+    lengthUm: mmToUm(600),
+    thicknessUm: mmToUm(18),
     qty: 1,
     material: 'Plywood',
     ...overrides,
@@ -82,9 +87,9 @@ describe('addManualPart', () => {
       projectId,
       makeInput({
         name: 'Shelf',
-        widthMm: 400,
-        lengthMm: 800,
-        thicknessMm: 18,
+        widthUm: mmToUm(400),
+        lengthUm: mmToUm(800),
+        thicknessUm: mmToUm(18),
         qty: 1,
         material: 'Oak',
       }),
@@ -103,9 +108,9 @@ describe('addManualPart', () => {
     expect(part.instanceNumber).toBe(1);
     expect(part.name).toBe('Shelf');
     expect(part.colorKey).toBe('Oak');
-    expect(part.size.width).toBeCloseTo(0.4);
-    expect(part.size.length).toBeCloseTo(0.8);
-    expect(part.size.thickness).toBeCloseTo(0.018);
+    expect(part.size.width).toBe(mmToUm(400));
+    expect(part.size.length).toBe(mmToUm(800));
+    expect(part.size.thickness).toBe(mmToUm(18));
   });
 
   it('assigns sequential partNumbers', async () => {
@@ -346,9 +351,9 @@ describe('updateManualPart', () => {
       1,
       makeInput({
         name: 'Updated Rail',
-        widthMm: 100,
-        lengthMm: 200,
-        thicknessMm: 12,
+        widthUm: mmToUm(100),
+        lengthUm: mmToUm(200),
+        thicknessUm: mmToUm(12),
         material: 'Oak',
       }),
     );
@@ -356,9 +361,9 @@ describe('updateManualPart', () => {
     const model = activeProjectData.value!.models[0];
     const updatedPart = model.parts.find((p) => p.partNumber === 1)!;
     expect(updatedPart.name).toBe('Updated Rail');
-    expect(updatedPart.size.width).toBeCloseTo(0.1);
-    expect(updatedPart.size.length).toBeCloseTo(0.2);
-    expect(updatedPart.size.thickness).toBeCloseTo(0.012);
+    expect(updatedPart.size.width).toBe(mmToUm(100));
+    expect(updatedPart.size.length).toBe(mmToUm(200));
+    expect(updatedPart.size.thickness).toBe(mmToUm(12));
 
     const stile = model.parts.find((p) => p.partNumber === 2)!;
     expect(stile.name).toBe('Stile');

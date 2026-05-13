@@ -1,5 +1,6 @@
 // @vitest-environment nuxt
 import { shallowMount } from '@vue/test-utils';
+import { mmToUm, type Micrometres } from 'cutlist';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { computed, ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -52,30 +53,30 @@ mockNuxtImport('useProjectSettings', () => () => ({
 
 interface LayoutFactoryArgs {
   material: string;
-  thicknessM: number;
+  thicknessUm: Micrometres;
   placements?: Partial<SheetBoardLayoutPlacement>[];
-  widthM?: number;
-  lengthM?: number;
+  widthUm?: Micrometres;
+  lengthUm?: Micrometres;
 }
 
 function makeLayout(args: LayoutFactoryArgs): SheetBoardLayout {
-  const widthM = args.widthM ?? 1.0;
-  const lengthM = args.lengthM ?? 2.0;
+  const widthUm = args.widthUm ?? (1 as Micrometres);
+  const lengthUm = args.lengthUm ?? (2 as Micrometres);
   const placements: SheetBoardLayoutPlacement[] = (args.placements ?? []).map(
     (p, i) => ({
       partNumber: i + 1,
       instanceNumber: 1,
       name: `Part ${i + 1}`,
       material: args.material,
-      widthM: 0.3,
-      lengthM: 0.6,
-      thicknessM: args.thicknessM,
-      leftM: 0,
-      rightM: 0.3,
-      topM: 0.6,
-      bottomM: 0,
-      allowanceWidthM: 0,
-      allowanceLengthM: 0,
+      widthUm: 0.3 as Micrometres,
+      lengthUm: 0.6 as Micrometres,
+      thicknessUm: args.thicknessUm,
+      leftUm: 0 as Micrometres,
+      rightUm: 0.3 as Micrometres,
+      topUm: 0.6 as Micrometres,
+      bottomUm: 0 as Micrometres,
+      allowanceWidthUm: 0 as Micrometres,
+      allowanceLengthUm: 0 as Micrometres,
       ...p,
     }),
   );
@@ -83,12 +84,12 @@ function makeLayout(args: LayoutFactoryArgs): SheetBoardLayout {
     kind: 'sheet',
     stock: {
       material: args.material,
-      widthM,
-      lengthM,
-      thicknessM: args.thicknessM,
+      widthUm,
+      lengthUm,
+      thicknessUm: args.thicknessUm,
     },
     placements,
-    marginM: 0,
+    marginUm: 0 as Micrometres,
     algorithm: 'compact',
   };
 }
@@ -109,8 +110,8 @@ function getComponent(layouts: SheetBoardLayout[]) {
 
 function getVm(component: ReturnType<typeof getComponent>) {
   return component.findComponent(LayoutList).vm as unknown as {
-    setOverride: (mat: string, thicknessM: number, alg: string) => void;
-    preferenceFor: (mat: string, thicknessM: number) => string;
+    setOverride: (mat: string, thicknessUm: number, alg: string) => void;
+    preferenceFor: (mat: string, thicknessUm: number) => string;
   };
 }
 
@@ -126,12 +127,24 @@ describe('LayoutList', () => {
       const layouts: SheetBoardLayout[] = [
         makeLayout({
           material: 'Plywood',
-          thicknessM: 0.018,
+          thicknessUm: mmToUm(18),
           placements: small,
         }),
-        makeLayout({ material: 'Birch', thicknessM: 0.025, placements: big }),
-        makeLayout({ material: 'Birch', thicknessM: 0.012, placements: small }),
-        makeLayout({ material: 'Plywood', thicknessM: 0.018, placements: big }),
+        makeLayout({
+          material: 'Birch',
+          thicknessUm: mmToUm(25),
+          placements: big,
+        }),
+        makeLayout({
+          material: 'Birch',
+          thicknessUm: mmToUm(12),
+          placements: small,
+        }),
+        makeLayout({
+          material: 'Plywood',
+          thicknessUm: mmToUm(18),
+          placements: big,
+        }),
       ];
 
       const component = getComponent(layouts);
@@ -141,13 +154,13 @@ describe('LayoutList', () => {
       expect(
         items.map((i) => {
           const l = i.props('layout') as SheetBoardLayout;
-          return `${l.stock.material}__${l.stock.thicknessM}`;
+          return `${l.stock.material}__${l.stock.thicknessUm}`;
         }),
       ).toEqual([
-        'Birch__0.012',
-        'Birch__0.025',
-        'Plywood__0.018',
-        'Plywood__0.018',
+        `Birch__${mmToUm(12)}`,
+        `Birch__${mmToUm(25)}`,
+        `Plywood__${mmToUm(18)}`,
+        `Plywood__${mmToUm(18)}`,
       ]);
     });
 
@@ -155,7 +168,7 @@ describe('LayoutList', () => {
       const layouts = Array.from({ length: 23 }, () =>
         makeLayout({
           material: 'Plywood',
-          thicknessM: 0.018,
+          thicknessUm: mmToUm(18),
           placements: [{}],
         }),
       );
@@ -178,7 +191,7 @@ describe('LayoutList', () => {
     it('Trigger button shows the algorithm that actually ran', () => {
       const layouts: SheetBoardLayout[] = [
         {
-          ...makeLayout({ material: 'Plywood', thicknessM: 0.018 }),
+          ...makeLayout({ material: 'Plywood', thicknessUm: mmToUm(18) }),
           algorithm: 'tidy',
         },
       ];
@@ -194,24 +207,24 @@ describe('LayoutList', () => {
       thickness: [18, 12]
 `;
       const layouts: SheetBoardLayout[] = [
-        makeLayout({ material: 'Plywood', thicknessM: 0.018 }),
+        makeLayout({ material: 'Plywood', thicknessUm: mmToUm(18) }),
       ];
       const component = getComponent(layouts);
       const vm = getVm(component);
 
       // Pin 18mm to tidy. 12mm untouched.
-      vm.setOverride('Plywood', 0.018, 'tidy');
+      vm.setOverride('Plywood', mmToUm(18), 'tidy');
       expect(stockYaml.value).toMatch(/thicknessAlgorithms/);
       expect(stockYaml.value).toMatch(/'18': tidy/);
       expect(stockYaml.value).not.toMatch(/'12': /);
 
       // Pin 12mm separately — both must persist.
-      vm.setOverride('Plywood', 0.012, 'compact');
+      vm.setOverride('Plywood', mmToUm(12), 'compact');
       expect(stockYaml.value).toMatch(/'18': tidy/);
       expect(stockYaml.value).toMatch(/'12': compact/);
 
       // Picking Auto for 18mm drops the entry (default also auto).
-      vm.setOverride('Plywood', 0.018, 'auto');
+      vm.setOverride('Plywood', mmToUm(18), 'auto');
       expect(stockYaml.value).not.toMatch(/'18': tidy/);
       expect(stockYaml.value).toMatch(/'12': compact/);
     });
@@ -226,12 +239,12 @@ describe('LayoutList', () => {
       thickness: [18]
 `;
       const component = getComponent([
-        makeLayout({ material: 'Plywood', thicknessM: 0.018 }),
+        makeLayout({ material: 'Plywood', thicknessUm: mmToUm(18) }),
       ]);
       const vm = getVm(component);
 
-      vm.setOverride('Plywood', 0.018, 'auto');
-      expect(vm.preferenceFor('Plywood', 0.018)).toBe('auto');
+      vm.setOverride('Plywood', mmToUm(18), 'auto');
+      expect(vm.preferenceFor('Plywood', mmToUm(18))).toBe('auto');
       expect(stockYaml.value).toMatch(/'18': auto/);
 
       defaultAlgorithm.value = 'auto';
@@ -252,13 +265,13 @@ describe('LayoutList', () => {
       thickness: [18]
 `;
       const component = getComponent([
-        makeLayout({ material: 'Plywood', thicknessM: 0.018 }),
+        makeLayout({ material: 'Plywood', thicknessUm: mmToUm(18) }),
       ]);
       const vm = getVm(component);
 
-      vm.setOverride('Plywood', 0.018, 'tidy');
+      vm.setOverride('Plywood', mmToUm(18), 'tidy');
       expect(stockYaml.value?.match(/'18': tidy/g)?.length).toBe(2);
-      expect(vm.preferenceFor('Plywood', 0.018)).toBe('tidy');
+      expect(vm.preferenceFor('Plywood', mmToUm(18))).toBe('tidy');
     });
   });
 });

@@ -7,9 +7,9 @@ function makeFile(content: string, name: string): File {
 
 /**
  * 36 × 18 × 1 inches authored as inches via `<unit meter="0.0254"/>`.
- * Pins the unit-handling contract: anything stored in `Part.size` must be in
- * meters regardless of authoring unit. If Assimp ever stops applying the
- * COLLADA unit factor this test fires before the bug reaches the BOM.
+ * Pins the unit-handling contract: the COLLADA unit factor must be applied
+ * before `Part.size` is computed. If Assimp ever stops applying it this test
+ * fires before the bug reaches the BOM.
  */
 const INCH_AUTHORED_BOX = `<?xml version="1.0" encoding="UTF-8"?>
 <COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
@@ -88,17 +88,17 @@ describe('parseAssimp', () => {
       graph.parts[0].size.width,
       graph.parts[0].size.length,
     ].sort((a, b) => a - b);
-    expect(sorted[0]).toBeCloseTo(0.0254, 4); // 1"
-    expect(sorted[1]).toBeCloseTo(0.4572, 4); // 18"
-    expect(sorted[2]).toBeCloseTo(0.9144, 4); // 36"
+    expect(sorted[0]).toBe(25_400); // 1" in µm
+    expect(sorted[1]).toBe(457_200); // 18" in µm
+    expect(sorted[2]).toBe(914_400); // 36" in µm
   });
 
   it('imports a DAE authored as <polylist> of quads', async () => {
     const graph = await parseAssimp(makeFile(QUAD_POLYLIST_CUBE, 'cube.dae'));
     expect(graph.parts).toHaveLength(1);
-    expect(graph.parts[0].size.thickness).toBeCloseTo(1, 3);
-    expect(graph.parts[0].size.width).toBeCloseTo(1, 3);
-    expect(graph.parts[0].size.length).toBeCloseTo(1, 3);
+    expect(graph.parts[0].size.thickness).toBe(1_000_000);
+    expect(graph.parts[0].size.width).toBe(1_000_000);
+    expect(graph.parts[0].size.length).toBe(1_000_000);
   });
 
   it('throws on an unrecognised file extension', async () => {

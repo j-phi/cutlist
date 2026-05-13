@@ -1,13 +1,8 @@
-import { isNearlyEqual, type Rectangle } from '../geometry';
+import type { Rectangle } from '../geometry';
 import { createGenericPacker } from './GenericPacker';
 import type { PackOptions, Packer } from './Packer';
 import { getAllPossiblePlacements, isValidPlacement } from './utils';
 
-/**
- * Per-bin state for `tryPlaceInBinState`. The tight packer doesn't track
- * free rects — possible placements are derived from the existing placements
- * each call, so all we need is the bin and an accumulating placement list.
- */
 interface TightBinState<T> {
   bin: Rectangle<unknown>;
   placements: Rectangle<T>[];
@@ -16,10 +11,9 @@ interface TightBinState<T> {
 export function createTightPacker<T>(): Packer<T> {
   const packer = createGenericPacker<T>({
     getPossiblePlacements: getAllPossiblePlacements,
-    sortPlacements(a, b, options) {
-      // sort bottom most first, leftmost second
-      if (!isNearlyEqual(a.y, b.y, options.precision)) return a.y - b.y;
-      return a.x - b.x;
+    sortPlacements(a, b) {
+      // Bottom-most first, then left-most.
+      return a.y === b.y ? a.x - b.x : a.y - b.y;
     },
   });
 
@@ -45,11 +39,7 @@ function tryPlaceInTightState<T>(
     state.placements,
     options.gap,
   );
-  // Match the sortPlacements above so single-rect placement is consistent
-  // with batch packing.
-  points.sort((a, b) =>
-    isNearlyEqual(a.y, b.y, options.precision) ? a.x - b.x : a.y - b.y,
-  );
+  points.sort((a, b) => (a.y === b.y ? a.x - b.x : a.y - b.y));
 
   for (const point of points) {
     const moved = rect.moveTo(point);
@@ -59,13 +49,7 @@ function tryPlaceInTightState<T>(
     const candidates = canRotate ? [moved, moved.flipOrientation()] : [moved];
     for (const placement of candidates) {
       if (
-        isValidPlacement(
-          state.bin,
-          state.placements,
-          placement,
-          options.precision,
-          options.gap,
-        )
+        isValidPlacement(state.bin, state.placements, placement, options.gap)
       ) {
         state.placements.push(placement);
         return placement;

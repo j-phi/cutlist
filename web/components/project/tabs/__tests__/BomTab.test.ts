@@ -273,7 +273,7 @@ describe('BomTab — drag-and-drop import', () => {
     expect(addModelCalls[0].model.filename).toBe('cabinet.gltf');
   });
 
-  it('Should parse a .dae file and forward it to addModel as a collada source', async () => {
+  it('Should parse a .dae file and forward it to addModel as an assimp source', async () => {
     parseAssimpImpl = async () => ({ ...baseParseResult, rawSource: '<x/>' });
     const component = getComponent();
 
@@ -283,7 +283,7 @@ describe('BomTab — drag-and-drop import', () => {
     expect(parseAssimpCalls.map((f) => f.name)).toEqual(['cabinet.dae']);
     expect(parseGltfCalls).toEqual([]);
     expect(addModelCalls).toHaveLength(1);
-    expect(addModelCalls[0].model.source).toBe('collada');
+    expect(addModelCalls[0].model.source).toBe('assimp');
     expect(addModelCalls[0].model.rawSource).toBe('<x/>');
   });
 
@@ -313,9 +313,9 @@ describe('BomTab — inline rename', () => {
       modelName: 'Model',
       qty: 1,
       material: 'Plywood',
-      thicknessM: 0.018,
-      widthM: 0.3,
-      lengthM: 0.6,
+      thicknessUm: 0.018,
+      widthUm: 0.3,
+      lengthUm: 0.6,
       leftoverCount: 0,
       isManual: false,
     };

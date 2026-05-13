@@ -3,7 +3,9 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import {
   DEFAULT_INCH_PRECISION,
   DEFAULT_MM_PRECISION,
+  mmToUm,
   type Algorithm,
+  type Micrometres,
 } from 'cutlist';
 import { computed, defineComponent, h, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
@@ -11,9 +13,9 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
 import PreviewToolbar from '../PreviewToolbar.vue';
 
-const bladeWidth = ref<number | undefined>(3);
+const bladeWidth = ref<Micrometres | undefined>(mmToUm(3));
 const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
-const margin = ref<number | undefined>(0);
+const margin = ref<Micrometres | undefined>(mmToUm(0));
 const defaultAlgorithm = ref<Algorithm | undefined>('auto');
 const showPartNumbers = ref<boolean | undefined>(true);
 const stock = ref<string | undefined>('');
@@ -97,9 +99,9 @@ const UCheckboxStub = defineComponent({
 
 describe('PreviewToolbar', () => {
   beforeEach(() => {
-    bladeWidth.value = 3;
+    bladeWidth.value = mmToUm(3);
     distanceUnit.value = 'mm';
-    margin.value = 0;
+    margin.value = mmToUm(0);
     defaultAlgorithm.value = 'auto';
     showPartNumbers.value = true;
     isLoading.value = false;
@@ -130,9 +132,7 @@ describe('PreviewToolbar', () => {
       const component = getComponent();
 
       expect(component.find('select').exists()).toBe(true);
-      // 2 text inputs (blade, margin)
       expect(component.findAll('input[type="text"]')).toHaveLength(2);
-      // 1 checkbox
       expect(component.findAll('input[type="checkbox"]')).toHaveLength(1);
     });
   });
@@ -146,37 +146,37 @@ describe('PreviewToolbar', () => {
       expect(defaultAlgorithm.value).toBe('cnc');
     });
 
-    it('Should write bladeWidth back as mm when typed in mm mode', async () => {
-      bladeWidth.value = 3;
+    it('Should write bladeWidth back in µm when typed in mm mode', async () => {
+      bladeWidth.value = mmToUm(3);
       distanceUnit.value = 'mm';
       const component = getComponent();
       const inputs = component.findAll('input[type="text"]');
 
       await inputs[0].setValue('5');
 
-      expect(bladeWidth.value).toBe(5);
+      expect(bladeWidth.value).toBe(mmToUm(5));
     });
 
-    it('Should convert imperial input to mm when writing bladeWidth', async () => {
-      bladeWidth.value = 3.175;
+    it('Should convert imperial input to µm when writing bladeWidth', async () => {
+      bladeWidth.value = mmToUm(3.175);
       distanceUnit.value = 'in';
       const component = getComponent();
       const inputs = component.findAll('input[type="text"]');
 
       await inputs[0].setValue('1/4');
 
-      expect(bladeWidth.value).toBeCloseTo(6.35, 5);
+      expect(bladeWidth.value).toBe(mmToUm(6.35));
     });
 
-    it('Should write margin back as mm when typed in mm mode', async () => {
-      margin.value = 0;
+    it('Should write margin back in µm when typed in mm mode', async () => {
+      margin.value = mmToUm(0);
       distanceUnit.value = 'mm';
       const component = getComponent();
       const inputs = component.findAll('input[type="text"]');
 
       await inputs[1].setValue('2');
 
-      expect(margin.value).toBe(2);
+      expect(margin.value).toBe(mmToUm(2));
     });
 
     it('Should write back to showPartNumbers when the checkbox toggles', async () => {

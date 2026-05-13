@@ -70,12 +70,12 @@ describe('deriveFromGltf dimensions for rotated nodes', () => {
 
     expect(flat.parts).toHaveLength(2);
     const [a, b] = flat.parts;
-    expect(a.size.thickness).toBeCloseTo(b.size.thickness, 8);
-    expect(a.size.width).toBeCloseTo(b.size.width, 8);
-    expect(a.size.length).toBeCloseTo(b.size.length, 8);
-    expect(b.size.thickness).toBeCloseTo(0.018, 8);
-    expect(b.size.width).toBeCloseTo(0.3, 8);
-    expect(b.size.length).toBeCloseTo(0.5, 8);
+    expect(a.size.thickness).toBe(b.size.thickness);
+    expect(a.size.width).toBe(b.size.width);
+    expect(a.size.length).toBe(b.size.length);
+    expect(b.size.thickness).toBe(18_000);
+    expect(b.size.width).toBe(300_000);
+    expect(b.size.length).toBe(500_000);
   });
 
   it('still applies node scale to part dims', () => {
@@ -108,23 +108,23 @@ describe('deriveFromGltf dimensions for rotated nodes', () => {
       ],
     });
 
-    // Source (0.018, 0.3, 0.5) × scale (0.5, 1, 2) → (0.009, 0.3, 1.0).
+    // Source (0.018, 0.3, 0.5) × scale (0.5, 1, 2) → (0.009, 0.3, 1.0) m → µm.
     const size = result.parts[0].size;
-    expect(size.thickness).toBeCloseTo(0.009, 8);
-    expect(size.width).toBeCloseTo(0.3, 8);
-    expect(size.length).toBeCloseTo(1.0, 8);
+    expect(size.thickness).toBe(9_000);
+    expect(size.width).toBe(300_000);
+    expect(size.length).toBe(1_000_000);
   });
 });
 
 describe('deriveFromGltf dimension canonicalization', () => {
-  it('snaps mesh extents to the canonical mm grid', () => {
+  it('snaps mesh extents to the µm grid', () => {
     const result = deriveFromGltf(
       makeGltf([{ name: 'Top', size: [1.2192, 0.9144, 0.01905], material: 0 }]),
     );
     const size = result.parts[0].size;
-    expect(size.length).toBe(1219.2 / 1000);
-    expect(size.width).toBe(914.4 / 1000);
-    expect(size.thickness).toBe(19.05 / 1000);
+    expect(size.length).toBe(1_219_200);
+    expect(size.width).toBe(914_400);
+    expect(size.thickness).toBe(19_050);
   });
 });
 

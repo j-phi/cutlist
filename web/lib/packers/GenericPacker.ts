@@ -1,6 +1,14 @@
 import type { Point, Rectangle } from '../geometry';
 import type { PackOptions, PackResult, Packer } from './Packer';
 import { isValidPlacement } from './utils';
+import type { Micrometres } from '../utils/units';
+
+/**
+ * Building block for packers that share the `pack` walk. Callers
+ * (e.g. `TightPacker`) supply the bin-state methods to complete the
+ * `Packer<T>` contract.
+ */
+export type GenericPackerCore<T> = Pick<Packer<T>, 'pack'>;
 
 export function createGenericPacker<T>({
   sortPlacements,
@@ -10,20 +18,13 @@ export function createGenericPacker<T>({
   getPossiblePlacements: (
     bin: Rectangle<unknown>,
     placements: Rectangle<T>[],
-    gap: number,
+    gap: Micrometres,
   ) => Point[];
-}): Packer<T> {
+}): GenericPackerCore<T> {
   return {
     pack(bin, rects, options) {
-      const res: PackResult<T> = {
-        leftovers: [],
-        placements: [],
-      };
-      this.addToPack(res, bin, rects, options);
-      return res;
-    },
-    addToPack(res, bin, rects, options) {
-      return rects.reduce<PackResult<T>>((res, rect) => {
+      const res: PackResult<T> = { leftovers: [], placements: [] };
+      for (const rect of rects) {
         const possiblePoints = getPossiblePlacements(
           bin,
           res.placements,
@@ -37,28 +38,17 @@ export function createGenericPacker<T>({
             options.allowRotations &&
             (options.canRotateRect == null ||
               options.canRotateRect(moved.data));
-          if (canRotate) {
-            return [moved, moved.flipOrientation()];
-          }
+          if (canRotate) return [moved, moved.flipOrientation()];
           return [moved];
         });
 
-        const validPlacements = possiblePlacements.filter((placement) =>
-          isValidPlacement(
-            bin,
-            res.placements,
-            placement,
-            options.precision,
-            options.gap,
-          ),
+        const valid = possiblePlacements.find((placement) =>
+          isValidPlacement(bin, res.placements, placement, options.gap),
         );
-        if (validPlacements.length > 0) {
-          res.placements.push(validPlacements[0]);
-        } else {
-          res.leftovers.push(rect.data);
-        }
-        return res;
-      }, res);
+        if (valid) res.placements.push(valid);
+        else res.leftovers.push(rect.data);
+      }
+      return res;
     },
   };
 }

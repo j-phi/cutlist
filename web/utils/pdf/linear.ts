@@ -1,6 +1,11 @@
 import { rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
-import { aggregateLinearShoppingList, type LinearBoardLayout } from 'cutlist';
+import {
+  aggregateLinearShoppingList,
+  umToMm,
+  type LinearBoardLayout,
+  type Micrometres,
+} from 'cutlist';
 import {
   A4_H_MM,
   A4_W_MM,
@@ -152,10 +157,10 @@ function drawSectionTitle(
 
 function formatShoppingSummary(
   group: ReturnType<typeof aggregateLinearShoppingList>[number],
-  formatSize: (m: number) => string | undefined,
+  formatSize: (um: Micrometres) => string | undefined,
 ): string {
   const parts = group.lengths.map(
-    (l) => `${l.count}× ${formatSize(l.lengthM) ?? ''}`,
+    (l) => `${l.count}× ${formatSize(l.lengthUm) ?? ''}`,
   );
   const stickWord = group.totalSticks === 1 ? 'stick' : 'sticks';
   return `${parts.join(', ')}  (${group.totalSticks} ${stickWord} total)`;
@@ -196,11 +201,11 @@ function drawStick(
 ): void {
   const { formatSize } = ctx.opts;
   const colors = pdfMaterialColors(layout.stock.color);
-  const totalM = layout.stock.lengthM;
+  const totalMm = umToMm(layout.stock.lengthUm);
   // Per-stick scale: every stick fills the full content width regardless of
   // its length. Lengths are compared via the shopping-list header; the bar
   // visualises the cut layout within that stick.
-  const ptPerMm = totalM > 0 ? (contentWmm * MM) / (totalM * 1000) : MM;
+  const ptPerMm = totalMm > 0 ? (contentWmm * MM) / totalMm : MM;
   const barLeftPt = marginMm * MM;
   const barWidthPt = contentWmm * MM;
   const barHeightPt = STICK_BAR_HEIGHT_MM * MM;
@@ -223,8 +228,8 @@ function drawStick(
     ? rgb(colors.text.r, colors.text.g, colors.text.b)
     : rgb(0.95, 0.95, 0.95);
   for (const placement of layout.placements) {
-    const chipX = barLeftPt + placement.offsetM * 1000 * ptPerMm;
-    const chipW = placement.lengthM * 1000 * ptPerMm;
+    const chipX = barLeftPt + umToMm(placement.offsetUm) * ptPerMm;
+    const chipW = umToMm(placement.lengthUm) * ptPerMm;
     if (chipW <= 0) continue;
     page.drawRectangle({
       x: chipX,
@@ -236,12 +241,12 @@ function drawStick(
       borderWidth: 0.3,
     });
     // Length-allowance strip at the trailing end of the chip.
-    const allowW = placement.allowanceLengthM * 1000 * ptPerMm;
+    const allowW = umToMm(placement.allowanceLengthUm) * ptPerMm;
     if (allowW > 0) {
       const allowX = chipX + chipW - allowW;
       drawHatch(page, allowX, barBottomPt, allowW, barHeightPt, INDIGO);
     }
-    const lengthLabel = formatSize(placement.lengthM) ?? '';
+    const lengthLabel = formatSize(placement.lengthUm) ?? '';
     const showNumbers = ctx.opts.showPartNumbers;
     const fullLabel = showNumbers
       ? `${placement.partNumber} · ${lengthLabel}`
@@ -273,9 +278,10 @@ function drawStick(
   }
 
   // Waste tail — solid muted fill, matches the on-screen treatment.
-  if (layout.wasteEndM > 0) {
-    const wasteX = barLeftPt + (totalM - layout.wasteEndM) * 1000 * ptPerMm;
-    const wasteW = layout.wasteEndM * 1000 * ptPerMm;
+  if (layout.wasteEndUm > 0) {
+    const wasteMm = umToMm(layout.wasteEndUm);
+    const wasteX = barLeftPt + (totalMm - wasteMm) * ptPerMm;
+    const wasteW = wasteMm * ptPerMm;
     page.drawRectangle({
       x: wasteX,
       y: barBottomPt,
@@ -288,9 +294,9 @@ function drawStick(
   // Footer text — mirrors LinearLayoutListItem's on-screen footer.
   const cutCount = layout.placements.length;
   const cutsWord = cutCount === 1 ? 'cut' : 'cuts';
-  const lengthLabel = formatSize(totalM) ?? '';
+  const lengthLabel = formatSize(layout.stock.lengthUm) ?? '';
   const wasteLabel =
-    layout.wasteEndM > 0 ? `${formatSize(layout.wasteEndM) ?? ''} waste` : '';
+    layout.wasteEndUm > 0 ? `${formatSize(layout.wasteEndUm) ?? ''} waste` : '';
   const footerParts = [
     `#${boardIndexInGroup + 1}`,
     lengthLabel,

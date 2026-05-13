@@ -5,6 +5,7 @@
  * hydration is a straightforward read + override-apply step. No worker needed.
  */
 import { describe, expect, it } from 'vitest';
+import { mmToUm } from 'cutlist';
 import type { Part, ColorInfo, NodePartMapping } from '~/utils/modelTypes';
 import type { IdbModelMeta } from '~/composables/useIdb';
 import { useIdb } from '~/composables/useIdb';
@@ -18,7 +19,11 @@ function makePart(partNumber: number, overrides?: Partial<Part>): Part {
     instanceNumber: 1,
     name: `Part ${partNumber}`,
     colorKey: '#aaa',
-    size: { width: 0.3, length: 0.5, thickness: 0.018 },
+    size: {
+      width: mmToUm(300),
+      length: mmToUm(500),
+      thickness: mmToUm(18),
+    },
     ...overrides,
   };
 }
@@ -98,7 +103,11 @@ describe('applyOverrides', () => {
       colorKey: '#aaa',
       grainLock: 'width',
       name: 'Override',
-      size: { width: 0.3, length: 0.5, thickness: 0.018 },
+      size: {
+        width: mmToUm(300),
+        length: mmToUm(500),
+        thickness: mmToUm(18),
+      },
     });
   });
 });

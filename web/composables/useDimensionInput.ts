@@ -1,43 +1,34 @@
 import {
   convertUnits,
   formatValue,
+  mmToUm,
   parseDimension,
-  toCanonicalMm,
+  umToMm,
+  type Micrometres,
   type Precision,
 } from 'cutlist';
 import { ref, watch, type Ref } from 'vue';
 
 /**
- * Bridge an mm-stored ref to a free-text input string. Storage stays
- * raw; rounding lives only at the formatting boundary. See "Dimensions
- * and units" in CLAUDE.md for the architecture.
- *
- * Wire: `<UInput v-model="input" @blur="commit" />`
- *
- * Two guards protect each direction:
- * - `lastWrittenByUs` lets the input → storage watcher ignore writes
- *   it didn't originate, so seeding the field from storage on mount
- *   can't push a rounded display value back into storage.
- * - `isEcho` lets the storage → input watcher skip reformat whenever
- *   the current string still parses back to the same stored value,
- *   so mid-typing keystrokes like `"1.95"` aren't snapped while the
- *   user is still typing.
+ * Bridge a µm-stored ref to a free-text input string. Storage stays
+ * canonical; rounding lives only at the formatting boundary.
+ * Wire: `<UInput v-model="input" @blur="commit" />`.
  */
 export function useDimensionInput(
-  mm: Ref<number | null | undefined>,
+  um: Ref<Micrometres | null | undefined>,
   unit: Ref<'mm' | 'in'>,
   precision: Ref<Precision>,
 ): { input: Ref<string>; commit: () => void } {
-  const display = (v: number | null | undefined): string =>
+  const display = (v: Micrometres | null | undefined): string =>
     v == null
       ? ''
       : formatValue(
-          convertUnits(v, 'mm', unit.value),
+          convertUnits(umToMm(v), 'mm', unit.value),
           unit.value,
           precision.value,
         );
 
-  const input = ref(display(mm.value));
+  const input = ref(display(um.value));
   let lastWrittenByUs = input.value;
 
   function writeDisplay(s: string) {
@@ -45,15 +36,22 @@ export function useDimensionInput(
     input.value = s;
   }
 
-  /** True when `input.value` already represents `mm.value` losslessly. */
-  function isEcho(): boolean {
-    if (mm.value == null) return input.value === '';
-    const parsed = parseDimension(input.value, unit.value);
-    if (parsed == null) return false;
-    return Math.abs(convertUnits(parsed, unit.value, 'mm') - mm.value) < 1e-6;
+  function parseToUm(s: string): Micrometres | null {
+    const parsed = parseDimension(s, unit.value);
+    if (parsed == null) return null;
+    return mmToUm(convertUnits(parsed, unit.value, 'mm'));
   }
 
-  watch(mm, (v) => {
+  // The input → storage watcher relies on `lastWrittenByUs` to ignore
+  // writes it didn't originate, and `isEcho` lets the storage → input
+  // watcher skip reformat while the user is mid-typing.
+  function isEcho(): boolean {
+    if (um.value == null) return input.value === '';
+    const next = parseToUm(input.value);
+    return next === um.value;
+  }
+
+  watch(um, (v) => {
     if (v == null) {
       writeDisplay('');
       return;
@@ -63,26 +61,20 @@ export function useDimensionInput(
   });
 
   watch([unit, precision], () => {
-    if (mm.value != null) writeDisplay(display(mm.value));
+    if (um.value != null) writeDisplay(display(um.value));
   });
 
   watch(input, (s) => {
     if (s === lastWrittenByUs) return;
-    const parsed = parseDimension(s, unit.value);
-    if (parsed == null) return;
-    const next = toCanonicalMm(parsed, unit.value);
-    if (mm.value == null || Math.abs(next - mm.value) >= 1e-6) {
-      mm.value = next;
-    }
+    const next = parseToUm(s);
+    if (next == null) return;
+    if (next !== um.value) um.value = next;
   });
 
-  /**
-   * Re-render the input from current storage. Called by the consumer on
-   * blur — matches how SketchUp / Fusion behave: typed text wins while
-   * focused; canonical formatted text wins after blur.
-   */
+  /** Re-render from canonical storage. Typed text wins while focused;
+   * canonical wins on blur. */
   function commit() {
-    if (mm.value != null) writeDisplay(display(mm.value));
+    if (um.value != null) writeDisplay(display(um.value));
   }
 
   return { input, commit };

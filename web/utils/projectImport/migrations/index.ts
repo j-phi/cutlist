@@ -28,10 +28,17 @@ import {
 import type { IdbRecord, RecordMigration, StoreName } from './types';
 import { v3Migration } from './v3';
 import { v4Migration } from './v4';
+import { v5ProjectMigration, v5ModelMigration } from './v5';
 
 export type { IdbRecord, RecordMigration, StoreName } from './types';
 export { migrateProjectToMmStorage } from './v3';
 export { migrateProjectDropArchivedAt } from './v4';
+export {
+  migrateProjectScalarsToUm,
+  migrateModelToV5,
+  migrateModelPartsToUm,
+  migrateModelSourceLabel,
+} from './v5';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
@@ -60,6 +67,12 @@ export const migrations: RecordMigration[] = [
   // the project. Mirror of the Dexie .version(4).upgrade() in
   // `~/composables/useIdb/db`.
   v4Migration,
+
+  // v5: integer micrometres become the engine and storage domain.
+  // Project scalars convert from float mm → integer µm; model part sizes
+  // convert from float meters → integer µm. Mirror of `.version(5).upgrade()`.
+  v5ProjectMigration,
+  v5ModelMigration,
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

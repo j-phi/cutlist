@@ -1,5 +1,5 @@
 import { Rectangle } from '../geometry';
-import { isNearlyEqual } from '../utils/floating-point-utils';
+import type { Micrometres } from '../utils/units';
 import type { PackOptions, PackResult, Packer } from './Packer';
 
 /**
@@ -21,17 +21,12 @@ export type CompactFitMode = 'bssf' | 'baf' | 'blsf';
 export type CompactSplitMode = 'sas' | 'las' | 'min-area';
 
 interface FreeRect {
-  left: number;
-  bottom: number;
-  width: number;
-  height: number;
+  left: Micrometres;
+  bottom: Micrometres;
+  width: Micrometres;
+  height: Micrometres;
 }
 
-/**
- * Per-bin state that survives between calls. Exposed to callers via
- * `createBinState` / `tryPlaceInBinState` so multi-board lookback can keep
- * one of these per opened board.
- */
 interface CompactBinState {
   freeRects: FreeRect[];
 }
@@ -40,7 +35,8 @@ interface FitCandidate<T> {
   rect: Rectangle<T>;
   freeIndex: number;
   score: number;
-  tieBreak: number;
+  tieBreakBottom: Micrometres;
+  tieBreakLeft: Micrometres;
 }
 
 /**
@@ -83,16 +79,10 @@ export function createCompactPacker<T>(
       bottom: free.bottom,
     });
 
-    // Split the chosen free rect into two new free rects (with kerf applied
-    // between the placement and each remaining strip). The remaining free
-    // rects are non-overlapping by construction, so no additional pruning is
-    // required.
     const splits = splitFreeRect(free, placement, options, splitMode);
     state.freeRects.splice(candidate.freeIndex, 1, ...splits);
 
-    if (rectMerge) {
-      mergeFreeRects(state.freeRects, options.precision);
-    }
+    if (rectMerge) mergeFreeRects(state.freeRects);
 
     return placement;
   }
@@ -109,9 +99,6 @@ export function createCompactPacker<T>(
       }
 
       return res;
-    },
-    addToPack() {
-      throw Error('Not supported');
     },
     createBinState(bin) {
       return createInitialState(bin);
@@ -152,26 +139,32 @@ function pickBestPlacement<T>(
 
     for (const candidateRect of orientations) {
       if (
-        candidateRect.width > free.width + options.precision ||
-        candidateRect.height > free.height + options.precision
+        candidateRect.width > free.width ||
+        candidateRect.height > free.height
       ) {
         continue;
       }
 
-      const leftoverW = free.width - candidateRect.width;
-      const leftoverH = free.height - candidateRect.height;
+      const leftoverW = (free.width - candidateRect.width) as Micrometres;
+      const leftoverH = (free.height - candidateRect.height) as Micrometres;
       const score = scoreFit(fitMode, leftoverW, leftoverH, candidateRect);
-      // Prefer placements toward the bottom-left of the bin when scores tie,
-      // so output is deterministic and visually predictable.
-      const tieBreak = free.bottom * 1e6 + free.left;
 
-      if (
-        best == null ||
-        score < best.score - options.precision ||
-        (Math.abs(score - best.score) <= options.precision &&
-          tieBreak < best.tieBreak)
-      ) {
-        best = { rect: candidateRect, freeIndex: i, score, tieBreak };
+      // Lexicographic (bottom, left) tie-break — exact integer compare.
+      const ties =
+        best != null &&
+        (score === best.score
+          ? free.bottom < best.tieBreakBottom ||
+            (free.bottom === best.tieBreakBottom &&
+              free.left < best.tieBreakLeft)
+          : false);
+      if (best == null || score < best.score || ties) {
+        best = {
+          rect: candidateRect,
+          freeIndex: i,
+          score,
+          tieBreakBottom: free.bottom,
+          tieBreakLeft: free.left,
+        };
       }
     }
   }
@@ -181,14 +174,14 @@ function pickBestPlacement<T>(
 
 function scoreFit<T>(
   mode: CompactFitMode,
-  leftoverW: number,
-  leftoverH: number,
+  leftoverW: Micrometres,
+  leftoverH: Micrometres,
   rect: Rectangle<T>,
 ): number {
   if (mode === 'bssf') return Math.min(leftoverW, leftoverH);
   if (mode === 'blsf') return Math.max(leftoverW, leftoverH);
-  // baf: leftover area = freeArea - rectArea, expanded in terms of the
-  // leftover dims so we don't need the free rect here.
+  // baf: leftover area, expressed in the leftover dims so we don't need
+  // to thread the free rect through.
   return (
     leftoverW * leftoverH + leftoverW * rect.height + leftoverH * rect.width
   );
@@ -210,51 +203,43 @@ function splitFreeRect<T>(
     free,
   );
 
-  // Horizontal cut: bottom strip is the placement's row (full free width
-  // minus the placement); the top strip spans the full free width.
-  // Vertical cut: left strip is the placement's column; right strip spans
-  // the full free height.
   const splits: FreeRect[] = [];
 
   if (splitHorizontal) {
-    // Right of placement, same height as placement.
     const rightWidth = leftoverW - options.gap;
-    if (rightWidth > options.precision) {
+    if (rightWidth > 0) {
       splits.push({
-        left: free.left + placement.width + options.gap,
+        left: (free.left + placement.width + options.gap) as Micrometres,
         bottom: free.bottom,
-        width: rightWidth,
+        width: rightWidth as Micrometres,
         height: placement.height,
       });
     }
-    // Above placement, full free width.
     const topHeight = leftoverH - options.gap;
-    if (topHeight > options.precision) {
+    if (topHeight > 0) {
       splits.push({
         left: free.left,
-        bottom: free.bottom + placement.height + options.gap,
+        bottom: (free.bottom + placement.height + options.gap) as Micrometres,
         width: free.width,
-        height: topHeight,
+        height: topHeight as Micrometres,
       });
     }
   } else {
-    // Above placement, same width as placement.
     const topHeight = leftoverH - options.gap;
-    if (topHeight > options.precision) {
+    if (topHeight > 0) {
       splits.push({
         left: free.left,
-        bottom: free.bottom + placement.height + options.gap,
+        bottom: (free.bottom + placement.height + options.gap) as Micrometres,
         width: placement.width,
-        height: topHeight,
+        height: topHeight as Micrometres,
       });
     }
-    // Right of placement, full free height.
     const rightWidth = leftoverW - options.gap;
-    if (rightWidth > options.precision) {
+    if (rightWidth > 0) {
       splits.push({
-        left: free.left + placement.width + options.gap,
+        left: (free.left + placement.width + options.gap) as Micrometres,
         bottom: free.bottom,
-        width: rightWidth,
+        width: rightWidth as Micrometres,
         height: free.height,
       });
     }
@@ -270,20 +255,8 @@ function chooseSplitAxis<T>(
   placement: Rectangle<T>,
   free: FreeRect,
 ): boolean {
-  // Returns true for horizontal split, false for vertical.
-  if (mode === 'sas') {
-    // Shorter Axis Split: split along the SHORTER leftover, keeping the
-    // longer leftover intact. If width-leftover is smaller, the bigger
-    // leftover is in the height direction → preserve it by splitting
-    // horizontally (top strip gets full width).
-    return leftoverW <= leftoverH;
-  }
-  if (mode === 'las') {
-    return leftoverW > leftoverH;
-  }
-  // min-area: pick the split whose two fragments are most uneven (one big,
-  // one small) — equivalently, the split where the smaller-area fragment is
-  // smallest.
+  if (mode === 'sas') return leftoverW <= leftoverH;
+  if (mode === 'las') return leftoverW > leftoverH;
   const horizontalSmall = Math.min(
     leftoverW * placement.height,
     free.width * leftoverH,
@@ -295,10 +268,9 @@ function chooseSplitAxis<T>(
   return horizontalSmall <= verticalSmall;
 }
 
-function mergeFreeRects(freeRects: FreeRect[], precision: number): void {
-  // Merge pairs of free rects that share a full edge — recovers contiguous
-  // space that was unnecessarily fragmented by an earlier split. Iterate
-  // until stable; merges typically converge in 1–2 passes.
+function mergeFreeRects(freeRects: FreeRect[]): void {
+  // Merge pairs of free rects that share a full edge. With integer
+  // coordinates, edges are bit-exact — no tolerance needed.
   let merged = true;
   while (merged) {
     merged = false;
@@ -307,40 +279,32 @@ function mergeFreeRects(freeRects: FreeRect[], precision: number): void {
       for (let j = i + 1; j < freeRects.length; j++) {
         const b = freeRects[j];
 
-        // Same vertical band, stacked vertically.
-        if (
-          isNearlyEqual(a.left, b.left, precision) &&
-          isNearlyEqual(a.width, b.width, precision)
-        ) {
-          if (isNearlyEqual(a.bottom + a.height, b.bottom, precision)) {
-            a.height += b.height;
+        if (a.left === b.left && a.width === b.width) {
+          if (a.bottom + a.height === b.bottom) {
+            a.height = (a.height + b.height) as Micrometres;
             freeRects.splice(j, 1);
             merged = true;
             break outer;
           }
-          if (isNearlyEqual(b.bottom + b.height, a.bottom, precision)) {
+          if (b.bottom + b.height === a.bottom) {
             a.bottom = b.bottom;
-            a.height += b.height;
+            a.height = (a.height + b.height) as Micrometres;
             freeRects.splice(j, 1);
             merged = true;
             break outer;
           }
         }
 
-        // Same horizontal band, stacked horizontally.
-        if (
-          isNearlyEqual(a.bottom, b.bottom, precision) &&
-          isNearlyEqual(a.height, b.height, precision)
-        ) {
-          if (isNearlyEqual(a.left + a.width, b.left, precision)) {
-            a.width += b.width;
+        if (a.bottom === b.bottom && a.height === b.height) {
+          if (a.left + a.width === b.left) {
+            a.width = (a.width + b.width) as Micrometres;
             freeRects.splice(j, 1);
             merged = true;
             break outer;
           }
-          if (isNearlyEqual(b.left + b.width, a.left, precision)) {
+          if (b.left + b.width === a.left) {
             a.left = b.left;
-            a.width += b.width;
+            a.width = (a.width + b.width) as Micrometres;
             freeRects.splice(j, 1);
             merged = true;
             break outer;

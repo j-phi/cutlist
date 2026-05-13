@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  convertUnits,
   formatDistance,
   formatValue,
+  mToUm,
   parseDimension,
-  toCanonicalM,
   toCanonicalMm,
   toFraction,
   type Precision,
@@ -40,14 +39,6 @@ describe('Unit Utils', () => {
 
     it('preserves precise inch values like 1/8″ = 3.175 mm exactly', () => {
       expect(toCanonicalMm(0.125, 'in')).toBe(3.175);
-    });
-  });
-
-  describe('toCanonicalM', () => {
-    it('produces bit-equal doubles for the same dim via different paths', () => {
-      const fromMmCanonical = toCanonicalMm(48, 'in') / 1000;
-      expect(toCanonicalM(48 * 0.0254)).toBe(fromMmCanonical);
-      expect(toCanonicalM(1.2192)).toBe(fromMmCanonical);
     });
   });
 
@@ -138,19 +129,10 @@ describe('Unit Utils', () => {
 
   describe('formatDistance', () => {
     it('appends the unit suffix', () => {
-      expect(formatDistance(0.0254 * 1.5, 'in', FRACTION_32)).toBe('1 1/2"');
-      expect(formatDistance(0.0381, 'mm', DECIMAL_01)).toBe('38.1mm');
-    });
-  });
-
-  describe('convertUnits', () => {
-    it('scales by 25.4 and round-trips losslessly', () => {
-      expect(convertUnits(25.4, 'mm', 'in')).toBeCloseTo(1, 10);
-      expect(convertUnits(1, 'in', 'mm')).toBeCloseTo(25.4, 10);
-      const inches = 3 + 7 / 8;
-      expect(
-        convertUnits(convertUnits(inches, 'in', 'mm'), 'mm', 'in'),
-      ).toBeCloseTo(inches, 10);
+      expect(formatDistance(mToUm(0.0254 * 1.5), 'in', FRACTION_32)).toBe(
+        '1 1/2"',
+      );
+      expect(formatDistance(mToUm(0.0381), 'mm', DECIMAL_01)).toBe('38.1mm');
     });
   });
 });

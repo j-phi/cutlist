@@ -8,7 +8,12 @@
  * the UI sees the new value on the next tick, even before persistence lands.
  */
 
-import { type Algorithm, type Precision, type StockMatrix } from 'cutlist';
+import {
+  type Algorithm,
+  type Micrometres,
+  type Precision,
+  type StockMatrix,
+} from 'cutlist';
 import { defaultPrecisionForUnit } from '~/utils/settings';
 import { parseStock } from '~/utils/parseStock';
 import type { IdbProject } from '~/composables/useIdb';
@@ -69,7 +74,7 @@ export default createSharedComposable(() => {
     scheduleFlush(idb);
   }
 
-  const bladeWidth = computed<number | undefined>({
+  const bladeWidth = computed<Micrometres | undefined>({
     get: () => activeProject.value?.bladeWidth,
     set: (value) => {
       if (value == null) return;
@@ -77,7 +82,7 @@ export default createSharedComposable(() => {
     },
   });
 
-  const margin = computed<number | undefined>({
+  const margin = computed<Micrometres | undefined>({
     get: () => activeProject.value?.margin,
     set: (value) => {
       if (value == null) return;

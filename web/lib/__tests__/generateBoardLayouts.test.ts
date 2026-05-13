@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   generateBoardLayouts,
   isLinearBoardLayout,
+  mToUm,
   type BoardLayout,
   type Config,
   type PartToCut,
@@ -14,10 +15,11 @@ function asSheet(layout: BoardLayout): SheetBoardLayout {
   return layout;
 }
 
+/** Build a PartToCut from meter-friendly fixture values. */
 function createPart(
   partNumber: number,
-  width: number,
-  length: number,
+  widthM: number,
+  lengthM: number,
 ): PartToCut {
   return {
     partNumber,
@@ -25,9 +27,9 @@ function createPart(
     name: `Part ${partNumber}`,
     material: 'MDF',
     size: {
-      thickness: 0.018,
-      width,
-      length,
+      thickness: mToUm(0.018),
+      width: mToUm(widthM),
+      length: mToUm(lengthM),
     },
   };
 }
@@ -43,10 +45,9 @@ const stock = [
 describe('generateBoardLayouts', () => {
   it('rotates parts in auto mode when needed to fit', () => {
     const config: Config = {
-      bladeWidth: 0,
-      margin: 0,
+      bladeWidth: 0 as Config['bladeWidth'],
+      margin: 0 as Config['margin'],
       defaultAlgorithm: 'auto',
-      precision: 1e-5,
     };
     const result = generateBoardLayouts([createPart(1, 2, 1)], stock, config);
 
@@ -54,22 +55,21 @@ describe('generateBoardLayouts', () => {
     expect(result.layouts).toHaveLength(1);
     expect(result.layouts[0].placements).toEqual([
       expect.objectContaining({
-        widthM: 2,
-        lengthM: 1,
-        leftM: 0,
-        rightM: 1,
-        bottomM: 0,
-        topM: 2,
+        widthUm: mToUm(2),
+        lengthUm: mToUm(1),
+        leftUm: 0,
+        rightUm: mToUm(1),
+        bottomUm: 0,
+        topUm: mToUm(2),
       }),
     ]);
   });
 
   it('rotates parts in cnc mode when needed to fit', () => {
     const config: Config = {
-      bladeWidth: 0,
-      margin: 0,
+      bladeWidth: 0 as Config['bladeWidth'],
+      margin: 0 as Config['margin'],
       defaultAlgorithm: 'cnc',
-      precision: 1e-5,
     };
     const result = generateBoardLayouts([createPart(1, 2, 1)], stock, config);
 
@@ -77,12 +77,12 @@ describe('generateBoardLayouts', () => {
     expect(result.layouts).toHaveLength(1);
     expect(result.layouts[0].placements).toEqual([
       expect.objectContaining({
-        widthM: 2,
-        lengthM: 1,
-        leftM: 0,
-        rightM: 1,
-        bottomM: 0,
-        topM: 2,
+        widthUm: mToUm(2),
+        lengthUm: mToUm(1),
+        leftUm: 0,
+        rightUm: mToUm(1),
+        bottomUm: 0,
+        topUm: mToUm(2),
       }),
     ]);
   });
@@ -94,30 +94,24 @@ describe('generateBoardLayouts', () => {
       createPart(3, 2, 1),
     ];
 
-    // With the budget fixed at 1, only the very first pass runs per stock
-    // group — the winning layout is fully determined by pass ordering.
     const budgeted = generateBoardLayouts(parts, stock, {
       bladeWidth: 0,
       margin: 0,
       defaultAlgorithm: 'auto',
       maxSearchPasses: 1,
       searchPasses: ['cnc-area', 'cnc-perimeter', 'compact-bssf-area'],
-      precision: 1e-5,
     });
     const firstPassOnly = generateBoardLayouts(parts, stock, {
       bladeWidth: 0,
       margin: 0,
       defaultAlgorithm: 'auto',
       searchPasses: ['cnc-area'],
-      precision: 1e-5,
     });
 
     expect(budgeted).toEqual(firstPassOnly);
   });
 
   it('routes per-thickness algorithms independently per material', () => {
-    // Plywood 18mm pinned to tidy; MDF 18mm pinned to compact. Each group
-    // runs its own tournament — verify Plywood ends up column-aligned.
     const mixedStock = [
       {
         kind: 'sheet' as const,
@@ -145,7 +139,11 @@ describe('generateBoardLayouts', () => {
     const result = generateBoardLayouts(
       [...plywoodParts, ...mdfParts],
       mixedStock,
-      { bladeWidth: 0, margin: 0, defaultAlgorithm: 'cnc', precision: 1e-5 },
+      {
+        bladeWidth: 0,
+        margin: 0,
+        defaultAlgorithm: 'cnc',
+      },
     );
 
     expect(result.leftovers).toEqual([]);
@@ -156,15 +154,13 @@ describe('generateBoardLayouts', () => {
     // Tidy on equal-width parts → single column.
     for (const board of plywoodBoards) {
       const lefts = new Set(
-        asSheet(board).placements.map((p) => Math.round(p.leftM * 1e6)),
+        asSheet(board).placements.map((p) => p.leftUm as number),
       );
       expect(lefts.size).toBe(1);
     }
   });
 
   it('per-thickness override beats Config.defaultAlgorithm', () => {
-    // Project default = 'cnc' (would normally pick non-guillotine), but a
-    // per-thickness override forces 'tidy' for this stock entry.
     const overrideStock = [
       {
         kind: 'sheet' as const,
@@ -182,28 +178,20 @@ describe('generateBoardLayouts', () => {
       bladeWidth: 0,
       margin: 0,
       defaultAlgorithm: 'cnc',
-      precision: 1e-5,
     });
 
     expect(result.leftovers).toEqual([]);
-    // Tidy on equal-sized parts → single column. CNC would scatter them.
     const lefts = new Set(
-      asSheet(result.layouts[0]).placements.map((p) =>
-        Math.round(p.leftM * 1e6),
-      ),
+      asSheet(result.layouts[0]).placements.map((p) => p.leftUm as number),
     );
     expect(lefts.size).toBe(1);
   });
 
   it('per-thickness override on any matching StockMatrix row wins', () => {
-    // Two StockMatrix rows share material+thickness — one with the override,
-    // one without. Engine must pick the defined override regardless of which
-    // row sorts first by area.
     const stockWithOverrideOnSecondEntry = [
       {
         kind: 'sheet' as const,
         material: 'Plywood',
-        // Larger area — will sort first.
         sizes: [{ width: 2000, length: 3000, thickness: [18] }],
       },
       {
@@ -220,8 +208,7 @@ describe('generateBoardLayouts', () => {
     const result = generateBoardLayouts(parts, stockWithOverrideOnSecondEntry, {
       bladeWidth: 0,
       margin: 0,
-      defaultAlgorithm: 'cnc', // Must lose to the per-thickness 'tidy' override.
-      precision: 1e-5,
+      defaultAlgorithm: 'cnc',
     });
 
     expect(result.leftovers).toEqual([]);
@@ -232,10 +219,9 @@ describe('generateBoardLayouts', () => {
 
   it('is deterministic in auto mode', () => {
     const config: Config = {
-      bladeWidth: 0,
-      margin: 0,
+      bladeWidth: 0 as Config['bladeWidth'],
+      margin: 0 as Config['margin'],
       defaultAlgorithm: 'auto',
-      precision: 1e-5,
     };
     const parts = [
       createPart(1, 1, 1),

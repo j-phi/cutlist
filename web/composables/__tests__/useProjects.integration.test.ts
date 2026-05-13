@@ -8,6 +8,7 @@
  * partOverride flow that crosses both layers.
  */
 import { describe, expect, it } from 'vitest';
+import { mmToUm } from 'cutlist';
 import { useIdb, type IdbModel } from '../useIdb';
 import type { Part } from '~/utils/modelTypes';
 import { applyOverrides } from '~/utils/modelHydration';
@@ -20,7 +21,11 @@ function makePart(partNumber: number, overrides?: Partial<Part>): Part {
     instanceNumber: 1,
     name: `Part ${partNumber}`,
     colorKey: '#aaa',
-    size: { width: 0.3, length: 0.5, thickness: 0.018 },
+    size: {
+      width: mmToUm(300),
+      length: mmToUm(500),
+      thickness: mmToUm(18),
+    },
     ...overrides,
   };
 }

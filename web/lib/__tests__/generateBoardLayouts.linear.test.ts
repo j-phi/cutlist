@@ -3,6 +3,8 @@ import {
   generateBoardLayouts,
   isLinearBoardLayout,
   isLinearStock,
+  mmToUm,
+  mToUm,
   reduceStockMatrix,
   type BoardLayout,
   type Config,
@@ -15,32 +17,31 @@ import {
 } from '..';
 
 const baseConfig: Config = {
-  bladeWidth: 3.175,
-  margin: 0,
+  bladeWidth: mmToUm(3.175),
+  margin: mmToUm(0),
   defaultAlgorithm: 'auto',
-  precision: 1e-5,
 };
 
-// Cross-section: 1.5" × 3.5" → 0.0381m × 0.0889m. We keep the round numbers
-// in mm at the StockMatrix boundary and trust `mmToM` to do the conversion.
+// Cross-section: 1.5" × 3.5" → 38.1mm × 88.9mm. We keep the round numbers
+// in mm at the StockMatrix boundary and trust `mmToUm` to do the conversion.
 const CSW_MM = 38.1;
 const CST_MM = 88.9;
-const CSW_M = CSW_MM / 1000;
-const CST_M = CST_MM / 1000;
+const CSW_UM = mmToUm(CSW_MM);
+const CST_UM = mmToUm(CST_MM);
 
 function makeLinearPart(
   partNumber: number,
   lengthM: number,
   material = 'Pine 2x4',
-  widthM = CSW_M,
-  thicknessM = CST_M,
+  widthUm = CSW_UM,
+  thicknessUm = CST_UM,
 ): PartToCut {
   return {
     partNumber,
     instanceNumber: 1,
     name: `Part ${partNumber}`,
     material,
-    size: { width: widthM, length: lengthM, thickness: thicknessM },
+    size: { width: widthUm, length: mToUm(lengthM), thickness: thicknessUm },
   };
 }
 
@@ -85,16 +86,11 @@ describe('generateBoardLayouts — linear routing', () => {
     expect(layout.kind).toBe('linear');
     expect(layout.placements).toHaveLength(2);
     // FFD: identical lengths land back-to-back from offset 0.
-    expect(layout.placements[0].offsetM).toBeCloseTo(0, 6);
-    expect(layout.placements[1].offsetM).toBeCloseTo(1.0, 6);
+    expect(layout.placements[0].offsetUm).toBe(0);
+    expect(layout.placements[1].offsetUm).toBe(mToUm(1.0));
   });
 
-  it('serialises widthM and thicknessM on each linear placement so BOM and hover can resolve the part', () => {
-    // Regression guard: BOM rows and the Model-tab hover→info resolver
-    // both read placements through `groupPartsByNumber` and expect a
-    // BoardLayoutLeftover-shaped record (partNumber + dimensions). Without
-    // these fields, linear-routed parts vanish from the BOM and produce
-    // a blank hover popover.
+  it('serialises widthUm and thicknessUm on each linear placement so BOM and hover can resolve the part', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'linear',
@@ -111,15 +107,13 @@ describe('generateBoardLayouts — linear routing', () => {
     const layout = asLinear(result.layouts[0]);
     const placement = layout.placements[0];
 
-    expect(placement.widthM).toBeCloseTo(CSW_M, 6);
-    expect(placement.thicknessM).toBeCloseTo(CST_M, 6);
+    expect(placement.widthUm).toBe(CSW_UM);
+    expect(placement.thicknessUm).toBe(CST_UM);
     expect(placement.partNumber).toBe(7);
     expect(placement.material).toBe('Pine 2x4');
   });
 
   it('prefers shorter sticks when both meet the demand', () => {
-    // Both 2440mm and 4880mm available. A single 2440mm stick fits all parts,
-    // so the result should land on the shorter stick after stock minimization.
     const stock: StockMatrix[] = [
       {
         kind: 'linear',
@@ -140,7 +134,7 @@ describe('generateBoardLayouts — linear routing', () => {
     expect(result.leftovers).toEqual([]);
     expect(result.layouts).toHaveLength(1);
     const layout = asLinear(result.layouts[0]);
-    expect(layout.stock.lengthM).toBeCloseTo(2.44, 6);
+    expect(layout.stock.lengthUm).toBe(mmToUm(2440));
   });
 
   it('mixes sheet and linear layouts in a single project', () => {
@@ -165,7 +159,7 @@ describe('generateBoardLayouts — linear routing', () => {
       instanceNumber: 1,
       name: 'panel',
       material: 'MDF',
-      size: { width: 0.6, length: 0.4, thickness: 0.018 },
+      size: { width: mToUm(0.6), length: mToUm(0.4), thickness: mmToUm(18) },
     };
     const linearPart = makeLinearPart(2, 1.0);
 
@@ -198,7 +192,6 @@ describe('generateBoardLayouts — linear routing', () => {
       {
         kind: 'linear',
         material: 'Pine 2x6',
-        // 1.5" × 5.5"
         size: {
           crossSectionWidth: 38.1,
           crossSectionThickness: 139.7,
@@ -206,8 +199,14 @@ describe('generateBoardLayouts — linear routing', () => {
         },
       },
     ];
-    const partOnTwoBy4 = makeLinearPart(1, 1.0, 'Pine 2x4', CSW_M, CST_M);
-    const partOnTwoBy6 = makeLinearPart(2, 1.0, 'Pine 2x6', 0.0381, 0.1397);
+    const partOnTwoBy4 = makeLinearPart(1, 1.0, 'Pine 2x4', CSW_UM, CST_UM);
+    const partOnTwoBy6 = makeLinearPart(
+      2,
+      1.0,
+      'Pine 2x6',
+      mmToUm(38.1),
+      mmToUm(139.7),
+    );
 
     const result = generateBoardLayouts([partOnTwoBy4, partOnTwoBy6], stock, {
       ...baseConfig,
@@ -239,7 +238,13 @@ describe('generateBoardLayouts — linear routing', () => {
       },
     ];
     // Same material, wrong cross-section (2x6 dimensions on a 2x4-only project).
-    const oddPart = makeLinearPart(1, 1.0, 'Pine 2x4', 0.0381, 0.1397);
+    const oddPart = makeLinearPart(
+      1,
+      1.0,
+      'Pine 2x4',
+      mmToUm(38.1),
+      mmToUm(139.7),
+    );
     const result = generateBoardLayouts([oddPart], stock, {
       ...baseConfig,
       bladeWidth: 0,
@@ -263,15 +268,13 @@ describe('generateBoardLayouts — linear routing', () => {
       },
     ];
     const kerfMm = 3.175;
-    const kerfM = kerfMm / 1000;
     const result = generateBoardLayouts([makeLinearPart(1, 1.0)], stock, {
       ...baseConfig,
-      bladeWidth: kerfMm,
+      bladeWidth: mmToUm(kerfMm),
     });
 
-    expect(asLinear(result.layouts[0]).wasteEndM).toBeCloseTo(
-      2.4 - 1.0 - kerfM,
-      6,
+    expect(asLinear(result.layouts[0]).wasteEndUm).toBe(
+      mmToUm(2400) - mToUm(1.0) - mmToUm(kerfMm),
     );
   });
 
@@ -288,7 +291,7 @@ describe('generateBoardLayouts — linear routing', () => {
       },
     ];
     const kerfMm = 3.175;
-    const kerfM = kerfMm / 1000;
+    const kerfUm = mmToUm(kerfMm);
     const parts = [
       makeLinearPart(1, 0.5),
       makeLinearPart(2, 0.5),
@@ -296,17 +299,16 @@ describe('generateBoardLayouts — linear routing', () => {
     ];
     const result = generateBoardLayouts(parts, stock, {
       ...baseConfig,
-      bladeWidth: kerfMm,
+      bladeWidth: mmToUm(kerfMm),
     });
 
     expect(result.leftovers).toEqual([]);
     expect(result.layouts).toHaveLength(1);
     const layout = asLinear(result.layouts[0]);
     expect(layout.placements).toHaveLength(3);
-    // First cut starts at 0; subsequent placements offset by previous length + kerf.
-    expect(layout.placements[0].offsetM).toBeCloseTo(0, 6);
-    expect(layout.placements[1].offsetM).toBeCloseTo(0.5 + kerfM, 6);
-    expect(layout.placements[2].offsetM).toBeCloseTo(2 * (0.5 + kerfM), 6);
+    expect(layout.placements[0].offsetUm).toBe(0);
+    expect(layout.placements[1].offsetUm).toBe(mToUm(0.5) + kerfUm);
+    expect(layout.placements[2].offsetUm).toBe(2 * (mToUm(0.5) + kerfUm));
   });
 
   it('reduceStockMatrix: expands a linear row into one LinearStock per length', () => {
@@ -324,8 +326,10 @@ describe('generateBoardLayouts — linear routing', () => {
     const linear = expanded.filter(isLinear);
     expect(linear).toHaveLength(3);
     expect(linear.map((s) => s.length).sort((a, b) => a - b)).toEqual([
-      2.44, 3.05, 4.88,
+      mmToUm(2440),
+      mmToUm(3050),
+      mmToUm(4880),
     ]);
-    expect(linear.every((s) => s.crossSectionWidth === CSW_M)).toBe(true);
+    expect(linear.every((s) => s.crossSectionWidth === CSW_UM)).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import { rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
-import type { BoardLayoutLeftover } from 'cutlist';
+import type { BoardLayoutLeftover, Micrometres } from 'cutlist';
 import { groupPartsByNumber } from '~/lib/utils/bom-utils';
 import {
   A4_H_MM,
@@ -23,7 +23,7 @@ export interface BomRow {
 export function aggregateBom(
   placements: BoardLayoutLeftover[],
   leftovers: BoardLayoutLeftover[],
-  formatSize: (m: number) => string | undefined,
+  formatSize: (um: Micrometres) => string | undefined,
 ): BomRow[] {
   return groupPartsByNumber(placements, leftovers).map((instances) => {
     const part = instances[0];
@@ -32,7 +32,7 @@ export function aggregateBom(
       name: part.name,
       qty: instances.length,
       material: part.material,
-      size: `${formatSize(part.lengthM) ?? ''} × ${formatSize(part.widthM) ?? ''} × ${formatSize(part.thicknessM) ?? ''}`,
+      size: `${formatSize(part.lengthUm) ?? ''} × ${formatSize(part.widthUm) ?? ''} × ${formatSize(part.thicknessUm) ?? ''}`,
     };
   });
 }

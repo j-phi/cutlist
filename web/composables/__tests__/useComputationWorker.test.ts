@@ -8,7 +8,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ConfigInput, PartToCut } from 'cutlist';
+import { mmToUm, type ConfigInput, type PartToCut } from 'cutlist';
 
 interface PostedMessage {
   type: 'layout';
@@ -67,16 +67,19 @@ function makeParts(n: number): PartToCut[] {
     partNumber: i + 1,
     instanceNumber: 1,
     name: `p${i + 1}`,
-    size: { width: 0.3, length: 0.5, thickness: 0.018 },
+    size: {
+      width: mmToUm(300),
+      length: mmToUm(500),
+      thickness: mmToUm(18),
+    },
     material: 'plywood',
   }));
 }
 
 const CONFIG: ConfigInput = {
-  bladeWidth: 0.003,
+  bladeWidth: mmToUm(3),
   margin: 0,
   defaultAlgorithm: 'auto',
-  precision: 1e-5,
 };
 
 const emptyResult = () => ({ layouts: [], leftovers: [] });

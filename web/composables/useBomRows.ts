@@ -5,7 +5,7 @@
  * (fallback) to produce a flat list of BomRow objects for display.
  */
 
-import type { BoardLayoutLeftover } from 'cutlist';
+import type { BoardLayoutLeftover, Micrometres } from 'cutlist';
 import { groupPartsByNumber } from '~/lib/utils/bom-utils';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import type { Model } from '~/composables/useProjects';
@@ -17,9 +17,9 @@ export interface BomRow {
   modelName: string;
   qty: number;
   material: string;
-  thicknessM: number;
-  widthM: number;
-  lengthM: number;
+  thicknessUm: Micrometres;
+  widthUm: Micrometres;
+  lengthUm: Micrometres;
   grainLock?: 'length' | 'width';
   leftoverCount: number;
   isManual: boolean;
@@ -27,7 +27,7 @@ export interface BomRow {
 
 function modelDisplayName(model: {
   filename: string;
-  source: 'gltf' | 'collada' | 'manual';
+  source: 'gltf' | 'assimp' | 'manual';
 }): string {
   const filename = model.filename.trim();
   if (filename) return filename;
@@ -100,9 +100,9 @@ export default function useBomRows() {
             modelName: model?.name ?? '',
             qty: instanceList.length,
             material: part.material,
-            thicknessM: part.thicknessM,
-            widthM: part.widthM,
-            lengthM: part.lengthM,
+            thicknessUm: part.thicknessUm,
+            widthUm: part.widthUm,
+            lengthUm: part.lengthUm,
             grainLock: part.grainLock,
             leftoverCount: leftoverCounts.get(part.partNumber) ?? 0,
             isManual: manualPartNumbers.value.has(part.partNumber),
@@ -138,9 +138,9 @@ export default function useBomRows() {
           modelName: modelDisplayName(models[i]),
           material: project.colorMap[parts[0].colorKey] ?? parts[0].colorKey,
           qty: parts.length,
-          thicknessM: parts[0].size.thickness,
-          widthM: parts[0].size.width,
-          lengthM: parts[0].size.length,
+          thicknessUm: parts[0].size.thickness,
+          widthUm: parts[0].size.width,
+          lengthUm: parts[0].size.length,
           grainLock: parts[0].grainLock,
           leftoverCount: 0,
           isManual,

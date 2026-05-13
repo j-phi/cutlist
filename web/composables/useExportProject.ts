@@ -1,4 +1,4 @@
-import type { Algorithm, Precision } from 'cutlist';
+import type { Algorithm, Micrometres, Precision } from 'cutlist';
 import { trackEvent } from '~/utils/analytics';
 import type {
   IdbAnnotation,
@@ -35,8 +35,8 @@ export interface ProjectExport {
     stock: string;
     distanceUnit: 'in' | 'mm';
     precision: Precision;
-    bladeWidth: number;
-    margin: number;
+    bladeWidth: Micrometres;
+    margin: Micrometres;
     defaultAlgorithm: Algorithm;
     showPartNumbers: boolean;
     createdAt: string;

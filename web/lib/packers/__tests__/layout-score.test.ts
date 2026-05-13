@@ -2,13 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { Rectangle } from '../../geometry';
 import type { PartToCut, PotentialBoardLayout, SheetStock } from '../../types';
 import { compareLayoutScores, scoreLayouts } from '../layout-score';
+import { um } from '~/test-utils/units';
 
 const stock10x10: SheetStock = {
   kind: 'sheet',
   material: 'MDF',
-  thickness: 0.018,
-  width: 10,
-  length: 10,
+  thickness: um(18_000),
+  width: um(10),
+  length: um(10),
 };
 
 function part(id: number): PartToCut {
@@ -17,11 +18,7 @@ function part(id: number): PartToCut {
     partNumber: id,
     name: `Part ${id}`,
     material: 'MDF',
-    size: {
-      thickness: 0.018,
-      width: 1,
-      length: 1,
-    },
+    size: { thickness: um(18_000), width: um(1), length: um(1) },
   };
 }
 
@@ -37,22 +34,23 @@ function createLayout(
   return {
     kind: 'sheet',
     stock,
-    placements: placements.map((placement, i) => {
-      return new Rectangle(
-        part(i + 1),
-        placement.left,
-        placement.bottom,
-        placement.width,
-        placement.height,
-      );
-    }),
+    placements: placements.map(
+      (placement, i) =>
+        new Rectangle(
+          part(i + 1),
+          um(placement.left),
+          um(placement.bottom),
+          um(placement.width),
+          um(placement.height),
+        ),
+    ),
     algorithm: 'compact',
   };
 }
 
 describe('layout score', () => {
   it('Should return zero scores for an empty layout list', () => {
-    expect(scoreLayouts([], 1e-5)).toEqual({
+    expect(scoreLayouts([])).toEqual({
       boardsUsed: 0,
       wasteArea: 0,
       wasteConcentration: 0,
@@ -61,18 +59,12 @@ describe('layout score', () => {
   });
 
   it('Should calculate waste area and cut complexity for a simple board', () => {
-    // Two parts side-by-side along x. Unique X edges = 3 (0, 5, 10);
-    // unique Y edges = 2 (0, 10). Y is the strip axis (fewer edges) so
-    // it carries the rip-cut weight: 2*10 + 3 = 23.
-    const score = scoreLayouts(
-      [
-        createLayout(stock10x10, [
-          { left: 0, bottom: 0, width: 5, height: 10 },
-          { left: 5, bottom: 0, width: 5, height: 10 },
-        ]),
-      ],
-      1e-5,
-    );
+    const score = scoreLayouts([
+      createLayout(stock10x10, [
+        { left: 0, bottom: 0, width: 5, height: 10 },
+        { left: 5, bottom: 0, width: 5, height: 10 },
+      ]),
+    ]);
 
     expect(score).toEqual({
       boardsUsed: 1,
@@ -82,108 +74,77 @@ describe('layout score', () => {
     });
   });
 
-  it('Should return zero when scores tie within precision', () => {
+  it('returns zero only when scores are exactly equal', () => {
     const score = {
       boardsUsed: 1,
-      wasteArea: 0.000001,
+      wasteArea: 0,
       wasteConcentration: 0,
       cutComplexity: 4,
     };
-
-    expect(compareLayoutScores(score, { ...score, wasteArea: 0 }, 1e-5)).toBe(
+    expect(compareLayoutScores(score, { ...score })).toBe(0);
+    // No more "tie within precision" — integer dims produce exact scores,
+    // so even a single unit of difference breaks the tie.
+    expect(compareLayoutScores(score, { ...score, wasteArea: 1 })).toBeLessThan(
       0,
     );
   });
 
   it('prefers uniform waste over lopsided waste when total waste ties', () => {
-    // Both layouts: 2 boards (each 100 units of board area), 50 units of total
-    // waste. Lopsided puts all 50 waste on one barely-used board; uniform
-    // splits 25 + 25.
-    const lopsided = scoreLayouts(
-      [
-        createLayout(stock10x10, [
-          { left: 0, bottom: 0, width: 10, height: 10 }, // 100 used → 0 waste
-        ]),
-        createLayout(stock10x10, [
-          { left: 0, bottom: 0, width: 5, height: 10 }, // 50 used → 50 waste
-        ]),
-      ],
-      1e-5,
-    );
-    const uniform = scoreLayouts(
-      [
-        createLayout(stock10x10, [
-          { left: 0, bottom: 0, width: 5, height: 5 },
-          { left: 5, bottom: 0, width: 5, height: 10 }, // 75 used → 25 waste
-        ]),
-        createLayout(stock10x10, [
-          { left: 0, bottom: 0, width: 5, height: 5 },
-          { left: 5, bottom: 0, width: 5, height: 10 }, // 75 used → 25 waste
-        ]),
-      ],
-      1e-5,
-    );
-    expect(uniform.wasteArea).toBeCloseTo(lopsided.wasteArea);
+    const lopsided = scoreLayouts([
+      createLayout(stock10x10, [{ left: 0, bottom: 0, width: 10, height: 10 }]),
+      createLayout(stock10x10, [{ left: 0, bottom: 0, width: 5, height: 10 }]),
+    ]);
+    const uniform = scoreLayouts([
+      createLayout(stock10x10, [
+        { left: 0, bottom: 0, width: 5, height: 5 },
+        { left: 5, bottom: 0, width: 5, height: 10 },
+      ]),
+      createLayout(stock10x10, [
+        { left: 0, bottom: 0, width: 5, height: 5 },
+        { left: 5, bottom: 0, width: 5, height: 10 },
+      ]),
+    ]);
+    expect(uniform.wasteArea).toBe(lopsided.wasteArea);
     expect(uniform.wasteConcentration).toBeLessThan(
       lopsided.wasteConcentration,
     );
-    expect(compareLayoutScores(uniform, lopsided, 1e-5)).toBeLessThan(0);
+    expect(compareLayoutScores(uniform, lopsided)).toBeLessThan(0);
   });
 
   it('prefers fewer boards even when waste is higher', () => {
-    const oneBoard = scoreLayouts(
-      [createLayout(stock10x10, [{ left: 0, bottom: 0, width: 5, height: 5 }])],
-      1e-5,
-    );
-    const twoBoards = scoreLayouts(
-      [
-        createLayout(stock10x10, [
-          { left: 0, bottom: 0, width: 10, height: 10 },
-        ]),
-        createLayout(stock10x10, [
-          { left: 0, bottom: 0, width: 10, height: 10 },
-        ]),
-      ],
-      1e-5,
-    );
+    const oneBoard = scoreLayouts([
+      createLayout(stock10x10, [{ left: 0, bottom: 0, width: 5, height: 5 }]),
+    ]);
+    const twoBoards = scoreLayouts([
+      createLayout(stock10x10, [{ left: 0, bottom: 0, width: 10, height: 10 }]),
+      createLayout(stock10x10, [{ left: 0, bottom: 0, width: 10, height: 10 }]),
+    ]);
 
-    expect(compareLayoutScores(oneBoard, twoBoards, 1e-5)).toBeLessThan(0);
+    expect(compareLayoutScores(oneBoard, twoBoards)).toBeLessThan(0);
   });
 
   it('prefers lower waste when board count matches', () => {
-    const higherWaste = scoreLayouts(
-      [createLayout(stock10x10, [{ left: 0, bottom: 0, width: 5, height: 5 }])],
-      1e-5,
-    );
-    const lowerWaste = scoreLayouts(
-      [createLayout(stock10x10, [{ left: 0, bottom: 0, width: 8, height: 8 }])],
-      1e-5,
-    );
+    const higherWaste = scoreLayouts([
+      createLayout(stock10x10, [{ left: 0, bottom: 0, width: 5, height: 5 }]),
+    ]);
+    const lowerWaste = scoreLayouts([
+      createLayout(stock10x10, [{ left: 0, bottom: 0, width: 8, height: 8 }]),
+    ]);
 
-    expect(compareLayoutScores(lowerWaste, higherWaste, 1e-5)).toBeLessThan(0);
+    expect(compareLayoutScores(lowerWaste, higherWaste)).toBeLessThan(0);
   });
 
   it('prefers lower cut complexity when board count and waste tie', () => {
-    const lowComplexity = scoreLayouts(
-      [
-        createLayout(stock10x10, [
-          { left: 0, bottom: 0, width: 10, height: 10 },
-        ]),
-      ],
-      1e-5,
-    );
-    const highComplexity = scoreLayouts(
-      [
-        createLayout(stock10x10, [
-          { left: 0, bottom: 0, width: 5, height: 10 },
-          { left: 5, bottom: 0, width: 5, height: 10 },
-        ]),
-      ],
-      1e-5,
-    );
+    const lowComplexity = scoreLayouts([
+      createLayout(stock10x10, [{ left: 0, bottom: 0, width: 10, height: 10 }]),
+    ]);
+    const highComplexity = scoreLayouts([
+      createLayout(stock10x10, [
+        { left: 0, bottom: 0, width: 5, height: 10 },
+        { left: 5, bottom: 0, width: 5, height: 10 },
+      ]),
+    ]);
 
-    expect(
-      compareLayoutScores(lowComplexity, highComplexity, 1e-5),
-    ).toBeLessThan(0);
+    expect(compareLayoutScores(lowComplexity, highComplexity)).toBeLessThan(0);
   });
 });

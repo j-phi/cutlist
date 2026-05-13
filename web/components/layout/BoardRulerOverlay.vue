@@ -1,7 +1,6 @@
 <script lang="ts" setup>
-import type { SheetBoardLayout } from 'cutlist';
+import type { Micrometres, SheetBoardLayout } from 'cutlist';
 import type { SnapEdge } from '~/composables/useRulerStore';
-import { PX_PER_M } from '~/composables/useGetPx';
 
 const props = defineProps<{
   layout: SheetBoardLayout;
@@ -18,24 +17,27 @@ const {
   getMeasurementsForBoard,
 } = useRulerStore();
 
+const getPx = useGetPx();
+
 const snapEdges = computed<SnapEdge[]>(() => {
   const idx = props.boardIndex;
+  const { widthUm: wUm, lengthUm: lUm } = props.layout.stock;
+  const zero = 0 as Micrometres;
   const edges: SnapEdge[] = [
-    { axis: 'x', positionM: 0, boardIndex: idx },
-    { axis: 'x', positionM: props.layout.stock.widthM, boardIndex: idx },
-    { axis: 'y', positionM: 0, boardIndex: idx },
-    { axis: 'y', positionM: props.layout.stock.lengthM, boardIndex: idx },
+    { axis: 'x', positionUm: zero, boardIndex: idx },
+    { axis: 'x', positionUm: wUm, boardIndex: idx },
+    { axis: 'y', positionUm: zero, boardIndex: idx },
+    { axis: 'y', positionUm: lUm, boardIndex: idx },
   ];
   for (const p of props.layout.placements) {
-    edges.push({ axis: 'x', positionM: p.leftM, boardIndex: idx });
-    edges.push({ axis: 'x', positionM: p.rightM, boardIndex: idx });
-    edges.push({ axis: 'y', positionM: p.bottomM, boardIndex: idx });
-    edges.push({ axis: 'y', positionM: p.topM, boardIndex: idx });
+    edges.push({ axis: 'x', positionUm: p.leftUm, boardIndex: idx });
+    edges.push({ axis: 'x', positionUm: p.rightUm, boardIndex: idx });
+    edges.push({ axis: 'y', positionUm: p.bottomUm, boardIndex: idx });
+    edges.push({ axis: 'y', positionUm: p.topUm, boardIndex: idx });
   }
-  // Deduplicate co-located edges (e.g. board edge meeting a part edge).
   const seen = new Set<string>();
   return edges.filter((e) => {
-    const key = `${e.axis}:${e.positionM.toFixed(6)}`;
+    const key = `${e.axis}:${e.positionUm}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -43,16 +45,16 @@ const snapEdges = computed<SnapEdge[]>(() => {
 });
 const boardMeasurements = getMeasurementsForBoard(props.boardIndex);
 
-const widthM = computed(() => props.layout.stock.widthM);
-const lengthM = computed(() => props.layout.stock.lengthM);
-const widthPx = computed(() => widthM.value * PX_PER_M);
-const heightPx = computed(() => lengthM.value * PX_PER_M);
+const widthUm = computed(() => props.layout.stock.widthUm);
+const lengthUm = computed(() => props.layout.stock.lengthUm);
+const widthPx = computed(() => getPx(widthUm.value));
+const heightPx = computed(() => getPx(lengthUm.value));
 
 const SNAP_THRESHOLD_PX = 15;
 
 const preClickEdge = ref<SnapEdge | null>(null);
 const hoveredEdge = ref<SnapEdge | null>(null);
-const previewOffsetM = ref(0);
+const previewOffsetUm = ref<Micrometres>(0 as Micrometres);
 
 const previewMeasurement = computed(() => {
   if (!pendingClick.value || !hoveredEdge.value) return null;
@@ -61,27 +63,56 @@ const previewMeasurement = computed(() => {
     id: '__preview__',
     boardIndex: props.boardIndex,
     axis: pendingClick.value.edge.axis,
-    anchorA: pendingClick.value.edge.positionM,
-    anchorB: hoveredEdge.value.positionM,
-    offsetM: previewOffsetM.value,
+    anchorAUm: pendingClick.value.edge.positionUm,
+    anchorBUm: hoveredEdge.value.positionUm,
+    offsetUm: previewOffsetUm.value,
   };
 });
 
-function handleMouseMove(event: MouseEvent) {
-  if (!isRulerActive.value) return;
-
+function pickPoint(event: MouseEvent) {
   const el = event.currentTarget as HTMLElement;
   const rect = el.getBoundingClientRect();
   const fracX = (event.clientX - rect.left) / rect.width;
   const fracY = (rect.bottom - event.clientY) / rect.height;
-  const xM = fracX * widthM.value;
-  const yM = fracY * lengthM.value;
-  const thresholdM = SNAP_THRESHOLD_PX / (rect.width / widthM.value);
+  const xUm = (fracX * widthUm.value) as Micrometres;
+  const yUm = (fracY * lengthUm.value) as Micrometres;
+  const thresholdUm = ((SNAP_THRESHOLD_PX * widthUm.value) /
+    rect.width) as Micrometres;
+  return { xUm, yUm, thresholdUm };
+}
+
+function findNearestEdge(
+  xUm: Micrometres,
+  yUm: Micrometres,
+  edges: SnapEdge[],
+  thresholdUm: Micrometres,
+): SnapEdge | null {
+  let best: SnapEdge | null = null;
+  let bestDist = Infinity;
+  for (const edge of edges) {
+    const dist =
+      edge.axis === 'x'
+        ? Math.abs(xUm - edge.positionUm)
+        : Math.abs(yUm - edge.positionUm);
+    if (dist < bestDist && dist < thresholdUm) {
+      bestDist = dist;
+      best = edge;
+    }
+  }
+  return best;
+}
+
+function handleMouseMove(event: MouseEvent) {
+  if (!isRulerActive.value) return;
+  const { xUm, yUm, thresholdUm } = pickPoint(event);
 
   if (!pendingClick.value) {
-    // Before first click: highlight nearest edge of any axis
-    const nearest = findNearestEdge(xM, yM, snapEdges.value, thresholdM);
-    preClickEdge.value = nearest;
+    preClickEdge.value = findNearestEdge(
+      xUm,
+      yUm,
+      snapEdges.value,
+      thresholdUm,
+    );
     return;
   }
 
@@ -90,15 +121,15 @@ function handleMouseMove(event: MouseEvent) {
   preClickEdge.value = null;
   const pendingAxis = pendingClick.value.edge.axis;
   const sameAxisEdges = snapEdges.value.filter((e) => e.axis === pendingAxis);
-  const nearest = findNearestEdge(xM, yM, sameAxisEdges, thresholdM);
+  const nearest = findNearestEdge(xUm, yUm, sameAxisEdges, thresholdUm);
 
-  if (!nearest || nearest.positionM === pendingClick.value.edge.positionM) {
+  if (!nearest || nearest.positionUm === pendingClick.value.edge.positionUm) {
     hoveredEdge.value = null;
     return;
   }
 
   hoveredEdge.value = nearest;
-  previewOffsetM.value = pendingAxis === 'x' ? yM : xM;
+  previewOffsetUm.value = pendingAxis === 'x' ? yUm : xUm;
 }
 
 function handleMouseLeave() {
@@ -106,46 +137,17 @@ function handleMouseLeave() {
   hoveredEdge.value = null;
 }
 
-function findNearestEdge(
-  xM: number,
-  yM: number,
-  edges: SnapEdge[],
-  thresholdM: number,
-): SnapEdge | null {
-  let best: SnapEdge | null = null;
-  let bestDist = Infinity;
-  for (const edge of edges) {
-    const dist =
-      edge.axis === 'x'
-        ? Math.abs(xM - edge.positionM)
-        : Math.abs(yM - edge.positionM);
-    if (dist < bestDist && dist < thresholdM) {
-      bestDist = dist;
-      best = edge;
-    }
-  }
-  return best;
-}
-
 function handleBoardClick(event: MouseEvent) {
   if (!isRulerActive.value) return;
-
-  const el = event.currentTarget as HTMLElement;
-  const rect = el.getBoundingClientRect();
-  const fracX = (event.clientX - rect.left) / rect.width;
-  const fracY = (rect.bottom - event.clientY) / rect.height;
-  const xM = fracX * widthM.value;
-  const yM = fracY * lengthM.value;
-
-  const thresholdM = SNAP_THRESHOLD_PX / (rect.width / widthM.value);
-  const nearest = findNearestEdge(xM, yM, snapEdges.value, thresholdM);
+  const { xUm, yUm, thresholdUm } = pickPoint(event);
+  const nearest = findNearestEdge(xUm, yUm, snapEdges.value, thresholdUm);
   if (!nearest) return;
 
   if (!pendingClick.value) {
     startMeasurement(nearest);
     preClickEdge.value = null;
   } else {
-    const defaultOffset = nearest.axis === 'x' ? yM : xM;
+    const defaultOffset = (nearest.axis === 'x' ? yUm : xUm) as Micrometres;
     completeMeasurement(nearest, defaultOffset);
     hoveredEdge.value = null;
   }
@@ -163,13 +165,12 @@ function handleBoardClick(event: MouseEvent) {
     "
     :width="widthPx"
     :height="heightPx"
-    :viewBox="`0 0 ${widthPx} ${heightPx}`"
+    :viewBox="`0 0 ${parseFloat(widthPx)} ${parseFloat(heightPx)}`"
     @mousedown.stop
     @click.stop="handleBoardClick"
     @mousemove="handleMouseMove"
     @mouseleave="handleMouseLeave"
   >
-    <!-- Transparent hit area so clicks register on empty space -->
     <rect
       v-if="isRulerActive"
       x="0"
@@ -178,14 +179,13 @@ function handleBoardClick(event: MouseEvent) {
       :height="heightPx"
       fill="transparent"
     />
-    <g :transform="`scale(1,-1) translate(0,-${heightPx})`">
-      <!-- Pre-click edge highlight -->
+    <g :transform="`scale(1,-1) translate(0,-${parseFloat(heightPx)})`">
       <template v-if="preClickEdge">
         <line
           v-if="preClickEdge.axis === 'x'"
-          :x1="preClickEdge.positionM * PX_PER_M"
+          :x1="getPx(preClickEdge.positionUm)"
           y1="0"
-          :x2="preClickEdge.positionM * PX_PER_M"
+          :x2="getPx(preClickEdge.positionUm)"
           :y2="heightPx"
           stroke="#2dd4bf"
           stroke-width="2"
@@ -195,9 +195,9 @@ function handleBoardClick(event: MouseEvent) {
         <line
           v-else
           x1="0"
-          :y1="preClickEdge.positionM * PX_PER_M"
+          :y1="getPx(preClickEdge.positionUm)"
           :x2="widthPx"
-          :y2="preClickEdge.positionM * PX_PER_M"
+          :y2="getPx(preClickEdge.positionUm)"
           stroke="#2dd4bf"
           stroke-width="2"
           stroke-opacity="0.4"
@@ -205,13 +205,12 @@ function handleBoardClick(event: MouseEvent) {
         />
       </template>
 
-      <!-- Pending first-click guide line -->
       <template v-if="pendingClick && pendingClick.boardIndex === boardIndex">
         <line
           v-if="pendingClick.edge.axis === 'x'"
-          :x1="pendingClick.edge.positionM * PX_PER_M"
+          :x1="getPx(pendingClick.edge.positionUm)"
           y1="0"
-          :x2="pendingClick.edge.positionM * PX_PER_M"
+          :x2="getPx(pendingClick.edge.positionUm)"
           :y2="heightPx"
           stroke="#2dd4bf"
           stroke-width="2"
@@ -221,9 +220,9 @@ function handleBoardClick(event: MouseEvent) {
         <line
           v-else
           x1="0"
-          :y1="pendingClick.edge.positionM * PX_PER_M"
+          :y1="getPx(pendingClick.edge.positionUm)"
           :x2="widthPx"
-          :y2="pendingClick.edge.positionM * PX_PER_M"
+          :y2="getPx(pendingClick.edge.positionUm)"
           stroke="#2dd4bf"
           stroke-width="2"
           stroke-dasharray="6,4"
@@ -231,22 +230,20 @@ function handleBoardClick(event: MouseEvent) {
         />
       </template>
 
-      <!-- Preview measurement while hovering -->
       <DimensionAnnotation
         v-if="previewMeasurement"
         :measurement="previewMeasurement"
-        :board-width-m="widthM"
-        :board-length-m="lengthM"
+        :board-width-um="widthUm"
+        :board-length-um="lengthUm"
         preview
       />
 
-      <!-- Dimension annotations -->
       <DimensionAnnotation
         v-for="m in boardMeasurements"
         :key="m.id"
         :measurement="m"
-        :board-width-m="widthM"
-        :board-length-m="lengthM"
+        :board-width-um="widthUm"
+        :board-length-um="lengthUm"
         @remove="removeMeasurement(m.id)"
         @update-offset="(offset) => updateMeasurementOffset(m.id, offset)"
       />

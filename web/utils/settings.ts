@@ -3,19 +3,21 @@ import {
   DEFAULT_INCH_PRECISION,
   DEFAULT_MM_PRECISION,
   toCanonicalMm,
+  um,
   type Algorithm,
   type LinearStockMatrix,
+  type Micrometres,
   type Precision,
   type SheetStockMatrix,
   type StockMatrix,
 } from 'cutlist';
 
 export interface CutlistSettings {
-  /** All distance fields are millimetres. `distanceUnit` is display-only. */
-  bladeWidth: number;
+  /** Distance fields are integer micrometres. `distanceUnit` is display-only. */
+  bladeWidth: Micrometres;
   distanceUnit: 'in' | 'mm';
   precision: Precision;
-  margin: number;
+  margin: Micrometres;
   defaultAlgorithm: Algorithm;
   showPartNumbers: boolean;
   stock: string;
@@ -703,14 +705,14 @@ export function getDefaultStockYaml(unit: 'mm' | 'in'): string {
     : '';
 }
 
-/** Default blade width: 3.175 mm (≈1/8"), regardless of project unit. */
-export const DEFAULT_BLADE_WIDTH_MM = 3.175;
+/** Default blade width: 3175 µm (≈1/8"), regardless of project unit. */
+export const DEFAULT_BLADE_WIDTH_UM = um(3175);
 
 export const DEFAULT_SETTINGS: CutlistSettings = {
-  bladeWidth: DEFAULT_BLADE_WIDTH_MM,
+  bladeWidth: DEFAULT_BLADE_WIDTH_UM,
   distanceUnit: 'mm',
   precision: DEFAULT_MM_PRECISION,
-  margin: 0,
+  margin: um(0),
   defaultAlgorithm: 'auto',
   showPartNumbers: true,
   stock: '',

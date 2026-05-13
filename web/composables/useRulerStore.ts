@@ -1,8 +1,8 @@
-import type { BoardLayout } from 'cutlist';
+import type { Micrometres } from 'cutlist';
 
 export interface SnapEdge {
   axis: 'x' | 'y';
-  positionM: number;
+  positionUm: Micrometres;
   boardIndex: number;
 }
 
@@ -10,9 +10,9 @@ export interface RulerMeasurement {
   id: string;
   boardIndex: number;
   axis: 'x' | 'y';
-  anchorA: number;
-  anchorB: number;
-  offsetM: number;
+  anchorAUm: Micrometres;
+  anchorBUm: Micrometres;
+  offsetUm: Micrometres;
 }
 
 interface PendingMeasurement {
@@ -27,28 +27,25 @@ export default createGlobalState(() => {
 
   function toggleRuler() {
     isRulerActive.value = !isRulerActive.value;
-    if (!isRulerActive.value) {
-      pendingClick.value = null;
-    }
+    if (!isRulerActive.value) pendingClick.value = null;
   }
 
   function startMeasurement(edge: SnapEdge) {
     pendingClick.value = { edge, boardIndex: edge.boardIndex };
   }
 
-  function completeMeasurement(secondEdge: SnapEdge, defaultOffsetM: number) {
+  function completeMeasurement(
+    secondEdge: SnapEdge,
+    defaultOffsetUm: Micrometres,
+  ) {
     if (!pendingClick.value) return;
     const first = pendingClick.value.edge;
 
-    if (first.boardIndex !== secondEdge.boardIndex) {
-      pendingClick.value = null;
-      return;
-    }
-    if (first.axis !== secondEdge.axis) {
-      pendingClick.value = null;
-      return;
-    }
-    if (first.positionM === secondEdge.positionM) {
+    if (
+      first.boardIndex !== secondEdge.boardIndex ||
+      first.axis !== secondEdge.axis ||
+      first.positionUm === secondEdge.positionUm
+    ) {
       pendingClick.value = null;
       return;
     }
@@ -57,9 +54,9 @@ export default createGlobalState(() => {
       id: crypto.randomUUID(),
       boardIndex: first.boardIndex,
       axis: first.axis,
-      anchorA: first.positionM,
-      anchorB: secondEdge.positionM,
-      offsetM: defaultOffsetM,
+      anchorAUm: first.positionUm,
+      anchorBUm: secondEdge.positionUm,
+      offsetUm: defaultOffsetUm,
     });
     pendingClick.value = null;
   }
@@ -68,9 +65,9 @@ export default createGlobalState(() => {
     measurements.value = measurements.value.filter((m) => m.id !== id);
   }
 
-  function updateMeasurementOffset(id: string, newOffsetM: number) {
+  function updateMeasurementOffset(id: string, newOffsetUm: Micrometres) {
     const m = measurements.value.find((m) => m.id === id);
-    if (m) m.offsetM = newOffsetM;
+    if (m) m.offsetUm = newOffsetUm;
   }
 
   function getMeasurementsForBoard(boardIndex: number) {
@@ -80,13 +77,9 @@ export default createGlobalState(() => {
   }
 
   useEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && isRulerActive.value) {
-      if (pendingClick.value) {
-        pendingClick.value = null;
-      } else {
-        isRulerActive.value = false;
-      }
-    }
+    if (e.key !== 'Escape' || !isRulerActive.value) return;
+    if (pendingClick.value) pendingClick.value = null;
+    else isRulerActive.value = false;
   });
 
   return {

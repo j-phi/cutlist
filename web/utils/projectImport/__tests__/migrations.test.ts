@@ -31,7 +31,8 @@ describe('migrateRecord', () => {
     const result = migrateRecord('projects', v1Record, 1);
     expect(result.defaultAlgorithm).toBe('auto');
     expect(result.optimize).toBeUndefined();
-    expect(result.bladeWidth).toBe(3); // unrelated fields preserved
+    // v5 converts the preserved-from-v1 bladeWidth (mm) into µm at the end.
+    expect(result.bladeWidth).toBe(3_000);
   });
 
   it('v1 → v2: maps optimize: "CNC" to defaultAlgorithm: "cnc"', () => {

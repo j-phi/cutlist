@@ -4,11 +4,15 @@ import { Rectangle } from '../../geometry';
 import { getAllPossiblePlacements } from '../utils';
 import type { PackOptions } from '../Packer';
 import type { Point } from '../../geometry';
+import { um } from '~/test-utils/units';
+
+function r<T>(data: T, x: number, y: number, w: number, h: number) {
+  return new Rectangle<T>(data, um(x), um(y), um(w), um(h));
+}
 
 const defaultOptions: PackOptions = {
   allowRotations: false,
-  gap: 0,
-  precision: 0,
+  gap: um(0),
 };
 
 /** Build a packer that uses getAllPossiblePlacements with no custom sort. */
@@ -22,7 +26,7 @@ describe('createGenericPacker', () => {
   describe('pack', () => {
     it('returns empty placements and leftovers when no rects are given', () => {
       const packer = makePacker<string>();
-      const bin = new Rectangle(null, 0, 0, 10, 10);
+      const bin = r(null, 0, 0, 10, 10);
       const result = packer.pack(bin, [], defaultOptions);
       expect(result.placements).toEqual([]);
       expect(result.leftovers).toEqual([]);
@@ -30,8 +34,8 @@ describe('createGenericPacker', () => {
 
     it('places a single rect that fits at the bin bottom-left', () => {
       const packer = makePacker<string>();
-      const bin = new Rectangle(null, 0, 0, 10, 10);
-      const rect = new Rectangle('a', 0, 0, 5, 5);
+      const bin = r(null, 0, 0, 10, 10);
+      const rect = r('a', 0, 0, 5, 5);
       const result = packer.pack(bin, [rect], defaultOptions);
       expect(result.leftovers).toEqual([]);
       expect(result.placements).toHaveLength(1);
@@ -46,8 +50,8 @@ describe('createGenericPacker', () => {
 
     it('puts a single rect that is too large in leftovers', () => {
       const packer = makePacker<string>();
-      const bin = new Rectangle(null, 0, 0, 4, 4);
-      const rect = new Rectangle('big', 0, 0, 10, 10);
+      const bin = r(null, 0, 0, 4, 4);
+      const rect = r('big', 0, 0, 10, 10);
       const result = packer.pack(bin, [rect], defaultOptions);
       expect(result.placements).toEqual([]);
       expect(result.leftovers).toEqual(['big']);
@@ -56,11 +60,8 @@ describe('createGenericPacker', () => {
     it('places two rects that both fit with no leftovers', () => {
       const packer = makePacker<string>();
       // 10×5 bin: two 5×5 pieces side by side
-      const bin = new Rectangle(null, 0, 0, 10, 5);
-      const rects = [
-        new Rectangle('a', 0, 0, 5, 5),
-        new Rectangle('b', 0, 0, 5, 5),
-      ];
+      const bin = r(null, 0, 0, 10, 5);
+      const rects = [r('a', 0, 0, 5, 5), r('b', 0, 0, 5, 5)];
       const result = packer.pack(bin, rects, defaultOptions);
       expect(result.leftovers).toEqual([]);
       expect(result.placements).toHaveLength(2);
@@ -69,37 +70,12 @@ describe('createGenericPacker', () => {
     it('places first rect and puts second in leftovers when bin is full after first', () => {
       const packer = makePacker<string>();
       // Bin exactly fits the first rect; nothing left for the second
-      const bin = new Rectangle(null, 0, 0, 5, 5);
-      const rects = [
-        new Rectangle('a', 0, 0, 5, 5),
-        new Rectangle('b', 0, 0, 3, 3),
-      ];
+      const bin = r(null, 0, 0, 5, 5);
+      const rects = [r('a', 0, 0, 5, 5), r('b', 0, 0, 3, 3)];
       const result = packer.pack(bin, rects, defaultOptions);
       expect(result.placements).toHaveLength(1);
       expect(result.placements[0]).toMatchObject({ data: 'a' });
       expect(result.leftovers).toEqual(['b']);
-    });
-  });
-
-  describe('addToPack', () => {
-    it('appends placements to an existing result', () => {
-      const packer = makePacker<string>();
-      const bin = new Rectangle(null, 0, 0, 10, 5);
-      const options = defaultOptions;
-
-      // First pack: one 5×5 piece
-      const result = packer.pack(
-        bin,
-        [new Rectangle('a', 0, 0, 5, 5)],
-        options,
-      );
-      expect(result.placements).toHaveLength(1);
-
-      // addToPack: add another 5×5 piece that fits to the right
-      packer.addToPack(result, bin, [new Rectangle('b', 0, 0, 5, 5)], options);
-      expect(result.placements).toHaveLength(2);
-      expect(result.placements.map((p) => p.data)).toContain('b');
-      expect(result.leftovers).toEqual([]);
     });
   });
 
@@ -128,9 +104,9 @@ describe('createGenericPacker', () => {
         sortPlacements: (a: Point, b: Point) => b.x - a.x,
       });
 
-      const bin = new Rectangle(null, 0, 0, 10, 10);
-      const anchor = new Rectangle('anchor', 0, 0, 5, 5);
-      const probe = new Rectangle('probe', 0, 0, 3, 3);
+      const bin = r(null, 0, 0, 10, 10);
+      const anchor = r('anchor', 0, 0, 5, 5);
+      const probe = r('probe', 0, 0, 3, 3);
 
       const defaultResult = defaultPacker.pack(
         bin,
@@ -162,8 +138,8 @@ describe('createGenericPacker', () => {
     it('rejects a rect that only fits when rotated when allowRotations=false', () => {
       const packer = makePacker<string>();
       // Bin is 3 wide × 10 tall; rect is 10 wide × 3 tall → only fits if rotated
-      const bin = new Rectangle(null, 0, 0, 3, 10);
-      const rect = new Rectangle('r', 0, 0, 10, 3);
+      const bin = r(null, 0, 0, 3, 10);
+      const rect = r('r', 0, 0, 10, 3);
       const noRotResult = packer.pack(bin, [rect], {
         ...defaultOptions,
         allowRotations: false,
@@ -174,8 +150,8 @@ describe('createGenericPacker', () => {
 
     it('places a rect that only fits when rotated when allowRotations=true', () => {
       const packer = makePacker<string>();
-      const bin = new Rectangle(null, 0, 0, 3, 10);
-      const rect = new Rectangle('r', 0, 0, 10, 3);
+      const bin = r(null, 0, 0, 3, 10);
+      const rect = r('r', 0, 0, 10, 3);
       const rotResult = packer.pack(bin, [rect], {
         ...defaultOptions,
         allowRotations: true,
@@ -198,12 +174,9 @@ describe('createGenericPacker', () => {
       // After placing the first rect at (0,0), the only candidate aside from
       // bin.bottomLeft is bottomRight of first rect + gap = (5+2, 0) = (7, 0).
       // The second rect placed at (7,0) would extend to right=12 which fits exactly.
-      const bin = new Rectangle(null, 0, 0, 12, 5);
-      const rects = [
-        new Rectangle('a', 0, 0, 5, 5),
-        new Rectangle('b', 0, 0, 5, 5),
-      ];
-      const result = packer.pack(bin, rects, { ...defaultOptions, gap: 2 });
+      const bin = r(null, 0, 0, 12, 5);
+      const rects = [r('a', 0, 0, 5, 5), r('b', 0, 0, 5, 5)];
+      const result = packer.pack(bin, rects, { ...defaultOptions, gap: um(2) });
 
       expect(result.leftovers).toEqual([]);
       expect(result.placements).toHaveLength(2);
@@ -219,12 +192,9 @@ describe('createGenericPacker', () => {
     it('puts second rect in leftovers when gap makes it not fit', () => {
       const packer = makePacker<string>();
       // Bin: 10×5. Gap: 1. Two 5×5 rects: second needs 5+1+5=11 but bin is only 10 wide.
-      const bin = new Rectangle(null, 0, 0, 10, 5);
-      const rects = [
-        new Rectangle('a', 0, 0, 5, 5),
-        new Rectangle('b', 0, 0, 5, 5),
-      ];
-      const result = packer.pack(bin, rects, { ...defaultOptions, gap: 1 });
+      const bin = r(null, 0, 0, 10, 5);
+      const rects = [r('a', 0, 0, 5, 5), r('b', 0, 0, 5, 5)];
+      const result = packer.pack(bin, rects, { ...defaultOptions, gap: um(1) });
       expect(result.placements).toHaveLength(1);
       expect(result.leftovers).toEqual(['b']);
     });

@@ -1,8 +1,9 @@
 import type { LinearBoardLayout } from '../types';
+import type { Micrometres } from './units';
 
 export interface LinearShoppingListLength {
-  /** Stick length in meters. */
-  lengthM: number;
+  /** Stick length in integer micrometres. */
+  lengthUm: Micrometres;
   /** Number of sticks of this length needed for the material. */
   count: number;
 }
@@ -28,7 +29,7 @@ export function aggregateLinearShoppingList(
 ): LinearShoppingListGroup[] {
   const byMaterial = new Map<
     string,
-    { counts: Map<number, number>; layouts: LinearBoardLayout[] }
+    { counts: Map<Micrometres, number>; layouts: LinearBoardLayout[] }
   >();
 
   for (const layout of layouts) {
@@ -38,7 +39,7 @@ export function aggregateLinearShoppingList(
       entry = { counts: new Map(), layouts: [] };
       byMaterial.set(material, entry);
     }
-    const len = layout.stock.lengthM;
+    const len = layout.stock.lengthUm;
     entry.counts.set(len, (entry.counts.get(len) ?? 0) + 1);
     entry.layouts.push(layout);
   }
@@ -49,9 +50,9 @@ export function aggregateLinearShoppingList(
       totalSticks: entry.layouts.length,
       lengths: [...entry.counts.entries()]
         .sort(([a], [b]) => a - b)
-        .map(([lengthM, count]) => ({ lengthM, count })),
+        .map(([lengthUm, count]) => ({ lengthUm, count })),
       layouts: [...entry.layouts].sort(
-        (a, b) => a.stock.lengthM - b.stock.lengthM,
+        (a, b) => a.stock.lengthUm - b.stock.lengthUm,
       ),
     }),
   );

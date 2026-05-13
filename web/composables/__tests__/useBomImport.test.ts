@@ -277,7 +277,7 @@ describe('useBomImport', () => {
       expect(api.importingFile.value).toBe(null);
     });
 
-    it('Should parse a .dae file and dispatch a Model with source=collada', async () => {
+    it('Should parse a .dae file and dispatch a Model with source=assimp', async () => {
       const rec = makeRecorder();
       const activeId = ref<string | null>('p1');
       const api = scope.run(() =>
@@ -289,7 +289,7 @@ describe('useBomImport', () => {
 
       expect(rec.models).toHaveLength(1);
       const model = rec.models[0]!;
-      expect(model.source).toBe('collada');
+      expect(model.source).toBe('assimp');
       expect(model.filename).toBe('cabinet.dae');
       // DAE is converted to glTF JSON via Assimp at import time; we persist
       // the converted object so re-derive runs the fast glTF path.

@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   generateBoardLayouts,
   isLinearBoardLayout,
+  mmToUm,
+  mToUm,
+  um,
   type BoardLayout,
   type Config,
   type PartToCut,
@@ -20,36 +23,37 @@ function sheetLayouts(layouts: BoardLayout[]): SheetBoardLayout[] {
 }
 
 const baseConfig: Config = {
-  bladeWidth: 0,
-  margin: 0,
+  bladeWidth: 0 as Config['bladeWidth'],
+  margin: 0 as Config['margin'],
   defaultAlgorithm: 'auto',
-  precision: 1e-5,
 };
 
 function makePart(
   partNumber: number,
-  width: number,
-  length: number,
+  widthM: number,
+  lengthM: number,
   material = 'MDF',
-  thickness = 0.018,
+  thicknessM = 0.018,
 ): PartToCut {
   return {
     partNumber,
     instanceNumber: 1,
     name: `Part ${partNumber}`,
     material,
-    size: { thickness, width, length },
+    size: {
+      thickness: mToUm(thicknessM),
+      width: mToUm(widthM),
+      length: mToUm(lengthM),
+    },
   };
 }
 
-// 1. All parts become leftovers — material 'Unknown' not in stock
 describe('generateBoardLayouts edge cases', () => {
   it('puts all parts in leftovers when material is not in stock', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
     ];
@@ -64,19 +68,16 @@ describe('generateBoardLayouts edge cases', () => {
     expect(result.leftovers).toHaveLength(2);
   });
 
-  // 2. Multiple materials — each material's parts land on correct stock
   it('places parts on the correct stock when multiple materials are present', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
       {
         kind: 'sheet',
         material: 'Plywood',
-
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
     ];
@@ -100,7 +101,6 @@ describe('generateBoardLayouts edge cases', () => {
     }
   });
 
-  // 4. margin reduces effective bin — part close to 1m doesn't fit in (1m - 2×margin)
   it('does not place a part that exceeds the effective bin size after margin is applied', () => {
     // Bin is 1m×1m; margin is 10mm → effective area is 0.98m×0.98m
     // Part is 0.995m×0.995m which fits the raw board but not the reduced area
@@ -108,59 +108,54 @@ describe('generateBoardLayouts edge cases', () => {
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },
     ];
     const configWithMargin: Config = {
       ...baseConfig,
-      margin: 10, // 10mm
+      margin: mmToUm(10),
     };
     const parts = [makePart(1, 0.995, 0.995)];
 
     const result = generateBoardLayouts(parts, stock, configWithMargin);
 
-    // Part should not fit on the reduced effective area → leftover
     expect(result.leftovers).toHaveLength(1);
     expect(result.layouts).toHaveLength(0);
   });
 
-  // 4b. margin insets placements from all edges and sets marginM on output
   it('insets placements from all board edges by the margin', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },
     ];
     const marginMm = 50;
-    const marginM = marginMm / 1000;
-    const config: Config = { ...baseConfig, margin: marginMm };
+    const marginUm = mmToUm(marginMm);
+    const boardSpanUm = mmToUm(1000);
+    const config: Config = { ...baseConfig, margin: marginUm };
     const parts = [makePart(1, 0.3, 0.3), makePart(2, 0.3, 0.3)];
 
     const result = generateBoardLayouts(parts, stock, config);
 
     expect(result.leftovers).toHaveLength(0);
     expect(result.layouts).toHaveLength(1);
-    expect(asSheet(result.layouts[0]).marginM).toBe(marginM);
+    expect(asSheet(result.layouts[0]).marginUm).toBe(marginUm);
 
     for (const p of asSheet(result.layouts[0]).placements) {
-      expect(p.leftM).toBeGreaterThanOrEqual(marginM - 1e-9);
-      expect(p.bottomM).toBeGreaterThanOrEqual(marginM - 1e-9);
-      expect(p.rightM).toBeLessThanOrEqual(1 - marginM + 1e-9);
-      expect(p.topM).toBeLessThanOrEqual(1 - marginM + 1e-9);
+      expect(p.leftUm).toBeGreaterThanOrEqual(marginUm);
+      expect(p.bottomUm).toBeGreaterThanOrEqual(marginUm);
+      expect(p.rightUm).toBeLessThanOrEqual(boardSpanUm - marginUm);
+      expect(p.topUm).toBeLessThanOrEqual(boardSpanUm - marginUm);
     }
   });
 
-  // 4c. zero margin produces marginM: 0 in output
-  it('sets marginM to 0 when no margin is configured', () => {
+  it('sets marginUm to 0 when no margin is configured', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },
     ];
@@ -168,16 +163,14 @@ describe('generateBoardLayouts edge cases', () => {
 
     const result = generateBoardLayouts(parts, stock, baseConfig);
 
-    expect(asSheet(result.layouts[0]).marginM).toBe(0);
+    expect(asSheet(result.layouts[0]).marginUm).toBe(0);
   });
 
-  // 5. Empty parts list → layouts=[], leftovers=[]
   it('returns empty layouts and leftovers for an empty parts list', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 1000, length: 2000, thickness: [18] }],
       },
     ];
@@ -188,7 +181,6 @@ describe('generateBoardLayouts edge cases', () => {
     expect(result.leftovers).toHaveLength(0);
   });
 
-  // 6. Empty stock throws
   it('throws when stock is empty', () => {
     const parts = [makePart(1, 0.5, 0.5)];
 
@@ -197,14 +189,11 @@ describe('generateBoardLayouts edge cases', () => {
     );
   });
 
-  // 7. Parts spread across multiple boards
   it('uses two boards when parts do not all fit on one', () => {
-    // Board is 0.5m×0.5m; each part is 0.4m×0.4m — two parts cannot share one board
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 500, length: 500, thickness: [18] }],
       },
     ];
@@ -216,34 +205,29 @@ describe('generateBoardLayouts edge cases', () => {
     expect(result.layouts).toHaveLength(2);
   });
 
-  // 8. Part larger than all stock → in leftovers
   it('puts a part that is larger than every stock board into leftovers', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 500, length: 500, thickness: [18] }],
       },
     ];
-    // Part is 1m×1m — larger than the 0.5m×0.5m board
     const parts = [makePart(1, 1, 1)];
 
     const result = generateBoardLayouts(parts, stock, baseConfig);
 
     expect(result.leftovers).toHaveLength(1);
-    expect(result.leftovers[0].widthM).toBe(1);
-    expect(result.leftovers[0].lengthM).toBe(1);
+    expect(result.leftovers[0].widthUm).toBe(mToUm(1));
+    expect(result.leftovers[0].lengthUm).toBe(mToUm(1));
     expect(result.layouts).toHaveLength(0);
   });
 
-  // 9. Config with specific searchPasses → deterministic single-pass result
   it('produces a deterministic result when searchPasses is set to a single pass', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 1000, length: 3000, thickness: [18] }],
       },
     ];
@@ -265,19 +249,16 @@ describe('generateBoardLayouts edge cases', () => {
     expect(first.leftovers).toHaveLength(0);
   });
 
-  // 10. Changing one material's grain lock must not alter another material's layouts
   it('does not change layouts for material B when grain lock changes on material A', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'Plywood',
-
         sizes: [{ width: 1200, length: 2400, thickness: [12] }],
       },
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 1200, length: 2400, thickness: [18] }],
       },
     ];
@@ -321,13 +302,11 @@ describe('generateBoardLayouts edge cases', () => {
     expect(mdfLayoutsA).toEqual(mdfLayoutsB);
   });
 
-  // 10b. Same material, different thickness — grain change on 12mm must not affect 18mm
   it('does not change 18mm layouts when grain lock changes on 12mm of the same material', () => {
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'Plywood',
-
         sizes: [{ width: 1200, length: 2400, thickness: [18, 12] }],
       },
     ];
@@ -360,35 +339,27 @@ describe('generateBoardLayouts edge cases', () => {
     );
 
     const ply18LayoutsA = sheetLayouts(resultA.layouts).filter(
-      (l) => Math.abs(l.stock.thicknessM - 0.018) < 1e-5,
+      (l) => l.stock.thicknessUm === mmToUm(18),
     );
     const ply18LayoutsB = sheetLayouts(resultB.layouts).filter(
-      (l) => Math.abs(l.stock.thicknessM - 0.018) < 1e-5,
+      (l) => l.stock.thicknessUm === mmToUm(18),
     );
 
     expect(ply18LayoutsA).toEqual(ply18LayoutsB);
   });
 
-  // 11. bladeWidth reduces packing capacity — fewer parts fit on a board
   it('fits fewer parts when bladeWidth adds kerf gaps between parts', () => {
-    // Board: 1m × 1m
-    // Pack 4 parts each 0.49m × 0.49m — without gap they tile 2×2 fine (0.98 ≤ 1.0).
-    // With bladeWidth=30mm (0.03m) the gap between the two columns/rows pushes the
-    // total to 0.49+0.03+0.49 = 1.01m which exceeds the board, so only 2 fit per row
-    // and the 3rd / 4th part must spill onto a second board.
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
         material: 'MDF',
-
         sizes: [{ width: 1000, length: 1000, thickness: [18] }],
       },
     ];
 
-    const noBladeConfig: Config = { ...baseConfig, bladeWidth: 0 };
-    const withBladeConfig: Config = { ...baseConfig, bladeWidth: 30 };
+    const noBladeConfig: Config = { ...baseConfig, bladeWidth: um(0) };
+    const withBladeConfig: Config = { ...baseConfig, bladeWidth: mmToUm(30) };
 
-    // 4 parts that tile 2×2 without gaps (each 0.49m × 0.49m)
     const parts = [
       makePart(1, 0.49, 0.49),
       makePart(2, 0.49, 0.49),
@@ -399,22 +370,15 @@ describe('generateBoardLayouts edge cases', () => {
     const withoutBlade = generateBoardLayouts(parts, stock, noBladeConfig);
     const withBlade = generateBoardLayouts(parts, stock, withBladeConfig);
 
-    // Without blade width, all 4 parts should fit on one board (2×2 grid)
     expect(withoutBlade.leftovers).toHaveLength(0);
     expect(withoutBlade.layouts).toHaveLength(1);
 
-    // With blade width adding 30mm gaps, 2×2 no longer fits → needs more boards
     expect(withBlade.layouts.length).toBeGreaterThan(
       withoutBlade.layouts.length,
     );
   });
 
   it('consolidates small parts onto earlier boards via multi-board lookback', () => {
-    // Two oversized parts each fill ~half a board. Without lookback, the
-    // remaining small part lands on a fresh third board because the packer
-    // never revisits earlier boards' leftover space. With lookback, it
-    // should drop into the gap on board 1 or 2, capping the layout at 2
-    // boards.
     const stock: StockMatrix[] = [
       {
         kind: 'sheet',
@@ -430,8 +394,6 @@ describe('generateBoardLayouts edge cases', () => {
 
     const result = generateBoardLayouts(parts, stock, {
       ...baseConfig,
-      // Force the compact packer to expose its sparse-last-board behaviour
-      // — tidy passes don't hit this regression path.
       searchPasses: ['compact-bssf-area'],
     });
     expect(result.leftovers).toHaveLength(0);

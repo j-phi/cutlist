@@ -1,10 +1,10 @@
-import type { Algorithm, Precision } from 'cutlist';
+import type { Algorithm, Micrometres, Precision } from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 
 export interface Model {
   id: string;
   filename: string;
-  source: 'gltf' | 'collada' | 'manual';
+  source: 'gltf' | 'assimp' | 'manual';
   parts: Part[];
   colors: ColorInfo[];
   enabled: boolean;
@@ -14,9 +14,9 @@ export interface Model {
 
 export interface ManualPartInput {
   name: string;
-  widthMm: number;
-  lengthMm: number;
-  thicknessMm: number;
+  widthUm: Micrometres;
+  lengthUm: Micrometres;
+  thicknessUm: Micrometres;
   qty: number;
   material: string;
   grainLock?: 'length' | 'width';
@@ -31,14 +31,14 @@ export interface Project {
   excludedColors: string[];
   /** Per-project stock definition (YAML string, mm dimensions). */
   stock: string;
-  /** Display preference for distances; storage is always mm. */
+  /** Display preference for distances; storage is always µm. */
   distanceUnit: 'in' | 'mm';
   /** Display precision — resets to the unit's default on unit flip. */
   precision: Precision;
-  /** Saw blade width in mm. */
-  bladeWidth: number;
-  /** Packing margin in mm. */
-  margin: number;
+  /** Saw blade width, integer micrometres. */
+  bladeWidth: Micrometres;
+  /** Packing margin, integer micrometres. */
+  margin: Micrometres;
   /** Per-project default packing algorithm (used when a material has none). */
   defaultAlgorithm: Algorithm;
   /** Whether to render part numbers in visualizations. */

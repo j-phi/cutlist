@@ -158,11 +158,11 @@ describe('deriveFromGltf with transforms', () => {
 
     const result = deriveFromGltf(gltf);
     // Dimensions should be the same regardless of translation
-    // (sorted: thickness=0.018, width=0.3, length=0.5)
+    // (sorted: thickness=18000, width=300000, length=500000 µm)
     expect(result.parts).toHaveLength(1);
-    expect(result.parts[0].size.thickness).toBeCloseTo(0.018, 4);
-    expect(result.parts[0].size.width).toBeCloseTo(0.3, 4);
-    expect(result.parts[0].size.length).toBeCloseTo(0.5, 4);
+    expect(result.parts[0].size.thickness).toBe(18_000);
+    expect(result.parts[0].size.width).toBe(300_000);
+    expect(result.parts[0].size.length).toBe(500_000);
   });
 
   it('handles node with uniform scale', () => {
@@ -195,11 +195,11 @@ describe('deriveFromGltf with transforms', () => {
     };
 
     const result = deriveFromGltf(gltf);
-    // Dimensions should be doubled due to 2x scale
+    // Dimensions should be doubled due to 2x scale (in µm)
     expect(result.parts).toHaveLength(1);
-    expect(result.parts[0].size.thickness).toBeCloseTo(0.036, 4);
-    expect(result.parts[0].size.width).toBeCloseTo(0.6, 4);
-    expect(result.parts[0].size.length).toBeCloseTo(1.0, 4);
+    expect(result.parts[0].size.thickness).toBe(36_000);
+    expect(result.parts[0].size.width).toBe(600_000);
+    expect(result.parts[0].size.length).toBe(1_000_000);
   });
 
   it('handles child nodes (hierarchy)', () => {

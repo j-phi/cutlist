@@ -9,6 +9,7 @@ import {
 } from './types';
 import { computeObjectEdges } from '~/lib/viewer/edges';
 import { obbDimsFromMeshes, type ObbMeshInput } from '~/lib/utils/obb';
+import { mToUm } from '~/lib/utils/units';
 
 interface GltfAccessor {
   min?: number[];
@@ -71,10 +72,8 @@ interface JsonVisit {
  * Synchronous JSON-only derivation kept for fast unit tests and the legacy
  * BOM-only path. Produces parts/colors/nodePartMap with `nodeIndex` set to
  * the mesh-leaf visit-order index (the same value the runtime path uses as
- * `groupId`).
- *
- * Units: glTF 2.0 mandates meters, so accessor min/max are already
- * meters and stored as-is in `Part.size`.
+ * `groupId`). glTF accessor min/max are meters; `mToUm` converts at the
+ * boundary into `Part.size`.
  */
 export function deriveFromGltf(gltfJson: object): DeriveResult {
   return groupPartInfos(walkJsonForParts(gltfJson));
@@ -144,7 +143,11 @@ export async function buildGltfObjectGraph(
       v.info.size.width,
       v.info.size.length,
     ]);
-    v.info.size = { thickness, width, length };
+    v.info.size = {
+      thickness: mToUm(thickness),
+      width: mToUm(width),
+      length: mToUm(length),
+    };
 
     nodeDataByGroup.set(v.groupId, { meshes, matrix });
   }
@@ -205,9 +208,7 @@ function walkJsonForVisits(gltfJson: object): JsonVisit[] {
   const gltf = gltfJson as Gltf;
 
   if (!gltf.nodes || !gltf.meshes || !gltf.accessors) {
-    throw new Error(
-      'GLTF file is missing required nodes/meshes/accessors. Binary .glb files are not supported — export as .gltf.',
-    );
+    throw new Error('GLTF file is missing required nodes/meshes/accessors.');
   }
 
   const sceneIdx = gltf.scene ?? 0;
@@ -295,7 +296,11 @@ function meshToPartInfo(
     colorKey: key,
     colorHex: hex,
     rgb,
-    size: { thickness: dims[0], width: dims[1], length: dims[2] },
+    size: {
+      thickness: mToUm(dims[0]),
+      width: mToUm(dims[1]),
+      length: mToUm(dims[2]),
+    },
     nodeIndex: groupId,
   };
 }

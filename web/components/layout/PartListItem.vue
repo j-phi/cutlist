@@ -1,5 +1,9 @@
 <script lang="ts" setup>
-import { M_PER_IN, type SheetBoardLayoutPlacement } from 'cutlist';
+import {
+  ONE_INCH_UM,
+  type Micrometres,
+  type SheetBoardLayoutPlacement,
+} from 'cutlist';
 
 const props = defineProps<{
   placement: SheetBoardLayoutPlacement;
@@ -23,31 +27,37 @@ function onKeyActivate() {
 
 const getPx = useGetPx();
 
-const widthM = computed(() => props.placement.rightM - props.placement.leftM);
-const heightM = computed(() => props.placement.topM - props.placement.bottomM);
+const widthUm = computed(
+  () => (props.placement.rightUm - props.placement.leftUm) as Micrometres,
+);
+const heightUm = computed(
+  () => (props.placement.topUm - props.placement.bottomUm) as Micrometres,
+);
 
-const width = computed(() => getPx(widthM.value));
-const height = computed(() => getPx(heightM.value));
-const left = computed(() => getPx(props.placement.leftM));
-const bottom = computed(() => getPx(props.placement.bottomM));
+const width = computed(() => getPx(widthUm.value));
+const height = computed(() => getPx(heightUm.value));
+const left = computed(() => getPx(props.placement.leftUm));
+const bottom = computed(() => getPx(props.placement.bottomUm));
 
 const allowanceWidthPx = computed(() =>
-  props.placement.allowanceWidthM > 0
-    ? getPx(props.placement.allowanceWidthM)
+  props.placement.allowanceWidthUm > 0
+    ? getPx(props.placement.allowanceWidthUm)
     : null,
 );
 const allowanceLengthPx = computed(() =>
-  props.placement.allowanceLengthM > 0
-    ? getPx(props.placement.allowanceLengthM)
+  props.placement.allowanceLengthUm > 0
+    ? getPx(props.placement.allowanceLengthUm)
     : null,
 );
 
-const fontSize = computed(() => getPx(Math.min(widthM.value / 2, M_PER_IN)));
+const fontSize = computed(() =>
+  getPx(Math.min(widthUm.value / 2, ONE_INCH_UM) as Micrometres),
+);
 
-/** Clamped 14–28px so the icon stays legible on tiny parts and proportional on large ones. */
+/** Clamped 14–28 px so the icon stays legible on tiny parts. */
 const iconSize = computed(() => {
-  const minDimM = Math.min(widthM.value, heightM.value);
-  const raw = parseFloat(getPx(minDimM * 0.45));
+  const minDim = Math.min(widthUm.value, heightUm.value);
+  const raw = parseFloat(getPx((minDim * 0.45) as Micrometres));
   return `${Math.max(14, Math.min(28, raw))}px`;
 });
 

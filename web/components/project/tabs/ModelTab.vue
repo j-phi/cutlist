@@ -48,6 +48,7 @@ const props = withDefaults(
   },
 );
 
+const formatDistance = useFormatDistance();
 const { activeId, enabledModels: allEnabledModels } = useProjects();
 const enabledModels = computed(() =>
   allEnabledModels.value.filter((m) => m.source !== 'manual'),
@@ -517,11 +518,11 @@ watch(
             #{{ infoPart.partNumber }} {{ infoPart.name }}
           </span>
           <span class="text-muted">
-            {{ useFormatDistance()(infoPart.lengthM) }}
+            {{ formatDistance(infoPart.lengthUm) }}
             ×
-            {{ useFormatDistance()(infoPart.widthM) }}
+            {{ formatDistance(infoPart.widthUm) }}
             ×
-            {{ useFormatDistance()(infoPart.thicknessM) }}
+            {{ formatDistance(infoPart.thicknessUm) }}
           </span>
         </div>
         <span v-else class="text-dim italic">

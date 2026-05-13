@@ -1,79 +1,44 @@
 import { describe, it, expect } from 'vitest';
 import { Rectangle } from '../Rectangle';
+import { um } from '~/test-utils/units';
 
-const epsilon = 1e-5;
+function rect(x: number, y: number, w: number, h: number) {
+  return new Rectangle<null>(null, um(x), um(y), um(w), um(h));
+}
 
 describe('Rectangle', () => {
-  describe('constructor', () => {
-    it('should support positive sizes', () => {
-      const left = 4;
-      const bottom = 6;
-      const width = 2;
-      const height = 3;
-      const expected = expect.objectContaining({
-        left,
-        bottom,
+  it('constructor exposes derived right/top corners', () => {
+    expect(rect(4, 6, 2, 3)).toEqual(
+      expect.objectContaining({
+        left: 4,
+        bottom: 6,
         right: 6,
         top: 9,
-        width,
-        height,
-      });
-
-      const actual = new Rectangle(null, left, bottom, width, height);
-
-      expect(actual).toEqual(expected);
-    });
-
-    it('should support negative sizes', () => {
-      const left = 4;
-      const bottom = 6;
-      const width = -2;
-      const height = -3;
-      const expected = expect.objectContaining({
-        left: 2,
-        bottom: 3,
-        right: 4,
-        top: 6,
         width: 2,
         height: 3,
-      });
-
-      const actual = new Rectangle(null, left, bottom, width, height);
-
-      expect(actual).toEqual(expected);
-    });
+      }),
+    );
   });
 
   it('pad', () => {
-    const rect = new Rectangle(null, 1, 1, 1, 1);
-    const expected = new Rectangle(null, 0, -2, 4, 8);
-    const actual = rect.pad({
-      left: 1,
-      right: 2,
-      bottom: 3,
-      top: 4,
+    const original = rect(1, 1, 1, 1);
+    const expected = rect(0, -2, 4, 8);
+    const actual = original.pad({
+      left: um(1),
+      right: um(2),
+      bottom: um(3),
+      top: um(4),
     });
 
     expect(actual).toEqual(expected);
   });
 
-  describe('swallow', () => {
-    it('should produce the same expanded rectangle regardless of the order', () => {
-      const rect1 = new Rectangle(null, 0, 0, 1, 1);
-      const rect2 = new Rectangle(null, 4, 4, 1, 1);
-      const expected = new Rectangle(null, 0, 0, 5, 5);
-
-      expect(rect1.swallow(rect2)).toEqual(expected);
-      expect(rect2.swallow(rect1)).toEqual(expected);
-    });
-  });
-
   describe('flipOrientation', () => {
     it('should flip the width and height', () => {
-      const rect = new Rectangle(null, 1, 1, 1, 2);
-      const expected = new Rectangle(null, 1, 1, 2, 1);
+      const r = rect(1, 1, 1, 2);
+      const expected = rect(1, 1, 2, 1);
 
-      const actual = rect.flipOrientation();
+      const actual = r.flipOrientation();
 
       expect(actual).toEqual(expected);
     });
@@ -81,53 +46,53 @@ describe('Rectangle', () => {
 
   describe('isInside', () => {
     it('should return true when fully inside', () => {
-      const rect1 = new Rectangle(null, 1, 1, 2, 2);
-      const rect2 = new Rectangle(null, 0, 0, 5, 5);
-      expect(rect1.isInside(rect2, epsilon)).toBe(true);
+      const rect1 = rect(1, 1, 2, 2);
+      const rect2 = rect(0, 0, 5, 5);
+      expect(rect1.isInside(rect2)).toBe(true);
     });
 
-    it('should return true when sides are within a threshold', () => {
-      const rect1 = new Rectangle(null, 0, 0, 5, 5);
-      const rect2 = new Rectangle(null, -0.1, -0.1, 5.2, 5.2);
-      expect(rect1.isInside(rect2, 0.1)).toBe(true);
+    it('should return true when edges coincide exactly', () => {
+      const rect1 = rect(0, 0, 5, 5);
+      const rect2 = rect(0, 0, 5, 5);
+      expect(rect1.isInside(rect2)).toBe(true);
     });
 
     it('should return false when partially outside', () => {
-      const rect1 = new Rectangle(null, 4, 4, 2, 2);
-      const rect2 = new Rectangle(null, 0, 0, 5, 5);
-      expect(rect1.isInside(rect2, epsilon)).toBe(false);
+      const rect1 = rect(4, 4, 2, 2);
+      const rect2 = rect(0, 0, 5, 5);
+      expect(rect1.isInside(rect2)).toBe(false);
     });
 
     it('should return false when completely outside', () => {
-      const rect1 = new Rectangle(null, 6, 6, 2, 2);
-      const rect2 = new Rectangle(null, 0, 0, 5, 5);
-      expect(rect1.isInside(rect2, epsilon)).toBe(false);
+      const rect1 = rect(6, 6, 2, 2);
+      const rect2 = rect(0, 0, 5, 5);
+      expect(rect1.isInside(rect2)).toBe(false);
     });
   });
 
   describe('isIntersecting', () => {
     it('should return true when rectangles overlap along an edge range', () => {
-      const rect1 = new Rectangle(null, 4, 0, 1, 5);
-      const rect2 = new Rectangle(null, 0, 0, 5, 5);
-      expect(rect1.isIntersecting(rect2, epsilon)).toBe(true);
+      const rect1 = rect(4, 0, 1, 5);
+      const rect2 = rect(0, 0, 5, 5);
+      expect(rect1.isIntersecting(rect2)).toBe(true);
     });
 
     it('should return true when partially intersecting', () => {
-      const rect1 = new Rectangle(null, 3, 3, 3, 3);
-      const rect2 = new Rectangle(null, 0, 0, 5, 5);
-      expect(rect1.isIntersecting(rect2, epsilon)).toBe(true);
+      const rect1 = rect(3, 3, 3, 3);
+      const rect2 = rect(0, 0, 5, 5);
+      expect(rect1.isIntersecting(rect2)).toBe(true);
     });
 
-    it('should return false when corners only touch within epsilon', () => {
-      const rect1 = new Rectangle(null, 5, 5, 1, 1);
-      const rect2 = new Rectangle(null, 0, 0, 5, 5);
-      expect(rect1.isIntersecting(rect2, 0.1)).toBe(false);
+    it('should return false when corners only touch', () => {
+      const rect1 = rect(5, 5, 1, 1);
+      const rect2 = rect(0, 0, 5, 5);
+      expect(rect1.isIntersecting(rect2)).toBe(false);
     });
 
     it('should return false when completely separate', () => {
-      const rect1 = new Rectangle(null, 6, 6, 2, 2);
-      const rect2 = new Rectangle(null, 0, 0, 5, 5);
-      expect(rect1.isIntersecting(rect2, epsilon)).toBe(false);
+      const rect1 = rect(6, 6, 2, 2);
+      const rect2 = rect(0, 0, 5, 5);
+      expect(rect1.isIntersecting(rect2)).toBe(false);
     });
   });
 });

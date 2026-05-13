@@ -1,4 +1,5 @@
 import { Rectangle } from '../geometry';
+import type { Micrometres } from '../utils/units';
 import type { PackOptions, PackResult, Packer } from './Packer';
 
 /**
@@ -10,10 +11,10 @@ import type { PackOptions, PackResult, Packer } from './Packer';
 export type TidyAxis = 'rip-first' | 'crosscut-first';
 
 interface FreeRect {
-  left: number;
-  bottom: number;
-  width: number;
-  height: number;
+  left: Micrometres;
+  bottom: Micrometres;
+  width: Micrometres;
+  height: Micrometres;
 }
 
 /**
@@ -23,20 +24,20 @@ interface FreeRect {
  * cut (level-with-residual relaxation).
  */
 interface Strip {
-  origin: number;
-  span: number;
-  cursor: number;
-  crossSpan: number;
+  origin: Micrometres;
+  span: Micrometres;
+  cursor: Micrometres;
+  crossSpan: Micrometres;
   freeRects: FreeRect[];
 }
 
 interface TidyBinState {
-  binLeft: number;
-  binBottom: number;
-  binWidth: number;
-  binHeight: number;
+  binLeft: Micrometres;
+  binBottom: Micrometres;
+  binWidth: Micrometres;
+  binHeight: Micrometres;
   /** Next rip-axis position for opening a new strip. */
-  cursor: number;
+  cursor: Micrometres;
   strips: Strip[];
 }
 
@@ -58,8 +59,6 @@ export function createTidyPacker<T>(
 ): Packer<T> {
   const transpose = (config.axis ?? 'rip-first') === 'crosscut-first';
 
-  // Transpose is involutional: same function rotates input rects on entry
-  // and output rects on exit when `axis === 'crosscut-first'`.
   function maybeTranspose<U>(r: Rectangle<U>): Rectangle<U> {
     return transpose
       ? new Rectangle(r.data, r.bottom, r.left, r.height, r.width)
@@ -77,12 +76,6 @@ export function createTidyPacker<T>(
     };
   }
 
-  /**
-   * Orientations to try, in preference order. The narrower-width orientation
-   * comes first; only `openNewStrip` (phase 3) reads the order, since phase 1
-   * scores all orientations against all strips and picks the best side-fit
-   * regardless of position.
-   */
   function orientationsFor(
     rect: Rectangle<T>,
     options: PackOptions<T>,
@@ -103,24 +96,20 @@ export function createTidyPacker<T>(
     const left = strip.origin;
     const bottom = strip.cursor;
 
-    // Stash a side residual when this part is narrower than the strip.
-    // The strip's stage-1 cut stays intact; the residual costs one extra
-    // (stage-3) rip to recover later.
     const sideWaste = strip.span - rect.width;
-    if (sideWaste > options.gap + options.precision) {
+    if (sideWaste > options.gap) {
       strip.freeRects.push({
-        left: left + rect.width + options.gap,
+        left: (left + rect.width + options.gap) as Micrometres,
         bottom,
-        width: sideWaste - options.gap,
+        width: (sideWaste - options.gap) as Micrometres,
         height: rect.height,
       });
     }
 
-    strip.cursor = bottom + rect.height + options.gap;
+    strip.cursor = (bottom + rect.height + options.gap) as Micrometres;
     return rect.clone({ left, bottom });
   }
 
-  /** Mirror CompactPacker's SAS heuristic: split along the shorter leftover. */
   function placeInResidual(
     strip: Strip,
     residualIndex: number,
@@ -135,39 +124,39 @@ export function createTidyPacker<T>(
 
     if (splitHorizontal) {
       const rightW = leftoverW - options.gap;
-      if (rightW > options.precision) {
+      if (rightW > 0) {
         replacements.push({
-          left: fr.left + rect.width + options.gap,
+          left: (fr.left + rect.width + options.gap) as Micrometres,
           bottom: fr.bottom,
-          width: rightW,
+          width: rightW as Micrometres,
           height: rect.height,
         });
       }
       const topH = leftoverH - options.gap;
-      if (topH > options.precision) {
+      if (topH > 0) {
         replacements.push({
           left: fr.left,
-          bottom: fr.bottom + rect.height + options.gap,
+          bottom: (fr.bottom + rect.height + options.gap) as Micrometres,
           width: fr.width,
-          height: topH,
+          height: topH as Micrometres,
         });
       }
     } else {
       const topH = leftoverH - options.gap;
-      if (topH > options.precision) {
+      if (topH > 0) {
         replacements.push({
           left: fr.left,
-          bottom: fr.bottom + rect.height + options.gap,
+          bottom: (fr.bottom + rect.height + options.gap) as Micrometres,
           width: rect.width,
-          height: topH,
+          height: topH as Micrometres,
         });
       }
       const rightW = leftoverW - options.gap;
-      if (rightW > options.precision) {
+      if (rightW > 0) {
         replacements.push({
-          left: fr.left + rect.width + options.gap,
+          left: (fr.left + rect.width + options.gap) as Micrometres,
           bottom: fr.bottom,
-          width: rightW,
+          width: rightW as Micrometres,
           height: fr.height,
         });
       }
@@ -183,10 +172,12 @@ export function createTidyPacker<T>(
     options: PackOptions<T>,
   ): Rectangle<T> | null {
     const isFirst = state.strips.length === 0;
-    const start = isFirst ? state.binLeft : state.cursor + options.gap;
+    const start = (
+      isFirst ? state.binLeft : state.cursor + options.gap
+    ) as Micrometres;
     if (
-      start + rect.width > state.binLeft + state.binWidth + options.precision ||
-      rect.height > state.binHeight + options.precision
+      start + rect.width > state.binLeft + state.binWidth ||
+      rect.height > state.binHeight
     ) {
       return null;
     }
@@ -198,7 +189,7 @@ export function createTidyPacker<T>(
       freeRects: [],
     };
     state.strips.push(strip);
-    state.cursor = start + rect.width;
+    state.cursor = (start + rect.width) as Micrometres;
     return placeOnStripStack(strip, rect, options);
   }
 
@@ -209,8 +200,8 @@ export function createTidyPacker<T>(
   ): Rectangle<T> | null {
     const orientations = orientationsFor(rect, options);
 
-    // 1) Bottom-of-stack on an existing strip, picking the tightest side-fit
-    // so columns stay narrow and similar-width parts cluster.
+    // 1) Bottom-of-stack on an existing strip, tightest side-fit so columns
+    // stay narrow and similar-width parts cluster.
     let bestStripFit: {
       strip: Strip;
       oriented: Rectangle<T>;
@@ -218,9 +209,9 @@ export function createTidyPacker<T>(
     } | null = null;
     for (const oriented of orientations) {
       for (const strip of state.strips) {
-        if (oriented.width > strip.span + options.precision) continue;
+        if (oriented.width > strip.span) continue;
         const remaining = strip.crossSpan - (strip.cursor - state.binBottom);
-        if (oriented.height > remaining + options.precision) continue;
+        if (oriented.height > remaining) continue;
         const sideWaste = strip.span - oriented.width;
         if (!bestStripFit || sideWaste < bestStripFit.sideWaste) {
           bestStripFit = { strip, oriented, sideWaste };
@@ -235,16 +226,14 @@ export function createTidyPacker<T>(
       );
     }
 
-    // 2) Walk all strips' residuals before opening a new one. First-fit (vs.
-    // phase 1's best-fit) — residuals are typically few and narrow, and any
-    // re-scoring overhead doesn't pay back vs. the cost of opening a new
-    // strip. Without this sweep, small parts that arrive late strand new boards.
+    // 2) Walk all strips' residuals before opening a new one. First-fit;
+    // without this sweep, small parts that arrive late strand new boards.
     for (const oriented of orientations) {
       for (const strip of state.strips) {
         for (let i = 0; i < strip.freeRects.length; i++) {
           const fr = strip.freeRects[i];
-          if (oriented.width > fr.width + options.precision) continue;
-          if (oriented.height > fr.height + options.precision) continue;
+          if (oriented.width > fr.width) continue;
+          if (oriented.height > fr.height) continue;
           return placeInResidual(strip, i, oriented, options);
         }
       }
@@ -268,9 +257,6 @@ export function createTidyPacker<T>(
         else res.leftovers.push(rect.data);
       }
       return res;
-    },
-    addToPack() {
-      throw Error('Not supported');
     },
     createBinState(bin) {
       return createInitialState(maybeTranspose(bin));

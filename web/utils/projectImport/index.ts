@@ -22,7 +22,7 @@ import type {
 import { gzipDecompress } from '~/utils/compress';
 import { migrateExport } from './migrations';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
-import type { Precision } from 'cutlist';
+import { MicrometresSchema, type Micrometres, type Precision } from 'cutlist';
 import { defaultSceneIdForModel, isDefaultSceneId } from '~/utils/defaultScene';
 import { base64ToBlob } from '~/utils/blobBase64';
 import { remapBuildDoc } from '~/utils/buildDocRemap';
@@ -32,9 +32,9 @@ import { z } from 'zod';
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
 const PartSizeSchema = z.object({
-  width: z.number().finite(),
-  length: z.number().finite(),
-  thickness: z.number().finite(),
+  width: MicrometresSchema,
+  length: MicrometresSchema,
+  thickness: MicrometresSchema,
 });
 
 const PartSchema = z.object({
@@ -67,7 +67,7 @@ const ModelSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   filename: z.string(),
-  source: z.enum(['gltf', 'collada', 'manual']),
+  source: z.enum(['gltf', 'assimp', 'manual']),
   parts: z.array(PartSchema).default([]),
   colors: z.array(ColorInfoSchema).default([]),
   nodePartMap: z.array(NodePartMappingSchema).default([]),
@@ -213,8 +213,8 @@ const ProjectExportSchema = z.object({
     stock: z.string(),
     distanceUnit: z.enum(['in', 'mm']).default(DEFAULT_SETTINGS.distanceUnit),
     precision: PrecisionSchema.default(DEFAULT_SETTINGS.precision),
-    bladeWidth: z.number().finite().default(DEFAULT_SETTINGS.bladeWidth),
-    margin: z.number().finite().default(DEFAULT_SETTINGS.margin),
+    bladeWidth: MicrometresSchema.default(DEFAULT_SETTINGS.bladeWidth),
+    margin: MicrometresSchema.default(DEFAULT_SETTINGS.margin),
     defaultAlgorithm: z
       .enum(['auto', 'tidy', 'compact', 'cnc'])
       .default(DEFAULT_SETTINGS.defaultAlgorithm),
@@ -242,8 +242,8 @@ export interface ProjectImportDb {
       stock?: string;
       distanceUnit?: 'in' | 'mm';
       precision?: Precision;
-      bladeWidth?: number;
-      margin?: number;
+      bladeWidth?: Micrometres;
+      margin?: Micrometres;
       defaultAlgorithm?: 'auto' | 'tidy' | 'compact' | 'cnc';
       showPartNumbers?: boolean;
     },

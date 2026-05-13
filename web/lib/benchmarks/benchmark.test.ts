@@ -11,6 +11,7 @@ import { describe, it } from 'vitest';
 import {
   generateBoardLayouts,
   isLinearBoardLayout,
+  mmToUm,
   type BoardLayout,
   type ConfigInput,
   type PartToCut,
@@ -45,9 +46,9 @@ function part(
     material,
     grainLock,
     size: {
-      thickness: thicknessMm / 1000,
-      width: widthMm / 1000,
-      length: lengthMm / 1000,
+      thickness: mmToUm(thicknessMm),
+      width: mmToUm(widthMm),
+      length: mmToUm(lengthMm),
     },
   };
 }
@@ -188,9 +189,9 @@ function measure(
   let worst = Infinity;
   const utilizations: number[] = [];
   for (const layout of layouts) {
-    const board = layout.stock.widthM * layout.stock.lengthM;
+    const board = layout.stock.widthUm * layout.stock.lengthUm;
     let used = 0;
-    for (const p of layout.placements) used += p.widthM * p.lengthM;
+    for (const p of layout.placements) used += p.widthUm * p.lengthUm;
     totalArea += board;
     usedArea += used;
     const u = board === 0 ? 0 : used / board;
@@ -223,10 +224,9 @@ function fmt(m: Metrics): string {
 
 function runOnce(fixture: Fixture): Metrics {
   const config: ConfigInput = {
-    bladeWidth: 3.175,
+    bladeWidth: mmToUm(3.175),
     margin: 0,
     defaultAlgorithm: 'auto',
-    precision: 1e-5,
     ...fixture.config,
   };
   const t0 = performance.now();
@@ -241,10 +241,9 @@ function runWithPasses(
   passes: ConfigInput['searchPasses'],
 ): Metrics {
   const config: ConfigInput = {
-    bladeWidth: 3.175,
+    bladeWidth: mmToUm(3.175),
     margin: 0,
     defaultAlgorithm: 'auto',
-    precision: 1e-5,
     ...fixture.config,
     searchPasses: passes,
   };

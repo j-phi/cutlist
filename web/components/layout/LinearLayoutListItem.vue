@@ -12,10 +12,12 @@ const { showPartNumbers } = useProjectSettings();
 
 const colors = computed(() => getMaterialColor(props.layout.stock.color));
 
-const length = computed(() => formatDistance(props.layout.stock.lengthM) ?? '');
+const length = computed(
+  () => formatDistance(props.layout.stock.lengthUm) ?? '',
+);
 const wasteLabel = computed(() =>
-  props.layout.wasteEndM > 0
-    ? (formatDistance(props.layout.wasteEndM) ?? '')
+  props.layout.wasteEndUm > 0
+    ? (formatDistance(props.layout.wasteEndUm) ?? '')
     : '',
 );
 
@@ -24,7 +26,7 @@ const stickStyle = computed(() =>
     `background:${colors.value.board}`,
     `--chip-color:${colors.value.part}`,
     `--chip-text:${colors.value.text}`,
-    `width:${getPx(props.layout.stock.lengthM)}`,
+    `width:${getPx(props.layout.stock.lengthUm)}`,
   ].join(';'),
 );
 
@@ -40,15 +42,15 @@ interface ChipView {
 }
 
 const chips = computed<ChipView[]>(() => {
-  const totalM = props.layout.stock.lengthM;
-  if (totalM <= 0) return [];
+  const totalUm = props.layout.stock.lengthUm;
+  if (totalUm <= 0) return [];
   return props.layout.placements.map((p) => {
-    const lengthLabel = formatDistance(p.lengthM) ?? '';
+    const lengthLabel = formatDistance(p.lengthUm) ?? '';
     return {
       key: `${p.partNumber}:${p.instanceNumber}`,
-      leftPct: (p.offsetM / totalM) * 100,
-      widthPct: (p.lengthM / totalM) * 100,
-      allowancePct: (p.allowanceLengthM / p.lengthM) * 100,
+      leftPct: (p.offsetUm / totalUm) * 100,
+      widthPct: (p.lengthUm / totalUm) * 100,
+      allowancePct: (p.allowanceLengthUm / p.lengthUm) * 100,
       label: showPartNumbers.value
         ? `${p.partNumber} · ${lengthLabel}`
         : lengthLabel,
@@ -57,11 +59,11 @@ const chips = computed<ChipView[]>(() => {
 });
 
 const wasteStyle = computed(() => {
-  const totalM = props.layout.stock.lengthM;
-  const waste = props.layout.wasteEndM;
-  if (totalM <= 0 || waste <= 0) return null;
-  const leftPct = ((totalM - waste) / totalM) * 100;
-  const widthPct = (waste / totalM) * 100;
+  const totalUm = props.layout.stock.lengthUm;
+  const waste = props.layout.wasteEndUm;
+  if (totalUm <= 0 || waste <= 0) return null;
+  const leftPct = ((totalUm - waste) / totalUm) * 100;
+  const widthPct = (waste / totalUm) * 100;
   return `left:${leftPct}%;width:${widthPct}%`;
 });
 </script>

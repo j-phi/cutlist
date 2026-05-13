@@ -1,4 +1,3 @@
-import { isNearlyEqual } from './floating-point-utils';
 import {
   effectiveOversize,
   type LinearStock,
@@ -7,94 +6,79 @@ import {
   type Stock,
   isLinearStock,
 } from '../types';
+import { STOCK_MATCH_TOLERANCE_UM } from './units';
 
-/**
- * Sheet-stock validity: material + thickness match between two in-flight
- * sheet stocks, or between a sheet stock and a part.
- */
-export function isValidSheetStock(
-  test: SheetStock,
-  target: PartToCut | SheetStock,
-  epsilon: number,
-) {
-  if (test.material !== target.material) return false;
-  const targetThickness =
-    'size' in target ? target.size.thickness : target.thickness;
-  return isNearlyEqual(targetThickness, test.thickness, epsilon);
-}
+/** Within OBB drift tolerance — used for part↔stock identity only. */
+const matchesStock = (a: number, b: number) =>
+  Math.abs(a - b) <= STOCK_MATCH_TOLERANCE_UM;
 
-/**
- * Linear stock fits a part when the part's cross-section + allowance
- * matches the stick's cross-section in either orientation, and the part
- * length + allowance fits the stick.
- */
-export function isValidLinearStockForPart(
-  stock: LinearStock,
-  part: PartToCut,
-  epsilon: number,
+/** Same cross-section in either orientation, within stock-match tolerance. */
+function crossSectionsMatch(
+  w1: number,
+  t1: number,
+  w2: number,
+  t2: number,
 ): boolean {
-  if (stock.material !== part.material) return false;
-  const o = effectiveOversize(stock);
-  const w = part.size.width + o.crossSection;
-  const t = part.size.thickness + o.crossSection;
-  const sw = stock.crossSectionWidth;
-  const st = stock.crossSectionThickness;
-  const crossSectionMatches =
-    (isNearlyEqual(w, sw, epsilon) && isNearlyEqual(t, st, epsilon)) ||
-    (isNearlyEqual(w, st, epsilon) && isNearlyEqual(t, sw, epsilon));
-  if (!crossSectionMatches) return false;
-  return part.size.length + o.length <= stock.length + epsilon;
-}
-
-/**
- * Linear stock-to-stock comparison (used by `minimizeLayoutStock` for the
- * linear branch): same material + same cross-section in either orientation.
- */
-export function isCompatibleLinearStock(
-  a: LinearStock,
-  b: LinearStock,
-  epsilon: number,
-): boolean {
-  if (a.material !== b.material) return false;
   return (
-    (isNearlyEqual(a.crossSectionWidth, b.crossSectionWidth, epsilon) &&
-      isNearlyEqual(
-        a.crossSectionThickness,
-        b.crossSectionThickness,
-        epsilon,
-      )) ||
-    (isNearlyEqual(a.crossSectionWidth, b.crossSectionThickness, epsilon) &&
-      isNearlyEqual(a.crossSectionThickness, b.crossSectionWidth, epsilon))
+    (matchesStock(w1, w2) && matchesStock(t1, t2)) ||
+    (matchesStock(w1, t2) && matchesStock(t1, w2))
   );
 }
 
-/**
- * Whether `part` fits on `stock`. Linear stocks accept the part in either
- * cross-section orientation; sheet stocks just check material+thickness.
- */
-export function canPartFitStock(
-  stock: Stock,
-  part: PartToCut,
-  epsilon: number,
+export function isValidSheetStock(
+  test: SheetStock,
+  target: PartToCut | SheetStock,
 ): boolean {
-  if (isLinearStock(stock))
-    return isValidLinearStockForPart(stock, part, epsilon);
-  return isValidSheetStock(stock, part, epsilon);
+  if (test.material !== target.material) return false;
+  const targetThickness =
+    'size' in target ? target.size.thickness : target.thickness;
+  return matchesStock(targetThickness, test.thickness);
 }
 
-/**
- * Whether two stocks are interchangeable for packing — same material and
- * same shape (sheet thickness, or linear cross-section in either
- * orientation). Used by `minimizeLayoutStock` and stock-type grouping to
- * find equivalent boards/sticks of different lengths.
- */
-export function areStocksEquivalent(
-  a: Stock,
-  b: Stock,
-  epsilon: number,
+export function isValidLinearStockForPart(
+  stock: LinearStock,
+  part: PartToCut,
 ): boolean {
-  if (isLinearStock(a)) {
-    return isLinearStock(b) && isCompatibleLinearStock(a, b, epsilon);
+  if (stock.material !== part.material) return false;
+  const o = effectiveOversize(stock);
+  if (
+    !crossSectionsMatch(
+      part.size.width + o.crossSection,
+      part.size.thickness + o.crossSection,
+      stock.crossSectionWidth,
+      stock.crossSectionThickness,
+    )
+  ) {
+    return false;
   }
-  return !isLinearStock(b) && isValidSheetStock(a, b, epsilon);
+  return part.size.length + o.length <= stock.length;
+}
+
+export function isCompatibleLinearStock(
+  a: LinearStock,
+  b: LinearStock,
+): boolean {
+  if (a.material !== b.material) return false;
+  // Stock↔stock comparison: both come from YAML mm × 1000, exact integer match.
+  return (
+    (a.crossSectionWidth === b.crossSectionWidth &&
+      a.crossSectionThickness === b.crossSectionThickness) ||
+    (a.crossSectionWidth === b.crossSectionThickness &&
+      a.crossSectionThickness === b.crossSectionWidth)
+  );
+}
+
+export function canPartFitStock(stock: Stock, part: PartToCut): boolean {
+  return isLinearStock(stock)
+    ? isValidLinearStockForPart(stock, part)
+    : isValidSheetStock(stock, part);
+}
+
+/** Two stocks are interchangeable for packing — same material + shape. */
+export function areStocksEquivalent(a: Stock, b: Stock): boolean {
+  if (isLinearStock(a)) {
+    return isLinearStock(b) && isCompatibleLinearStock(a, b);
+  }
+  if (isLinearStock(b)) return false;
+  return a.material === b.material && a.thickness === b.thickness;
 }

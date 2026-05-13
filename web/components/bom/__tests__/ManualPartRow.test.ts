@@ -3,7 +3,7 @@ import { shallowMount } from '@vue/test-utils';
 import { defineComponent, h, ref } from 'vue';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
-import { DEFAULT_INCH_PRECISION, DEFAULT_MM_PRECISION } from 'cutlist';
+import { DEFAULT_INCH_PRECISION, DEFAULT_MM_PRECISION, mmToUm } from 'cutlist';
 import { computed } from 'vue';
 
 import ManualPartRow from '../ManualPartRow.vue';
@@ -55,6 +55,56 @@ const UInputStub = defineComponent({
   },
 });
 
+const UInputNumberStub = defineComponent({
+  props: {
+    modelValue: { type: Number, default: 0 },
+  },
+  emits: ['update:modelValue'],
+  setup(props, { attrs, emit }) {
+    return () =>
+      h('input', {
+        ...attrs,
+        type: 'number',
+        value: props.modelValue,
+        onInput: (event: Event) =>
+          emit(
+            'update:modelValue',
+            Number((event.target as HTMLInputElement).value),
+          ),
+      });
+  },
+});
+
+const USelectStub = defineComponent({
+  props: {
+    modelValue: { type: [String, Number], default: '' },
+    items: { type: Array, default: () => [] },
+  },
+  emits: ['update:modelValue'],
+  setup(props, { attrs, emit }) {
+    return () =>
+      h(
+        'select',
+        {
+          ...attrs,
+          value: String(props.modelValue),
+          onChange: (event: Event) =>
+            emit(
+              'update:modelValue',
+              (event.target as HTMLSelectElement).value,
+            ),
+        },
+        (props.items as Array<string | { label: string; value: string }>).map(
+          (it) => {
+            const value = typeof it === 'string' ? it : it.value;
+            const label = typeof it === 'string' ? it : it.label;
+            return h('option', { value }, label);
+          },
+        ),
+      );
+  },
+});
+
 describe('ManualPartRow', () => {
   function getComponent(
     props: Partial<InstanceType<typeof ManualPartRow>['$props']> = {},
@@ -69,6 +119,8 @@ describe('ManualPartRow', () => {
           UButton: UButtonStub,
           UIcon: true,
           UInput: UInputStub,
+          UInputNumber: UInputNumberStub,
+          USelect: USelectStub,
         },
       },
     });
@@ -117,9 +169,9 @@ describe('ManualPartRow', () => {
         initial: {
           partNumber: 1,
           name: 'Stud',
-          widthMm: 38,
-          lengthMm: 1000,
-          thicknessMm: 89,
+          widthUm: mmToUm(38),
+          lengthUm: mmToUm(1000),
+          thicknessUm: mmToUm(89),
           qty: 1,
           material: 'Plywood',
           grainLock: 'length',
@@ -146,9 +198,9 @@ describe('ManualPartRow', () => {
           initial: {
             partNumber: 1,
             name: 'Shelf',
-            widthMm: 100,
-            lengthMm: 250,
-            thicknessMm: 18,
+            widthUm: mmToUm(100),
+            lengthUm: mmToUm(250),
+            thicknessUm: mmToUm(18),
             qty: 2,
             material: 'Plywood',
           },
@@ -180,9 +232,9 @@ describe('ManualPartRow', () => {
         [
           {
             name: 'Shelf',
-            widthMm: 100,
-            lengthMm: 250,
-            thicknessMm: 18,
+            widthUm: mmToUm(100),
+            lengthUm: mmToUm(250),
+            thicknessUm: mmToUm(18),
             qty: 2,
             material: 'MDF',
             grainLock: 'length',
@@ -227,13 +279,13 @@ describe('ManualPartRow', () => {
       const emitted = component.emitted('save');
       expect(emitted).toHaveLength(1);
       const data = emitted![0][0] as {
-        widthMm: number;
-        lengthMm: number;
-        thicknessMm: number;
+        widthUm: number;
+        lengthUm: number;
+        thicknessUm: number;
       };
-      expect(data.widthMm).toBeCloseTo(0.75 * 25.4, 5);
-      expect(data.lengthMm).toBeCloseTo(1.5 * 25.4, 5);
-      expect(data.thicknessMm).toBeCloseTo(0.25 * 25.4, 5);
+      expect(data.widthUm).toBe(mmToUm(0.75 * 25.4));
+      expect(data.lengthUm).toBe(mmToUm(1.5 * 25.4));
+      expect(data.thicknessUm).toBe(mmToUm(0.25 * 25.4));
     });
 
     it('Should pre-fill edit values converted to inches', () => {
@@ -242,9 +294,9 @@ describe('ManualPartRow', () => {
         initial: {
           partNumber: 1,
           name: 'Shelf',
-          widthMm: 25.4 * 0.75,
-          lengthMm: 25.4 * 1.5,
-          thicknessMm: 25.4 * 0.25,
+          widthUm: mmToUm(25.4 * 0.75),
+          lengthUm: mmToUm(25.4 * 1.5),
+          thicknessUm: mmToUm(25.4 * 0.25),
           qty: 1,
           material: 'Plywood',
         },
@@ -282,9 +334,9 @@ describe('ManualPartRow', () => {
         initial: {
           partNumber: 1,
           name: 'Shelf',
-          widthMm: 100,
-          lengthMm: 250,
-          thicknessMm: 18,
+          widthUm: mmToUm(100),
+          lengthUm: mmToUm(250),
+          thicknessUm: mmToUm(18),
           qty: 2,
           material: 'Plywood',
         },

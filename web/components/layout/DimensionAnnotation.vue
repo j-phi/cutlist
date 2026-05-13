@@ -1,42 +1,57 @@
 <script lang="ts" setup>
+import type { Micrometres } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
-import { PX_PER_M } from '~/composables/useGetPx';
 
 const props = defineProps<{
   measurement: RulerMeasurement;
-  boardWidthM: number;
-  boardLengthM: number;
+  boardWidthUm: Micrometres;
+  boardLengthUm: Micrometres;
   preview?: boolean;
 }>();
 
 const emit = defineEmits<{
   remove: [];
-  updateOffset: [offsetM: number];
+  updateOffset: [offsetUm: Micrometres];
 }>();
 
 const formatDistance = useFormatDistance();
+const getPx = useGetPx();
 
 const ARROW_SIZE = 6;
 const EXT_OVERSHOOT = 8;
 const pendingRemove = ref(false);
 
-const distanceM = computed(() =>
-  Math.abs(props.measurement.anchorB - props.measurement.anchorA),
-);
-const label = computed(() => formatDistance(distanceM.value) ?? '');
-const minPx = computed(
+const distanceUm = computed(
   () =>
-    Math.min(props.measurement.anchorA, props.measurement.anchorB) * PX_PER_M,
+    Math.abs(
+      props.measurement.anchorBUm - props.measurement.anchorAUm,
+    ) as Micrometres,
 );
-const maxPx = computed(
-  () =>
-    Math.max(props.measurement.anchorA, props.measurement.anchorB) * PX_PER_M,
+const label = computed(() => formatDistance(distanceUm.value) ?? '');
+const minPx = computed(() =>
+  parseFloat(
+    getPx(
+      Math.min(
+        props.measurement.anchorAUm,
+        props.measurement.anchorBUm,
+      ) as Micrometres,
+    ),
+  ),
+);
+const maxPx = computed(() =>
+  parseFloat(
+    getPx(
+      Math.max(
+        props.measurement.anchorAUm,
+        props.measurement.anchorBUm,
+      ) as Micrometres,
+    ),
+  ),
 );
 const midPx = computed(() => (minPx.value + maxPx.value) / 2);
-const offsetPx = computed(() => props.measurement.offsetM * PX_PER_M);
+const offsetPx = computed(() => parseFloat(getPx(props.measurement.offsetUm)));
 const isX = computed(() => props.measurement.axis === 'x');
 
-// Arrow point helpers
 function arrowH(tipX: number, y: number, direction: 1 | -1) {
   const bx = tipX - direction * ARROW_SIZE;
   return `${tipX},${y} ${bx},${y - ARROW_SIZE / 2} ${bx},${y + ARROW_SIZE / 2}`;
@@ -46,7 +61,6 @@ function arrowV(x: number, tipY: number, direction: 1 | -1) {
   return `${x},${tipY} ${x - ARROW_SIZE / 2},${by} ${x + ARROW_SIZE / 2},${by}`;
 }
 
-// --- Drag logic ---
 let dragging = false;
 
 function onPointerDown(e: PointerEvent) {
@@ -63,33 +77,26 @@ function onPointerMove(e: PointerEvent) {
   if (!svgEl) return;
   const rect = svgEl.getBoundingClientRect();
 
-  if (isX.value) {
-    const fracY = (rect.bottom - e.clientY) / rect.height;
-    const newOffsetM = fracY * props.boardLengthM;
-    pendingRemove.value =
-      newOffsetM < -0.02 || newOffsetM > props.boardLengthM + 0.02;
-    emit('updateOffset', newOffsetM);
-  } else {
-    const fracX = (e.clientX - rect.left) / rect.width;
-    const newOffsetM = fracX * props.boardWidthM;
-    pendingRemove.value =
-      newOffsetM < -0.02 || newOffsetM > props.boardWidthM + 0.02;
-    emit('updateOffset', newOffsetM);
-  }
+  const newOffsetUm = (
+    isX.value
+      ? ((rect.bottom - e.clientY) / rect.height) * props.boardLengthUm
+      : ((e.clientX - rect.left) / rect.width) * props.boardWidthUm
+  ) as Micrometres;
+  const span = isX.value ? props.boardLengthUm : props.boardWidthUm;
+  // Drag past either edge by 20 mm triggers remove on release.
+  const slop = 20_000;
+  pendingRemove.value = newOffsetUm < -slop || newOffsetUm > span + slop;
+  emit('updateOffset', newOffsetUm);
 }
 
 function onPointerUp() {
-  if (pendingRemove.value) {
-    emit('remove');
-  }
+  if (pendingRemove.value) emit('remove');
   pendingRemove.value = false;
   dragging = false;
 }
 
 function onLostPointerCapture() {
-  if (pendingRemove.value) {
-    emit('remove');
-  }
+  if (pendingRemove.value) emit('remove');
   pendingRemove.value = false;
   dragging = false;
 }
@@ -112,7 +119,6 @@ function onLostPointerCapture() {
     @lostpointercapture="onLostPointerCapture"
   >
     <template v-if="isX">
-      <!-- Extension lines (vertical from each anchor to dimension line) -->
       <line
         :x1="minPx"
         :y1="0"
@@ -131,7 +137,6 @@ function onLostPointerCapture() {
         stroke-width="1"
         stroke-opacity="0.4"
       />
-      <!-- Dimension line -->
       <line
         :x1="minPx"
         :y1="offsetPx"
@@ -140,10 +145,8 @@ function onLostPointerCapture() {
         stroke="currentColor"
         stroke-width="2"
       />
-      <!-- Arrowheads -->
       <polygon :points="arrowH(minPx, offsetPx, -1)" fill="currentColor" />
       <polygon :points="arrowH(maxPx, offsetPx, 1)" fill="currentColor" />
-      <!-- Label (counter-flip Y so text reads correctly) -->
       <text
         :x="midPx"
         :y="offsetPx"
@@ -159,7 +162,6 @@ function onLostPointerCapture() {
     </template>
 
     <template v-else>
-      <!-- Extension lines (horizontal from each anchor to dimension line) -->
       <line
         :x1="0"
         :y1="minPx"
@@ -178,7 +180,6 @@ function onLostPointerCapture() {
         stroke-width="1"
         stroke-opacity="0.4"
       />
-      <!-- Dimension line -->
       <line
         :x1="offsetPx"
         :y1="minPx"
@@ -187,10 +188,8 @@ function onLostPointerCapture() {
         stroke="currentColor"
         stroke-width="2"
       />
-      <!-- Arrowheads -->
       <polygon :points="arrowV(offsetPx, minPx, -1)" fill="currentColor" />
       <polygon :points="arrowV(offsetPx, maxPx, 1)" fill="currentColor" />
-      <!-- Label (counter-flip Y + rotate for vertical reading) -->
       <text
         :x="offsetPx"
         :y="midPx"

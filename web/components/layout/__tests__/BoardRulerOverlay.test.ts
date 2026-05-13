@@ -1,5 +1,6 @@
 // @vitest-environment nuxt
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Micrometres } from 'cutlist';
 import { ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
@@ -32,16 +33,24 @@ mockNuxtImport('useRulerStore', () => () => ({
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Snap edges are derived from the layout: board has edges at 0/widthM/0/lengthM
+ * Snap edges are derived from the layout: board has edges at 0/widthUm/0/lengthUm
  * (axes x/y), and each placement contributes its own four edges. Tests construct
  * layouts whose snap edges are the inputs they need.
  */
-function makeLayout(widthM = 1, lengthM = 2): SheetBoardLayout {
+function makeLayout(
+  widthUm: Micrometres = 1 as Micrometres,
+  lengthUm: Micrometres = 2 as Micrometres,
+): SheetBoardLayout {
   return {
     kind: 'sheet',
-    stock: { material: 'Plywood', widthM, lengthM, thicknessM: 0.018 },
+    stock: {
+      material: 'Plywood',
+      widthUm,
+      lengthUm,
+      thicknessUm: 0.018 as Micrometres,
+    },
     placements: [],
-    marginM: 0,
+    marginUm: 0 as Micrometres,
     algorithm: 'compact',
   };
 }
@@ -118,7 +127,10 @@ describe('BoardRulerOverlay', () => {
     isRulerActive.value = true;
     // 1m wide layout → board's right edge is a snap at x = 1m. Hover near
     // 498px (= ~0.996m on a 500px-wide rect) is within the 0.03m threshold.
-    const component = getComponent(0, makeLayout(1, 2));
+    const component = getComponent(
+      0,
+      makeLayout(1 as Micrometres, 2 as Micrometres),
+    );
 
     dispatch(component, 'mousemove', 498, 500);
     await component.vm.$nextTick();
@@ -129,23 +141,26 @@ describe('BoardRulerOverlay', () => {
   it('Should call startMeasurement on first click near a snap edge', () => {
     isRulerActive.value = true;
     // 1m wide → snap edges at x=0 and x=1. Click at 498px snaps to x=1.
-    const component = getComponent(0, makeLayout(1, 2));
+    const component = getComponent(
+      0,
+      makeLayout(1 as Micrometres, 2 as Micrometres),
+    );
 
     dispatch(component, 'click', 498, 500);
 
     expect(startMeasurement).toHaveBeenCalledTimes(1);
     expect(startMeasurement.mock.calls[0][0]).toMatchObject({
       axis: 'x',
-      positionM: 1,
+      positionUm: 1,
     });
   });
 
   it('Should call completeMeasurement on the second click', () => {
     isRulerActive.value = true;
     // 1m wide layout gives snap edges at x=0 and x=1.
-    const layout = makeLayout(1, 2);
+    const layout = makeLayout(1 as Micrometres, 2 as Micrometres);
     pendingClick.value = {
-      edge: { axis: 'x', positionM: 0, boardIndex: 0 },
+      edge: { axis: 'x', positionUm: 0 as Micrometres, boardIndex: 0 },
       boardIndex: 0,
     };
     const component = getComponent(0, layout);
@@ -154,14 +169,14 @@ describe('BoardRulerOverlay', () => {
 
     expect(completeMeasurement).toHaveBeenCalledTimes(1);
     const arg = completeMeasurement.mock.calls[0][0] as SnapEdge;
-    expect(arg.positionM).toBe(1);
+    expect(arg.positionUm).toBe(1);
   });
 
   it('Should render the preview only on the matching boardIndex', async () => {
     isRulerActive.value = true;
-    const layout = makeLayout(1, 2);
+    const layout = makeLayout(1 as Micrometres, 2 as Micrometres);
     pendingClick.value = {
-      edge: { axis: 'x', positionM: 0, boardIndex: 0 },
+      edge: { axis: 'x', positionUm: 0 as Micrometres, boardIndex: 0 },
       boardIndex: 0,
     };
 

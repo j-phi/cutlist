@@ -10,6 +10,7 @@
  * editing of the text override is post-v1 polish; the chip currently only
  * exposes a hover-revealed delete affordance.
  */
+import { mToUm } from 'cutlist';
 import type { IdbDimension } from '~/composables/useIdb';
 import { useAnnotations } from '~/composables/useAnnotations';
 
@@ -44,7 +45,7 @@ const measuredM = computed(() => {
 const display = computed(() => {
   const override = props.annotation.text;
   if (override && override.length > 0) return override;
-  return formatDistance(measuredM.value) ?? '';
+  return formatDistance(mToUm(measuredM.value)) ?? '';
 });
 
 async function onDelete(event: MouseEvent): Promise<void> {

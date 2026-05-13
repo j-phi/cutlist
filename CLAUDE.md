@@ -254,9 +254,9 @@ Cascade: deleting a project deletes its models, build doc, scenes, annotations, 
 
 ### IdbModel — what's stored
 
-All non-manual models store `parts`, `colors`, `nodePartMap`, and `rawSource` (a glTF JSON object) directly in IndexedDB. The `source` field labels the original format (`'gltf'` for native glTF, `'collada'` for anything Assimp-routed) but the stored payload is always glTF JSON since DAE/FBX/GLB are converted at import time. The viewer derives an `ObjectGraph` from `rawSource` on first open via `resolveModelScene`; `useModels` caches the derived graph in memory so subsequent opens of the same model are instant.
+All non-manual models store `parts`, `colors`, `nodePartMap`, and `rawSource` (a glTF JSON object) directly in IndexedDB. The `source` field labels the import path (`'gltf'` for native glTF, `'assimp'` for anything Assimp-routed) but the stored payload is always glTF JSON since DAE/FBX/GLB are converted at import time. The viewer derives an `ObjectGraph` from `rawSource` on first open via `resolveModelScene`; `useModels` caches the derived graph in memory so subsequent opens of the same model are instant.
 
-Legacy IDB records (`source: 'collada'` written before the Assimp switch) may still hold a raw XML string in `rawSource`. `resolveModelScene` detects this (`typeof rawSource === 'string'`) and re-runs Assimp on the XML — a one-time cost per legacy model; the converted glTF is not written back, so the conversion repeats on each open. Acceptable since "the app is still in development" per the existing schema versioning policy.
+Pre-Assimp IDB records may still hold a raw XML string in `rawSource`. `resolveModelScene` detects this (`typeof rawSource === 'string'`) and re-runs Assimp on the XML — a one-time cost per legacy model; the converted glTF is not written back, so the conversion repeats on each open. Acceptable since "the app is still in development" per the existing schema versioning policy.
 
 `IdbModelMeta = Omit<IdbModel, 'rawSource'>` — what the reactive `useProjects().enabledModels` exposes, so the heavy raw payload doesn't leak into reactive state. Use `useIdb().getModelRawSource(id)` (or, preferably, `useModels().getModelGraph(id)`) to fetch on demand.
 
@@ -287,7 +287,7 @@ The per-version transform must not throw — a thrown error inside Dexie's `.upg
 
 **Read-path safety net**: `applyDefaults` helpers in [web/composables/useIdb/defaults.ts](web/composables/useIdb/defaults.ts) fill missing fields on every record read, so partial records from older writes still hydrate cleanly.
 
-Current schema: **v3**. v2 normalised `optimize` → `defaultAlgorithm`; v3 canonicalised distance storage to millimetres (see `migrations/v3.ts` for the full shape).
+Current schema: **v5**. v2 normalised `optimize` → `defaultAlgorithm`; v3 canonicalised distance storage to millimetres; v4 dropped `archivedAt`; v5 switched internal dimensions from float meters/mm to integer micrometres — project `bladeWidth`/`margin` and every `Part.size.*` are now branded `Micrometres` (see `migrations/v5.ts`).
 
 ### When adding a new schema version
 
@@ -338,47 +338,64 @@ Current schema: **v3**. v2 normalised `optimize` → `defaultAlgorithm`; v3 cano
 
 ## Dimensions and units
 
-The app handles distances in three layers, modelled after SketchUp / Fusion / AutoCAD:
+Internal storage and the engine work in **integer micrometres** — the same substrate used by Clipper / DeepNest / SVGnest for axis-aligned rectangle packing. Identity is `===`, placement geometry is exact integer arithmetic, and the only fuzzy comparison left is the mesh-vertex cluster at the glTF parse boundary.
 
-| Layer       | Unit                                            | Where                                                                                            |
-| ----------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Storage** | Millimetres, snapped to 0.001 mm at boundaries  | `IdbProject.{bladeWidth, margin}`, stock YAML; `Part.size.*` stores meters on the same 1 µm grid |
-| **Engine**  | Meters                                          | `web/lib/index.ts` and packers — converted at the boundary via `mmToM` / `mToMm`                 |
-| **Display** | User's `distanceUnit` rounded to user precision | BOM, layout, PDF, viewer labels, edit-prefill                                                    |
+| Layer       | Unit                                         | Where                                                                     |
+| ----------- | -------------------------------------------- | ------------------------------------------------------------------------- |
+| **Storage** | Integer micrometres (branded `Micrometres`)  | `IdbProject.{bladeWidth, margin}`, `Part.size.*`, every `BoardLayout.*Um` |
+| **Engine**  | Integer micrometres                          | `web/lib/index.ts`, packers, `Rectangle`                                  |
+| **YAML**    | Millimetres (human-edited)                   | Stock matrix YAML; converted via `mmToUm` in `reduceStockMatrix`          |
+| **Display** | User's `distanceUnit` rounded to `precision` | BOM, layout, PDF, viewer labels, edit-prefill                             |
 
-Every input boundary canonicalizes to a fixed 1 µm grid — `toCanonicalMm` for user-typed and YAML values, `toCanonicalM` for raw mesh extents in `groupPartInfos`. This is two orders finer than the finest display precision (0.1 mm) and lets exact-equality comparisons between part and stock dims work bit-for-bit. The user's `distanceUnit` (mm or in) and `precision` setting (fractional or decimal) are independent of this — they only affect rendering and how typed input is reformatted on blur. Typing `1.95"` stores 49.53 mm; flipping precision to `1/32` displays `1 15/16"`; flipping to `Decimal (0.01")` displays `1.95"`. Storage is unchanged either way.
+Brand erases at runtime — structured-clone across the worker is a no-op — but the compile-time check makes "raw meters into the engine" a type error at the source. Max panel 3000 mm = 3 × 10⁶ µm: fits comfortably inside JS's safe-integer range without `BigInt`. Score functions (`wasteArea`, `wasteConcentration` = µm⁴) compute in float to avoid overflow on multi-board sums.
 
 ### The units module — `web/lib/utils/units.ts`
 
 Single source of truth, exported through the `cutlist` library entry:
 
-- **Conversion**: `MM_PER_IN`, `M_PER_IN`, `mmToM(mm)`, `mToMm(m)`, `convertUnits(value, from, to)`. The 25.4 constant lives only in `MM_PER_IN`.
-- **Canonicalization**: `toCanonicalMm(value, from)` snaps user/YAML values to 0.001 mm at the storage boundary (cancels `value * 25.4` FP slop on inch-source). `toCanonicalM(m)` is the meters sibling, used in `groupPartInfos` for raw mesh extents from imported models.
+- **Brand**: `Micrometres = number & { __um: unique symbol }`. Constructed via `um(n)` (rounds to integer).
+- **Conversion**: `mmToUm`, `mToUm`, `umToMm`, `umToM`. Arithmetic helpers `umAdd`, `umSub`, `umMul` re-attach the brand; division is intentionally not provided (forces callers into `number` for sub-µm).
+- **YAML / inch input boundary**: `toCanonicalMm(value, from)` snaps user-typed and YAML mm-or-inch input to the 1-µm grid in mm representation. Used by `presetToMmStock`, `useDimensionDrafts`, and the v3 migration; production callers that want µm go through `mmToUm`.
 - **Precision type**: `Precision = { kind: 'fraction', denominator: 8|16|32|64 } | { kind: 'decimal', step: number }`. Defaults: `DEFAULT_INCH_PRECISION = 1/32"`, `DEFAULT_MM_PRECISION = 0.1mm`.
 - **Parsing**: `parseDimension(string, unit)` accepts decimals, fractions (`"3/4"`), mixed numbers (`"1 1/2"`, `"1-1/2"`), feet+inches (`"1' 6\""`, `"1ft 6in"`), and unit glyphs. Returns null on empty or unparseable input.
 - **Formatting**:
   - `formatValue(value, unit, precision)` — bare number/fraction string, no suffix. Used by edit-prefill.
-  - `formatDistance(meters, unit, precision)` — same plus the unit suffix. Used by every display site (BOM, layout, PDF, viewer labels).
+  - `formatDistance(um, unit, precision)` — takes `Micrometres`, returns the value plus unit suffix. Used by every display site.
   - `toFraction(value, denominator)` — internal building block; rounds to nearest `1/denominator` and reduces.
+
+### Tolerance
+
+Two fuzzy comparisons, with clearly-bounded reasons:
+
+| Constant                                          | Value | Regime                                                                             |
+| ------------------------------------------------- | ----- | ---------------------------------------------------------------------------------- |
+| `GROUP_TOLERANCE_UM` (`utils/groupPartInfos.ts`)  | 1000  | Cluster raw mesh extents that should represent the same physical part.             |
+| `STOCK_MATCH_TOLERANCE_UM` (`lib/utils/units.ts`) | 500   | Part↔stock identity (`stock-utils.ts`, `canFitOnAnyBoard.ts`). OBB drift absorber. |
+
+`STOCK_MATCH_TOLERANCE_UM` applies **only** to part↔stock matching. Stock↔stock comparison (`areStocksEquivalent`, `isCompatibleLinearStock`) is exact integer equality because both sides come from YAML mm × 1000. Placement geometry (rectangle overlap, free-rect math) is also exact — packers work end-to-end in integer µm.
+
+Why: glTF/OBB extraction drifts a few µm between instances of the same physical part. The cluster step (1 mm window) groups them, but the cluster leader is the smallest value in the group, so it lands a few µm below the nominal YAML stock value. Without `STOCK_MATCH_TOLERANCE_UM`, every part of a clustered thickness becomes a leftover.
+
+`Config.placementEpsilon`, `isNearlyEqual`, the relative-magnitude `floating-point-utils.ts` are all gone. The two tolerances above are the only fuzzy comparisons left, both with names that describe what they do.
 
 ### The settings layer — `web/composables/useProjectSettings.ts`
 
-`distanceUnit` and `precision` are reactive writable computeds. `precision` is `Ref<Precision>` (never undefined — falls back to the unit's default when no project is loaded). Flipping `distanceUnit` resets `precision` to that unit's default in the same write — fractional precision in mm and decimal-mm steps in inches are nonsense, so we don't try to carry one across.
+`distanceUnit` and `precision` are reactive writable computeds. `precision` is `Ref<Precision>` (never undefined — falls back to the unit's default when no project is loaded). Flipping `distanceUnit` resets `precision` to that unit's default in the same write — fractional precision in mm and decimal-mm steps in inches are nonsense, so we don't try to carry one across. `bladeWidth` and `margin` are `Ref<Micrometres | undefined>`.
 
 ### The display layer — `web/composables/useFormatDistance.ts`
 
-`useFormatDistance()` returns a function: pass meters, get the formatted string at the user's unit + precision. Every display site goes through this.
+`useFormatDistance()` returns a function: pass `Micrometres`, get the formatted string at the user's unit + precision. Every display site goes through this.
 
 ### The input layer — `web/composables/useDimensionInput.ts`
 
-`useDimensionInput(mm, unit, precision)` returns `{ input: Ref<string>, commit: () => void }`. Wire `<UInput v-model="input" @blur="commit" />`. Storage is never mutated by formatting; the user types freely and storage updates as they type, but the input string itself isn't reformatted while focused. `commit()` (on blur) reformats from storage to canonical at the active precision — matching SketchUp / Fusion behaviour.
+`useDimensionInput(um, unit, precision)` returns `{ input: Ref<string>, commit: () => void }`. Wire `<UInput v-model="input" @blur="commit" />`. Storage is never mutated by formatting; the user types freely and storage updates as they type, but the input string itself isn't reformatted while focused. `commit()` (on blur) reformats from storage to canonical at the active precision — matching SketchUp / Fusion behaviour.
 
 ### Adding a new dimension input
 
-1. Hold the value as `Ref<number | null>` (mm).
-2. Wire `useDimensionInput(mm, unit, precision)`.
+1. Hold the value as `Ref<Micrometres | null>`.
+2. Wire `useDimensionInput(um, unit, precision)`.
 3. Bind the returned `input` to a `<UInput type="text">` and `commit` to its `@blur`.
-4. Read `mm.value` for engine / storage purposes.
+4. Read `um.value` for engine / storage purposes.
 
 Never call `formatDistance` for an editable field — the input layer owns the round-trip.
 
