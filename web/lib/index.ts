@@ -737,11 +737,10 @@ function serializePartToCutPlacement(
   oversize: Oversize,
 ): SheetBoardLayoutPlacement {
   // The packer may rotate sheet parts; pick the allowance axis that matches
-  // the rect's width axis after rotation.
+  // the rect's width axis after rotation. Integer µm means the equality is
+  // exact — no tolerance needed.
   const effW = placement.data.size.width + oversize.crossSection;
-  const effL = placement.data.size.length + oversize.length;
-  const rotated =
-    Math.abs(placement.width - effW) > Math.abs(placement.width - effL);
+  const rotated = placement.width !== effW;
   return {
     instanceNumber: placement.data.instanceNumber,
     partNumber: placement.data.partNumber,
