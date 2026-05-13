@@ -16,11 +16,11 @@ const stockTabPath = computed(() => projectPath(activeId.value, 'boards'));
 
 function stockKey(stock: {
   material: string;
-  thicknessM: number;
-  widthM: number;
-  lengthM: number;
+  thicknessUm: number;
+  widthUm: number;
+  lengthUm: number;
 }) {
-  return `${stock.material}__${stock.thicknessM}__${stock.widthM}__${stock.lengthM}`;
+  return `${stock.material}__${stock.thicknessUm}__${stock.widthUm}__${stock.lengthUm}`;
 }
 
 const sheetLayouts = computed<SheetBoardLayout[]>(
@@ -37,7 +37,7 @@ const stockOptions = computed(() => {
     const key = stockKey(layout.stock);
     if (!seen.has(key)) {
       seen.add(key);
-      const thickness = formatDistance(layout.stock.thicknessM);
+      const thickness = formatDistance(layout.stock.thicknessUm);
       options.push({
         label: `${thickness} ${layout.stock.material}`,
         value: key,

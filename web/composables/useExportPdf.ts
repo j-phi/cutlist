@@ -20,7 +20,7 @@ export default function () {
       name: r.name,
       qty: r.qty,
       material: r.material,
-      size: `${formatDistance(r.lengthM) ?? ''} × ${formatDistance(r.widthM) ?? ''} × ${formatDistance(r.thicknessM) ?? ''}`,
+      size: `${formatDistance(r.lengthUm) ?? ''} × ${formatDistance(r.widthUm) ?? ''} × ${formatDistance(r.thicknessUm) ?? ''}`,
     })),
   );
 

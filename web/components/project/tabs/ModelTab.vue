@@ -517,11 +517,11 @@ watch(
             #{{ infoPart.partNumber }} {{ infoPart.name }}
           </span>
           <span class="text-muted">
-            {{ useFormatDistance()(infoPart.lengthM) }}
+            {{ useFormatDistance()(infoPart.lengthUm) }}
             ×
-            {{ useFormatDistance()(infoPart.widthM) }}
+            {{ useFormatDistance()(infoPart.widthUm) }}
             ×
-            {{ useFormatDistance()(infoPart.thicknessM) }}
+            {{ useFormatDistance()(infoPart.thicknessUm) }}
           </span>
         </div>
         <span v-else class="text-dim italic">

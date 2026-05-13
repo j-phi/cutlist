@@ -3,15 +3,31 @@ export const MM_PER_IN = 25.4;
 export const M_PER_IN = MM_PER_IN / 1000;
 
 /**
- * Absolute tolerance for part↔stock identity matching (sheet thickness,
- * linear cross-section). Wider than OBB / mesh-extent drift, narrower than
- * the smallest legitimate stock-thickness step (3 mm). See CLAUDE.md
- * "Tolerances" for the regime split.
+ * Integer micrometres — the engine and storage domain. Brand makes
+ * "raw number escaped into engine territory" a type error. The brand
+ * is erased at runtime, so structured clone across the worker boundary
+ * is a no-op.
  */
-export const STOCK_MATCH_TOLERANCE_M = 5e-4;
+export type Micrometres = number & { readonly __um: unique symbol };
 
-export const mmToM = (mm: number) => mm / 1000;
-export const mToMm = (m: number) => m * 1000;
+/**
+ * Tolerance for part↔stock identity matching. OBB extraction on imported
+ * meshes drifts a few µm between instances; clustering groups them but the
+ * cluster leader is the smallest value in the group, so it lands a few µm
+ * below the nominal YAML stock value. 0.5 mm absorbs that drift while
+ * staying well below the smallest legitimate stock-thickness step (3 mm).
+ *
+ * Applies only to part↔stock matching, not to stock↔stock or placement
+ * geometry — both of those compare integer values from the same source and
+ * stay exact.
+ */
+export const STOCK_MATCH_TOLERANCE_UM = 500;
+
+export const um = (n: number): Micrometres => Math.round(n) as Micrometres;
+export const mmToUm = (mm: number): Micrometres => um(mm * 1_000);
+export const mToUm = (m: number): Micrometres => um(m * 1_000_000);
+export const umToMm = (u: Micrometres): number => u / 1_000;
+export const umToM = (u: Micrometres): number => u / 1_000_000;
 
 /**
  * Display precision. Storage stays raw; precision controls only how
@@ -81,18 +97,15 @@ export function convertUnits(
 }
 
 /**
- * The app's canonical storage resolution. 0.001 mm preserves anything a
- * woodworker could intentionally model (1/64″ = 0.397 mm) and flattens
- * sub-micron FP noise from `value * 25.4` and from raw mesh extents.
+ * Snap user/YAML mm-or-inch input to the 1-µm grid in mm representation.
+ * Used by code that needs an mm value (e.g. YAML stock matrix, draft
+ * dimension parsing); engine and storage prefer `mmToUm` instead.
  */
 const snapMm = (mm: number) => Math.round(mm * 1000) / 1000;
 
 /** User/YAML input (mm or in) → canonical mm. */
 export const toCanonicalMm = (value: number, from: 'mm' | 'in') =>
   snapMm(from === 'in' ? value * MM_PER_IN : value);
-
-/** Raw meters (GLTF/COLLADA mesh extents) → canonical meters. */
-export const toCanonicalM = (m: number) => snapMm(m * 1000) / 1000;
 
 // Cap on a plausible workshop dimension. Past this it's a typo or pasted
 // scientific notation; reject before 1e308 lands in storage.
@@ -179,15 +192,15 @@ export function formatValue(
 }
 
 /**
- * Format a meter value for end-user display (BOM, layout, PDF, viewer
- * labels). Wraps `formatValue` and appends the unit suffix.
+ * Format an integer-micrometre value for end-user display (BOM, layout,
+ * PDF, viewer labels). Wraps `formatValue` and appends the unit suffix.
  */
 export function formatDistance(
-  meters: number,
+  micrometres: Micrometres,
   unit: 'mm' | 'in',
   precision: Precision,
 ): string {
-  const value = convertUnits(mToMm(meters), 'mm', unit);
+  const value = convertUnits(umToMm(micrometres), 'mm', unit);
   const body = formatValue(value, unit, precision);
   if (body === '') return '';
   return unit === 'in' ? `${body}"` : `${body}mm`;

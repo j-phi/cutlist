@@ -1,4 +1,9 @@
-import { reduceStockMatrix, isLinearStock, type SheetStock } from 'cutlist';
+import {
+  reduceStockMatrix,
+  isLinearStock,
+  type Micrometres,
+  type SheetStock,
+} from 'cutlist';
 import type { GrainLock } from '~/utils/grain';
 import { cycleGrainLock } from '~/utils/grain';
 import { canFitOnAnyBoard } from '~/utils/canFitOnAnyBoard';
@@ -21,10 +26,8 @@ export const useGrainLockConfirm = createSharedComposable(() => {
     ),
   );
 
-  /** Margin is stored as mm; reducer outputs are meters, so we convert here. */
-  const marginM = computed(() => (margin.value ?? 0) / 1000);
+  const marginUm = computed(() => margin.value ?? (0 as Micrometres));
 
-  // Confirmation modal state
   const showConfirm = ref(false);
   const pendingPartNumber = ref<number | null>(null);
   const pendingGrainLock = ref<GrainLock>(undefined);
@@ -34,15 +37,20 @@ export const useGrainLockConfirm = createSharedComposable(() => {
     currentGrainLock: GrainLock,
     part: {
       material: string;
-      thicknessM: number;
-      widthM: number;
-      lengthM: number;
+      thicknessUm: Micrometres;
+      widthUm: Micrometres;
+      lengthUm: Micrometres;
     },
   ) {
     if (!activeId.value) return;
 
     const next = cycleGrainLock(currentGrainLock);
-    const fits = canFitOnAnyBoard(part, next, sheetBoards.value, marginM.value);
+    const fits = canFitOnAnyBoard(
+      part,
+      next,
+      sheetBoards.value,
+      marginUm.value,
+    );
 
     if (fits) {
       updatePartGrainLock(activeId.value, partNumber, next);

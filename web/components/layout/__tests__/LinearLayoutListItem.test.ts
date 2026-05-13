@@ -1,5 +1,6 @@
 // @vitest-environment nuxt
 import { shallowMount } from '@vue/test-utils';
+import type { Micrometres } from 'cutlist';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,7 +21,7 @@ mockNuxtImport('getMaterialColor', () => (_hex: string | undefined) => ({
   textHover: '#aa0005',
   grain: '#aa0006',
 }));
-// Match the production scale (PX_PER_M = 500) so width assertions are stable.
+// Match the production scale (PX_PER_UM = 1/2000 px/µm) so width assertions are stable.
 mockNuxtImport('useGetPx', () => () => (m: number) => `${m * 500}px`);
 mockNuxtImport('useProjectSettings', () => () => ({
   showPartNumbers: { value: true },
@@ -34,11 +35,11 @@ function makePlacement(
     instanceNumber: 1,
     name: 'Rail',
     material: 'Pine 2x4',
-    widthM: 0.089,
-    thicknessM: 0.038,
-    lengthM: 0.5,
-    offsetM: 0,
-    allowanceLengthM: 0,
+    widthUm: 0.089 as Micrometres,
+    thicknessUm: 0.038 as Micrometres,
+    lengthUm: 0.5 as Micrometres,
+    offsetUm: 0 as Micrometres,
+    allowanceLengthUm: 0 as Micrometres,
     ...overrides,
   };
 }
@@ -50,13 +51,13 @@ function makeLayout(
     kind: 'linear',
     stock: {
       material: 'Pine 2x4',
-      crossSectionWidthM: 0.089,
-      crossSectionThicknessM: 0.038,
-      lengthM: 2.0,
+      crossSectionWidthUm: 0.089 as Micrometres,
+      crossSectionThicknessUm: 0.038 as Micrometres,
+      lengthUm: 2.0 as Micrometres,
       color: '#abcdef',
     },
     placements: [makePlacement()],
-    wasteEndM: 0,
+    wasteEndUm: 0 as Micrometres,
     ...overrides,
   };
 }
@@ -74,10 +75,18 @@ describe('LinearLayoutListItem', () => {
 
   it('positions chips as percentages of stick length', () => {
     const layout = makeLayout({
-      stock: { ...makeLayout().stock, lengthM: 2.0 },
+      stock: { ...makeLayout().stock, lengthUm: 2.0 as Micrometres },
       placements: [
-        makePlacement({ partNumber: 1, offsetM: 0, lengthM: 0.5 }),
-        makePlacement({ partNumber: 2, offsetM: 0.5, lengthM: 1.0 }),
+        makePlacement({
+          partNumber: 1,
+          offsetUm: 0 as Micrometres,
+          lengthUm: 0.5 as Micrometres,
+        }),
+        makePlacement({
+          partNumber: 2,
+          offsetUm: 0.5 as Micrometres,
+          lengthUm: 1.0 as Micrometres,
+        }),
       ],
     });
     const chips = getComponent(layout).findAll('.cut-chip');
@@ -89,13 +98,18 @@ describe('LinearLayoutListItem', () => {
   });
 
   it.each([
-    [0, false],
-    [0.4, true],
-  ])('renders the waste tail iff wasteEndM > 0 (%fm → %s)', (waste, shown) => {
+    [0 as Micrometres, false],
+    [0.4 as Micrometres, true],
+  ])('renders the waste tail iff wasteEndUm > 0 (%fm → %s)', (waste, shown) => {
     const layout = makeLayout({
-      stock: { ...makeLayout().stock, lengthM: 2.0 },
-      placements: [makePlacement({ offsetM: 0, lengthM: 1.6 })],
-      wasteEndM: waste,
+      stock: { ...makeLayout().stock, lengthUm: 2.0 as Micrometres },
+      placements: [
+        makePlacement({
+          offsetUm: 0 as Micrometres,
+          lengthUm: 1.6 as Micrometres,
+        }),
+      ],
+      wasteEndUm: waste,
     });
     const tail = getComponent(layout).find('.waste-tail');
     expect(tail.exists()).toBe(shown);
@@ -107,12 +121,20 @@ describe('LinearLayoutListItem', () => {
 
   it('renders the stick label with length, cut count, and waste', () => {
     const layout = makeLayout({
-      stock: { ...makeLayout().stock, lengthM: 2.0 },
+      stock: { ...makeLayout().stock, lengthUm: 2.0 as Micrometres },
       placements: [
-        makePlacement({ partNumber: 1, offsetM: 0, lengthM: 0.5 }),
-        makePlacement({ partNumber: 2, offsetM: 0.5, lengthM: 1.0 }),
+        makePlacement({
+          partNumber: 1,
+          offsetUm: 0 as Micrometres,
+          lengthUm: 0.5 as Micrometres,
+        }),
+        makePlacement({
+          partNumber: 2,
+          offsetUm: 0.5 as Micrometres,
+          lengthUm: 1.0 as Micrometres,
+        }),
       ],
-      wasteEndM: 0.5,
+      wasteEndUm: 0.5 as Micrometres,
     });
     const text = getComponent(layout, 2).text();
     expect(text).toContain('#3');
@@ -122,10 +144,10 @@ describe('LinearLayoutListItem', () => {
   });
 
   it('renders the stick at absolute pixel scale matching the sheet renderer', () => {
-    // Same PX_PER_M as LayoutListItem so a 96″ stick and a 96″ sheet sit
+    // Same PX_PER_UM as LayoutListItem so a 96″ stick and a 96″ sheet sit
     // at correct relative size in the canvas. 2.4384m × 500 = 1219.2px.
     const stick = makeLayout({
-      stock: { ...makeLayout().stock, lengthM: 2.4384 },
+      stock: { ...makeLayout().stock, lengthUm: 2.4384 as Micrometres },
     });
     const style = getComponent(stick).find('.stick-bar').attributes('style');
     expect(style).toContain('width: 1219.2px');

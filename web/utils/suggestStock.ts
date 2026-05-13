@@ -106,10 +106,8 @@ function score(
     (l) => l >= cluster.longestPartMm + lengthAllowanceMm,
   );
   if (!lengthFits) return null;
-  // Round to 0.1 mm — the engine's display-precision floor. Smaller values
-  // are FP noise from float32 model files / inch-mm conversion, well below
-  // the packer's relative match tolerance, so they don't represent a real
-  // plane-down requirement.
+  // Round the plane-down gap to 0.1 mm so suggestions don't recommend
+  // sub-mm machining that isn't a real woodworking operation.
   const crossSectionGapMm = Math.max(
     0,
     Math.round(Math.max(gapMajor, gapMinor) * 10) / 10,

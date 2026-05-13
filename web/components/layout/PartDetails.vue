@@ -8,14 +8,14 @@ const props = defineProps<{
 
 const formatDistance = useFormatDistance();
 
-const width = computed(() => formatDistance(props.part.widthM));
-const length = computed(() => formatDistance(props.part.lengthM));
-const thickness = computed(() => formatDistance(props.part.thicknessM));
+const width = computed(() => formatDistance(props.part.widthUm));
+const length = computed(() => formatDistance(props.part.lengthUm));
+const thickness = computed(() => formatDistance(props.part.thicknessUm));
 
-const top = computed(() => formatDistance(props.placement?.topM));
-const left = computed(() => formatDistance(props.placement?.leftM));
-const right = computed(() => formatDistance(props.placement?.rightM));
-const bottom = computed(() => formatDistance(props.placement?.bottomM));
+const top = computed(() => formatDistance(props.placement?.topUm));
+const left = computed(() => formatDistance(props.placement?.leftUm));
+const right = computed(() => formatDistance(props.placement?.rightUm));
+const bottom = computed(() => formatDistance(props.placement?.bottomUm));
 </script>
 
 <template>

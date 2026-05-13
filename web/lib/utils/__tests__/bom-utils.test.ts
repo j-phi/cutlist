@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { Micrometres } from 'cutlist';
 import { groupPartsByNumber } from '../bom-utils';
 import type {
   BoardLayoutLeftover,
@@ -15,9 +16,9 @@ function makeLeftover(
     instanceNumber,
     name: `part-${partNumber}-${instanceNumber}`,
     material: 'Plywood',
-    widthM: 0.1,
-    lengthM: 0.2,
-    thicknessM: 0.018,
+    widthUm: 0.1 as Micrometres,
+    lengthUm: 0.2 as Micrometres,
+    thicknessUm: 0.018 as Micrometres,
   };
 }
 
@@ -27,12 +28,12 @@ function makePlacement(
 ): SheetBoardLayoutPlacement {
   return {
     ...makeLeftover(partNumber, instanceNumber),
-    leftM: 0,
-    rightM: 0.1,
-    topM: 0,
-    bottomM: 0.2,
-    allowanceWidthM: 0,
-    allowanceLengthM: 0,
+    leftUm: 0 as Micrometres,
+    rightUm: 0.1 as Micrometres,
+    topUm: 0 as Micrometres,
+    bottomUm: 0.2 as Micrometres,
+    allowanceWidthUm: 0 as Micrometres,
+    allowanceLengthUm: 0 as Micrometres,
   };
 }
 

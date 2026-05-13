@@ -152,12 +152,12 @@ describe('buildGltfObjectGraph OBB recovery', () => {
 
     expect(graph.parts).toHaveLength(2);
     const [a, b] = graph.parts;
-    expect(b.size.thickness).toBeCloseTo(a.size.thickness, 5);
-    expect(b.size.width).toBeCloseTo(a.size.width, 5);
-    expect(b.size.length).toBeCloseTo(a.size.length, 5);
-    expect(b.size.thickness).toBeCloseTo(0.018, 4);
-    expect(b.size.width).toBeCloseTo(0.3, 4);
-    expect(b.size.length).toBeCloseTo(0.362, 4);
+    expect(b.size.thickness).toBe(a.size.thickness);
+    expect(b.size.width).toBe(a.size.width);
+    expect(b.size.length).toBe(a.size.length);
+    expect(b.size.thickness).toBe(18_000);
+    expect(b.size.width).toBe(300_000);
+    expect(b.size.length).toBe(362_000);
     expect(new Set(graph.parts.map((p) => p.partNumber))).toEqual(new Set([1]));
   });
 });

@@ -1,9 +1,10 @@
 import { Rectangle } from '../geometry';
+import type { Micrometres } from '../utils/units';
 import type { PackOptions, PackResult, Packer } from './Packer';
 
 interface LinearBinState<T> {
   bin: Rectangle<unknown>;
-  cursor: number;
+  cursor: Micrometres;
   placements: Rectangle<T>[];
 }
 
@@ -33,8 +34,8 @@ export function createLinearPacker<T>(): Packer<T> {
     options: PackOptions<T>,
   ): void {
     const sorted = [...rects].sort((a, b) => b.height - a.height);
-    const cursor = res.placements.reduce(
-      (top, p) => Math.max(top, p.top),
+    const cursor = res.placements.reduce<Micrometres>(
+      (top, p) => Math.max(top, p.top) as Micrometres,
       bin.bottom,
     );
     const state: LinearBinState<T> = {
@@ -58,12 +59,12 @@ export function createLinearPacker<T>(): Packer<T> {
     options: PackOptions<T>,
   ): Rectangle<T> | null {
     const state = rawState as LinearBinState<T>;
-    if (Math.abs(rect.width - state.bin.width) > options.placementEpsilon)
-      return null;
-    const gap = state.placements.length === 0 ? 0 : options.gap;
-    const start = state.cursor + gap;
-    if (start + rect.height > state.bin.top + options.placementEpsilon)
-      return null;
+    if (rect.width !== state.bin.width) return null;
+    const gap = (
+      state.placements.length === 0 ? 0 : options.gap
+    ) as Micrometres;
+    const start = (state.cursor + gap) as Micrometres;
+    if (start + rect.height > state.bin.top) return null;
     const placed = new Rectangle(
       rect.data,
       state.bin.left,
@@ -72,7 +73,7 @@ export function createLinearPacker<T>(): Packer<T> {
       rect.height,
     );
     state.placements.push(placed);
-    state.cursor = start + rect.height;
+    state.cursor = (start + rect.height) as Micrometres;
     return placed;
   }
 }

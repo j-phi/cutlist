@@ -1,12 +1,10 @@
 import type { Rectangle } from '../geometry/Rectangle';
+import type { Micrometres } from '../utils/units';
 
 /**
- * Interface responsible for implementing the bin packing algorithm.
- *
- * Optional `createBinState` / `tryPlaceInBinState` give a packer multi-board
- * lookback support: callers can keep per-board state and try fitting a part
- * on previously-opened boards before opening a new one. Packers that omit
- * these fall back to single-board pack-and-move-on.
+ * Bin-packing interface. Optional `createBinState` / `tryPlaceInBinState`
+ * give a packer multi-board lookback: callers keep per-board state and try
+ * fitting a part on previously-opened boards before opening a new one.
  */
 export interface Packer<T> {
   pack(
@@ -20,15 +18,12 @@ export interface Packer<T> {
     rects: Rectangle<T>[],
     options: PackOptions<T>,
   ): void;
-  /**
-   * Build the per-bin state used by `tryPlaceInBinState`. Opaque to callers —
-   * only this packer interprets the value.
-   */
+  /** Build the per-bin state used by `tryPlaceInBinState`. Opaque to callers. */
   createBinState?(bin: Rectangle<unknown>): unknown;
   /**
-   * Attempt to place a single rect using the bin state. Mutates `state` and
-   * returns the translated placement on success, or `null` when the rect
-   * doesn't fit (state is unchanged in that case).
+   * Place a single rect using the bin state. Mutates `state` and returns
+   * the translated placement on success, or `null` when the rect doesn't
+   * fit (state is unchanged in that case).
    */
   tryPlaceInBinState?(
     state: unknown,
@@ -38,22 +33,14 @@ export interface Packer<T> {
 }
 
 export interface PackOptions<T = unknown> {
-  gap: number;
-  /** Placement-geometry tolerance — see `Config.placementEpsilon`. */
-  placementEpsilon: number;
+  /** Kerf consumed between adjacent placements. Integer micrometres. */
+  gap: Micrometres;
   allowRotations: boolean;
-  /** Optional per-rect override. When provided, a rect can only be rotated if both
-   * `allowRotations` is true AND this function returns true for that rect's data. */
+  /** Optional per-rect override. Both flags must be true to rotate. */
   canRotateRect?: (data: T) => boolean;
 }
 
 export interface PackResult<T> {
-  /**
-   * List of rectangles that fit, translated to their packed location.
-   */
   placements: Rectangle<T>[];
-  /**
-   * Any rectangles that didn't fit are returned here. Their positions are left untouched.
-   */
   leftovers: T[];
 }

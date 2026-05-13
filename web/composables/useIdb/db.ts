@@ -15,7 +15,11 @@
 import { ref, readonly } from 'vue';
 import Dexie, { type Table } from 'dexie';
 import { FutureSchemaError, SCHEMA_VERSION } from '~/utils/versions';
-import { migrateProjectToMmStorage } from '~/utils/projectImport/migrations';
+import {
+  migrateProjectToMmStorage,
+  migrateProjectScalarsToUm,
+  migrateModelPartsToUm,
+} from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
   IdbModel,
@@ -98,6 +102,27 @@ export class CutlistDB extends Dexie {
           .toCollection()
           .modify((p: Record<string, unknown>) => {
             delete p.archivedAt;
+          });
+      });
+
+    // v5 — integer micrometres become the engine and storage domain.
+    // Project scalars (mm → µm) and model part sizes (m → µm). The export
+    // pipeline runs the same transforms via `migrateProjectScalarsToUm`
+    // and `migrateModelPartsToUm`.
+    this.version(5)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateProjectScalarsToUm(p));
+          });
+        await tx
+          .table('models')
+          .toCollection()
+          .modify((m: Record<string, unknown>) => {
+            Object.assign(m, migrateModelPartsToUm(m));
           });
       });
   }

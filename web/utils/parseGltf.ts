@@ -9,6 +9,7 @@ import {
 } from './types';
 import { computeObjectEdges } from '~/lib/viewer/edges';
 import { obbDimsFromMeshes, type ObbMeshInput } from '~/lib/utils/obb';
+import { mToUm } from '~/lib/utils/units';
 
 interface GltfAccessor {
   min?: number[];
@@ -144,7 +145,11 @@ export async function buildGltfObjectGraph(
       v.info.size.width,
       v.info.size.length,
     ]);
-    v.info.size = { thickness, width, length };
+    v.info.size = {
+      thickness: mToUm(thickness),
+      width: mToUm(width),
+      length: mToUm(length),
+    };
 
     nodeDataByGroup.set(v.groupId, { meshes, matrix });
   }
@@ -295,7 +300,11 @@ function meshToPartInfo(
     colorKey: key,
     colorHex: hex,
     rgb,
-    size: { thickness: dims[0], width: dims[1], length: dims[2] },
+    size: {
+      thickness: mToUm(dims[0]),
+      width: mToUm(dims[1]),
+      length: mToUm(dims[2]),
+    },
     nodeIndex: groupId,
   };
 }

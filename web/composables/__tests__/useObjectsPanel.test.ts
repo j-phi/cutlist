@@ -1,5 +1,6 @@
 import { nextTick, ref } from 'vue';
 import { describe, expect, it } from 'vitest';
+import type { Micrometres } from 'cutlist';
 import * as THREE from 'three';
 import { partVisibility, useObjectsPanel } from '../useObjectsPanel';
 import type { SceneAuthor } from '../useSceneAuthor';
@@ -42,14 +43,22 @@ function makeGraph(): ObjectGraph {
         partNumber: 10,
         instanceNumber: 1,
         name: 'Drawer Side',
-        size: { width: 0, length: 0, thickness: 0 },
+        size: {
+          width: 0 as Micrometres,
+          length: 0 as Micrometres,
+          thickness: 0 as Micrometres,
+        },
         colorKey: 'k',
       },
       {
         partNumber: 11,
         instanceNumber: 1,
         name: 'Drawer Bottom',
-        size: { width: 0, length: 0, thickness: 0 },
+        size: {
+          width: 0 as Micrometres,
+          length: 0 as Micrometres,
+          thickness: 0 as Micrometres,
+        },
         colorKey: 'k',
       },
     ],
@@ -214,19 +223,27 @@ describe('useObjectsPanel', () => {
 
   it('Should prefer hydrated part names over the graph (rename overrides)', () => {
     const graph = ref<ObjectGraph | null>(makeGraph());
-    const hydrated = ref([
+    const hydrated = ref<Part[]>([
       {
         partNumber: 10,
         instanceNumber: 1,
         name: 'Renamed Side',
-        size: { width: 0, length: 0, thickness: 0 },
+        size: {
+          width: 0 as Micrometres,
+          length: 0 as Micrometres,
+          thickness: 0 as Micrometres,
+        },
         colorKey: 'k',
       },
       {
         partNumber: 11,
         instanceNumber: 1,
         name: 'Drawer Bottom',
-        size: { width: 0, length: 0, thickness: 0 },
+        size: {
+          width: 0 as Micrometres,
+          length: 0 as Micrometres,
+          thickness: 0 as Micrometres,
+        },
         colorKey: 'k',
       },
     ]);

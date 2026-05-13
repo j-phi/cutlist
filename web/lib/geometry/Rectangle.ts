@@ -1,48 +1,40 @@
 import { Point } from './Point';
-import {
-  isNearlyLessThan,
-  isNearlyGreaterThan,
-  isNearlyLessThanOrEqual,
-  isNearlyGreaterThanOrEqual,
-} from '../utils/floating-point-utils';
+import type { Micrometres } from '../utils/units';
 
 /**
- * Rectangle with a coordinate system based in the normal cartesion coordinate
- * system, where (0, 0) is in the bottom left.
+ * Axis-aligned rectangle whose coordinates are integer micrometres.
+ * Origin is bottom-left in normal Cartesian space. All arithmetic on the
+ * rectangle is exact integer arithmetic — no tolerance, no FP slop.
  */
 export class Rectangle<T> {
-  readonly left: number;
-  readonly bottom: number;
-  readonly width: number;
-  readonly height: number;
+  readonly left: Micrometres;
+  readonly bottom: Micrometres;
+  readonly width: Micrometres;
+  readonly height: Micrometres;
 
   constructor(
     readonly data: T,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
+    x: Micrometres,
+    y: Micrometres,
+    width: Micrometres,
+    height: Micrometres,
   ) {
-    this.left = Math.min(x + width, x);
-    this.bottom = Math.min(y + height, y);
-    this.width = Math.abs(width);
-    this.height = Math.abs(height);
+    this.left = Math.min(x + width, x) as Micrometres;
+    this.bottom = Math.min(y + height, y) as Micrometres;
+    this.width = Math.abs(width) as Micrometres;
+    this.height = Math.abs(height) as Micrometres;
   }
 
   toString() {
     return JSON.stringify(this);
   }
 
-  get right(): number {
-    return this.left + this.width;
+  get right(): Micrometres {
+    return (this.left + this.width) as Micrometres;
   }
 
-  get top(): number {
-    return this.bottom + this.height;
-  }
-
-  get center(): Point {
-    return new Point(this.left + this.width / 2, this.bottom + this.height / 2);
+  get top(): Micrometres {
+    return (this.bottom + this.height) as Micrometres;
   }
 
   get bottomLeft(): Point {
@@ -62,10 +54,10 @@ export class Rectangle<T> {
   }
 
   clone(changes?: {
-    left?: number;
-    bottom?: number;
-    width?: number;
-    height?: number;
+    left?: Micrometres;
+    bottom?: Micrometres;
+    width?: Micrometres;
+    height?: Micrometres;
   }): Rectangle<T> {
     return new Rectangle(
       this.data,
@@ -83,52 +75,46 @@ export class Rectangle<T> {
     });
   }
 
-  /**
-   * Return an expanded rectangle. Use negative numbers to shrink the rectangle.
-   */
+  /** Expanded rectangle; negative values shrink. */
   pad(p: {
-    left?: number;
-    right?: number;
-    top?: number;
-    bottom?: number;
+    left?: Micrometres;
+    right?: Micrometres;
+    top?: Micrometres;
+    bottom?: Micrometres;
   }): Rectangle<T> {
+    const dl = (p.left ?? 0) as Micrometres;
+    const dr = (p.right ?? 0) as Micrometres;
+    const dt = (p.top ?? 0) as Micrometres;
+    const db = (p.bottom ?? 0) as Micrometres;
     return this.clone({
-      left: this.left - (p.left ?? 0),
-      bottom: this.bottom - (p.bottom ?? 0),
-      width: this.width + (p.left ?? 0) + (p.right ?? 0),
-      height: this.height + (p.bottom ?? 0) + (p.top ?? 0),
+      left: (this.left - dl) as Micrometres,
+      bottom: (this.bottom - db) as Micrometres,
+      width: (this.width + dl + dr) as Micrometres,
+      height: (this.height + db + dt) as Micrometres,
     });
   }
 
-  /**
-   * Move the rectangle over by the desired X/Y amounts.
-   */
-  translate(x: number, y: number): Rectangle<T> {
+  translate(x: Micrometres, y: Micrometres): Rectangle<T> {
     return this.clone({
-      left: this.left + x,
-      bottom: this.bottom + y,
+      left: (this.left + x) as Micrometres,
+      bottom: (this.bottom + y) as Micrometres,
     });
   }
 
-  /**
-   * Expand this rectangle to contain another.
-   */
+  /** Expand to contain `other`. */
   swallow(other: Rectangle<unknown>): Rectangle<T> {
-    const left = Math.min(this.left, other.left);
-    const bottom = Math.min(this.bottom, other.bottom);
-    const right = Math.max(this.right, other.right);
-    const top = Math.max(this.top, other.top);
+    const left = Math.min(this.left, other.left) as Micrometres;
+    const bottom = Math.min(this.bottom, other.bottom) as Micrometres;
+    const right = Math.max(this.right, other.right) as Micrometres;
+    const top = Math.max(this.top, other.top) as Micrometres;
     return this.clone({
       left,
       bottom,
-      width: right - left,
-      height: top - bottom,
+      width: (right - left) as Micrometres,
+      height: (top - bottom) as Micrometres,
     });
   }
 
-  /**
-   * Flip the width and height, keeping it in the same left/bottom.
-   */
   flipOrientation(): Rectangle<T> {
     return this.clone({
       width: this.height,
@@ -136,28 +122,23 @@ export class Rectangle<T> {
     });
   }
 
-  /**
-   * Returns true if the other rectangle is inside or the edges are coincident.
-   */
-  isInside(other: Rectangle<any>, epsilon: number): boolean {
+  /** `other` is fully inside `this` (edge-coincident counts as inside). */
+  isInside(other: Rectangle<unknown>): boolean {
     return (
-      isNearlyGreaterThanOrEqual(this.left, other.left, epsilon) &&
-      isNearlyLessThanOrEqual(this.right, other.right, epsilon) &&
-      isNearlyLessThanOrEqual(this.top, other.top, epsilon) &&
-      isNearlyGreaterThanOrEqual(this.bottom, other.bottom, epsilon)
+      this.left >= other.left &&
+      this.right <= other.right &&
+      this.top <= other.top &&
+      this.bottom >= other.bottom
     );
   }
 
-  /**
-   * Returns true when the other rectangle is inside this one. Returns false if
-   * they're simply touching.
-   */
-  isIntersecting(other: Rectangle<any>, epsilon: number): boolean {
+  /** Strict overlap — touching edges do not count as intersecting. */
+  isIntersecting(other: Rectangle<unknown>): boolean {
     return !(
-      isNearlyLessThanOrEqual(this.right, other.left, epsilon) ||
-      isNearlyGreaterThanOrEqual(this.left, other.right, epsilon) ||
-      isNearlyLessThanOrEqual(this.top, other.bottom, epsilon) ||
-      isNearlyGreaterThanOrEqual(this.bottom, other.top, epsilon)
+      this.right <= other.left ||
+      this.left >= other.right ||
+      this.top <= other.bottom ||
+      this.bottom >= other.top
     );
   }
 }

@@ -9,7 +9,7 @@
  */
 
 import type { JSONContent } from '@tiptap/core';
-import type { Algorithm, Precision } from 'cutlist';
+import type { Algorithm, Micrometres, Precision } from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 import type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
 
@@ -24,10 +24,7 @@ export interface IdbProject {
    * millimetres; rows do not carry a unit field.
    */
   stock: string;
-  /**
-   * Display preference for distances. Storage is always mm — this only
-   * controls what the UI renders and how typed input is parsed.
-   */
+  /** Display preference for distances. Storage is always integer µm. */
   distanceUnit: 'in' | 'mm';
   /**
    * Display precision — fractional or decimal granularity for the BOM,
@@ -35,10 +32,10 @@ export interface IdbProject {
    * `distanceUnit` changes.
    */
   precision: Precision;
-  /** Saw blade width in millimetres. */
-  bladeWidth: number;
-  /** Packing margin in millimetres. */
-  margin: number;
+  /** Saw blade width, integer micrometres. */
+  bladeWidth: Micrometres;
+  /** Packing margin, integer micrometres. */
+  margin: Micrometres;
   /**
    * Default packing algorithm. Used for materials in `stock` that don't
    * carry their own `algorithm` override.

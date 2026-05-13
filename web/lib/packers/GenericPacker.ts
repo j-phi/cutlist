@@ -1,6 +1,7 @@
 import type { Point, Rectangle } from '../geometry';
 import type { PackOptions, PackResult, Packer } from './Packer';
 import { isValidPlacement } from './utils';
+import type { Micrometres } from '../utils/units';
 
 export function createGenericPacker<T>({
   sortPlacements,
@@ -10,15 +11,12 @@ export function createGenericPacker<T>({
   getPossiblePlacements: (
     bin: Rectangle<unknown>,
     placements: Rectangle<T>[],
-    gap: number,
+    gap: Micrometres,
   ) => Point[];
 }): Packer<T> {
   return {
     pack(bin, rects, options) {
-      const res: PackResult<T> = {
-        leftovers: [],
-        placements: [],
-      };
+      const res: PackResult<T> = { leftovers: [], placements: [] };
       this.addToPack(res, bin, rects, options);
       return res;
     },
@@ -37,20 +35,12 @@ export function createGenericPacker<T>({
             options.allowRotations &&
             (options.canRotateRect == null ||
               options.canRotateRect(moved.data));
-          if (canRotate) {
-            return [moved, moved.flipOrientation()];
-          }
+          if (canRotate) return [moved, moved.flipOrientation()];
           return [moved];
         });
 
         const validPlacements = possiblePlacements.filter((placement) =>
-          isValidPlacement(
-            bin,
-            res.placements,
-            placement,
-            options.placementEpsilon,
-            options.gap,
-          ),
+          isValidPlacement(bin, res.placements, placement, options.gap),
         );
         if (validPlacements.length > 0) {
           res.placements.push(validPlacements[0]);

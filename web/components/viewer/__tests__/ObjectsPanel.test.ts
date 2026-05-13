@@ -1,4 +1,5 @@
 // @vitest-environment nuxt
+import type { Micrometres } from 'cutlist';
 import { nextTick, ref } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
@@ -44,14 +45,22 @@ function makeGraph(): ObjectGraph {
         partNumber: 10,
         instanceNumber: 1,
         name: 'Drawer Side',
-        size: { width: 0, length: 0, thickness: 0 },
+        size: {
+          width: 0 as Micrometres,
+          length: 0 as Micrometres,
+          thickness: 0 as Micrometres,
+        },
         colorKey: 'k',
       },
       {
         partNumber: 11,
         instanceNumber: 1,
         name: 'Drawer Bottom',
-        size: { width: 0, length: 0, thickness: 0 },
+        size: {
+          width: 0 as Micrometres,
+          length: 0 as Micrometres,
+          thickness: 0 as Micrometres,
+        },
         colorKey: 'k',
       },
     ],

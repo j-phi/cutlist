@@ -313,9 +313,9 @@ describe('BomTab — inline rename', () => {
       modelName: 'Model',
       qty: 1,
       material: 'Plywood',
-      thicknessM: 0.018,
-      widthM: 0.3,
-      lengthM: 0.6,
+      thicknessUm: 0.018,
+      widthUm: 0.3,
+      lengthUm: 0.6,
       leftoverCount: 0,
       isManual: false,
     };

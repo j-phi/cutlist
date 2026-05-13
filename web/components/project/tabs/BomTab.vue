@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { mToMm } from 'cutlist';
+import type { Micrometres } from 'cutlist';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import { STORAGE_KEYS } from '~/utils/localStorage';
 import type { ManualPartInput } from '~/composables/useProjects';
@@ -108,9 +108,9 @@ const manualPartInfoMap = computed(() => {
     result.set(pn, {
       partNumber: pn,
       name: parts[0].name,
-      widthMm: mToMm(parts[0].size.width),
-      lengthMm: mToMm(parts[0].size.length),
-      thicknessMm: mToMm(parts[0].size.thickness),
+      widthUm: parts[0].size.width,
+      lengthUm: parts[0].size.length,
+      thicknessUm: parts[0].size.thickness,
       qty: parts.length,
       material: parts[0].colorKey,
       grainLock: parts[0].grainLock,
@@ -169,8 +169,8 @@ const highlightedPartNumber = computed(() => {
 
 // ── Compact dimension format ─────────────────────────────────────────────────
 
-function formatDim(m: number | undefined | null): string {
-  const s = formatDistance(m);
+function formatDim(um: Micrometres | undefined | null): string {
+  const s = formatDistance(um);
   if (!s) return '';
   if (distanceUnit.value === 'mm') return s.replace(/\s*mm$/, '');
   return s.replace(/\s*"$/, '');
@@ -716,17 +716,17 @@ onUnmounted(() => {
                         <td
                           class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
                         >
-                          {{ formatDim(row.lengthM) }}
+                          {{ formatDim(row.lengthUm) }}
                         </td>
                         <td
                           class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
                         >
-                          {{ formatDim(row.widthM) }}
+                          {{ formatDim(row.widthUm) }}
                         </td>
                         <td
                           class="px-2 md:px-4 py-2 md:py-2.5 text-right text-muted tabular-nums"
                         >
-                          {{ formatDim(row.thicknessM) }}
+                          {{ formatDim(row.thicknessUm) }}
                         </td>
                         <td class="px-2 md:px-4 py-2 md:py-2.5">
                           <div
@@ -748,9 +748,9 @@ onUnmounted(() => {
                                   row.grainLock,
                                   {
                                     material: row.material,
-                                    thicknessM: row.thicknessM,
-                                    widthM: row.widthM,
-                                    lengthM: row.lengthM,
+                                    thicknessUm: row.thicknessUm,
+                                    widthUm: row.widthUm,
+                                    lengthUm: row.lengthUm,
                                   },
                                 )
                               "
@@ -784,9 +784,9 @@ onUnmounted(() => {
                                     row.grainLock,
                                     {
                                       material: row.material,
-                                      thicknessM: row.thicknessM,
-                                      widthM: row.widthM,
-                                      lengthM: row.lengthM,
+                                      thicknessUm: row.thicknessUm,
+                                      widthUm: row.widthUm,
+                                      lengthUm: row.lengthUm,
                                     },
                                   )
                                 "

@@ -1,4 +1,3 @@
-import { STOCK_MATCH_TOLERANCE_M } from './units';
 import {
   effectiveOversize,
   type LinearStock,
@@ -7,11 +6,13 @@ import {
   type Stock,
   isLinearStock,
 } from '../types';
+import { STOCK_MATCH_TOLERANCE_UM } from './units';
 
-const matches = (a: number, b: number) =>
-  Math.abs(a - b) <= STOCK_MATCH_TOLERANCE_M;
+/** Within OBB drift tolerance — used for part↔stock identity only. */
+const matchesStock = (a: number, b: number) =>
+  Math.abs(a - b) <= STOCK_MATCH_TOLERANCE_UM;
 
-/** Same cross-section in either orientation. */
+/** Same cross-section in either orientation, within stock-match tolerance. */
 function crossSectionsMatch(
   w1: number,
   t1: number,
@@ -19,7 +20,8 @@ function crossSectionsMatch(
   t2: number,
 ): boolean {
   return (
-    (matches(w1, w2) && matches(t1, t2)) || (matches(w1, t2) && matches(t1, w2))
+    (matchesStock(w1, w2) && matchesStock(t1, t2)) ||
+    (matchesStock(w1, t2) && matchesStock(t1, w2))
   );
 }
 
@@ -30,7 +32,7 @@ export function isValidSheetStock(
   if (test.material !== target.material) return false;
   const targetThickness =
     'size' in target ? target.size.thickness : target.thickness;
-  return matches(targetThickness, test.thickness);
+  return matchesStock(targetThickness, test.thickness);
 }
 
 export function isValidLinearStockForPart(
@@ -49,7 +51,7 @@ export function isValidLinearStockForPart(
   ) {
     return false;
   }
-  return part.size.length + o.length <= stock.length + STOCK_MATCH_TOLERANCE_M;
+  return part.size.length + o.length <= stock.length;
 }
 
 export function isCompatibleLinearStock(
@@ -57,11 +59,12 @@ export function isCompatibleLinearStock(
   b: LinearStock,
 ): boolean {
   if (a.material !== b.material) return false;
-  return crossSectionsMatch(
-    a.crossSectionWidth,
-    a.crossSectionThickness,
-    b.crossSectionWidth,
-    b.crossSectionThickness,
+  // Stock↔stock comparison: both come from YAML mm × 1000, exact integer match.
+  return (
+    (a.crossSectionWidth === b.crossSectionWidth &&
+      a.crossSectionThickness === b.crossSectionThickness) ||
+    (a.crossSectionWidth === b.crossSectionThickness &&
+      a.crossSectionThickness === b.crossSectionWidth)
   );
 }
 
@@ -76,5 +79,6 @@ export function areStocksEquivalent(a: Stock, b: Stock): boolean {
   if (isLinearStock(a)) {
     return isLinearStock(b) && isCompatibleLinearStock(a, b);
   }
-  return !isLinearStock(b) && isValidSheetStock(a, b);
+  if (isLinearStock(b)) return false;
+  return a.material === b.material && a.thickness === b.thickness;
 }

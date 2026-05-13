@@ -1,5 +1,6 @@
 // @vitest-environment nuxt
 import { describe, expect, it } from 'vitest';
+import type { Micrometres } from 'cutlist';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
@@ -17,9 +18,9 @@ describe('PartDetails', () => {
     instanceNumber: 2,
     name: 'Side panel',
     material: 'Plywood',
-    widthM: 0.3,
-    lengthM: 1.2,
-    thicknessM: 0.018,
+    widthUm: 0.3 as Micrometres,
+    lengthUm: 1.2 as Micrometres,
+    thicknessUm: 0.018 as Micrometres,
   };
 
   function getComponent(props: Record<string, unknown> = {}) {
@@ -67,10 +68,10 @@ describe('PartDetails', () => {
       const component = getComponent({
         placement: {
           ...part,
-          leftM: 0.05,
-          topM: 0.1,
-          rightM: 0.35,
-          bottomM: 1.3,
+          leftUm: 0.05 as Micrometres,
+          topUm: 0.1 as Micrometres,
+          rightUm: 0.35 as Micrometres,
+          bottomUm: 1.3 as Micrometres,
         },
       });
       const rows = component.findAll('tbody tr');

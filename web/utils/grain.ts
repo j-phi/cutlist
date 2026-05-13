@@ -3,6 +3,7 @@ export type GrainLock = 'length' | 'width' | undefined;
 const GRAIN_CYCLE: GrainLock[] = [undefined, 'length', 'width'];
 
 export const GRAIN_LABELS: Record<string, string> = {
+  free: 'Free',
   length: '↕ Length',
   width: '↔ Width',
 };

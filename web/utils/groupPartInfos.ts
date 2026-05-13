@@ -4,33 +4,37 @@ import type {
   NodePartMapping,
   DeriveResult,
 } from './modelTypes';
-import { toCanonicalM } from '~/lib/utils/units';
+import type { Micrometres } from '~/lib/utils/units';
 
 export interface PartInfo {
   name: string;
   colorKey: string;
   colorHex: string;
   rgb: [number, number, number];
-  size: { thickness: number; width: number; length: number };
+  size: { thickness: Micrometres; width: Micrometres; length: Micrometres };
   nodeIndex: number;
 }
 
-/** Two dim values within this much are the same cut. Loose enough to absorb
- *  sub-mm vertex noise some exporters introduce between meshes that
- *  represent the same physical part; tight enough to keep real cuts apart. */
-const GROUP_TOLERANCE_M = 1e-3;
+/**
+ * Cluster tolerance for raw mesh-extent dims. Wide enough to absorb the
+ * sub-mm vertex noise some exporters introduce between meshes that
+ * represent the same physical part; tight enough to keep real cuts apart.
+ */
+const GROUP_TOLERANCE_UM = 1000;
 
 /** Map each value to its cluster's leader: sort unique values, start a new
  *  cluster whenever the gap from the previous value exceeds tolerance. */
-function clusterByGap(values: Iterable<number>): Map<number, number> {
+function clusterByGap(
+  values: Iterable<Micrometres>,
+): Map<Micrometres, Micrometres> {
   const unique = [...new Set(values)].sort((a, b) => a - b);
-  const out = new Map<number, number>();
+  const out = new Map<Micrometres, Micrometres>();
   if (unique.length === 0) return out;
   let leader = unique[0]!;
   out.set(leader, leader);
   for (let i = 1; i < unique.length; i += 1) {
     const v = unique[i]!;
-    if (v - unique[i - 1]! > GROUP_TOLERANCE_M) leader = v;
+    if (v - unique[i - 1]! > GROUP_TOLERANCE_UM) leader = v;
     out.set(v, leader);
   }
   return out;
@@ -42,9 +46,9 @@ function clusterByGap(values: Iterable<number>): Map<number, number> {
  */
 export function groupPartInfos(partInfos: PartInfo[]): DeriveResult {
   const widthOf = (info: PartInfo) =>
-    Math.min(info.size.width, info.size.length);
+    Math.min(info.size.width, info.size.length) as Micrometres;
   const lengthOf = (info: PartInfo) =>
-    Math.max(info.size.width, info.size.length);
+    Math.max(info.size.width, info.size.length) as Micrometres;
 
   const tMap = clusterByGap(partInfos.map((p) => p.size.thickness));
   const wMap = clusterByGap(partInfos.map(widthOf));
@@ -65,15 +69,9 @@ export function groupPartInfos(partInfos: PartInfo[]): DeriveResult {
       existing.quantity += 1;
       existing.nodeIndices.push(info.nodeIndex);
     } else {
-      // Snap to the 1 µm grid so mesh-extent FP noise can't desync part dims
-      // from canonical-mm stock dims at exact-equality fit checks.
       groups.set(key, {
         ...info,
-        size: {
-          thickness: toCanonicalM(t),
-          width: toCanonicalM(w),
-          length: toCanonicalM(l),
-        },
+        size: { thickness: t, width: w, length: l },
         quantity: 1,
         nodeIndices: [info.nodeIndex],
       });
@@ -100,7 +98,6 @@ export function groupPartInfos(partInfos: PartInfo[]): DeriveResult {
     }
   }
 
-  // Tally colors across all parts.
   const colorMap = new Map<
     string,
     { rgb: [number, number, number]; count: number }

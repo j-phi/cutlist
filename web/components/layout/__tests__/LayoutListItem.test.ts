@@ -1,5 +1,6 @@
 // @vitest-environment nuxt
 import { shallowMount } from '@vue/test-utils';
+import type { Micrometres } from 'cutlist';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { computed, ref } from 'vue';
@@ -41,15 +42,15 @@ function makePlacement(
     instanceNumber: 1,
     name: 'Side panel',
     material: 'Plywood',
-    widthM: 0.3,
-    lengthM: 0.6,
-    thicknessM: 0.018,
-    leftM: 0,
-    rightM: 0.3,
-    topM: 0.6,
-    bottomM: 0,
-    allowanceWidthM: 0,
-    allowanceLengthM: 0,
+    widthUm: 0.3 as Micrometres,
+    lengthUm: 0.6 as Micrometres,
+    thicknessUm: 0.018 as Micrometres,
+    leftUm: 0 as Micrometres,
+    rightUm: 0.3 as Micrometres,
+    topUm: 0.6 as Micrometres,
+    bottomUm: 0 as Micrometres,
+    allowanceWidthUm: 0 as Micrometres,
+    allowanceLengthUm: 0 as Micrometres,
     ...overrides,
   };
 }
@@ -61,13 +62,13 @@ function makeLayout(
     kind: 'sheet',
     stock: {
       material: 'Plywood',
-      widthM: 1.0,
-      lengthM: 2.0,
-      thicknessM: 0.018,
+      widthUm: 1.0 as Micrometres,
+      lengthUm: 2.0 as Micrometres,
+      thicknessUm: 0.018 as Micrometres,
       color: '#abcdef',
     },
     placements,
-    marginM: 0,
+    marginUm: 0 as Micrometres,
     algorithm: 'compact',
   };
 }
@@ -134,7 +135,7 @@ describe('LayoutListItem', () => {
     }
 
     it('Should call requestGrainLockChange on a near-stationary click over a placement', async () => {
-      // Placement: leftM=0, widthM=0.3, bottomM=0, lengthM=0.6.
+      // Placement: leftUm=0, widthUm=0.3, bottomUm=0, lengthUm=0.6.
       // Board mapped 1m × 2m → 100 × 200 px. Place pointer at (15, 170) which
       // maps to xM=0.15, yM=0.3 — inside the placement.
       const placement = makePlacement({

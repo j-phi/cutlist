@@ -1,6 +1,6 @@
 import { rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
-import type { SheetBoardLayout } from 'cutlist';
+import { umToMm, type Micrometres, type SheetBoardLayout } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
 import type { PdfScale } from '../exportPdf';
 import {
@@ -37,8 +37,8 @@ export function drawBoardTiles(
 ) {
   const { scale } = ctx.opts;
   const stock = layout.stock;
-  const boardWmm = stock.widthM * 1000;
-  const boardLmm = stock.lengthM * 1000;
+  const boardWmm = umToMm(stock.widthUm);
+  const boardLmm = umToMm(stock.lengthUm);
   // Paper dimensions (mm) at the chosen scale
   const paperWmm = boardWmm / scale;
   const paperHmm = boardLmm / scale;
@@ -108,7 +108,7 @@ function drawBoardTilePage(
 
   // Board title line
   const boardTitleY = pageH - (margin + HEADER_BAND_MM) * MM - 8;
-  const sizeText = `${formatSize(stock.lengthM) ?? ''} × ${formatSize(stock.widthM) ?? ''} × ${formatSize(stock.thicknessM) ?? ''}`;
+  const sizeText = `${formatSize(stock.lengthUm) ?? ''} × ${formatSize(stock.widthUm) ?? ''} × ${formatSize(stock.thicknessUm) ?? ''}`;
   page.drawText(`${stock.material}  ·  ${sizeText}`, {
     x: margin * MM,
     y: boardTitleY,
@@ -171,12 +171,16 @@ function drawBoardTilePage(
 
   // Parts
   for (const placement of layout.placements) {
-    const placedWidthM = placement.rightM - placement.leftM;
-    const placedLengthM = placement.topM - placement.bottomM;
-    const px = boardX + ((placement.leftM * 1000) / scale) * MM;
-    const py = boardY + ((placement.bottomM * 1000) / scale) * MM;
-    const pw = ((placedWidthM * 1000) / scale) * MM;
-    const ph = ((placedLengthM * 1000) / scale) * MM;
+    const placedWidthMm = umToMm(
+      (placement.rightUm - placement.leftUm) as Micrometres,
+    );
+    const placedLengthMm = umToMm(
+      (placement.topUm - placement.bottomUm) as Micrometres,
+    );
+    const px = boardX + (umToMm(placement.leftUm) / scale) * MM;
+    const py = boardY + (umToMm(placement.bottomUm) / scale) * MM;
+    const pw = (placedWidthMm / scale) * MM;
+    const ph = (placedLengthMm / scale) * MM;
     drawClippedRect(page, px, py, pw, ph, tileXpt, tileYpt, tileWpt, tileHpt, {
       borderColor: rgb(0.1, 0.1, 0.1),
       borderWidth: 0.5,
@@ -185,8 +189,8 @@ function drawBoardTilePage(
 
     // Indigo allowance hatch on the +X / +Y edges; the two strips overlap
     // at the corner to mark the L-shaped allowance region.
-    const allowWpt = ((placement.allowanceWidthM * 1000) / scale) * MM;
-    const allowHpt = ((placement.allowanceLengthM * 1000) / scale) * MM;
+    const allowWpt = (umToMm(placement.allowanceWidthUm) / scale) * MM;
+    const allowHpt = (umToMm(placement.allowanceLengthUm) / scale) * MM;
     if (allowWpt > 0) {
       drawClippedHatch(
         page,
@@ -218,9 +222,9 @@ function drawBoardTilePage(
     if (showPartNumbers) {
       // Part number sizing: half part width, capped at 1 inch real-world
       // (matches PartListItem.vue), then scaled to paper coordinates.
-      const ONE_INCH_M = 0.0254;
-      const realCapM = Math.min(placedWidthM / 2, ONE_INCH_M);
-      const fontPt = ((realCapM * 1000) / scale) * MM;
+      const ONE_INCH_MM = 25.4;
+      const realCapMm = Math.min(placedWidthMm / 2, ONE_INCH_MM);
+      const fontPt = (realCapMm / scale) * MM;
       const MIN_PART_LABEL_PT = 4;
       const MAX_PART_LABEL_PT = 14;
       const usePt = Math.max(

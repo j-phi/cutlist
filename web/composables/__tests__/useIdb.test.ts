@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { mmToUm, type Micrometres } from 'cutlist';
 import { useIdb, applyModelDefaults } from '../useIdb';
 import { resetDatabase } from '../useIdb/db';
 import { DEFAULT_SETTINGS } from '../../utils/settings';
@@ -29,8 +30,8 @@ describe('project CRUD', () => {
     const project = await idb.createProject('Imperial', {
       stock: 'custom yaml',
       distanceUnit: 'in',
-      bladeWidth: 7,
-      margin: 1,
+      bladeWidth: 7 as Micrometres,
+      margin: 1 as Micrometres,
       defaultAlgorithm: 'cnc',
       showPartNumbers: false,
     });
@@ -45,8 +46,8 @@ describe('project CRUD', () => {
   it('updateProject accepts packing settings fields', async () => {
     const project = await idb.createProject('Packing patch');
     const updated = await idb.updateProject(project.id, {
-      bladeWidth: 4,
-      margin: 2,
+      bladeWidth: 4 as Micrometres,
+      margin: 2 as Micrometres,
       defaultAlgorithm: 'cnc',
       showPartNumbers: false,
     });
@@ -147,9 +148,9 @@ describe('model CRUD', () => {
           instanceNumber: 1,
           colorKey: '#aaa',
           size: {
-            width: 0.5,
-            length: 0.8,
-            thickness: 0.018,
+            width: mmToUm(500),
+            length: mmToUm(800),
+            thickness: mmToUm(18),
           },
         },
       ],

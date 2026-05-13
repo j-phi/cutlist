@@ -10,7 +10,7 @@ describe('reduceStockMatrix', () => {
     expect(reduceStockMatrix([])).toEqual([]);
   });
 
-  it('converts mm input to meters', () => {
+  it('converts mm input to µm', () => {
     const result = sheetOnly(
       reduceStockMatrix([
         {
@@ -21,9 +21,9 @@ describe('reduceStockMatrix', () => {
       ]),
     );
     expect(result).toHaveLength(1);
-    expect(result[0].thickness).toBeCloseTo(0.018, 6);
-    expect(result[0].width).toBeCloseTo(1.22, 6);
-    expect(result[0].length).toBeCloseTo(2.44, 6);
+    expect(result[0].thickness).toBe(18_000);
+    expect(result[0].width).toBe(1_220_000);
+    expect(result[0].length).toBe(2_440_000);
   });
 
   it('returns one stock per size × thickness combination', () => {
@@ -40,7 +40,7 @@ describe('reduceStockMatrix', () => {
       ]),
     );
     expect(result).toHaveLength(2);
-    expect(result.map((s) => s.width)).toEqual([0.6, 1.22]);
+    expect(result.map((s) => s.width)).toEqual([600_000, 1_220_000]);
   });
 
   it('returns sizes × thicknesses count', () => {
@@ -73,11 +73,10 @@ describe('reduceStockMatrix', () => {
     );
     expect(result).toHaveLength(4);
     const small = result.filter(
-      (s) =>
-        Math.abs(s.length - 1.22) < 0.001 && Math.abs(s.width - 1.22) < 0.001,
+      (s) => s.length === 1_220_000 && s.width === 1_220_000,
     );
     expect(small).toHaveLength(1);
-    expect(small[0].thickness).toBeCloseTo(0.012, 6);
+    expect(small[0].thickness).toBe(12_000);
   });
 
   it('preserves material on all stocks', () => {

@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { mmToUm } from 'cutlist';
 import { suggestStockForProject, type Suggestion } from '~/utils/suggestStock';
 import { useStockMutations } from '~/composables/useStockMutations';
 import useFormatDistance from '~/composables/useFormatDistance';
@@ -66,7 +67,7 @@ function addAll() {
           <template v-if="(s.matrix.oversize?.crossSection ?? 0) > 0">
             <span class="mx-1.5 text-dim">·</span>
             <span class="text-amber-400">
-              +{{ formatDistance(s.matrix.oversize!.crossSection / 1000) }}
+              +{{ formatDistance(mmToUm(s.matrix.oversize!.crossSection)) }}
               extra material
             </span>
           </template>

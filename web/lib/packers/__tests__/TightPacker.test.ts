@@ -2,22 +2,28 @@ import { describe, it, expect } from 'vitest';
 import { createTightPacker } from '../TightPacker';
 import type { PackOptions } from '../Packer';
 import { Rectangle } from '../../geometry';
+import type { Micrometres } from '../../utils/units';
+
+const um = (n: number) => n as Micrometres;
+
+function r<T>(data: T, x: number, y: number, w: number, h: number) {
+  return new Rectangle<T>(data, um(x), um(y), um(w), um(h));
+}
 
 describe('Tight Bin Packer', () => {
   it('should pack rectangles as closely as possible', () => {
     const packer = createTightPacker<string>();
-    const bin = new Rectangle(null, 0, 0, 10, 10);
+    const bin = r(null, 0, 0, 10, 10);
     const rects = [
-      new Rectangle('1', 0, 0, 5, 5),
-      new Rectangle('2', 0, 0, 4, 4),
-      new Rectangle('3', 0, 0, 3, 3),
-      new Rectangle('4', 0, 0, 5, 5),
-      new Rectangle('5', 0, 0, 5, 5),
+      r('1', 0, 0, 5, 5),
+      r('2', 0, 0, 4, 4),
+      r('3', 0, 0, 3, 3),
+      r('4', 0, 0, 5, 5),
+      r('5', 0, 0, 5, 5),
     ];
     const options: PackOptions = {
       allowRotations: false,
-      gap: 0,
-      placementEpsilon: 0,
+      gap: um(0),
     };
 
     expect(packer.pack(bin, rects, options)).toEqual({
@@ -49,16 +55,11 @@ describe('Tight Bin Packer', () => {
 
   it('should not pack rectangles of the same size ontop of one another', () => {
     const packer = createTightPacker<string>();
-    const bin = new Rectangle(null, 0, 0, 10, 5);
-    const rects = [
-      new Rectangle('1', 0, 0, 5, 5),
-      new Rectangle('2', 0, 0, 5, 5),
-      new Rectangle('3', 0, 0, 5, 5),
-    ];
+    const bin = r(null, 0, 0, 10, 5);
+    const rects = [r('1', 0, 0, 5, 5), r('2', 0, 0, 5, 5), r('3', 0, 0, 5, 5)];
     const options: PackOptions = {
       allowRotations: false,
-      gap: 0,
-      placementEpsilon: 0,
+      gap: um(0),
     };
 
     expect(packer.pack(bin, rects, options)).toEqual({
@@ -81,16 +82,11 @@ describe('Tight Bin Packer', () => {
   it('should enforce blade kerf gap between placements', () => {
     const packer = createTightPacker<string>();
     // 10-wide bin, two 4-wide parts with gap=2 → 4+2+4=10 fits exactly
-    const bin = new Rectangle(null, 0, 0, 10, 5);
-    const rects = [
-      new Rectangle('1', 0, 0, 4, 5),
-      new Rectangle('2', 0, 0, 4, 5),
-      new Rectangle('3', 0, 0, 4, 5),
-    ];
+    const bin = r(null, 0, 0, 10, 5);
+    const rects = [r('1', 0, 0, 4, 5), r('2', 0, 0, 4, 5), r('3', 0, 0, 4, 5)];
     const options: PackOptions = {
       allowRotations: false,
-      gap: 2,
-      placementEpsilon: 0.001,
+      gap: um(2),
     };
 
     const result = packer.pack(bin, rects, options);
@@ -108,15 +104,11 @@ describe('Tight Bin Packer', () => {
 
   it('should allow rotating rectangles to fit in either orientation', () => {
     const packer = createTightPacker<string>();
-    const bin = new Rectangle(null, 0, 0, 1, 3);
-    const rects = [
-      new Rectangle('1', 0, 0, 1, 1),
-      new Rectangle('2', 0, 0, 2, 1),
-    ];
+    const bin = r(null, 0, 0, 1, 3);
+    const rects = [r('1', 0, 0, 1, 1), r('2', 0, 0, 2, 1)];
     const options: PackOptions = {
       allowRotations: true,
-      gap: 0,
-      placementEpsilon: 0,
+      gap: um(0),
     };
 
     expect(packer.pack(bin, rects, options)).toEqual({

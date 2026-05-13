@@ -13,16 +13,16 @@ const { requestGrainLockChange } = useGrainLockConfirm();
 const { isRulerActive, getMeasurementsForBoard } = useRulerStore();
 const boardMeasurements = getMeasurementsForBoard(props.boardIndex);
 
-const widthPx = computed(() => getPx(props.layout.stock.widthM));
-const heightPx = computed(() => getPx(props.layout.stock.lengthM));
+const widthPx = computed(() => getPx(props.layout.stock.widthUm));
+const heightPx = computed(() => getPx(props.layout.stock.lengthUm));
 
-const width = computed(() => formatDistance(props.layout.stock.widthM));
-const length = computed(() => formatDistance(props.layout.stock.lengthM));
+const width = computed(() => formatDistance(props.layout.stock.widthUm));
+const length = computed(() => formatDistance(props.layout.stock.lengthUm));
 
 const colors = computed(() => getMaterialColor(props.layout.stock.color));
 
 const marginPx = computed(() => {
-  const m = props.layout.marginM;
+  const m = props.layout.marginUm;
   if (!m) return null;
   return getPx(m);
 });
@@ -59,13 +59,18 @@ function hitTest(e: PointerEvent): number | null {
   const u = (e.clientX - rect.left) / rect.width;
   const v = (e.clientY - rect.top) / rect.height;
   if (u < 0 || u > 1 || v < 0 || v > 1) return null;
-  const { widthM, lengthM } = props.layout.stock;
-  const xM = u * widthM;
-  const yM = (1 - v) * lengthM;
+  const { widthUm, lengthUm } = props.layout.stock;
+  const xM = u * widthUm;
+  const yM = (1 - v) * lengthUm;
   const placements = props.layout.placements;
   for (let i = 0; i < placements.length; i++) {
     const p = placements[i];
-    if (xM >= p.leftM && xM <= p.rightM && yM >= p.bottomM && yM <= p.topM) {
+    if (
+      xM >= p.leftUm &&
+      xM <= p.rightUm &&
+      yM >= p.bottomUm &&
+      yM <= p.topUm
+    ) {
       return i;
     }
   }

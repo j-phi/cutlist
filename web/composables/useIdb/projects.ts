@@ -4,7 +4,7 @@
  * orphans.
  */
 
-import type { Algorithm, Precision } from 'cutlist';
+import type { Algorithm, Micrometres, Precision } from 'cutlist';
 import { DEFAULT_SETTINGS, defaultPrecisionForUnit } from '~/utils/settings';
 import { getDb, safeWrite } from './db';
 import { applyProjectDefaults, applyModelDefaults } from './defaults';
@@ -74,8 +74,8 @@ export async function createProject(
     stock?: string;
     distanceUnit?: 'in' | 'mm';
     precision?: Precision;
-    bladeWidth?: number;
-    margin?: number;
+    bladeWidth?: Micrometres;
+    margin?: Micrometres;
     defaultAlgorithm?: Algorithm;
     showPartNumbers?: boolean;
   },

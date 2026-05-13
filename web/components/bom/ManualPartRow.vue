@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { Micrometres } from 'cutlist';
 import type { ManualPartInput } from '~/composables/useProjects';
 import { useDimensionInput } from '~/composables/useDimensionInput';
 import { cycleGrainLock, GRAIN_LABELS } from '~/utils/grain';
@@ -17,32 +18,30 @@ const { distanceUnit, precision, linearMaterials } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
 const name = ref(props.initial?.name ?? '');
-const widthMm = ref<number | null>(props.initial?.widthMm ?? null);
-const lengthMm = ref<number | null>(props.initial?.lengthMm ?? null);
-const thicknessMm = ref<number | null>(props.initial?.thicknessMm ?? null);
+const widthUm = ref<Micrometres | null>(props.initial?.widthUm ?? null);
+const lengthUm = ref<Micrometres | null>(props.initial?.lengthUm ?? null);
+const thicknessUm = ref<Micrometres | null>(props.initial?.thicknessUm ?? null);
 const qty = ref(props.initial?.qty ?? 1);
 const material = ref(props.initial?.material ?? props.materials[0] ?? '');
 const grainLock = ref<'length' | 'width' | undefined>(props.initial?.grainLock);
 
 const isLinear = computed(() => linearMaterials.value.has(material.value));
-// Linear stock has a fixed grain direction — wipe any stale lock when the
-// user switches a part onto a linear material so it doesn't ship dead state.
 watch(isLinear, (linear) => {
   if (linear) grainLock.value = undefined;
 });
 
 const { input: widthInput, commit: commitWidth } = useDimensionInput(
-  widthMm,
+  widthUm,
   unit,
   precision,
 );
 const { input: lengthInput, commit: commitLength } = useDimensionInput(
-  lengthMm,
+  lengthUm,
   unit,
   precision,
 );
 const { input: thicknessInput, commit: commitThickness } = useDimensionInput(
-  thicknessMm,
+  thicknessUm,
   unit,
   precision,
 );
@@ -50,40 +49,45 @@ const { input: thicknessInput, commit: commitThickness } = useDimensionInput(
 const isValid = computed(
   () =>
     name.value.trim() !== '' &&
-    widthMm.value != null &&
-    widthMm.value > 0 &&
-    lengthMm.value != null &&
-    lengthMm.value > 0 &&
-    thicknessMm.value != null &&
-    thicknessMm.value > 0 &&
+    widthUm.value != null &&
+    widthUm.value > 0 &&
+    lengthUm.value != null &&
+    lengthUm.value > 0 &&
+    thicknessUm.value != null &&
+    thicknessUm.value > 0 &&
     qty.value >= 1 &&
     material.value !== '',
 );
 
 const placeholder = computed(() => (unit.value === 'in' ? 'e.g. 3/4' : '0'));
+const formAriaLabel = computed(() =>
+  props.initial ? 'Edit part' : 'Add part',
+);
+const submitLabel = computed(() => (props.initial ? 'Save' : 'Add'));
+const grainLabel = computed(() => GRAIN_LABELS[grainLock.value ?? 'free']);
 
 function submit() {
   if (
     !isValid.value ||
-    widthMm.value == null ||
-    lengthMm.value == null ||
-    thicknessMm.value == null
+    widthUm.value == null ||
+    lengthUm.value == null ||
+    thicknessUm.value == null
   )
     return;
   emit('save', {
     name: name.value.trim(),
-    widthMm: widthMm.value,
-    lengthMm: lengthMm.value,
-    thicknessMm: thicknessMm.value,
+    widthUm: widthUm.value,
+    lengthUm: lengthUm.value,
+    thicknessUm: thicknessUm.value,
     qty: qty.value,
     material: material.value,
     grainLock: grainLock.value,
   });
   if (!props.initial) {
     name.value = '';
-    widthMm.value = null;
-    lengthMm.value = null;
-    thicknessMm.value = null;
+    widthUm.value = null;
+    lengthUm.value = null;
+    thicknessUm.value = null;
     qty.value = 1;
   }
 }
@@ -98,132 +102,93 @@ function onKeydown(e: KeyboardEvent) {
   <div
     class="flex flex-col gap-2 p-2 rounded-lg border border-subtle bg-surface"
     role="form"
-    :aria-label="initial ? 'Edit part' : 'Add part'"
+    :aria-label="formAriaLabel"
+    @keydown="onKeydown"
   >
-    <UInput
-      v-model="name"
-      size="sm"
-      placeholder="Part name"
-      class="w-full"
-      autofocus
-      @keydown="onKeydown"
-    />
-    <div class="grid grid-cols-4 gap-1.5">
-      <div class="flex flex-col gap-0.5">
-        <label class="text-xs text-muted px-0.5" for="manual-part-length"
-          >L ({{ unit }})</label
-        >
-        <UInput
-          id="manual-part-length"
-          v-model="lengthInput"
-          type="text"
-          size="sm"
-          :placeholder="placeholder"
-          @blur="commitLength"
-          @keydown="onKeydown"
-        />
-      </div>
-      <div class="flex flex-col gap-0.5">
-        <label class="text-xs text-muted px-0.5" for="manual-part-width"
-          >W ({{ unit }})</label
-        >
-        <UInput
-          id="manual-part-width"
-          v-model="widthInput"
-          type="text"
-          size="sm"
-          :placeholder="placeholder"
-          @blur="commitWidth"
-          @keydown="onKeydown"
-        />
-      </div>
-      <div class="flex flex-col gap-0.5">
-        <label class="text-xs text-muted px-0.5" for="manual-part-thickness"
-          >T ({{ unit }})</label
-        >
-        <UInput
-          id="manual-part-thickness"
-          v-model="thicknessInput"
-          type="text"
-          size="sm"
-          :placeholder="placeholder"
-          @blur="commitThickness"
-          @keydown="onKeydown"
-        />
-      </div>
-      <div class="flex flex-col gap-0.5">
-        <label class="text-xs text-muted px-0.5" for="manual-part-qty"
-          >Qty</label
-        >
-        <UInput
-          id="manual-part-qty"
-          v-model.number="qty"
-          type="number"
-          size="sm"
-          placeholder="1"
-          :min="1"
-          @keydown="onKeydown"
-        />
-      </div>
-    </div>
-    <div class="flex items-center gap-2">
-      <button
-        v-if="!isLinear"
-        type="button"
-        :title="
-          grainLock
-            ? `Grain: ${GRAIN_LABELS[grainLock]} — click to cycle`
-            : 'Free rotation — click to lock grain'
-        "
-        :class="[
-          'flex items-center gap-1 px-2 py-1.5 rounded-md border text-xs transition-colors whitespace-nowrap',
-          grainLock
-            ? 'border-teal-500/60 bg-teal-500/10 text-teal-400'
-            : 'border-default bg-transparent text-dim hover:border-mist-600 hover:text-muted',
-        ]"
-        @click="grainLock = cycleGrainLock(grainLock)"
-      >
-        <UIcon
-          :name="grainLock ? 'i-lucide-lock' : 'i-lucide-lock-open'"
-          class="w-3.5 h-3.5"
-        />
-        <span>{{ grainLock ? GRAIN_LABELS[grainLock] : 'Free' }}</span>
-      </button>
-      <select
+    <div class="grid grid-cols-12 gap-2 items-center">
+      <UInput
+        v-model="name"
+        placeholder="Part name"
+        size="sm"
+        class="col-span-3"
+        autofocus
+      />
+      <label class="col-span-1 text-xs text-muted">L ({{ unit }})</label>
+      <UInput
+        id="manual-part-length"
+        v-model="lengthInput"
+        :placeholder="placeholder"
+        size="sm"
+        type="text"
+        inputmode="decimal"
+        class="col-span-1"
+        @blur="commitLength"
+        @keydown.enter.prevent="submit"
+      />
+      <label class="col-span-1 text-xs text-muted">W ({{ unit }})</label>
+      <UInput
+        id="manual-part-width"
+        v-model="widthInput"
+        :placeholder="placeholder"
+        size="sm"
+        type="text"
+        inputmode="decimal"
+        class="col-span-1"
+        @blur="commitWidth"
+        @keydown.enter.prevent="submit"
+      />
+      <label class="col-span-1 text-xs text-muted">T ({{ unit }})</label>
+      <UInput
+        id="manual-part-thickness"
+        v-model="thicknessInput"
+        :placeholder="placeholder"
+        size="sm"
+        type="text"
+        inputmode="decimal"
+        class="col-span-1"
+        @blur="commitThickness"
+        @keydown.enter.prevent="submit"
+      />
+      <UInputNumber
+        id="manual-part-qty"
+        v-model="qty"
+        :min="1"
+        size="sm"
+        class="col-span-1"
+      />
+      <USelect
         v-model="material"
+        :items="materials"
+        size="sm"
+        class="col-span-1"
         aria-label="Material"
-        class="manual-select flex-1 bg-base border border-default rounded-md px-2 py-1.5 text-sm text-body cursor-pointer focus:outline-none focus:border-mist-600"
-      >
-        <option
-          v-for="m in materials"
-          :key="m"
-          :value="m"
-          style="
-            background: var(--color-mist-900);
-            color: var(--color-mist-200);
-          "
+      />
+    </div>
+    <div class="flex gap-2 justify-between">
+      <div class="flex items-center gap-2">
+        <UButton
+          v-if="!isLinear"
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          @click="grainLock = cycleGrainLock(grainLock)"
         >
-          {{ m }}
-        </option>
-      </select>
-      <UButton
-        size="sm"
-        color="primary"
-        variant="soft"
-        :disabled="!isValid"
-        @click="submit"
-      >
-        {{ initial ? 'Save' : 'Add' }}
-      </UButton>
-      <UButton
-        v-if="initial"
-        size="sm"
-        color="neutral"
-        variant="ghost"
-        @click="emit('cancel')"
-      >
-        Cancel
-      </UButton>
+          {{ grainLabel }}
+        </UButton>
+      </div>
+      <div class="flex gap-2">
+        <UButton
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          @click="emit('cancel')"
+        >
+          Cancel
+        </UButton>
+        <UButton size="xs" color="primary" :disabled="!isValid" @click="submit">
+          {{ submitLabel }}
+        </UButton>
+      </div>
     </div>
   </div>
 </template>

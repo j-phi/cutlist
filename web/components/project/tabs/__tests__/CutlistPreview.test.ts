@@ -10,9 +10,9 @@ import { USelectStub } from '~/test-utils/stubs';
 type SheetLayout = {
   stock: {
     material: string;
-    thicknessM: number;
-    widthM: number;
-    lengthM: number;
+    thicknessUm: number;
+    widthUm: number;
+    lengthUm: number;
   };
 };
 
@@ -20,9 +20,9 @@ type LinearLayout = {
   kind: 'linear';
   stock: {
     material: string;
-    crossSectionWidthM: number;
-    crossSectionThicknessM: number;
-    lengthM: number;
+    crossSectionWidthUm: number;
+    crossSectionThicknessUm: number;
+    lengthUm: number;
   };
 };
 
@@ -31,7 +31,7 @@ type LayoutResult = {
   linearLayouts: LinearLayout[];
   leftovers: Array<{
     material: string;
-    thicknessM: number;
+    thicknessUm: number;
     partNumber: number;
   }>;
 };
@@ -74,31 +74,31 @@ mockNuxtImport(
 
 function makeLayout(
   material: string,
-  thicknessM: number,
-  widthM = 1.22,
-  lengthM = 2.44,
+  thicknessUm: number,
+  widthUm = 1.22,
+  lengthUm = 2.44,
 ): SheetLayout {
-  return { stock: { material, thicknessM, widthM, lengthM } };
+  return { stock: { material, thicknessUm, widthUm, lengthUm } };
 }
 
 function makeLinearLayout(
   material: string,
-  lengthM: number,
-  crossSectionWidthM = 0.0889,
-  crossSectionThicknessM = 0.0381,
+  lengthUm: number,
+  crossSectionWidthUm = 0.0889,
+  crossSectionThicknessUm = 0.0381,
 ): LinearLayout {
   return {
     kind: 'linear',
-    stock: { material, crossSectionWidthM, crossSectionThicknessM, lengthM },
+    stock: { material, crossSectionWidthUm, crossSectionThicknessUm, lengthUm },
   };
 }
 
 function makeLeftover(
   material: string,
-  thicknessM: number,
+  thicknessUm: number,
   partNumber: number,
 ) {
-  return { material, thicknessM, partNumber };
+  return { material, thicknessUm, partNumber };
 }
 
 // CutlistPreview's only meaningful UButton usage is the configure-stock CTA.

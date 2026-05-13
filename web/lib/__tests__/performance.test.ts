@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { generateBoardLayouts, type PartToCut, type StockMatrix } from '..';
+import {
+  generateBoardLayouts,
+  mmToUm,
+  type PartToCut,
+  type StockMatrix,
+} from '..';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -19,9 +24,9 @@ function createPart(
     material,
     grainLock,
     size: {
-      thickness: thicknessMm / 1000,
-      width: widthMm / 1000,
-      length: lengthMm / 1000,
+      thickness: mmToUm(thicknessMm),
+      width: mmToUm(widthMm),
+      length: mmToUm(lengthMm),
     },
   };
 }
@@ -119,10 +124,9 @@ describe('generateBoardLayouts large fixture smoke tests', () => {
     const { parts, stock } = generateLargeFixture(50);
 
     const result = generateBoardLayouts(parts, stock, {
-      bladeWidth: 3.175,
+      bladeWidth: mmToUm(3.175),
       margin: 0,
       defaultAlgorithm: 'auto',
-      placementEpsilon: 1e-5,
     });
 
     expect(result.layouts.length).toBeGreaterThan(0);
@@ -133,10 +137,9 @@ describe('generateBoardLayouts large fixture smoke tests', () => {
     const { parts, stock } = generateLargeFixture(50);
 
     const result = generateBoardLayouts(parts, stock, {
-      bladeWidth: 3.175,
+      bladeWidth: mmToUm(3.175),
       margin: 0,
       defaultAlgorithm: 'cnc',
-      placementEpsilon: 1e-5,
     });
 
     expect(result.layouts.length).toBeGreaterThan(0);

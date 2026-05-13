@@ -1,53 +1,66 @@
 import { describe, it, expect } from 'vitest';
 import { areStocksEquivalent, canPartFitStock } from '../stock-utils';
-import { STOCK_MATCH_TOLERANCE_M } from '../units';
+import { mmToUm, STOCK_MATCH_TOLERANCE_UM, type Micrometres } from '../units';
 import type { LinearStock, Stock, PartToCut } from '../../types';
 
-function makeStock(material: string, thickness: number): Stock {
-  return { kind: 'sheet', material, thickness, width: 0.6, length: 2.4 };
+function makeStock(material: string, thicknessUm: Micrometres): Stock {
+  return {
+    kind: 'sheet',
+    material,
+    thickness: thicknessUm,
+    width: mmToUm(600),
+    length: mmToUm(2400),
+  };
 }
 
-function makePart(material: string, thickness: number): PartToCut {
+function makePart(material: string, thicknessUm: Micrometres): PartToCut {
   return {
     partNumber: 1,
     instanceNumber: 1,
     name: 'Test Part',
     material,
-    size: { width: 0.3, length: 0.6, thickness },
+    size: {
+      width: mmToUm(300),
+      length: mmToUm(600),
+      thickness: thicknessUm,
+    },
   };
 }
 
 describe('canPartFitStock', () => {
   it('matches when material and thickness agree', () => {
     expect(
-      canPartFitStock(makeStock('Plywood', 0.018), makePart('Plywood', 0.018)),
+      canPartFitStock(
+        makeStock('Plywood', mmToUm(18)),
+        makePart('Plywood', mmToUm(18)),
+      ),
     ).toBe(true);
   });
 
   it('rejects on material mismatch', () => {
     expect(
-      canPartFitStock(makeStock('MDF', 0.018), makePart('Plywood', 0.018)),
+      canPartFitStock(
+        makeStock('MDF', mmToUm(18)),
+        makePart('Plywood', mmToUm(18)),
+      ),
     ).toBe(false);
   });
 
-  // Regression: OBB face-normal clustering drifts by µm between mesh
-  // instances; the cluster leader lands just below nominal stock (e.g.
-  // 11.99913 mm vs 12 mm). A relative-epsilon match used to reject that.
-  it('matches across the µm-scale drift that OBB introduces', () => {
-    const stock = makeStock('Plywood', 0.012);
-    expect(canPartFitStock(stock, makePart('Plywood', 0.01199913))).toBe(true);
-    expect(canPartFitStock(stock, makePart('Plywood', 0.01200087))).toBe(true);
+  it('matches exactly on equal µm thickness', () => {
+    const stock = makeStock('Plywood', mmToUm(12));
+    expect(canPartFitStock(stock, makePart('Plywood', mmToUm(12)))).toBe(true);
   });
 
-  it('rejects past the absolute tolerance', () => {
-    const stock = makeStock('Plywood', 0.012);
-    const offBy = STOCK_MATCH_TOLERANCE_M + 1e-6;
-    expect(canPartFitStock(stock, makePart('Plywood', 0.012 - offBy))).toBe(
-      false,
-    );
-    expect(canPartFitStock(stock, makePart('Plywood', 0.012 + offBy))).toBe(
-      false,
-    );
+  it('accepts drift within STOCK_MATCH_TOLERANCE_UM (OBB jitter from imports)', () => {
+    const stock = makeStock('Plywood', mmToUm(12));
+    const within = (mmToUm(12) - STOCK_MATCH_TOLERANCE_UM) as Micrometres;
+    expect(canPartFitStock(stock, makePart('Plywood', within))).toBe(true);
+  });
+
+  it('rejects past STOCK_MATCH_TOLERANCE_UM', () => {
+    const stock = makeStock('Plywood', mmToUm(12));
+    const over = (mmToUm(12) - STOCK_MATCH_TOLERANCE_UM - 1) as Micrometres;
+    expect(canPartFitStock(stock, makePart('Plywood', over))).toBe(false);
   });
 });
 
@@ -55,46 +68,54 @@ describe('canPartFitStock — linear with oversize', () => {
   const stock = (overrides: Partial<LinearStock> = {}): LinearStock => ({
     kind: 'linear',
     material: 'Pine',
-    crossSectionWidth: 0.07,
-    crossSectionThickness: 0.045,
-    length: 2.4,
+    crossSectionWidth: mmToUm(70),
+    crossSectionThickness: mmToUm(45),
+    length: mmToUm(2400),
     ...overrides,
   });
-  const part = (w: number, t: number, l: number): PartToCut => ({
+  const part = (
+    widthMm: number,
+    thicknessMm: number,
+    lengthMm: number,
+  ): PartToCut => ({
     partNumber: 1,
     instanceNumber: 1,
     name: 'p',
     material: 'Pine',
-    size: { width: w, thickness: t, length: l },
+    size: {
+      width: mmToUm(widthMm),
+      thickness: mmToUm(thicknessMm),
+      length: mmToUm(lengthMm),
+    },
   });
 
   it('accepts a finished part when allowance closes the cross-section gap', () => {
     expect(
       canPartFitStock(
-        stock({ oversize: { length: 0, crossSection: 0.004 } }),
-        part(0.066, 0.041, 1.5),
+        stock({ oversize: { length: mmToUm(0), crossSection: mmToUm(4) } }),
+        part(66, 41, 1500),
       ),
     ).toBe(true);
     expect(
       canPartFitStock(
-        stock({ oversize: { length: 0, crossSection: 0.002 } }),
-        part(0.066, 0.041, 1.5),
+        stock({ oversize: { length: mmToUm(0), crossSection: mmToUm(2) } }),
+        part(66, 41, 1500),
       ),
     ).toBe(false);
   });
 
   it('reserves stock length for the part length allowance', () => {
     const s = stock({
-      length: 2.0,
-      oversize: { length: 0.025, crossSection: 0 },
+      length: mmToUm(2000),
+      oversize: { length: mmToUm(25), crossSection: mmToUm(0) },
     });
-    expect(canPartFitStock(s, part(0.07, 0.045, 1.98))).toBe(false);
-    expect(canPartFitStock(s, part(0.07, 0.045, 1.97))).toBe(true);
+    expect(canPartFitStock(s, part(70, 45, 1980))).toBe(false);
+    expect(canPartFitStock(s, part(70, 45, 1970))).toBe(true);
   });
 
   it('treats absent oversize as zero allowance', () => {
-    expect(canPartFitStock(stock(), part(0.07, 0.045, 1.5))).toBe(true);
-    expect(canPartFitStock(stock(), part(0.066, 0.045, 1.5))).toBe(false);
+    expect(canPartFitStock(stock(), part(70, 45, 1500))).toBe(true);
+    expect(canPartFitStock(stock(), part(66, 45, 1500))).toBe(false);
   });
 });
 
@@ -102,15 +123,18 @@ describe('areStocksEquivalent', () => {
   it('matches sheets with the same material and thickness', () => {
     expect(
       areStocksEquivalent(
-        makeStock('Plywood', 0.018),
-        makeStock('Plywood', 0.018),
+        makeStock('Plywood', mmToUm(18)),
+        makeStock('Plywood', mmToUm(18)),
       ),
     ).toBe(true);
   });
 
   it('rejects across materials', () => {
     expect(
-      areStocksEquivalent(makeStock('Plywood', 0.018), makeStock('MDF', 0.018)),
+      areStocksEquivalent(
+        makeStock('Plywood', mmToUm(18)),
+        makeStock('MDF', mmToUm(18)),
+      ),
     ).toBe(false);
   });
 });

@@ -16,7 +16,7 @@ interface DisplayGroup {
 const groups = computed<DisplayGroup[]>(() =>
   aggregateLinearShoppingList(props.layouts).map((g) => {
     const parts = g.lengths.map(
-      (l) => `${l.count}× ${formatDistance(l.lengthM) ?? ''}`,
+      (l) => `${l.count}× ${formatDistance(l.lengthUm) ?? ''}`,
     );
     const summary = `${parts.join(', ')} (${g.totalSticks} ${
       g.totalSticks === 1 ? 'stick' : 'sticks'

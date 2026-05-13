@@ -1,13 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { Rectangle } from '../../geometry';
 import { getAllPossiblePlacements, isValidPlacement } from '../utils';
+import type { Micrometres } from '../../utils/units';
 
-// Helpers to create rectangles. data is typed as null for test purposes.
 function rect(x: number, y: number, w: number, h: number) {
-  return new Rectangle<null>(null, x, y, w, h);
+  return new Rectangle<null>(
+    null,
+    x as Micrometres,
+    y as Micrometres,
+    w as Micrometres,
+    h as Micrometres,
+  );
 }
 
-const PRECISION = 0.001;
+const ZERO = 0 as Micrometres;
 
 // ---------------------------------------------------------------------------
 // getAllPossiblePlacements
@@ -16,7 +22,7 @@ const PRECISION = 0.001;
 describe('getAllPossiblePlacements', () => {
   it('returns only bin.bottomLeft when there are no existing placements', () => {
     const bin = rect(0, 0, 100, 100);
-    const points = getAllPossiblePlacements(bin, [], 0);
+    const points = getAllPossiblePlacements(bin, [], ZERO);
 
     expect(points).toHaveLength(1);
     expect(points[0]).toEqual(bin.bottomLeft);
@@ -24,7 +30,7 @@ describe('getAllPossiblePlacements', () => {
 
   it('returns 3 points for one existing placement', () => {
     const bin = rect(0, 0, 100, 100);
-    const gap = 2;
+    const gap = 2 as Micrometres;
     const placement = rect(0, 0, 30, 20);
 
     const points = getAllPossiblePlacements(bin, [placement], gap);
@@ -48,7 +54,7 @@ describe('getAllPossiblePlacements', () => {
     const p1 = rect(0, 0, 30, 20);
     const p2 = rect(40, 0, 20, 15);
 
-    const points = getAllPossiblePlacements(bin, [p1, p2], 0);
+    const points = getAllPossiblePlacements(bin, [p1, p2], ZERO);
 
     // 1 (bin.bottomLeft) + 2 topLeft offsets + 2 bottomRight offsets = 5
     expect(points).toHaveLength(5);
@@ -64,7 +70,7 @@ describe('isValidPlacement', () => {
     const bin = rect(0, 0, 100, 100);
     const candidate = rect(10, 10, 30, 30);
 
-    expect(isValidPlacement(bin, [], candidate, PRECISION)).toBe(true);
+    expect(isValidPlacement(bin, [], candidate)).toBe(true);
   });
 
   it('returns true when the rect is fully inside the bin with no overlapping placements', () => {
@@ -72,7 +78,7 @@ describe('isValidPlacement', () => {
     const existing = rect(0, 0, 30, 30);
     const candidate = rect(40, 0, 30, 30);
 
-    expect(isValidPlacement(bin, [existing], candidate, PRECISION)).toBe(true);
+    expect(isValidPlacement(bin, [existing], candidate)).toBe(true);
   });
 
   it('returns false when the rect is outside the bin', () => {
@@ -80,7 +86,7 @@ describe('isValidPlacement', () => {
     // Candidate extends beyond the bin's right edge
     const candidate = rect(80, 0, 30, 30);
 
-    expect(isValidPlacement(bin, [], candidate, PRECISION)).toBe(false);
+    expect(isValidPlacement(bin, [], candidate)).toBe(false);
   });
 
   it('returns false when the rect overlaps an existing placement', () => {
@@ -89,7 +95,7 @@ describe('isValidPlacement', () => {
     // Overlaps with 'existing' in the region (20..40, 0..40)
     const candidate = rect(20, 0, 30, 30);
 
-    expect(isValidPlacement(bin, [existing], candidate, PRECISION)).toBe(false);
+    expect(isValidPlacement(bin, [existing], candidate)).toBe(false);
   });
 
   it('returns true when the rect sits exactly at the bin edge (within precision)', () => {
@@ -97,7 +103,7 @@ describe('isValidPlacement', () => {
     // Rect from (0,0) to (100,100) — coincident with bin edges
     const candidate = rect(0, 0, 100, 100);
 
-    expect(isValidPlacement(bin, [], candidate, PRECISION)).toBe(true);
+    expect(isValidPlacement(bin, [], candidate)).toBe(true);
   });
 
   it('returns true when two rects share only a touching edge (not intersecting)', () => {
@@ -107,7 +113,7 @@ describe('isValidPlacement', () => {
     const candidate = rect(30, 0, 30, 30);
 
     // isIntersecting returns false for merely-touching rects, so this should be valid
-    expect(isValidPlacement(bin, [existing], candidate, PRECISION)).toBe(true);
+    expect(isValidPlacement(bin, [existing], candidate)).toBe(true);
   });
 
   it('Should return false when a candidate sits inside the required gap', () => {
@@ -115,7 +121,7 @@ describe('isValidPlacement', () => {
     const existing = rect(0, 0, 30, 30);
     const candidate = rect(31, 0, 30, 30);
 
-    expect(isValidPlacement(bin, [existing], candidate, PRECISION, 2)).toBe(
+    expect(isValidPlacement(bin, [existing], candidate, 2 as Micrometres)).toBe(
       false,
     );
   });

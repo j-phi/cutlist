@@ -8,6 +8,7 @@
  * and verify it round-trips cleanly through `parseProjectExport`.
  */
 import { describe, expect, it } from 'vitest';
+import { mmToUm, type Micrometres } from 'cutlist';
 import type { JSONContent } from '@tiptap/core';
 import {
   buildExportData,
@@ -49,7 +50,11 @@ function makePart(partNumber: number, overrides?: Partial<Part>): Part {
     instanceNumber: 1,
     name: `Part ${partNumber}`,
     colorKey: '#aaa',
-    size: { width: 0.3, length: 0.5, thickness: 0.018 },
+    size: {
+      width: mmToUm(300),
+      length: mmToUm(500),
+      thickness: mmToUm(18),
+    },
     ...overrides,
   };
 }
@@ -66,8 +71,8 @@ describe('buildExportData', () => {
     const project = await idb.createProject('Cabinet', {
       stock: 'plywood',
       distanceUnit: 'in',
-      bladeWidth: 4,
-      margin: 1,
+      bladeWidth: 4 as Micrometres,
+      margin: 1 as Micrometres,
       defaultAlgorithm: 'cnc',
       showPartNumbers: false,
     });
@@ -203,8 +208,8 @@ describe('buildExportData', () => {
         stock: '',
         distanceUnit: 'in' as const,
         precision: { kind: 'decimal' as const, step: 0.1 },
-        bladeWidth: 3,
-        margin: 0,
+        bladeWidth: 3 as Micrometres,
+        margin: 0 as Micrometres,
         defaultAlgorithm: 'auto' as const,
         showPartNumbers: true,
         createdAt: now,

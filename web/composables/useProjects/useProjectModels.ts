@@ -6,7 +6,6 @@
  * function returns early when the requested `projectId` is not the active
  * project so calls remain safe across project switches.
  */
-import { mmToM } from 'cutlist';
 import type { Part } from '~/utils/modelTypes';
 import { useIdb, type PartOverride } from '~/composables/useIdb';
 import { applyOverrides } from '~/utils/modelHydration';
@@ -238,9 +237,9 @@ export default function useProjectModels() {
       name: data.name,
       colorKey: data.material,
       size: {
-        width: mmToM(data.widthMm),
-        length: mmToM(data.lengthMm),
-        thickness: mmToM(data.thicknessMm),
+        width: data.widthUm,
+        length: data.lengthUm,
+        thickness: data.thicknessUm,
       },
     }));
 
@@ -323,9 +322,9 @@ export default function useProjectModels() {
       name: data.name,
       colorKey: data.material,
       size: {
-        width: mmToM(data.widthMm),
-        length: mmToM(data.lengthMm),
-        thickness: mmToM(data.thicknessMm),
+        width: data.widthUm,
+        length: data.lengthUm,
+        thickness: data.thicknessUm,
       },
     }));
     // Strip overrides from remaining parts (they live in partOverrides)

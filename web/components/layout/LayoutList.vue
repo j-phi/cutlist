@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import {
-  M_PER_IN,
+  mmToUm,
+  MM_PER_IN,
   type Algorithm,
   type SheetBoardLayout,
   type SheetStockMatrix,
@@ -13,7 +14,7 @@ const props = defineProps<{
 }>();
 
 const getPx = useGetPx();
-const gap = getPx(4 * M_PER_IN);
+const gap = getPx(mmToUm(4 * MM_PER_IN));
 const formatDistance = useFormatDistance();
 const { stock, parsedStock, defaultAlgorithm } = useProjectSettings();
 
@@ -36,7 +37,7 @@ interface LayoutGroup {
   key: string;
   material: string;
   thickness: string;
-  thicknessM: number;
+  thicknessUm: number;
   layouts: SheetBoardLayout[];
   /** Indices into `props.layouts` for board numbering. */
   indices: number[];
@@ -56,28 +57,28 @@ const parsedMatrix = computed<SheetStockMatrix[]>(() =>
 );
 
 /**
- * Match a layout's `thicknessM` back to the YAML thickness key on a single
+ * Match a layout's `thicknessUm` back to the YAML thickness key on a single
  * `SheetStockMatrix` row. Stock thicknesses are mm; the key is the mm value
  * stringified (e.g. `"18"` for 18mm, `"19.05"` for 3/4").
  */
 function findThicknessKeyOnItem(
   item: SheetStockMatrix,
-  thicknessM: number,
+  thicknessUm: number,
 ): string | undefined {
   for (const size of item.sizes) {
     for (const t of size.thickness) {
-      if (Math.abs(t / 1000 - thicknessM) < 1e-5) return String(t);
+      if (mmToUm(t) === thicknessUm) return String(t);
     }
   }
   return undefined;
 }
 
-function preferenceFor(material: string, thicknessM: number): Algorithm {
+function preferenceFor(material: string, thicknessUm: number): Algorithm {
   // Walk every row that names this material — the engine groups by
   // (material, thickness) so an override on any matching row applies.
   for (const item of parsedMatrix.value) {
     if (item.material !== material) continue;
-    const key = findThicknessKeyOnItem(item, thicknessM);
+    const key = findThicknessKeyOnItem(item, thicknessUm);
     if (!key) continue;
     const override = item.thicknessAlgorithms?.[key];
     if (override) return override;
@@ -90,30 +91,30 @@ const groups = computed<LayoutGroup[]>(() => {
   const sorted = [...props.layouts].sort((a, b) => {
     const mat = a.stock.material.localeCompare(b.stock.material);
     if (mat !== 0) return mat;
-    const thick = a.stock.thicknessM - b.stock.thicknessM;
+    const thick = a.stock.thicknessUm - b.stock.thicknessUm;
     if (thick !== 0) return thick;
-    const areaA = a.placements.reduce((s, p) => s + p.widthM * p.lengthM, 0);
-    const areaB = b.placements.reduce((s, p) => s + p.widthM * p.lengthM, 0);
+    const areaA = a.placements.reduce((s, p) => s + p.widthUm * p.lengthUm, 0);
+    const areaB = b.placements.reduce((s, p) => s + p.widthUm * p.lengthUm, 0);
     return areaB - areaA;
   });
 
   const map = new Map<string, LayoutGroup>();
   for (let i = 0; i < sorted.length; i++) {
     const layout = sorted[i];
-    const key = `${layout.stock.material}__${layout.stock.thicknessM}`;
+    const key = `${layout.stock.material}__${layout.stock.thicknessUm}`;
     let entry = map.get(key);
     if (!entry) {
       entry = {
         key,
         material: layout.stock.material,
-        thickness: formatDistance(layout.stock.thicknessM) ?? '',
-        thicknessM: layout.stock.thicknessM,
+        thickness: formatDistance(layout.stock.thicknessUm) ?? '',
+        thicknessUm: layout.stock.thicknessUm,
         layouts: [],
         indices: [],
         actualAlgorithm: layout.algorithm,
         preference: preferenceFor(
           layout.stock.material,
-          layout.stock.thicknessM,
+          layout.stock.thicknessUm,
         ),
       };
       map.set(key, entry);
@@ -124,7 +125,7 @@ const groups = computed<LayoutGroup[]>(() => {
   return [...map.values()];
 });
 
-function setOverride(material: string, thicknessM: number, alg: Algorithm) {
+function setOverride(material: string, thicknessUm: number, alg: Algorithm) {
   // Round-trip through JSON to drop Vue reactivity wrappers before mutating.
   // Bail if the YAML is currently malformed (parsedStock falls back to []).
   const matrix: StockMatrix[] = JSON.parse(JSON.stringify(parsedStock.value));
@@ -139,7 +140,7 @@ function setOverride(material: string, thicknessM: number, alg: Algorithm) {
   for (const item of matrix) {
     if (item.kind !== 'sheet') continue;
     if (item.material !== material) continue;
-    const key = findThicknessKeyOnItem(item, thicknessM);
+    const key = findThicknessKeyOnItem(item, thicknessUm);
     if (!key) continue;
     touched = true;
     if (alg === inherited) {
@@ -165,7 +166,7 @@ function algorithmMenu(group: LayoutGroup) {
   return ALGORITHM_ORDER.map((alg) => ({
     label: ALGORITHM_LABEL[alg],
     icon: alg === group.preference ? 'i-lucide-check' : undefined,
-    onSelect: () => setOverride(group.material, group.thicknessM, alg),
+    onSelect: () => setOverride(group.material, group.thicknessUm, alg),
   }));
 }
 </script>

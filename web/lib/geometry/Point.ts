@@ -1,21 +1,20 @@
+import type { Micrometres } from '../utils/units';
+
 export class Point {
   constructor(
-    readonly x: number,
-    readonly y: number,
+    readonly x: Micrometres,
+    readonly y: Micrometres,
   ) {}
 
-  clone(changes?: { x?: number; y?: number }): Point {
+  clone(changes?: { x?: Micrometres; y?: Micrometres }): Point {
     return new Point(changes?.x ?? this.x, changes?.y ?? this.y);
   }
 
-  add(x: number, y: number): Point {
-    return this.clone({
-      x: this.x + x,
-      y: this.y + y,
-    });
+  add(x: Micrometres, y: Micrometres): Point {
+    return new Point((this.x + x) as Micrometres, (this.y + y) as Micrometres);
   }
 
-  sub(x: number, y: number): Point {
-    return this.add(-x, -y);
+  sub(x: Micrometres, y: Micrometres): Point {
+    return new Point((this.x - x) as Micrometres, (this.y - y) as Micrometres);
   }
 }

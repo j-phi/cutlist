@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type {
   BoardLayoutLeftover,
   LinearBoardLayout,
+  Micrometres,
   SheetBoardLayout,
 } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
@@ -28,7 +29,7 @@ export interface ExportPdfOptions {
   /** Linear (1D timber) layouts. Rendered as a separate section after sheets. */
   linearLayouts: LinearBoardLayout[];
   leftovers: BoardLayoutLeftover[];
-  formatSize: (m: number) => string | undefined;
+  formatSize: (um: Micrometres) => string | undefined;
   showPartNumbers: boolean;
   measurements?: RulerMeasurement[];
 }
