@@ -208,9 +208,7 @@ function walkJsonForVisits(gltfJson: object): JsonVisit[] {
   const gltf = gltfJson as Gltf;
 
   if (!gltf.nodes || !gltf.meshes || !gltf.accessors) {
-    throw new Error(
-      'GLTF file is missing required nodes/meshes/accessors. Binary .glb files are not supported — export as .gltf.',
-    );
+    throw new Error('GLTF file is missing required nodes/meshes/accessors.');
   }
 
   const sceneIdx = gltf.scene ?? 0;
