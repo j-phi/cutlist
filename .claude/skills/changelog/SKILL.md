@@ -104,3 +104,7 @@ After writing, report:
 - Number of commits covered
 - Which sections were populated
 - Any commits that were ambiguous or skipped
+
+## Validate package.json matches
+
+- Update package.json version to the specified version.
