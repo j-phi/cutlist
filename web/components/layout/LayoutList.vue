@@ -126,17 +126,18 @@ function setOverride(material: string, thicknessUm: number, alg: Algorithm) {
   // material appears on two rows (e.g. one mm row + one in row), writing only
   // the first would split the engine's group-level resolution across rows.
   const inherited = defaultAlgorithm.value ?? 'auto';
-  const next = stocks.value.map((item): StockMatrix => {
+  stocks.value = stocks.value.map((item): StockMatrix => {
     if (item.kind !== 'sheet' || item.material !== material) return item;
     const key = findThicknessKeyOnItem(item, thicknessUm);
     if (!key) return item;
-    const rest = { ...(item.thicknessAlgorithms ?? {}) };
-    if (alg === inherited) delete rest[key];
-    else rest[key] = alg;
-    const hasRest = Object.keys(rest).length > 0;
-    return { ...item, thicknessAlgorithms: hasRest ? rest : undefined };
+    const algorithms = { ...item.thicknessAlgorithms };
+    if (alg === inherited) delete algorithms[key];
+    else algorithms[key] = alg;
+    const { thicknessAlgorithms: _drop, ...rest } = item;
+    return Object.keys(algorithms).length > 0
+      ? { ...rest, thicknessAlgorithms: algorithms }
+      : rest;
   });
-  stocks.value = next;
 }
 
 function algorithmMenu(group: LayoutGroup) {

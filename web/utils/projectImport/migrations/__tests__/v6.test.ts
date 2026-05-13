@@ -27,4 +27,27 @@ describe('migrateProjectStockToArray', () => {
       expect(result).not.toHaveProperty('stock');
     }
   });
+
+  it('drops malformed rows but hydrates well-formed ones', () => {
+    // First row has a non-positive dimension and fails schema validation.
+    const yaml = `- material: Bad
+  sizes:
+    - width: 0
+      length: 2440
+      thickness: [18]
+- material: MDF
+  sizes:
+    - width: 1220
+      length: 2440
+      thickness: [18]
+`;
+    const result = migrateProjectStockToArray({ id: 'p1', stock: yaml });
+    expect(result.stocks).toEqual([
+      {
+        kind: 'sheet',
+        material: 'MDF',
+        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      },
+    ]);
+  });
 });
