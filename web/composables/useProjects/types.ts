@@ -1,4 +1,4 @@
-import type { Algorithm, Micrometres, Precision } from 'cutlist';
+import type { Algorithm, Micrometres, Precision, StockMatrix } from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 
 export interface Model {
@@ -29,8 +29,8 @@ export interface Project {
   colorMap: Record<string, string>;
   /** Color keys excluded from BOM (unchecked in mapping panel). */
   excludedColors: string[];
-  /** Per-project stock definition (YAML string, mm dimensions). */
-  stock: string;
+  /** Per-project stock definition. All numeric dimensions are millimetres. */
+  stocks: StockMatrix[];
   /** Display preference for distances; storage is always µm. */
   distanceUnit: 'in' | 'mm';
   /** Display precision — resets to the unit's default on unit flip. */

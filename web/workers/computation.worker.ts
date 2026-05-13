@@ -1,5 +1,9 @@
-import { generateBoardLayouts, type ConfigInput, type PartToCut } from '../lib';
-import { parseStock } from '../utils/parseStock';
+import {
+  generateBoardLayouts,
+  type ConfigInput,
+  type PartToCut,
+  type StockMatrix,
+} from '../lib';
 
 // ─── Message types ───────────────────────────────────────────────────────────
 
@@ -7,7 +11,7 @@ interface LayoutRequest {
   type: 'layout';
   id: number;
   parts: PartToCut[];
-  stockYaml: string;
+  stocks: StockMatrix[];
   config: ConfigInput;
 }
 
@@ -25,8 +29,7 @@ self.onmessage = (e: MessageEvent<LayoutRequest>) => {
 
   if (msg.type === 'layout') {
     try {
-      const stock = parseStock(msg.stockYaml);
-      const result = generateBoardLayouts(msg.parts, stock, msg.config);
+      const result = generateBoardLayouts(msg.parts, msg.stocks, msg.config);
       post({ type: 'layout', id: msg.id, result });
     } catch (err) {
       post({ type: 'layout', id: msg.id, error: String(err) });

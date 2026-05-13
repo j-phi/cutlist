@@ -2,17 +2,17 @@
 import { shallowMount } from '@vue/test-utils';
 import { mmToUm, type Micrometres } from 'cutlist';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   Algorithm,
   SheetBoardLayout,
   SheetBoardLayoutPlacement,
+  SheetStockMatrix,
   StockMatrix,
 } from 'cutlist';
 
-import { parseStock } from '~/utils/parseStock';
 import LayoutList from '../LayoutList.vue';
 
 mockNuxtImport('useGetPx', () => () => (m: number) => `${m * 100}px`);
@@ -21,27 +21,17 @@ mockNuxtImport(
   () => () => (m: number | undefined | null) => (m == null ? '' : `${m}m`),
 );
 
-const stockYaml = ref<string | undefined>(`- material: Plywood
-  unit: mm
-  sizes:
-    - width: 1220
-      length: 2440
-      thickness: [18]
-`);
+const stocks = ref<StockMatrix[]>([
+  {
+    kind: 'sheet',
+    material: 'Plywood',
+    sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+  },
+]);
 const defaultAlgorithm = ref<Algorithm | undefined>('auto');
 
-const parsedStock = computed<StockMatrix[]>(() => {
-  if (!stockYaml.value) return [];
-  try {
-    return parseStock(stockYaml.value);
-  } catch {
-    return [];
-  }
-});
-
 mockNuxtImport('useProjectSettings', () => () => ({
-  stock: stockYaml,
-  parsedStock,
+  stocks,
   bladeWidth: ref(undefined),
   margin: ref(undefined),
   defaultAlgorithm,
@@ -113,6 +103,18 @@ function getVm(component: ReturnType<typeof getComponent>) {
     setOverride: (mat: string, thicknessUm: number, alg: string) => void;
     preferenceFor: (mat: string, thicknessUm: number) => string;
   };
+}
+
+/** Look up thicknessAlgorithms[key] across every sheet row matching `material`. */
+function overrideFor(
+  rows: StockMatrix[],
+  material: string,
+  key: string,
+): Array<string | undefined> {
+  return rows
+    .filter((r): r is SheetStockMatrix => r.kind === 'sheet')
+    .filter((r) => r.material === material)
+    .map((r) => r.thicknessAlgorithms?.[key]);
 }
 
 afterEach(() => {
@@ -198,46 +200,43 @@ describe('LayoutList', () => {
       expect(getComponent(layouts).text()).toContain('Tidy');
     });
 
-    it('setOverride writes the chosen algorithm to YAML, leaving other thicknesses untouched, and drops the entry on Auto', () => {
-      stockYaml.value = `- material: Plywood
-  unit: mm
-  sizes:
-    - width: 1220
-      length: 2440
-      thickness: [18, 12]
-`;
+    it('setOverride pins one thickness, leaves others untouched, and drops the entry on Auto', () => {
+      stocks.value = [
+        {
+          kind: 'sheet',
+          material: 'Plywood',
+          sizes: [{ width: 1220, length: 2440, thickness: [18, 12] }],
+        },
+      ];
       const layouts: SheetBoardLayout[] = [
         makeLayout({ material: 'Plywood', thicknessUm: mmToUm(18) }),
       ];
       const component = getComponent(layouts);
       const vm = getVm(component);
 
-      // Pin 18mm to tidy. 12mm untouched.
       vm.setOverride('Plywood', mmToUm(18), 'tidy');
-      expect(stockYaml.value).toMatch(/thicknessAlgorithms/);
-      expect(stockYaml.value).toMatch(/'18': tidy/);
-      expect(stockYaml.value).not.toMatch(/'12': /);
+      expect(overrideFor(stocks.value, 'Plywood', '18')).toEqual(['tidy']);
+      expect(overrideFor(stocks.value, 'Plywood', '12')).toEqual([undefined]);
 
-      // Pin 12mm separately — both must persist.
       vm.setOverride('Plywood', mmToUm(12), 'compact');
-      expect(stockYaml.value).toMatch(/'18': tidy/);
-      expect(stockYaml.value).toMatch(/'12': compact/);
+      expect(overrideFor(stocks.value, 'Plywood', '18')).toEqual(['tidy']);
+      expect(overrideFor(stocks.value, 'Plywood', '12')).toEqual(['compact']);
 
       // Picking Auto for 18mm drops the entry (default also auto).
       vm.setOverride('Plywood', mmToUm(18), 'auto');
-      expect(stockYaml.value).not.toMatch(/'18': tidy/);
-      expect(stockYaml.value).toMatch(/'12': compact/);
+      expect(overrideFor(stocks.value, 'Plywood', '18')).toEqual([undefined]);
+      expect(overrideFor(stocks.value, 'Plywood', '12')).toEqual(['compact']);
     });
 
     it('Should pin explicit "auto" when the project default is something else (Matt\'s "can\'t select auto" bug)', () => {
       defaultAlgorithm.value = 'tidy';
-      stockYaml.value = `- material: Plywood
-  unit: mm
-  sizes:
-    - width: 1220
-      length: 2440
-      thickness: [18]
-`;
+      stocks.value = [
+        {
+          kind: 'sheet',
+          material: 'Plywood',
+          sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+        },
+      ];
       const component = getComponent([
         makeLayout({ material: 'Plywood', thicknessUm: mmToUm(18) }),
       ]);
@@ -245,32 +244,34 @@ describe('LayoutList', () => {
 
       vm.setOverride('Plywood', mmToUm(18), 'auto');
       expect(vm.preferenceFor('Plywood', mmToUm(18))).toBe('auto');
-      expect(stockYaml.value).toMatch(/'18': auto/);
+      expect(overrideFor(stocks.value, 'Plywood', '18')).toEqual(['auto']);
 
       defaultAlgorithm.value = 'auto';
     });
 
     it('Should write to and read from every row that matches (material, thickness)', () => {
-      stockYaml.value = `- material: Plywood
-  unit: mm
-  sizes:
-    - width: 1220
-      length: 2440
-      thickness: [18]
-- material: Plywood
-  unit: mm
-  sizes:
-    - width: 600
-      length: 1200
-      thickness: [18]
-`;
+      stocks.value = [
+        {
+          kind: 'sheet',
+          material: 'Plywood',
+          sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+        },
+        {
+          kind: 'sheet',
+          material: 'Plywood',
+          sizes: [{ width: 600, length: 1200, thickness: [18] }],
+        },
+      ];
       const component = getComponent([
         makeLayout({ material: 'Plywood', thicknessUm: mmToUm(18) }),
       ]);
       const vm = getVm(component);
 
       vm.setOverride('Plywood', mmToUm(18), 'tidy');
-      expect(stockYaml.value?.match(/'18': tidy/g)?.length).toBe(2);
+      expect(overrideFor(stocks.value, 'Plywood', '18')).toEqual([
+        'tidy',
+        'tidy',
+      ]);
       expect(vm.preferenceFor('Plywood', mmToUm(18))).toBe('tidy');
     });
   });

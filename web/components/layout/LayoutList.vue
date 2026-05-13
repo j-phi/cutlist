@@ -7,7 +7,6 @@ import {
   type SheetStockMatrix,
   type StockMatrix,
 } from 'cutlist';
-import YAML from 'js-yaml';
 
 const props = defineProps<{
   layouts: SheetBoardLayout[];
@@ -16,7 +15,7 @@ const props = defineProps<{
 const getPx = useGetPx();
 const gap = getPx(mmToUm(4 * MM_PER_IN));
 const formatDistance = useFormatDistance();
-const { stock, parsedStock, defaultAlgorithm } = useProjectSettings();
+const { stocks, defaultAlgorithm } = useProjectSettings();
 
 const ALGORITHM_LABEL: Record<Algorithm, string> = {
   auto: 'Auto',
@@ -47,19 +46,16 @@ interface LayoutGroup {
   preference: Algorithm;
 }
 
-/**
- * Sheet-only view of the parsed stock — the algorithm picker on this view is
- * sheet-only. Linear stock has its own (single) algorithm and is rendered by
- * a separate list component.
- */
-const parsedMatrix = computed<SheetStockMatrix[]>(() =>
-  parsedStock.value.filter((m): m is SheetStockMatrix => m.kind === 'sheet'),
+// The algorithm picker on this view is sheet-only — linear stock has one
+// strategy and ships in its own list.
+const sheetStocks = computed<SheetStockMatrix[]>(() =>
+  stocks.value.filter((m): m is SheetStockMatrix => m.kind === 'sheet'),
 );
 
 /**
- * Match a layout's `thicknessUm` back to the YAML thickness key on a single
- * `SheetStockMatrix` row. Stock thicknesses are mm; the key is the mm value
- * stringified (e.g. `"18"` for 18mm, `"19.05"` for 3/4").
+ * Match a layout's `thicknessUm` back to the `thicknessAlgorithms` key on a
+ * stock row. Stock thicknesses are mm; the key is the mm value stringified
+ * (e.g. `"18"` for 18mm, `"19.05"` for 3/4").
  */
 function findThicknessKeyOnItem(
   item: SheetStockMatrix,
@@ -76,7 +72,7 @@ function findThicknessKeyOnItem(
 function preferenceFor(material: string, thicknessUm: number): Algorithm {
   // Walk every row that names this material — the engine groups by
   // (material, thickness) so an override on any matching row applies.
-  for (const item of parsedMatrix.value) {
+  for (const item of sheetStocks.value) {
     if (item.material !== material) continue;
     const key = findThicknessKeyOnItem(item, thicknessUm);
     if (!key) continue;
@@ -126,40 +122,21 @@ const groups = computed<LayoutGroup[]>(() => {
 });
 
 function setOverride(material: string, thicknessUm: number, alg: Algorithm) {
-  // Round-trip through JSON to drop Vue reactivity wrappers before mutating.
-  // Bail if the YAML is currently malformed (parsedStock falls back to []).
-  const matrix: StockMatrix[] = JSON.parse(JSON.stringify(parsedStock.value));
-  if (matrix.length === 0) return;
-
   // Apply to every row that matches this (material, thickness). When the same
   // material appears on two rows (e.g. one mm row + one in row), writing only
-  // the first would let the engine's group-level resolution stay split across
-  // the two rows' settings.
+  // the first would split the engine's group-level resolution across rows.
   const inherited = defaultAlgorithm.value ?? 'auto';
-  let touched = false;
-  for (const item of matrix) {
-    if (item.kind !== 'sheet') continue;
-    if (item.material !== material) continue;
+  const next = stocks.value.map((item): StockMatrix => {
+    if (item.kind !== 'sheet' || item.material !== material) return item;
     const key = findThicknessKeyOnItem(item, thicknessUm);
-    if (!key) continue;
-    touched = true;
-    if (alg === inherited) {
-      if (item.thicknessAlgorithms) {
-        delete item.thicknessAlgorithms[key];
-        if (Object.keys(item.thicknessAlgorithms).length === 0) {
-          delete item.thicknessAlgorithms;
-        }
-      }
-    } else {
-      item.thicknessAlgorithms = {
-        ...(item.thicknessAlgorithms ?? {}),
-        [key]: alg,
-      };
-    }
-  }
-  if (!touched) return;
-
-  stock.value = YAML.dump(matrix, { indent: 2, flowLevel: 3 });
+    if (!key) return item;
+    const rest = { ...(item.thicknessAlgorithms ?? {}) };
+    if (alg === inherited) delete rest[key];
+    else rest[key] = alg;
+    const hasRest = Object.keys(rest).length > 0;
+    return { ...item, thicknessAlgorithms: hasRest ? rest : undefined };
+  });
+  stocks.value = next;
 }
 
 function algorithmMenu(group: LayoutGroup) {

@@ -4,7 +4,7 @@ import { projectPath } from '~/utils/projectTabs';
 
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
 const { activeId } = useProjects();
-const { parsedStock } = useProjectSettings();
+const { stocks } = useProjectSettings();
 
 const container = ref<HTMLDivElement>();
 const gridEl = ref<HTMLDivElement>();
@@ -77,7 +77,7 @@ const showLeftoverBanner = computed(
 );
 
 const emptyState = computed(() => {
-  if (parsedStock.value.length === 0) {
+  if (stocks.value.length === 0) {
     return {
       icon: 'i-lucide-warehouse',
       title: 'No stock configured',

@@ -1,30 +1,27 @@
 // @vitest-environment nuxt
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { defineComponent, h, ref, computed } from 'vue';
+import { defineComponent, h, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
+import type { StockMatrix } from 'cutlist';
 
 import ColorMappingPanel from '../ColorMappingPanel.vue';
 import { UInputStub, USelectStub } from '~/test-utils/stubs';
 
-const STOCK_YAML = `
-- label: Plywood
-  material: Plywood
-  color: '#d2b996'
-  unit: mm
-  sizes:
-    - width: 1220
-      length: 2440
-      thickness: [18, 12]
-- label: MDF
-  material: MDF
-  color: '#b09078'
-  unit: mm
-  sizes:
-    - width: 1220
-      length: 2440
-      thickness: [18]
-`;
+const DEFAULT_STOCKS: StockMatrix[] = [
+  {
+    kind: 'sheet',
+    material: 'Plywood',
+    color: '#d2b996',
+    sizes: [{ width: 1220, length: 2440, thickness: [18, 12] }],
+  },
+  {
+    kind: 'sheet',
+    material: 'MDF',
+    color: '#b09078',
+    sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+  },
+];
 
 interface MockColor {
   key: string;
@@ -44,7 +41,7 @@ const activeProject = ref<{
   colorMap: { red: 'Plywood' },
   excludedColors: [],
 });
-const stock = ref<string | undefined>(STOCK_YAML);
+const stocks = ref<StockMatrix[]>(DEFAULT_STOCKS);
 
 const enabledModels = ref<
   Array<{
@@ -65,7 +62,7 @@ mockNuxtImport('useProjects', () => () => ({
   toggleColorExcluded,
   batchRenameByColor,
 }));
-mockNuxtImport('useProjectSettings', () => () => ({ stock }));
+mockNuxtImport('useProjectSettings', () => () => ({ stocks }));
 
 const UCheckboxStub = defineComponent({
   props: {
@@ -98,7 +95,7 @@ describe('ColorMappingPanel', () => {
       colorMap: { red: 'Plywood' },
       excludedColors: [],
     };
-    stock.value = STOCK_YAML;
+    stocks.value = DEFAULT_STOCKS;
   });
 
   function getComponent() {
@@ -149,20 +146,10 @@ describe('ColorMappingPanel', () => {
     });
 
     it('Should warn when no materials are defined', () => {
-      stock.value = '[]';
+      stocks.value = [];
       const component = getComponent();
 
       expect(component.text()).toContain('No stock materials defined');
-      expect(component.find('.text-amber-400').exists()).toBe(true);
-    });
-
-    it('Should warn about invalid YAML when stock cannot be parsed', () => {
-      // Malformed YAML / not parseable as array of stock entries
-      stock.value = 'foo: [unterminated';
-      const component = getComponent();
-
-      expect(component.text()).toContain('Stock has invalid YAML');
-      expect(component.text()).not.toContain('No stock materials defined');
       expect(component.find('.text-amber-400').exists()).toBe(true);
     });
   });

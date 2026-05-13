@@ -171,7 +171,7 @@ describe('applyProjectDefaults', () => {
   it('fills missing fields with the project-settings defaults', () => {
     const bare = { id: 'x', name: 'X', createdAt: '', updatedAt: '' };
     const result = applyProjectDefaults(bare);
-    expect(result.stock).toBe('');
+    expect(result.stocks).toEqual([]);
     expect(result.colorMap).toEqual({});
     expect(result.excludedColors).toEqual([]);
     expect(result.distanceUnit).toBe(DEFAULT_SETTINGS.distanceUnit);

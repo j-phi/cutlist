@@ -42,8 +42,7 @@ const EMPTY_RESULT: LayoutResult = {
 export default createSharedComposable(() => {
   const { activeProject, activeId, enabledModels, projectLoading } =
     useProjects();
-  const { bladeWidth, defaultAlgorithm, margin, stock, parsedStock } =
-    useProjectSettings();
+  const { bladeWidth, defaultAlgorithm, margin, stocks } = useProjectSettings();
 
   const parts = computed<PartToCut[] | undefined>(() => {
     const project = activeProject.value;
@@ -78,11 +77,9 @@ export default createSharedComposable(() => {
     const bw = bladeWidth.value;
     const alg = defaultAlgorithm.value;
     const mg = margin.value;
-    const st = stock.value;
+    const st = stocks.value;
     if (!pid || partsVal == null) return undefined;
-    if (bw == null || alg == null || mg == null || st == null) {
-      return undefined;
-    }
+    if (bw == null || alg == null || mg == null) return undefined;
     const config: ConfigInput = {
       bladeWidth: bw,
       margin: mg,
@@ -91,9 +88,9 @@ export default createSharedComposable(() => {
     return {
       projectId: pid,
       parts: partsVal,
-      stock: st,
+      stocks: st,
       config,
-      fingerprint: fingerprint({ parts: partsVal, stock: st, config }),
+      fingerprint: fingerprint({ parts: partsVal, stocks: st, config }),
     };
   });
 
@@ -168,7 +165,7 @@ export default createSharedComposable(() => {
       setError(projectId, null);
 
       // Engine throws when stock is empty; skip the worker.
-      if (parsedStock.value.length === 0) {
+      if (inputs.stocks.length === 0) {
         layoutCache.set(projectId, {
           layouts: [],
           linearLayouts: [],
@@ -178,7 +175,7 @@ export default createSharedComposable(() => {
         return;
       }
 
-      computeLayouts(projectId, inputs.parts, inputs.stock, inputs.config)
+      computeLayouts(projectId, inputs.parts, inputs.stocks, inputs.config)
         .then((result) => {
           // Split sheet/linear once at write time; per-render reads stay O(1).
           const sheet: SheetBoardLayout[] = [];

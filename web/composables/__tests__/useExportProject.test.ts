@@ -69,7 +69,13 @@ describe('buildExportData', () => {
 
   it('builds a payload with SCHEMA_VERSION and project fields', async () => {
     const project = await idb.createProject('Cabinet', {
-      stock: 'plywood',
+      stocks: [
+        {
+          kind: 'sheet',
+          material: 'Plywood',
+          sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+        },
+      ],
       distanceUnit: 'in',
       bladeWidth: 4 as Micrometres,
       margin: 1 as Micrometres,
@@ -87,7 +93,13 @@ describe('buildExportData', () => {
     expect(data!.exportedAt).toBeTruthy();
     expect(data!.project.id).toBe(project.id);
     expect(data!.project.name).toBe('Cabinet');
-    expect(data!.project.stock).toBe('plywood');
+    expect(data!.project.stocks).toEqual([
+      {
+        kind: 'sheet',
+        material: 'Plywood',
+        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      },
+    ]);
     expect(data!.project.distanceUnit).toBe('in');
     expect(data!.project.bladeWidth).toBe(4);
     expect(data!.project.margin).toBe(1);
@@ -205,7 +217,7 @@ describe('buildExportData', () => {
         name: 'Fake',
         colorMap: {},
         excludedColors: [],
-        stock: '',
+        stocks: [],
         distanceUnit: 'in' as const,
         precision: { kind: 'decimal' as const, step: 0.1 },
         bladeWidth: 3 as Micrometres,

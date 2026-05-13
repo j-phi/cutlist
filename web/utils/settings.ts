@@ -1,4 +1,3 @@
-import YAML from 'js-yaml';
 import {
   DEFAULT_INCH_PRECISION,
   DEFAULT_MM_PRECISION,
@@ -20,7 +19,6 @@ export interface CutlistSettings {
   margin: Micrometres;
   defaultAlgorithm: Algorithm;
   showPartNumbers: boolean;
-  stock: string;
 }
 
 /** Default display precision for the given unit. */
@@ -693,16 +691,13 @@ export function presetToMmStock(preset: StockPreset): StockMatrix {
 }
 
 /**
- * Default stock YAML seeded into a new project. The user's display unit
- * picks which presets are *default-selected*; storage is always mm.
+ * Default stock seeded into a new project. The user's display unit picks
+ * which presets are *default-selected*; storage is always mm.
  */
-export function getDefaultStockYaml(unit: 'mm' | 'in'): string {
-  const presets = STOCK_PRESETS.filter((p) => p.default && p.unit === unit).map(
+export function getDefaultStocks(unit: 'mm' | 'in'): StockMatrix[] {
+  return STOCK_PRESETS.filter((p) => p.default && p.unit === unit).map(
     presetToMmStock,
   );
-  return presets.length > 0
-    ? YAML.dump(presets, { indent: 2, flowLevel: 2 })
-    : '';
 }
 
 /** Default blade width: 3175 µm (≈1/8"), regardless of project unit. */
@@ -715,5 +710,4 @@ export const DEFAULT_SETTINGS: CutlistSettings = {
   margin: um(0),
   defaultAlgorithm: 'auto',
   showPartNumbers: true,
-  stock: '',
 };

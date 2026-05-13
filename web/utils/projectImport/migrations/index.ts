@@ -29,6 +29,7 @@ import type { IdbRecord, RecordMigration, StoreName } from './types';
 import { v3Migration } from './v3';
 import { v4Migration } from './v4';
 import { v5ProjectMigration, v5ModelMigration } from './v5';
+import { v6Migration } from './v6';
 
 export type { IdbRecord, RecordMigration, StoreName } from './types';
 export { migrateProjectToMmStorage } from './v3';
@@ -39,6 +40,7 @@ export {
   migrateModelPartsToUm,
   migrateModelSourceLabel,
 } from './v5';
+export { migrateProjectStockToArray } from './v6';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
@@ -73,6 +75,11 @@ export const migrations: RecordMigration[] = [
   // convert from float meters → integer µm. Mirror of `.version(5).upgrade()`.
   v5ProjectMigration,
   v5ModelMigration,
+
+  // v6: project stock moves from YAML string (`stock`) to structured array
+  // (`stocks: StockMatrix[]`). The Dexie .version(6).upgrade() in
+  // `~/composables/useIdb/db` runs the same transform.
+  v6Migration,
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

@@ -1,7 +1,6 @@
 // @vitest-environment nuxt
 import { afterEach, describe, expect, it } from 'vitest';
 import { computed, defineComponent, h, ref } from 'vue';
-import YAML from 'js-yaml';
 import { mount } from '@vue/test-utils';
 import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import {
@@ -11,26 +10,16 @@ import {
 } from 'cutlist';
 
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
-import { parseStock } from '~/utils/parseStock';
 import StockTab from '../StockTab.vue';
 
-const stock = ref<string | undefined>(undefined);
+const stocks = ref<StockMatrix[]>([]);
 const distanceUnit = ref<'mm' | 'in'>('mm');
 const precision = computed(() =>
   distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
 );
-const parsedStock = computed<StockMatrix[]>(() => {
-  if (!stock.value) return [];
-  try {
-    return parseStock(stock.value);
-  } catch {
-    return [];
-  }
-});
 
 mockNuxtImport('useProjectSettings', () => () => ({
-  stock,
-  parsedStock,
+  stocks,
   distanceUnit,
   precision,
 }));
@@ -198,17 +187,17 @@ function clickItem(
 
 describe('StockTab', () => {
   afterEach(() => {
-    stock.value = undefined;
+    stocks.value = [];
     distanceUnit.value = 'mm';
   });
 
   describe('Card list', () => {
     it('renders one StockCard per entry in order, with the right kind label', () => {
-      stock.value = YAML.dump([
+      stocks.value = [
         presetToMmStock(firstSheet()),
         presetToMmStock(firstTimber()),
         presetToMmStock(firstSheet()),
-      ]);
+      ];
       const cards = getComponent().findAll(
         '[data-testid="stock-card-sheet"], [data-testid="stock-card-timber"]',
       );
@@ -221,7 +210,7 @@ describe('StockTab', () => {
 
   describe('Empty state', () => {
     it('renders empty-state guidance and the two add buttons', () => {
-      stock.value = YAML.dump([]);
+      stocks.value = [];
       const component = getComponent();
       expect(component.find('[data-testid="stock-empty-state"]').exists()).toBe(
         true,
@@ -243,41 +232,34 @@ describe('StockTab', () => {
       'appends a blank %s via empty-state button and dropdown',
       async (expectedKind, dropdownLabel, emptyTestId) => {
         // Empty-state path.
-        stock.value = YAML.dump([]);
+        stocks.value = [];
         let component = getComponent();
         await component.find(`[data-testid="${emptyTestId}"]`).trigger('click');
-        let parsed = YAML.load(stock.value!) as Array<{ kind: string }>;
-        expect(parsed[0].kind).toBe(
+        expect(stocks.value[0].kind).toBe(
           expectedKind === 'sheet' ? 'sheet' : 'linear',
         );
 
         // Dropdown path on a non-empty list.
-        stock.value = YAML.dump([presetToMmStock(firstSheet())]);
+        stocks.value = [presetToMmStock(firstSheet())];
         component = getComponent();
         await clickItem(component, dropdownLabel);
-        parsed = YAML.load(stock.value!) as Array<{ kind: string }>;
-        expect(parsed).toHaveLength(2);
-        expect(parsed[1].kind).toBe(
+        expect(stocks.value).toHaveLength(2);
+        expect(stocks.value[1].kind).toBe(
           expectedKind === 'sheet' ? 'sheet' : 'linear',
         );
       },
     );
 
     it('seeds a timber row with positive cross-section + at least one length', async () => {
-      stock.value = YAML.dump([]);
+      stocks.value = [];
       await getComponent()
         .find('[data-testid="stock-empty-add-timber"]')
         .trigger('click');
-      const parsed = YAML.load(stock.value!) as Array<{
-        size: {
-          crossSectionWidth: number;
-          crossSectionThickness: number;
-          lengths: number[];
-        };
-      }>;
-      expect(parsed[0].size.crossSectionWidth).toBeGreaterThan(0);
-      expect(parsed[0].size.crossSectionThickness).toBeGreaterThan(0);
-      expect(parsed[0].size.lengths.length).toBeGreaterThan(0);
+      const added = stocks.value[0];
+      if (added.kind !== 'linear') throw new Error('expected linear row');
+      expect(added.size.crossSectionWidth).toBeGreaterThan(0);
+      expect(added.size.crossSectionThickness).toBeGreaterThan(0);
+      expect(added.size.lengths.length).toBeGreaterThan(0);
     });
   });
 
@@ -286,7 +268,7 @@ describe('StockTab', () => {
       'shows only %s presets in a %s project',
       (unit) => {
         distanceUnit.value = unit;
-        stock.value = YAML.dump([]);
+        stocks.value = [];
         const labels = getComponent()
           .findAll('button[data-item-label]')
           .filter((b) =>
@@ -304,25 +286,21 @@ describe('StockTab', () => {
 
     it('appends the selected preset (kind preserved)', async () => {
       const timber = firstTimber();
-      stock.value = YAML.dump([]);
+      stocks.value = [];
       await clickItem(getComponent(), timber.label, 'Timber');
-      const parsed = YAML.load(stock.value!) as Array<{
-        kind: string;
-        material: string;
-      }>;
-      expect(parsed[0].kind).toBe('linear');
-      expect(parsed[0].material).toBe(timber.stock.material);
+      const added = stocks.value[0];
+      expect(added.kind).toBe('linear');
+      expect(added.material).toBe(timber.stock.material);
     });
   });
 
   describe('Unique material names', () => {
     it('auto-suffixes a second "Add Sheet" so the new card does not collide', async () => {
-      stock.value = YAML.dump([]);
+      stocks.value = [];
       const component = getComponent();
       await clickItem(component, 'Sheet');
       await clickItem(component, 'Sheet');
-      const parsed = YAML.load(stock.value!) as Array<{ material: string }>;
-      expect(parsed.map((r) => r.material)).toEqual([
+      expect(stocks.value.map((r) => r.material)).toEqual([
         'New Material',
         'New Material (2)',
       ]);
@@ -332,11 +310,11 @@ describe('StockTab', () => {
       // "Pine", "pine ", and " PINE" are the same material to a human; the
       // packer keys by exact string, so the duplicate warning has to catch
       // these or the user silently gets distinct stock buckets.
-      stock.value = YAML.dump([
+      stocks.value = [
         { kind: 'sheet', material: 'Pine', sizes: [] },
         { kind: 'sheet', material: 'pine ', sizes: [] },
         { kind: 'sheet', material: 'Oak', sizes: [] },
-      ]);
+      ];
       const cards = getComponent().findAll('[data-testid="stock-card-sheet"]');
       expect(cards[0].attributes('data-duplicate')).toBe('true');
       expect(cards[1].attributes('data-duplicate')).toBe('true');
@@ -346,19 +324,18 @@ describe('StockTab', () => {
 
   describe('Remove', () => {
     it('removes the entry when StockCard emits remove', async () => {
-      stock.value = YAML.dump([
+      stocks.value = [
         presetToMmStock(firstSheet()),
         presetToMmStock(firstTimber()),
-      ]);
+      ];
       const component = getComponent();
 
       await component
         .findAll('[data-testid="stock-card-stub-remove"]')[0]
         .trigger('click');
 
-      const parsed = YAML.load(stock.value!) as Array<{ kind: string }>;
-      expect(parsed).toHaveLength(1);
-      expect(parsed[0].kind).toBe('linear');
+      expect(stocks.value).toHaveLength(1);
+      expect(stocks.value[0].kind).toBe('linear');
     });
   });
 });

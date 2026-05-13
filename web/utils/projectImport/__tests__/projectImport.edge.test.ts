@@ -158,15 +158,21 @@ describe('round-trip fidelity', () => {
     });
   });
 
-  it('preserves stock and distanceUnit through import', async () => {
+  it('preserves stocks and distanceUnit through import', async () => {
     const payload = makePayload();
-    payload.project.stock = 'custom stock yaml';
+    payload.project.stocks = [
+      {
+        kind: 'sheet',
+        material: 'Plywood',
+        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      },
+    ];
     payload.project.distanceUnit = 'in';
     const { db, calls } = makeIdbMock();
     await importProjectData(payload as never, db as never);
 
     const opts = calls.createProject[0].opts as Record<string, unknown>;
-    expect(opts.stock).toBe('custom stock yaml');
+    expect(opts.stocks).toEqual(payload.project.stocks);
     expect(opts.distanceUnit).toBe('in');
   });
 

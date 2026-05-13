@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import { parseStock } from '~/utils/parseStock';
-
 const {
   activeId,
   allColors,
@@ -10,34 +8,13 @@ const {
   batchRenameByColor,
   activeProject,
 } = useProjects();
-const { stock } = useProjectSettings();
+const { stocks } = useProjectSettings();
 
 const expanded = ref(true);
 
-type ParsedStock =
-  | { ok: true; materials: string[] }
-  | { ok: false; error: Error };
-
-const parsedStock = computed<ParsedStock>(() => {
-  if (stock.value == null) return { ok: true, materials: [] };
-  try {
-    const materials = Array.from(
-      new Set(parseStock(stock.value).map((s) => s.material)),
-    ).sort();
-    return { ok: true, materials };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err : new Error(String(err)),
-    };
-  }
-});
-
 const materialOptions = computed<string[]>(() =>
-  parsedStock.value.ok ? parsedStock.value.materials : [],
+  Array.from(new Set(stocks.value.map((s) => s.material))).sort(),
 );
-
-const hasParseError = computed(() => !parsedStock.value.ok);
 
 function setMapping(colorKey: string, material: string) {
   if (activeId.value == null) return;
@@ -115,13 +92,7 @@ function commitBatchName(colorKey: string) {
     </button>
     <template v-if="expanded">
       <StockSuggestionBanner />
-      <p v-if="hasParseError" class="text-xs text-amber-400">
-        Stock has invalid YAML. Open Settings to fix it.
-      </p>
-      <p
-        v-else-if="materialOptions.length === 0"
-        class="text-xs text-amber-400"
-      >
+      <p v-if="materialOptions.length === 0" class="text-xs text-amber-400">
         No stock materials defined. Open Settings to add stock first.
       </p>
       <div

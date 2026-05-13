@@ -23,7 +23,7 @@ export function applyProjectDefaults(
 ): IdbProject {
   return {
     ...p,
-    stock: p.stock ?? '',
+    stocks: p.stocks ?? [],
     colorMap: p.colorMap ?? {},
     excludedColors: p.excludedColors ?? [],
     distanceUnit: p.distanceUnit ?? DEFAULT_SETTINGS.distanceUnit,

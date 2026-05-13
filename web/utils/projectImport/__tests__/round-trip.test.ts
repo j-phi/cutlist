@@ -21,7 +21,7 @@ function makePayload(): ProjectExport {
       name: 'Round Trip',
       colorMap: { '#aaa': 'Plywood' },
       excludedColors: [],
-      stock: 'stock yaml',
+      stocks: [],
       distanceUnit: 'mm',
       precision: { kind: 'decimal', step: 0.1 },
       bladeWidth: um(3),

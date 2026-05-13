@@ -3,9 +3,9 @@ import { z } from 'zod';
 import YAML from 'js-yaml';
 
 /**
- * Parse the user's stock YAML. Unknown keys are silently dropped (retired
- * fields like `algorithm:` disappear). A malformed row drops cleanly so
- * the rest of the list still hydrates — matches the v3 migration shape.
+ * Parse YAML stock into a `StockMatrix[]`. Used only by the v6 migration to
+ * lift legacy `IdbProject.stock` strings into the structured `stocks` field.
+ * Malformed rows drop cleanly so the rest of the list still hydrates.
  */
 export function parseStock(stock: string): StockMatrix[] {
   const raw = YAML.load(stock);

@@ -14,7 +14,7 @@ import {
   setLocalStorageJson,
 } from '~/utils/localStorage';
 
-const { parsedStock, distanceUnit, precision } = useProjectSettings();
+const { stocks, distanceUnit, precision } = useProjectSettings();
 const { activeId } = useProjects();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 const { add, update, remove } = useStockMutations();
@@ -82,7 +82,7 @@ const customItems: DropdownItem[][] = [
   ],
 ];
 
-const entries = parsedStock;
+const entries = stocks;
 
 // Stable per-row ids. Index keys would let a deleted card's DOM (and its
 // draft state) survive into its successor; ours move with the row.

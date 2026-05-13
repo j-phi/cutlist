@@ -15,7 +15,6 @@ import {
   type StockMatrix,
 } from 'cutlist';
 import { defaultPrecisionForUnit } from '~/utils/settings';
-import { parseStock } from '~/utils/parseStock';
 import type { IdbProject } from '~/composables/useIdb';
 
 const DEBOUNCE_MS = 300;
@@ -106,11 +105,11 @@ export default createSharedComposable(() => {
     },
   });
 
-  const stock = computed<string | undefined>({
-    get: () => activeProject.value?.stock,
+  const stocks = computed<StockMatrix[]>({
+    get: () => activeProject.value?.stocks ?? [],
     set: (value) => {
-      if (value == null) return;
-      queueWrite({ stock: value });
+      if (!activeProject.value) return;
+      queueWrite({ stocks: value });
     },
   });
 
@@ -146,22 +145,6 @@ export default createSharedComposable(() => {
   });
 
   /**
-   * Single parse of the project's stock YAML. Every consumer that needs the
-   * structured stock list reads this rather than calling `parseStock` directly,
-   * so a malformed YAML edit shows up in one place and the parse work runs
-   * once per stock change rather than per-consumer.
-   */
-  const parsedStock = computed<StockMatrix[]>(() => {
-    const yaml = stock.value;
-    if (!yaml) return [];
-    try {
-      return parseStock(yaml);
-    } catch {
-      return [];
-    }
-  });
-
-  /**
    * Names of materials whose stock kind is linear. Grain lock is meaningless
    * for dimensional lumber (grain runs along the length by definition), so
    * UI surfaces hide the grain-lock control for these materials.
@@ -169,9 +152,7 @@ export default createSharedComposable(() => {
   const linearMaterials = computed<Set<string>>(
     () =>
       new Set(
-        parsedStock.value
-          .filter((m) => m.kind === 'linear')
-          .map((m) => m.material),
+        stocks.value.filter((m) => m.kind === 'linear').map((m) => m.material),
       ),
   );
 
@@ -180,8 +161,7 @@ export default createSharedComposable(() => {
     margin,
     defaultAlgorithm,
     showPartNumbers,
-    stock,
-    parsedStock,
+    stocks,
     distanceUnit,
     precision,
     isLoading,

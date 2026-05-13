@@ -93,13 +93,13 @@ describe('computeLayouts', () => {
   it('rejects synchronously without spawning a worker when over the hard limit', async () => {
     const tooMany = makeParts(PART_COUNT_HARD_LIMIT + 1);
     await expect(
-      computeLayouts('proj-a', tooMany, '', CONFIG),
+      computeLayouts('proj-a', tooMany, [], CONFIG),
     ).rejects.toBeInstanceOf(PartCountExceededError);
     expect(workerInstance).toBeNull();
   });
 
   it('marks a project as computing and clears on resolve', async () => {
-    const promise = computeLayouts('proj-a', makeParts(3), '', CONFIG);
+    const promise = computeLayouts('proj-a', makeParts(3), [], CONFIG);
     expect(isComputing('proj-a')).toBe(true);
 
     const [post] = workerInstance!.posts;
@@ -110,7 +110,7 @@ describe('computeLayouts', () => {
   });
 
   it('propagates worker errors and clears the computing flag', async () => {
-    const promise = computeLayouts('proj-a', makeParts(1), '', CONFIG);
+    const promise = computeLayouts('proj-a', makeParts(1), [], CONFIG);
     expect(isComputing('proj-a')).toBe(true);
 
     const [post] = workerInstance!.posts;
@@ -123,8 +123,8 @@ describe('computeLayouts', () => {
 
 describe('project isolation', () => {
   it('tracks multiple projects independently', async () => {
-    const pA = computeLayouts('proj-a', makeParts(1), '', CONFIG);
-    const pB = computeLayouts('proj-b', makeParts(1), '', CONFIG);
+    const pA = computeLayouts('proj-a', makeParts(1), [], CONFIG);
+    const pB = computeLayouts('proj-b', makeParts(1), [], CONFIG);
     expect(isComputing('proj-a')).toBe(true);
     expect(isComputing('proj-b')).toBe(true);
 
@@ -145,8 +145,8 @@ describe('superseding within the same project', () => {
   // *latest* request id, so neither an early-resolving older request nor a
   // late-resolving stale one should flip the flag prematurely or back on.
   it('clears computing only when the latest request resolves, regardless of order', async () => {
-    const first = computeLayouts('proj-a', makeParts(1), '', CONFIG);
-    const second = computeLayouts('proj-a', makeParts(2), '', CONFIG);
+    const first = computeLayouts('proj-a', makeParts(1), [], CONFIG);
+    const second = computeLayouts('proj-a', makeParts(2), [], CONFIG);
     expect(isComputing('proj-a')).toBe(true);
 
     const [postFirst, postSecond] = workerInstance!.posts;

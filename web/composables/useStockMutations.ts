@@ -1,4 +1,3 @@
-import YAML from 'js-yaml';
 import type { StockMatrix } from 'cutlist';
 
 const normalize = (s: string) => s.trim().toLowerCase();
@@ -17,29 +16,25 @@ export function uniqueMaterialName(
 }
 
 export function useStockMutations() {
-  const { stock, parsedStock } = useProjectSettings();
-
-  function writeAll(next: StockMatrix[]) {
-    stock.value = YAML.dump(next, { indent: 2, flowLevel: 3 });
-  }
+  const { stocks } = useProjectSettings();
 
   /** Append one or more matrices in a single write, auto-suffixing name clashes. */
   function add(matrices: StockMatrix[]): void {
-    const list = parsedStock.value.slice();
+    const list = stocks.value.slice();
     for (const m of matrices) {
       list.push({ ...m, material: uniqueMaterialName(m.material, list) });
     }
-    writeAll(list);
+    stocks.value = list;
   }
 
   function update(idx: number, matrix: StockMatrix): void {
-    const list = parsedStock.value.slice();
+    const list = stocks.value.slice();
     list[idx] = matrix;
-    writeAll(list);
+    stocks.value = list;
   }
 
   function remove(idx: number): void {
-    writeAll(parsedStock.value.filter((_, i) => i !== idx));
+    stocks.value = stocks.value.filter((_, i) => i !== idx);
   }
 
   return { add, update, remove };

@@ -16,7 +16,7 @@ describe('project CRUD', () => {
       name: 'Test Project',
       colorMap: {},
       excludedColors: [],
-      stock: '',
+      stocks: [],
       distanceUnit: DEFAULT_SETTINGS.distanceUnit,
       bladeWidth: DEFAULT_SETTINGS.bladeWidth,
       margin: DEFAULT_SETTINGS.margin,
@@ -27,15 +27,22 @@ describe('project CRUD', () => {
   });
 
   it('creates a project with custom options', async () => {
+    const stocks = [
+      {
+        kind: 'sheet' as const,
+        material: 'Plywood',
+        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      },
+    ];
     const project = await idb.createProject('Imperial', {
-      stock: 'custom yaml',
+      stocks,
       distanceUnit: 'in',
       bladeWidth: 7 as Micrometres,
       margin: 1 as Micrometres,
       defaultAlgorithm: 'cnc',
       showPartNumbers: false,
     });
-    expect(project.stock).toBe('custom yaml');
+    expect(project.stocks).toEqual(stocks);
     expect(project.distanceUnit).toBe('in');
     expect(project.bladeWidth).toBe(7);
     expect(project.margin).toBe(1);

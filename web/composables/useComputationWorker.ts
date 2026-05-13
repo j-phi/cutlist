@@ -3,6 +3,7 @@ import type {
   BoardLayoutLeftover,
   ConfigInput,
   PartToCut,
+  StockMatrix,
 } from 'cutlist';
 import { reportError } from './useAppErrors';
 
@@ -10,7 +11,7 @@ interface LayoutRequest {
   type: 'layout';
   id: number;
   parts: PartToCut[];
-  stockYaml: string;
+  stocks: StockMatrix[];
   config: ConfigInput;
 }
 
@@ -142,7 +143,7 @@ export class PartCountExceededError extends Error {
 export function computeLayouts(
   projectId: string,
   parts: PartToCut[],
-  stockYaml: string,
+  stocks: StockMatrix[],
   config: ConfigInput,
 ): Promise<{ layouts: BoardLayout[]; leftovers: BoardLayoutLeftover[] }> {
   if (parts.length > PART_COUNT_HARD_LIMIT) {
@@ -153,6 +154,7 @@ export function computeLayouts(
   const w = getLayoutWorker();
   // Worker postMessage uses structured clone; strip Vue reactivity first.
   const plainParts = JSON.parse(JSON.stringify(parts));
+  const plainStocks = JSON.parse(JSON.stringify(stocks));
   const plainConfig = JSON.parse(JSON.stringify(config));
   latestByProject.set(projectId, id);
   setComputing(projectId, true);
@@ -162,7 +164,7 @@ export function computeLayouts(
       type: 'layout',
       id,
       parts: plainParts,
-      stockYaml,
+      stocks: plainStocks,
       config: plainConfig,
     } satisfies LayoutRequest);
   });
