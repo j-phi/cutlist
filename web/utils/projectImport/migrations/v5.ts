@@ -1,8 +1,10 @@
 /**
- * v5: integer micrometres become the engine and storage domain.
+ * v5: integer micrometres become the engine and storage domain, and the
+ * model `source` enum drops `'collada'` in favour of `'assimp'`.
  *
  * - `IdbProject.{bladeWidth, margin}`: float mm → integer µm.
  * - `IdbModel.parts[].size.{thickness,width,length}`: float meters → integer µm.
+ * - `IdbModel.source`: `'collada'` → `'assimp'`.
  *
  * Defensive — never throws. A non-finite or missing dimension is reset to 0
  * rather than rolling back the upgrade transaction.
@@ -28,9 +30,11 @@ export function migrateProjectScalarsToUm(record: IdbRecord): IdbRecord {
 }
 
 export function migrateModelPartsToUm(record: IdbRecord): IdbRecord {
+  const next: IdbRecord = { ...record };
+  if (record.source === 'collada') next.source = 'assimp';
   const parts = record.parts;
-  if (!Array.isArray(parts)) return record;
-  const next: IdbRecord[] = parts.map((part) => {
+  if (!Array.isArray(parts)) return next;
+  next.parts = parts.map((part) => {
     if (!part || typeof part !== 'object') return part;
     const p = part as IdbRecord;
     const size = p.size as IdbRecord | undefined;
@@ -45,7 +49,7 @@ export function migrateModelPartsToUm(record: IdbRecord): IdbRecord {
       },
     };
   });
-  return { ...record, parts: next };
+  return next;
 }
 
 export const v5ProjectMigration: RecordMigration = {

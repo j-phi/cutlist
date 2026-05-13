@@ -4,7 +4,7 @@ import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 export interface Model {
   id: string;
   filename: string;
-  source: 'gltf' | 'collada' | 'manual';
+  source: 'gltf' | 'assimp' | 'manual';
   parts: Part[];
   colors: ColorInfo[];
   enabled: boolean;

@@ -254,9 +254,9 @@ Cascade: deleting a project deletes its models, build doc, scenes, annotations, 
 
 ### IdbModel — what's stored
 
-All non-manual models store `parts`, `colors`, `nodePartMap`, and `rawSource` (a glTF JSON object) directly in IndexedDB. The `source` field labels the original format (`'gltf'` for native glTF, `'collada'` for anything Assimp-routed) but the stored payload is always glTF JSON since DAE/FBX/GLB are converted at import time. The viewer derives an `ObjectGraph` from `rawSource` on first open via `resolveModelScene`; `useModels` caches the derived graph in memory so subsequent opens of the same model are instant.
+All non-manual models store `parts`, `colors`, `nodePartMap`, and `rawSource` (a glTF JSON object) directly in IndexedDB. The `source` field labels the import path (`'gltf'` for native glTF, `'assimp'` for anything Assimp-routed) but the stored payload is always glTF JSON since DAE/FBX/GLB are converted at import time. The viewer derives an `ObjectGraph` from `rawSource` on first open via `resolveModelScene`; `useModels` caches the derived graph in memory so subsequent opens of the same model are instant.
 
-Legacy IDB records (`source: 'collada'` written before the Assimp switch) may still hold a raw XML string in `rawSource`. `resolveModelScene` detects this (`typeof rawSource === 'string'`) and re-runs Assimp on the XML — a one-time cost per legacy model; the converted glTF is not written back, so the conversion repeats on each open. Acceptable since "the app is still in development" per the existing schema versioning policy.
+Pre-Assimp IDB records may still hold a raw XML string in `rawSource`. `resolveModelScene` detects this (`typeof rawSource === 'string'`) and re-runs Assimp on the XML — a one-time cost per legacy model; the converted glTF is not written back, so the conversion repeats on each open. Acceptable since "the app is still in development" per the existing schema versioning policy.
 
 `IdbModelMeta = Omit<IdbModel, 'rawSource'>` — what the reactive `useProjects().enabledModels` exposes, so the heavy raw payload doesn't leak into reactive state. Use `useIdb().getModelRawSource(id)` (or, preferably, `useModels().getModelGraph(id)`) to fetch on demand.
 

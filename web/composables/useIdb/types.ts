@@ -56,13 +56,17 @@ export interface IdbModel {
   id: string;
   projectId: string;
   filename: string;
-  source: 'gltf' | 'collada' | 'manual';
+  source: 'gltf' | 'assimp' | 'manual';
   parts: Part[];
   colors: ColorInfo[];
   /** Maps 3D scene node indices to part numbers. Empty for manual models. */
   nodePartMap: NodePartMapping[];
   enabled: boolean;
-  /** Raw GLTF JSON or COLLADA XML string. Null for manual models. Kept for the 3D viewer. */
+  /**
+   * Raw GLTF JSON for imported models. Null for manual models. Pre-Assimp
+   * imports may hold a raw DAE/XML string; `resolveModelScene` re-runs
+   * Assimp on those at load time.
+   */
   rawSource: object | string | null;
   /** Per-part user overrides, keyed by partNumber. Extensible for future fields. */
   partOverrides: Record<number, PartOverride>;

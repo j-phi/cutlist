@@ -67,7 +67,7 @@ const ModelSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   filename: z.string(),
-  source: z.enum(['gltf', 'collada', 'manual']),
+  source: z.enum(['gltf', 'assimp', 'manual']),
   parts: z.array(PartSchema).default([]),
   colors: z.array(ColorInfoSchema).default([]),
   nodePartMap: z.array(NodePartMappingSchema).default([]),

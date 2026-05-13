@@ -93,7 +93,7 @@ describe('parseProjectExport validation', () => {
     const payload = makePayload();
     (payload.models[0] as Record<string, unknown>).rawSource =
       '<COLLADA>...</COLLADA>';
-    (payload.models[0] as Record<string, unknown>).source = 'collada';
+    (payload.models[0] as Record<string, unknown>).source = 'assimp';
     const parsed = parseProjectExport(payload);
     expect(parsed.models[0].rawSource).toBe('<COLLADA>...</COLLADA>');
   });

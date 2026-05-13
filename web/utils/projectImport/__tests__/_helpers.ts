@@ -30,7 +30,7 @@ interface FixturePayload {
     id: string;
     projectId: string;
     filename: string;
-    source: 'gltf' | 'collada' | 'manual';
+    source: 'gltf' | 'assimp' | 'manual';
     parts: unknown[];
     enabled: boolean;
     rawSource: unknown;

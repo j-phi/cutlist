@@ -77,7 +77,7 @@ describe('BomModelsList', () => {
           makeModel({
             id: 'b',
             filename: 'b.dae',
-            source: 'collada',
+            source: 'assimp',
             parts: [{} as never, {} as never],
           }),
         ],

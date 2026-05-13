@@ -42,15 +42,13 @@ export function useBomImport({ activeId, onModelParsed }: UseBomImportOptions) {
         try {
           const ext = getFileExtension(file.name);
           let result;
-          let source: 'gltf' | 'collada';
+          let source: 'gltf' | 'assimp';
           if (ext === 'gltf') {
             result = await parseGltf(file);
             source = 'gltf';
           } else if (isAssimpExtension(ext)) {
             result = await parseAssimp(file);
-            // The IDB `source` enum uses `'collada'` for any Assimp-routed
-            // import; the real format lives in `filename`.
-            source = 'collada';
+            source = 'assimp';
           } else {
             throw new Error(`Unsupported file type: .${ext || '(none)'}`);
           }

@@ -41,6 +41,17 @@ describe('migrateModelPartsToUm', () => {
     });
   });
 
+  it("renames source: 'collada' to 'assimp'", () => {
+    expect(migrateModelPartsToUm({ source: 'collada', parts: [] })).toEqual({
+      source: 'assimp',
+      parts: [],
+    });
+    expect(migrateModelPartsToUm({ source: 'gltf', parts: [] })).toEqual({
+      source: 'gltf',
+      parts: [],
+    });
+  });
+
   it('zeroes malformed dimensions rather than throwing', () => {
     const out = migrateModelPartsToUm({
       parts: [

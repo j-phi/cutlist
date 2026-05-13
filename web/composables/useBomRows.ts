@@ -27,7 +27,7 @@ export interface BomRow {
 
 function modelDisplayName(model: {
   filename: string;
-  source: 'gltf' | 'collada' | 'manual';
+  source: 'gltf' | 'assimp' | 'manual';
 }): string {
   const filename = model.filename.trim();
   if (filename) return filename;
