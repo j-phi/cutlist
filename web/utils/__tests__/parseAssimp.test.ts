@@ -7,9 +7,9 @@ function makeFile(content: string, name: string): File {
 
 /**
  * 36 × 18 × 1 inches authored as inches via `<unit meter="0.0254"/>`.
- * Pins the unit-handling contract: anything stored in `Part.size` must be in
- * meters regardless of authoring unit. If Assimp ever stops applying the
- * COLLADA unit factor this test fires before the bug reaches the BOM.
+ * Pins the unit-handling contract: the COLLADA unit factor must be applied
+ * before `Part.size` is computed. If Assimp ever stops applying it this test
+ * fires before the bug reaches the BOM.
  */
 const INCH_AUTHORED_BOX = `<?xml version="1.0" encoding="UTF-8"?>
 <COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">

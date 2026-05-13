@@ -1,4 +1,4 @@
-import type { BoardLayout, Micrometres } from 'cutlist';
+import type { Micrometres } from 'cutlist';
 
 export interface SnapEdge {
   axis: 'x' | 'y';

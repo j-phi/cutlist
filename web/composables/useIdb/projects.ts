@@ -23,7 +23,7 @@ export async function getAllProjectsByRecency(): Promise<
  * One thumbnail per project — the lowest-order captured scene. Projects
  * without one are absent from the map. We narrow models to only those that
  * own a thumbnail-bearing scene so we don't deserialize every model's
- * `rawSource` (GLTF JSON / COLLADA XML) on a page that just wants images.
+ * `rawSource` on a page that just wants images.
  */
 export async function getProjectThumbnails(): Promise<Map<string, string>> {
   const db = await getDb();
@@ -105,21 +105,7 @@ export async function createProject(
 
 export async function updateProject(
   id: string,
-  patch: Partial<
-    Pick<
-      IdbProject,
-      | 'name'
-      | 'colorMap'
-      | 'excludedColors'
-      | 'stock'
-      | 'distanceUnit'
-      | 'bladeWidth'
-      | 'margin'
-      | 'defaultAlgorithm'
-      | 'showPartNumbers'
-      | 'updatedAt'
-    >
-  >,
+  patch: Partial<Omit<IdbProject, 'id' | 'createdAt'>>,
 ): Promise<IdbProject> {
   const db = await getDb();
   const existing = await db.projects.get(id);
