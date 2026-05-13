@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Rectangle } from './geometry';
 import { type Micrometres, mmToUm, um } from './utils/units';
 
-const MicrometresSchema = z
+export const MicrometresSchema = z
   .number()
   .int()
   .nonnegative()

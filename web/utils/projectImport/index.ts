@@ -22,7 +22,7 @@ import type {
 import { gzipDecompress } from '~/utils/compress';
 import { migrateExport } from './migrations';
 import { DEFAULT_SETTINGS } from '~/utils/settings';
-import type { Micrometres, Precision } from 'cutlist';
+import { MicrometresSchema, type Micrometres, type Precision } from 'cutlist';
 import { defaultSceneIdForModel, isDefaultSceneId } from '~/utils/defaultScene';
 import { base64ToBlob } from '~/utils/blobBase64';
 import { remapBuildDoc } from '~/utils/buildDocRemap';
@@ -32,9 +32,9 @@ import { z } from 'zod';
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
 const PartSizeSchema = z.object({
-  width: z.number().int().nonnegative(),
-  length: z.number().int().nonnegative(),
-  thickness: z.number().int().nonnegative(),
+  width: MicrometresSchema,
+  length: MicrometresSchema,
+  thickness: MicrometresSchema,
 });
 
 const PartSchema = z.object({
@@ -213,12 +213,8 @@ const ProjectExportSchema = z.object({
     stock: z.string(),
     distanceUnit: z.enum(['in', 'mm']).default(DEFAULT_SETTINGS.distanceUnit),
     precision: PrecisionSchema.default(DEFAULT_SETTINGS.precision),
-    bladeWidth: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(DEFAULT_SETTINGS.bladeWidth),
-    margin: z.number().int().nonnegative().default(DEFAULT_SETTINGS.margin),
+    bladeWidth: MicrometresSchema.default(DEFAULT_SETTINGS.bladeWidth),
+    margin: MicrometresSchema.default(DEFAULT_SETTINGS.margin),
     defaultAlgorithm: z
       .enum(['auto', 'tidy', 'compact', 'cnc'])
       .default(DEFAULT_SETTINGS.defaultAlgorithm),
@@ -311,8 +307,8 @@ export async function importProjectData(
     stock: data.project.stock,
     distanceUnit: data.project.distanceUnit,
     precision: data.project.precision,
-    bladeWidth: data.project.bladeWidth as Micrometres,
-    margin: data.project.margin as Micrometres,
+    bladeWidth: data.project.bladeWidth,
+    margin: data.project.margin,
     defaultAlgorithm: data.project.defaultAlgorithm,
     showPartNumbers: data.project.showPartNumbers,
   });

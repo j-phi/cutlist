@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { SCHEMA_VERSION } from '../../versions';
 import { importProjectData, parseProjectExport } from '..';
 import type { ProjectExport } from '~/composables/useExportProject';
+import { um } from 'cutlist';
 import { makeIdbMock } from './_helpers';
 
 function makePayload(): ProjectExport {
@@ -23,8 +24,8 @@ function makePayload(): ProjectExport {
       stock: 'stock yaml',
       distanceUnit: 'mm',
       precision: { kind: 'decimal', step: 0.1 },
-      bladeWidth: 3,
-      margin: 0,
+      bladeWidth: um(3),
+      margin: um(0),
       defaultAlgorithm: 'auto',
       showPartNumbers: true,
       createdAt: now,
