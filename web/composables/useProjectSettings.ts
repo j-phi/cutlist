@@ -170,5 +170,11 @@ export default createSharedComposable(() => {
     precision,
     isLoading,
     linearMaterials,
+    /**
+     * Generic debounced write into the active project. Use this when a single
+     * user action mutates multiple fields and must land atomically — e.g.
+     * renaming a stock material rewrites both `stocks` and `colorMap`.
+     */
+    queuePatch: queueWrite,
   };
 });
