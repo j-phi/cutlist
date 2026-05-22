@@ -18,39 +18,44 @@
       </h3>
       <ul class="list-disc pl-4 marker:text-dim space-y-1">
         <li>
-          <span class="text-body">Sheet</span> — 2D panels (W × L) and
-          thicknesses.
+          <span class="text-body">Sheet</span> — a 2D panel defined by width,
+          length, and thickness. Parts are nested onto the face of the board.
         </li>
         <li>
-          <span class="text-body">Timber</span> — 1D sticks with a cross-section
-          and lengths.
+          <span class="text-body">Timber</span> — a 1D stick defined by
+          cross-section dimensions and available lengths. Parts are cut along
+          the stick.
         </li>
       </ul>
+      <p>
+        Parts are matched to stock by material name and thickness (sheets) or
+        cross-section (timber). Names must match exactly.
+      </p>
     </section>
 
     <section class="space-y-1.5">
       <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
         Material allowance
+        <span class="normal-case font-normal text-dim">(timber only)</span>
       </h3>
       <p>
-        Extra material reserved
-        <em class="text-body not-italic font-medium">per part</em>, for planing
-        rough stock down or leaving waste for crosscuts.
+        Extra material added
+        <em class="text-body not-italic font-medium">per part</em> to account
+        for rough stock. Two dimensions:
       </p>
       <ul class="list-disc pl-4 marker:text-dim space-y-1">
         <li>
-          <span class="text-body">Length</span> — added to each part's length on
-          the stick.
+          <span class="text-body">Along length</span> — waste reserved for
+          crosscuts and end trimming.
         </li>
         <li>
-          <span class="text-body">Cross-section</span> — for timber, added to
-          width and thickness (S4S planing takes from all four faces). For
-          sheets, added to the rip width only.
+          <span class="text-body">Across cross-section</span> — extra width and
+          thickness for S4S planing (material is removed from all four faces).
         </li>
       </ul>
       <p>
-        Example: 4 parts × 500 mm on a 2400 mm stick, +50 mm length allowance →
-        4 × 550 = 2200 mm used, 200 mm offcut.
+        Example: 4 parts × 500 mm, +50 mm length allowance → 4 × 550 = 2200 mm
+        consumed on the stick.
       </p>
     </section>
 
@@ -59,9 +64,22 @@
         Blade kerf
       </h3>
       <p>
-        Set in <span class="text-body">Settings</span>, applied to every cut on
-        top of any allowance. Allowance is for planing or trimming; kerf is the
-        material lost to the blade itself.
+        Material consumed by the blade on each cut. Set in the
+        <span class="text-body">Layout</span> tab toolbar. Applies to both
+        sheets and timber.
+      </p>
+    </section>
+
+    <section class="space-y-1.5">
+      <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
+        Margin
+        <span class="normal-case font-normal text-dim">(sheets only)</span>
+      </h3>
+      <p>
+        A border inset applied to all four edges of every board, set in the
+        <span class="text-body">Layout</span> tab toolbar. Use it to reserve
+        clamping space or avoid rough mill edges. It shrinks the usable area of
+        the whole board, not individual parts.
       </p>
     </section>
   </div>

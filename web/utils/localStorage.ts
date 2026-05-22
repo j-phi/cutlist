@@ -24,6 +24,14 @@ export const STORAGE_KEYS = {
     projectStockHelpCollapsed(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/stock-help-collapsed/v1`;
     },
+    // Whether the "How the BOM works" sidebar on the BOM tab is collapsed, scoped per project.
+    projectBomHelpCollapsed(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/bom-help-collapsed/v1`;
+    },
+    // Whether the "How layouts work" sidebar on the Layout tab is collapsed, scoped per project.
+    projectLayoutHelpCollapsed(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/layout-help-collapsed/v1`;
+    },
   },
 } as const;
 

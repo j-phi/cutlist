@@ -411,6 +411,27 @@ All third-party data collection is currently **disabled**. There are three indep
 
 Sentry is **hard-disabled, not removed**: the SDK module, the scattered `Sentry.captureException/captureMessage/logger` calls, and the feedback handlers all remain in place. When the SDK is never initialized those calls are harmless no-ops, and the "Report an issue" buttons are hidden behind `feedbackEnabled`. The `about`/`terms` pages still describe Sentry as the error-reporting backend — update that copy if the disable becomes permanent.
 
+## Documentation & Help Panels
+
+Each major tab has a collapsible "how it works" side panel backed by a dedicated content component:
+
+| Tab    | Side panel title    | Content component                                   |
+| ------ | ------------------- | --------------------------------------------------- |
+| BOM    | "How the BOM works" | `web/components/project/bom/BomHelpContent.vue`     |
+| Stock  | "How stock works"   | `web/components/project/stock/StockHelpContent.vue` |
+| Layout | "How layouts work"  | `web/components/layout/LayoutHelpContent.vue`       |
+
+**When to update help content:** Any time you add, remove, or rename a feature that is described in one of these panels, update the corresponding content component. Treat the help panels as user-facing documentation — they must stay accurate.
+
+**Key facts that are easy to get wrong:**
+
+- **Blade kerf** is configured in the Layout tab toolbar (labeled "Blade"), not in Settings.
+- **Material allowance** (length and cross-section) is for **timber (linear stock) only**. It is per-part and configured in the Stock tab per linear stock entry.
+- **Margin** is for **sheets only**. It is a global edge inset on each board (not per-part) and is configured in the Layout tab toolbar.
+- Cut mode (Auto/Tidy/Compact/CNC) is a Layout tab setting.
+
+**Side panel pattern:** Each tab's panel uses `ViewerSidePanel` with a `helpCollapsed` ref backed by `localStorage` (keyed per-project). See `web/components/project/tabs/StockTab.vue` for the canonical implementation. The collapse state is persisted via `STORAGE_KEYS.ui` in `web/utils/localStorage.ts`.
+
 ## Key Config Files
 
 - `web/nuxt.config.ts` — Nuxt config (SSR off, modules)

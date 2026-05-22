@@ -5,6 +5,11 @@ import type {
   SheetBoardLayoutPlacement,
 } from 'cutlist';
 import { projectPath } from '~/utils/projectTabs';
+import {
+  STORAGE_KEYS,
+  getLocalStorageJson,
+  setLocalStorageJson,
+} from '~/utils/localStorage';
 
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
 const { activeId } = useProjects();
@@ -236,205 +241,241 @@ const emptyState = computed(() => {
     cta: false,
   };
 });
+
+function loadHelpCollapsed(projectId: string): boolean {
+  const stored = getLocalStorageJson<boolean>(
+    STORAGE_KEYS.ui.projectLayoutHelpCollapsed(projectId),
+  );
+  return typeof stored === 'boolean' ? stored : false;
+}
+
+const helpCollapsed = ref(
+  activeId.value ? loadHelpCollapsed(activeId.value) : false,
+);
+
+watch(activeId, (id) => {
+  if (id) helpCollapsed.value = loadHelpCollapsed(id);
+});
+
+watch(helpCollapsed, (value) => {
+  if (activeId.value) {
+    setLocalStorageJson(
+      STORAGE_KEYS.ui.projectLayoutHelpCollapsed(activeId.value),
+      value,
+    );
+  }
+});
 </script>
 
 <template>
-  <div class="relative h-full overflow-hidden">
-    <!-- Cutlist Preview -->
-    <div class="absolute inset-0 overflow-none flex bg-mist-900 shadow-lg">
-      <p v-if="error" class="m-auto text-red-400">{{ error }}</p>
+  <div class="h-full overflow-hidden grid grid-cols-[auto_1fr]">
+    <ViewerSidePanel
+      title="How layouts work"
+      :collapsed="helpCollapsed"
+      @update:collapsed="(v) => (helpCollapsed = v)"
+    >
+      <LayoutHelpContent />
+    </ViewerSidePanel>
 
-      <template v-else-if="data">
+    <div class="relative overflow-hidden">
+      <!-- Cutlist Preview -->
+      <div class="absolute inset-0 overflow-none flex bg-mist-900 shadow-lg">
+        <p v-if="error" class="m-auto text-red-400">{{ error }}</p>
+
+        <template v-else-if="data">
+          <div
+            v-if="totalVisibleLayouts === 0"
+            class="m-auto max-w-sm text-center bg-base border border-default rounded-lg p-6"
+          >
+            <UIcon
+              :name="emptyState.icon"
+              class="w-8 h-8 text-dim mx-auto mb-3"
+            />
+            <h3 class="text-base text-hi font-medium mb-1">
+              {{ emptyState.title }}
+            </h3>
+            <p class="text-sm text-muted mb-4">
+              {{ emptyState.body }}
+            </p>
+            <UButton
+              v-if="emptyState.cta"
+              size="sm"
+              color="primary"
+              icon="i-lucide-warehouse"
+              :to="stockTabPath"
+            >
+              Configure stock
+            </UButton>
+          </div>
+          <template v-else>
+            <div ref="gridEl" class="canvas-grid" />
+            <div
+              ref="container"
+              class="canvas-plane"
+              :style="`--zoom:${scale ?? 1}`"
+            >
+              <div class="grid grid-flow-col auto-cols-max items-start">
+                <LayoutList
+                  v-if="displaySheetLayouts.length > 0"
+                  :layouts="displaySheetLayouts"
+                />
+                <LinearLayoutList
+                  v-if="linearLayouts.length > 0"
+                  :layouts="linearLayouts"
+                />
+              </div>
+            </div>
+          </template>
+        </template>
+
         <div
-          v-if="totalVisibleLayouts === 0"
-          class="m-auto max-w-sm text-center bg-base border border-default rounded-lg p-6"
+          v-else-if="isComputing"
+          class="m-auto flex items-center gap-2 text-muted"
+        >
+          <UIcon name="i-lucide-loader-2" class="w-5 h-5 animate-spin" />
+          <span class="text-sm">Computing layouts&hellip;</span>
+        </div>
+      </div>
+
+      <!-- Warning banners -->
+      <div
+        v-if="
+          !error &&
+          (partCountWarning ||
+            showLeftoverBanner ||
+            unusedStockNames.length > 0)
+        "
+        class="absolute bottom-14 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 max-w-md"
+      >
+        <div
+          v-if="partCountWarning"
+          class="bg-amber-500/15 border border-amber-500/30 rounded-lg px-4 py-2 flex items-center gap-2"
         >
           <UIcon
-            :name="emptyState.icon"
-            class="w-8 h-8 text-dim mx-auto mb-3"
+            name="i-lucide-triangle-alert"
+            class="w-4 h-4 text-amber-500 shrink-0"
           />
-          <h3 class="text-base text-hi font-medium mb-1">
-            {{ emptyState.title }}
-          </h3>
-          <p class="text-sm text-muted mb-4">
-            {{ emptyState.body }}
-          </p>
-          <UButton
-            v-if="emptyState.cta"
-            size="sm"
-            color="primary"
-            icon="i-lucide-warehouse"
-            :to="stockTabPath"
-          >
-            Configure stock
-          </UButton>
+          <span class="text-xs text-amber-500">{{ partCountWarning }}</span>
         </div>
-        <template v-else>
-          <div ref="gridEl" class="canvas-grid" />
-          <div
-            ref="container"
-            class="canvas-plane"
-            :style="`--zoom:${scale ?? 1}`"
-          >
-            <div class="grid grid-flow-col auto-cols-max items-start">
-              <LayoutList
-                v-if="displaySheetLayouts.length > 0"
-                :layouts="displaySheetLayouts"
-              />
-              <LinearLayoutList
-                v-if="linearLayouts.length > 0"
-                :layouts="linearLayouts"
-              />
-            </div>
-          </div>
-        </template>
-      </template>
-
-      <div
-        v-else-if="isComputing"
-        class="m-auto flex items-center gap-2 text-muted"
-      >
-        <UIcon name="i-lucide-loader-2" class="w-5 h-5 animate-spin" />
-        <span class="text-sm">Computing layouts&hellip;</span>
-      </div>
-    </div>
-
-    <!-- Warning banners -->
-    <div
-      v-if="
-        !error &&
-        (partCountWarning || showLeftoverBanner || unusedStockNames.length > 0)
-      "
-      class="absolute bottom-14 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 max-w-md"
-    >
-      <div
-        v-if="partCountWarning"
-        class="bg-amber-500/15 border border-amber-500/30 rounded-lg px-4 py-2 flex items-center gap-2"
-      >
-        <UIcon
-          name="i-lucide-triangle-alert"
-          class="w-4 h-4 text-amber-500 shrink-0"
-        />
-        <span class="text-xs text-amber-500">{{ partCountWarning }}</span>
-      </div>
-      <div
-        v-if="showLeftoverBanner"
-        class="bg-amber-500/15 border border-amber-500/30 rounded-lg px-4 py-2 flex items-center gap-2"
-      >
-        <UIcon
-          name="i-lucide-triangle-alert"
-          class="w-4 h-4 text-amber-500 shrink-0"
-        />
-        <span class="text-xs text-amber-500">
-          {{ unplacedCount }}
-          {{ unplacedCount === 1 ? 'part' : 'parts' }} could not be placed on
-          matching stock
-        </span>
-      </div>
-      <div
-        v-if="unusedStockNames.length > 0"
-        class="bg-mist-800/80 border border-subtle rounded-lg px-4 py-2 flex items-center gap-2"
-      >
-        <UIcon name="i-lucide-package-x" class="w-4 h-4 text-dim shrink-0" />
-        <span class="text-xs text-muted">
-          Not needed:
-          <span v-for="(name, i) in unusedStockNames" :key="name"
-            >{{ name
-            }}<span v-if="i < unusedStockNames.length - 1">, </span></span
-          >
-        </span>
-      </div>
-    </div>
-
-    <!-- Single row so the right group wraps below the left on narrow
-         viewports instead of overlapping it. -->
-    <div
-      class="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-start justify-between gap-2"
-    >
-      <div
-        class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
-      >
-        <PreviewToolbar />
-      </div>
-
-      <div class="flex items-center gap-2 ml-auto">
         <div
-          v-if="stockOptions.length > 1"
-          class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
+          v-if="showLeftoverBanner"
+          class="bg-amber-500/15 border border-amber-500/30 rounded-lg px-4 py-2 flex items-center gap-2"
         >
-          <label class="text-xs text-muted whitespace-nowrap">Stock</label>
-          <USelect
-            v-model="selectedStock"
-            :items="[{ label: 'All', value: ALL }, ...stockOptions]"
-            size="xs"
-            class="w-36"
+          <UIcon
+            name="i-lucide-triangle-alert"
+            class="w-4 h-4 text-amber-500 shrink-0"
+          />
+          <span class="text-xs text-amber-500">
+            {{ unplacedCount }}
+            {{ unplacedCount === 1 ? 'part' : 'parts' }} could not be placed on
+            matching stock
+          </span>
+        </div>
+        <div
+          v-if="unusedStockNames.length > 0"
+          class="bg-mist-800/80 border border-subtle rounded-lg px-4 py-2 flex items-center gap-2"
+        >
+          <UIcon name="i-lucide-package-x" class="w-4 h-4 text-dim shrink-0" />
+          <span class="text-xs text-muted">
+            Not needed:
+            <span v-for="(name, i) in unusedStockNames" :key="name"
+              >{{ name
+              }}<span v-if="i < unusedStockNames.length - 1">, </span></span
+            >
+          </span>
+        </div>
+      </div>
+
+      <!-- Single row so the right group wraps below the left on narrow
+         viewports instead of overlapping it. -->
+      <div
+        class="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-start justify-between gap-2"
+      >
+        <div
+          class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
+        >
+          <PreviewToolbar />
+        </div>
+
+        <div class="flex items-center gap-2 ml-auto">
+          <div
+            v-if="stockOptions.length > 1"
+            class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
+          >
+            <label class="text-xs text-muted whitespace-nowrap">Stock</label>
+            <USelect
+              v-model="selectedStock"
+              :items="[{ label: 'All', value: ALL }, ...stockOptions]"
+              size="xs"
+              class="w-36"
+            />
+          </div>
+          <ExportPdfButton />
+        </div>
+      </div>
+
+      <!-- Sheet shopping list summary -->
+      <div
+        v-if="!error && data && filteredSheetLayouts.length > 0"
+        class="absolute top-16 right-3 z-10 max-w-xs bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
+      >
+        <SheetShoppingList :layouts="filteredSheetLayouts" :stocks="stocks" />
+      </div>
+
+      <!-- Drag ghost (follows cursor while a part is being dragged) -->
+      <Teleport to="body">
+        <div
+          v-if="dragGhost"
+          ref="ghostEl"
+          class="fixed pointer-events-none z-[9999] rounded-xs shadow-xl opacity-80 border border-white/20"
+          :style="{
+            left: `${dragGhost.x - ghostSize.w / 2}px`,
+            top: `${dragGhost.y - ghostSize.h / 2}px`,
+            width: `${ghostSize.w}px`,
+            height: `${ghostSize.h}px`,
+            background: ghostColor,
+          }"
+        />
+      </Teleport>
+
+      <!-- Controls -->
+      <div class="absolute bottom-4 right-4 flex gap-3 z-10">
+        <RulerToggle
+          class="bg-overlay backdrop-blur border border-subtle rounded-lg"
+        />
+        <div
+          v-if="scale != null"
+          class="bg-overlay backdrop-blur border border-subtle rounded-lg px-1 flex gap-1"
+        >
+          <UButton
+            title="Zoom out"
+            square
+            size="lg"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-minus"
+            @click="zoomOut"
+          />
+          <UButton
+            :title="`${Math.round(scale * 100)}% - Click to reset to 100%`"
+            class="w-20 justify-center text-teal-400"
+            size="lg"
+            color="neutral"
+            variant="ghost"
+            @click="resetZoom"
+          >
+            {{ Math.round(scale * 100) }}%
+          </UButton>
+          <UButton
+            title="Zoom in"
+            square
+            size="lg"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-plus"
+            @click="zoomIn"
           />
         </div>
-        <ExportPdfButton />
-      </div>
-    </div>
-
-    <!-- Sheet shopping list summary -->
-    <div
-      v-if="!error && data && filteredSheetLayouts.length > 0"
-      class="absolute top-16 right-3 z-10 max-w-xs bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
-    >
-      <SheetShoppingList :layouts="filteredSheetLayouts" :stocks="stocks" />
-    </div>
-
-    <!-- Drag ghost (follows cursor while a part is being dragged) -->
-    <Teleport to="body">
-      <div
-        v-if="dragGhost"
-        ref="ghostEl"
-        class="fixed pointer-events-none z-[9999] rounded-xs shadow-xl opacity-80 border border-white/20"
-        :style="{
-          left: `${dragGhost.x - ghostSize.w / 2}px`,
-          top: `${dragGhost.y - ghostSize.h / 2}px`,
-          width: `${ghostSize.w}px`,
-          height: `${ghostSize.h}px`,
-          background: ghostColor,
-        }"
-      />
-    </Teleport>
-
-    <!-- Controls -->
-    <div class="absolute bottom-4 right-4 flex gap-3 z-10">
-      <RulerToggle
-        class="bg-overlay backdrop-blur border border-subtle rounded-lg"
-      />
-      <div
-        v-if="scale != null"
-        class="bg-overlay backdrop-blur border border-subtle rounded-lg px-1 flex gap-1"
-      >
-        <UButton
-          title="Zoom out"
-          square
-          size="lg"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-minus"
-          @click="zoomOut"
-        />
-        <UButton
-          :title="`${Math.round(scale * 100)}% - Click to reset to 100%`"
-          class="w-20 justify-center text-teal-400"
-          size="lg"
-          color="neutral"
-          variant="ghost"
-          @click="resetZoom"
-        >
-          {{ Math.round(scale * 100) }}%
-        </UButton>
-        <UButton
-          title="Zoom in"
-          square
-          size="lg"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-plus"
-          @click="zoomIn"
-        />
       </div>
     </div>
   </div>

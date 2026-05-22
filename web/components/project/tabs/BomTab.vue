@@ -1,7 +1,11 @@
 <script lang="ts" setup>
 import type { Micrometres } from 'cutlist';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
-import { STORAGE_KEYS } from '~/utils/localStorage';
+import {
+  STORAGE_KEYS,
+  getLocalStorageJson,
+  setLocalStorageJson,
+} from '~/utils/localStorage';
 import type { ManualPartInput } from '~/composables/useProjects';
 import type { BomRow } from '~/composables/useBomRows';
 import type { SortKey } from '~/composables/useBomFilter';
@@ -407,557 +411,569 @@ async function handleRemovePart(adjustedPn: number) {
   if (renamingPartNumber.value === adjustedPn) cancelRenamePart();
 }
 
+// ── Help panel ───────────────────────────────────────────────────────────────
+
+function loadHelpCollapsed(projectId: string): boolean {
+  const stored = getLocalStorageJson<boolean>(
+    STORAGE_KEYS.ui.projectBomHelpCollapsed(projectId),
+  );
+  return typeof stored === 'boolean' ? stored : false;
+}
+
+const helpCollapsed = ref(
+  activeId.value ? loadHelpCollapsed(activeId.value) : false,
+);
+
+watch(activeId, (id) => {
+  if (id) helpCollapsed.value = loadHelpCollapsed(id);
+});
+
+watch(helpCollapsed, (value) => {
+  if (activeId.value) {
+    setLocalStorageJson(
+      STORAGE_KEYS.ui.projectBomHelpCollapsed(activeId.value),
+      value,
+    );
+  }
+});
+
 onUnmounted(() => {
   clearBomHover();
 });
 </script>
 
 <template>
-  <div class="absolute inset-0 overflow-hidden" v-bind="dropZoneBind">
-    <input
-      ref="fileInput"
-      type="file"
-      accept=".gltf,.glb,.dae,.fbx"
-      multiple
-      class="hidden"
-      aria-label="Import model files"
-      v-bind="importBind.fileInput"
-    />
-
-    <!-- Drag overlay -->
-    <Transition
-      enter-active-class="transition-opacity duration-150"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition-opacity duration-150"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
+  <div
+    class="absolute inset-0 overflow-hidden grid grid-cols-[auto_1fr]"
+    v-bind="dropZoneBind"
+  >
+    <ViewerSidePanel
+      title="How the BOM works"
+      :collapsed="helpCollapsed"
+      @update:collapsed="(v) => (helpCollapsed = v)"
     >
-      <div
-        v-if="isDragging"
-        class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-overlay border-2 border-dashed border-teal-400/50 rounded-lg m-1 pointer-events-none"
+      <BomHelpContent />
+    </ViewerSidePanel>
+
+    <div class="col-start-2 relative min-w-0 min-h-0 overflow-hidden">
+      <input
+        ref="fileInput"
+        type="file"
+        accept=".gltf,.glb,.dae,.fbx"
+        multiple
+        class="hidden"
+        aria-label="Import model files"
+        v-bind="importBind.fileInput"
+      />
+
+      <!-- Drag overlay -->
+      <Transition
+        enter-active-class="transition-opacity duration-150"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-opacity duration-150"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
       >
         <div
-          class="w-14 h-14 rounded-2xl bg-teal-400/10 flex items-center justify-center"
+          v-if="isDragging"
+          class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-overlay border-2 border-dashed border-teal-400/50 rounded-lg m-1 pointer-events-none"
         >
-          <UIcon name="i-lucide-download" class="w-7 h-7 text-teal-400" />
-        </div>
-        <p class="text-sm font-semibold text-teal-400">
-          Drop a 3D model or .csv parts file
-        </p>
-      </div>
-    </Transition>
-
-    <!-- Import progress overlay -->
-    <Transition
-      enter-active-class="transition-opacity duration-150"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition-opacity duration-200"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
-    >
-      <div
-        v-if="isImporting"
-        class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-overlay rounded-lg m-1"
-        aria-live="polite"
-        aria-busy="true"
-      >
-        <div
-          class="w-14 h-14 rounded-2xl bg-teal-400/10 flex items-center justify-center"
-        >
-          <UIcon
-            name="i-lucide-loader-circle"
-            class="w-7 h-7 text-teal-400 animate-spin"
-          />
-        </div>
-        <p class="text-sm font-semibold text-teal-400">
-          Importing
-          <span v-if="importingFile" class="font-mono">{{
-            importingFile
-          }}</span>
-          <span v-else>model</span>&hellip;
-        </p>
-        <p class="text-xs text-muted max-w-xs text-center">
-          First import may take a few seconds while the converter loads.
-        </p>
-      </div>
-    </Transition>
-
-    <div
-      ref="splitContainer"
-      class="absolute inset-0 flex flex-col-reverse md:flex-row min-h-0 min-w-0"
-    >
-      <div
-        class="relative flex-1 min-h-0 min-w-0 overflow-auto"
-        @mouseleave="clearBomHover"
-      >
-        <template v-if="activeProject">
-          <!-- ─── Collapsible Models Panel ──────────────────────────────────── -->
-          <BomModelsList
-            v-if="activeProject.models.length > 0"
-            :project-id="activeProject.id"
-            :imported-models="importedModels"
-            :total-model-parts="totalModelParts"
-            @pick-file="pickFile"
-            @toggle-model="(id) => toggleModel(activeProject!.id, id)"
-            @remove-model="(id) => removeModel(activeProject!.id, id)"
-          />
-
-          <!-- ─── Empty state ───────────────────────────────────────────────── -->
-          <BomEmptyState
-            v-if="
-              activeProject.models.length === 0 && activeProject.id === activeId
-            "
-            @pick-file="pickFile"
-            @add-manual-part="showAddForm = true"
-          />
-
-          <!-- ─── First-load computing spinner ────────────────────────────── -->
           <div
-            v-else-if="isComputing && allRows.length === 0"
-            class="m-auto flex items-center gap-2 text-muted"
+            class="w-14 h-14 rounded-2xl bg-teal-400/10 flex items-center justify-center"
           >
-            <UIcon name="i-lucide-loader-2" class="w-5 h-5 animate-spin" />
-            <span class="text-sm">Computing cut list&hellip;</span>
+            <UIcon name="i-lucide-download" class="w-7 h-7 text-teal-400" />
           </div>
+          <p class="text-sm font-semibold text-teal-400">
+            Drop a 3D model or .csv parts file
+          </p>
+        </div>
+      </Transition>
 
-          <!-- ─── Main BOM content ──────────────────────────────────────────── -->
-          <template v-else>
-            <template v-if="allRows.length > 0">
-              <!-- Bill of Materials subheading -->
-              <div
-                class="flex items-center justify-between gap-2 px-5 pt-4 pb-1"
-              >
-                <h3 class="text-sm font-medium text-hi">Bill of Materials</h3>
-                <ExportPdfButton />
-              </div>
+      <!-- Import progress overlay -->
+      <Transition
+        enter-active-class="transition-opacity duration-150"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-opacity duration-200"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="isImporting"
+          class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-overlay rounded-lg m-1"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div
+            class="w-14 h-14 rounded-2xl bg-teal-400/10 flex items-center justify-center"
+          >
+            <UIcon
+              name="i-lucide-loader-circle"
+              class="w-7 h-7 text-teal-400 animate-spin"
+            />
+          </div>
+          <p class="text-sm font-semibold text-teal-400">
+            Importing
+            <span v-if="importingFile" class="font-mono">{{
+              importingFile
+            }}</span>
+            <span v-else>model</span>&hellip;
+          </p>
+          <p class="text-xs text-muted max-w-xs text-center">
+            First import may take a few seconds while the converter loads.
+          </p>
+        </div>
+      </Transition>
 
-              <!-- Summary bar -->
-              <div class="flex items-center gap-2 px-5 pb-3 text-xs text-muted">
-                <span
-                  >{{ totalParts }} part{{ totalParts === 1 ? '' : 's' }}</span
-                >
-                <span class="text-dim">&middot;</span>
-                <span
-                  >{{ materialNames.length }} material{{
-                    materialNames.length === 1 ? '' : 's'
-                  }}</span
-                >
-                <template v-if="warningCount > 0">
-                  <span class="text-dim">&middot;</span>
-                  <span class="text-amber-500"
-                    >{{ warningCount }} warning{{
-                      warningCount === 1 ? '' : 's'
-                    }}</span
-                  >
-                </template>
-                <template v-if="isComputing">
-                  <span class="text-dim">&middot;</span>
-                  <span class="flex items-center gap-1 text-muted">
-                    <UIcon
-                      name="i-lucide-loader-2"
-                      class="w-3 h-3 animate-spin"
-                    />
-                    Updating&hellip;
-                  </span>
-                </template>
-              </div>
-            </template>
-
-            <!-- Toolbar: search + add part -->
-            <div class="flex items-center gap-2 px-5 pb-3">
-              <UInput
-                v-model="search"
-                placeholder="Filter parts..."
-                icon="i-lucide-search"
-                size="sm"
-                class="flex-1"
-              />
-              <UButton
-                size="sm"
-                variant="soft"
-                color="neutral"
-                icon="i-lucide-plus"
-                label="Add Part"
-                @click="
-                  showAddForm = true;
-                  editingPartNumber = null;
-                "
-              />
-            </div>
-
-            <!-- Bulk edit bar — shown when items are selected -->
-            <BulkEditBar
-              v-if="selectedPartNumbers.size > 0"
-              :selected-count="selectedPartNumbers.size"
-              :editable-count="selectedEditableCount"
-              :materials="materials"
-              @apply="handleBulkApply"
-              @delete="handleBulkDelete"
-              @clear="clearSelection"
+      <div
+        ref="splitContainer"
+        class="absolute inset-0 flex flex-col-reverse md:flex-row min-h-0 min-w-0"
+      >
+        <div
+          class="relative flex-1 min-h-0 min-w-0 overflow-auto"
+          @mouseleave="clearBomHover"
+        >
+          <template v-if="activeProject">
+            <!-- ─── Collapsible Models Panel ──────────────────────────────────── -->
+            <BomModelsList
+              v-if="activeProject.models.length > 0"
+              :project-id="activeProject.id"
+              :imported-models="importedModels"
+              :total-model-parts="totalModelParts"
+              @pick-file="pickFile"
+              @toggle-model="(id) => toggleModel(activeProject!.id, id)"
+              @remove-model="(id) => removeModel(activeProject!.id, id)"
             />
 
-            <!-- Table owns its horizontal scroll so the search / summary
-                 bar above stays anchored on narrow viewports. -->
-            <div v-if="filteredGroups.length > 0" class="overflow-x-auto">
-              <table
-                class="w-full text-sm border-separate border-spacing-0"
-                aria-label="Bill of materials"
-              >
-                <thead
-                  class="sticky top-0 z-10 bg-base shadow-[inset_0_-1px_0_var(--color-mist-800)]"
+            <!-- ─── Empty state ───────────────────────────────────────────────── -->
+            <BomEmptyState
+              v-if="
+                activeProject.models.length === 0 &&
+                activeProject.id === activeId
+              "
+              @pick-file="pickFile"
+              @add-manual-part="showAddForm = true"
+            />
+
+            <!-- ─── First-load computing spinner ────────────────────────────── -->
+            <div
+              v-else-if="isComputing && allRows.length === 0"
+              class="m-auto flex items-center gap-2 text-muted"
+            >
+              <UIcon name="i-lucide-loader-2" class="w-5 h-5 animate-spin" />
+              <span class="text-sm">Computing cut list&hellip;</span>
+            </div>
+
+            <!-- ─── Main BOM content ──────────────────────────────────────────── -->
+            <template v-else>
+              <template v-if="allRows.length > 0">
+                <!-- Bill of Materials subheading -->
+                <div
+                  class="flex items-center justify-between gap-2 px-5 pt-4 pb-1"
                 >
-                  <tr>
-                    <th class="pl-4 pr-1 py-2.5 w-8">
-                      <input
-                        type="checkbox"
-                        :checked="isAllSelected"
-                        :indeterminate="
-                          selectedPartNumbers.size > 0 && !isAllSelected
-                        "
-                        :disabled="allVisibleManualPns.size === 0"
-                        aria-label="Select all manual parts"
-                        class="w-4 h-4 rounded accent-teal-400 cursor-pointer disabled:opacity-30 disabled:cursor-default"
-                        @change="toggleSelectAll"
-                      />
-                    </th>
-                    <BomSortableHeader
-                      column-key="number"
-                      label="#"
-                      :current-sort="sortKey"
-                      :sort-dir="sortDir"
-                      padding-class="pl-4 pr-2 md:pl-5 md:pr-4"
-                      width-class="w-10 md:w-14"
-                      @toggle="toggleSort"
-                    />
-                    <BomSortableHeader
-                      column-key="name"
-                      label="Name"
-                      padding-class="px-2 md:px-4"
-                      :current-sort="sortKey"
-                      :sort-dir="sortDir"
-                      @toggle="toggleSort"
-                    />
-                    <th
-                      v-if="showModelColumn"
-                      class="hidden md:table-cell px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide w-48"
-                    >
-                      Model
-                    </th>
-                    <BomSortableHeader
-                      column-key="qty"
-                      label="QTY"
-                      align="right"
-                      padding-class="px-2 md:px-4"
-                      width-class="w-10 md:w-14"
-                      :current-sort="sortKey"
-                      :sort-dir="sortDir"
-                      @toggle="toggleSort"
-                    />
-                    <BomSortableHeader
-                      column-key="length"
-                      label="L"
-                      align="right"
-                      padding-class="px-2 md:px-4"
-                      width-class="w-12 md:w-22"
-                      :unit-suffix="distanceUnit ?? ''"
-                      :current-sort="sortKey"
-                      :sort-dir="sortDir"
-                      @toggle="toggleSort"
-                    />
-                    <BomSortableHeader
-                      column-key="width"
-                      label="W"
-                      align="right"
-                      padding-class="px-2 md:px-4"
-                      width-class="w-12 md:w-22"
-                      :unit-suffix="distanceUnit ?? ''"
-                      :current-sort="sortKey"
-                      :sort-dir="sortDir"
-                      @toggle="toggleSort"
-                    />
-                    <BomSortableHeader
-                      column-key="thickness"
-                      label="T"
-                      align="right"
-                      padding-class="px-2 md:px-4"
-                      width-class="w-12 md:w-18"
-                      :unit-suffix="distanceUnit ?? ''"
-                      :current-sort="sortKey"
-                      :sort-dir="sortDir"
-                      @toggle="toggleSort"
-                    />
-                    <th
-                      class="px-2 md:px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide"
-                    >
-                      Grain
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <template
-                    v-for="(group, gi) in filteredGroups"
-                    :key="group.material"
+                  <h3 class="text-sm font-medium text-hi">Bill of Materials</h3>
+                  <ExportPdfButton />
+                </div>
+
+                <!-- Summary bar -->
+                <div
+                  class="flex items-center gap-2 px-5 pb-3 text-xs text-muted"
+                >
+                  <span
+                    >{{ totalParts }} part{{
+                      totalParts === 1 ? '' : 's'
+                    }}</span
                   >
-                    <!-- Gap row, not group padding — keeps the sticky label
-                         flush against the column header when pinned. -->
-                    <tr v-if="gi > 0" aria-hidden="true">
-                      <td :colspan="tableColspan" class="h-3" />
-                    </tr>
+                  <span class="text-dim">&middot;</span>
+                  <span
+                    >{{ materialNames.length }} material{{
+                      materialNames.length === 1 ? '' : 's'
+                    }}</span
+                  >
+                  <template v-if="warningCount > 0">
+                    <span class="text-dim">&middot;</span>
+                    <span class="text-amber-500"
+                      >{{ warningCount }} warning{{
+                        warningCount === 1 ? '' : 's'
+                      }}</span
+                    >
+                  </template>
+                  <template v-if="isComputing">
+                    <span class="text-dim">&middot;</span>
+                    <span class="flex items-center gap-1 text-muted">
+                      <UIcon
+                        name="i-lucide-loader-2"
+                        class="w-3 h-3 animate-spin"
+                      />
+                      Updating&hellip;
+                    </span>
+                  </template>
+                </div>
+              </template>
 
-                    <!-- Material group header (sticky below the column headers) -->
+              <!-- Toolbar: search + add part -->
+              <div class="flex items-center gap-2 px-5 pb-3">
+                <UInput
+                  v-model="search"
+                  placeholder="Filter parts..."
+                  icon="i-lucide-search"
+                  size="sm"
+                  class="flex-1"
+                />
+                <UButton
+                  size="sm"
+                  variant="soft"
+                  color="neutral"
+                  icon="i-lucide-plus"
+                  label="Add Part"
+                  @click="
+                    showAddForm = true;
+                    editingPartNumber = null;
+                  "
+                />
+              </div>
+
+              <!-- Bulk edit bar — shown when items are selected -->
+              <BulkEditBar
+                v-if="selectedPartNumbers.size > 0"
+                :selected-count="selectedPartNumbers.size"
+                :editable-count="selectedEditableCount"
+                :materials="materials"
+                @apply="handleBulkApply"
+                @delete="handleBulkDelete"
+                @clear="clearSelection"
+              />
+
+              <!-- Table owns its horizontal scroll so the search / summary
+                 bar above stays anchored on narrow viewports. -->
+              <div v-if="filteredGroups.length > 0" class="overflow-x-auto">
+                <table
+                  class="w-full text-sm border-separate border-spacing-0"
+                  aria-label="Bill of materials"
+                >
+                  <thead
+                    class="sticky top-0 z-10 bg-base shadow-[inset_0_-1px_0_var(--color-mist-800)]"
+                  >
                     <tr>
-                      <td
-                        :colspan="tableColspan"
-                        class="sticky top-9 z-[5] bg-base px-4 md:px-5 py-1.5"
+                      <th class="pl-4 pr-1 py-2.5 w-8">
+                        <input
+                          type="checkbox"
+                          :checked="isAllSelected"
+                          :indeterminate="
+                            selectedPartNumbers.size > 0 && !isAllSelected
+                          "
+                          :disabled="allVisibleManualPns.size === 0"
+                          aria-label="Select all manual parts"
+                          class="w-4 h-4 rounded accent-teal-400 cursor-pointer disabled:opacity-30 disabled:cursor-default"
+                          @change="toggleSelectAll"
+                        />
+                      </th>
+                      <BomSortableHeader
+                        column-key="number"
+                        label="#"
+                        :current-sort="sortKey"
+                        :sort-dir="sortDir"
+                        padding-class="pl-4 pr-2 md:pl-5 md:pr-4"
+                        width-class="w-10 md:w-14"
+                        @toggle="toggleSort"
+                      />
+                      <BomSortableHeader
+                        column-key="name"
+                        label="Name"
+                        padding-class="px-2 md:px-4"
+                        :current-sort="sortKey"
+                        :sort-dir="sortDir"
+                        @toggle="toggleSort"
+                      />
+                      <th
+                        v-if="showModelColumn"
+                        class="hidden md:table-cell px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide w-48"
                       >
-                        <div
-                          class="flex items-center gap-2.5 pb-1.5 border-b border-subtle"
-                        >
-                          <span class="text-sm font-semibold text-body">{{
-                            group.material
-                          }}</span>
-                          <span class="text-xs text-muted"
-                            >{{ group.totalParts }} part{{
-                              group.totalParts === 1 ? '' : 's'
-                            }}</span
-                          >
-                        </div>
-                      </td>
+                        Model
+                      </th>
+                      <BomSortableHeader
+                        column-key="qty"
+                        label="QTY"
+                        align="right"
+                        padding-class="px-2 md:px-4"
+                        width-class="w-10 md:w-14"
+                        :current-sort="sortKey"
+                        :sort-dir="sortDir"
+                        @toggle="toggleSort"
+                      />
+                      <BomSortableHeader
+                        column-key="length"
+                        label="L"
+                        align="right"
+                        padding-class="px-2 md:px-4"
+                        width-class="w-12 md:w-22"
+                        :unit-suffix="distanceUnit ?? ''"
+                        :current-sort="sortKey"
+                        :sort-dir="sortDir"
+                        @toggle="toggleSort"
+                      />
+                      <BomSortableHeader
+                        column-key="width"
+                        label="W"
+                        align="right"
+                        padding-class="px-2 md:px-4"
+                        width-class="w-12 md:w-22"
+                        :unit-suffix="distanceUnit ?? ''"
+                        :current-sort="sortKey"
+                        :sort-dir="sortDir"
+                        @toggle="toggleSort"
+                      />
+                      <BomSortableHeader
+                        column-key="thickness"
+                        label="T"
+                        align="right"
+                        padding-class="px-2 md:px-4"
+                        width-class="w-12 md:w-18"
+                        :unit-suffix="distanceUnit ?? ''"
+                        :current-sort="sortKey"
+                        :sort-dir="sortDir"
+                        @toggle="toggleSort"
+                      />
+                      <th
+                        class="px-2 md:px-4 py-2.5 text-left text-xs font-medium text-muted tracking-wide"
+                      >
+                        Grain
+                      </th>
                     </tr>
+                  </thead>
+                  <tbody>
+                    <template
+                      v-for="(group, gi) in filteredGroups"
+                      :key="group.material"
+                    >
+                      <!-- Gap row, not group padding — keeps the sticky label
+                         flush against the column header when pinned. -->
+                      <tr v-if="gi > 0" aria-hidden="true">
+                        <td :colspan="tableColspan" class="h-3" />
+                      </tr>
 
-                    <!-- Data rows -->
-                    <template v-for="row in group.rows" :key="row.number">
-                      <!-- Inline edit form for manual parts -->
-                      <tr
-                        v-if="row.isManual && editingPartNumber === row.number"
-                      >
-                        <td :colspan="tableColspan" class="px-4 py-1.5">
-                          <ManualPartRow
-                            :materials="materials"
-                            :initial="getManualEditInfo(row.number)"
-                            @save="
-                              (d: ManualPartInput) =>
-                                handleUpdatePart(row.number, d)
-                            "
-                            @cancel="editingPartNumber = null"
-                          />
+                      <!-- Material group header (sticky below the column headers) -->
+                      <tr>
+                        <td
+                          :colspan="tableColspan"
+                          class="sticky top-9 z-[5] bg-base px-4 md:px-5 py-1.5"
+                        >
+                          <div
+                            class="flex items-center gap-2.5 pb-1.5 border-b border-subtle"
+                          >
+                            <span class="text-sm font-semibold text-body">{{
+                              group.material
+                            }}</span>
+                            <span class="text-xs text-muted"
+                              >{{ group.totalParts }} part{{
+                                group.totalParts === 1 ? '' : 's'
+                              }}</span
+                            >
+                          </div>
                         </td>
                       </tr>
 
-                      <!-- Normal data row -->
-                      <tr
-                        v-else
-                        class="group/row transition-colors text-[13px] cursor-pointer"
-                        :class="[
-                          row.leftoverCount > 0
-                            ? 'bg-amber-500/[0.06] hover:bg-amber-500/10'
-                            : 'hover:bg-surface',
-                          highlightedPartNumber === row.number
-                            ? 'bg-teal-500/12 ring-1 ring-inset ring-teal-400/40'
-                            : '',
-                        ]"
-                        @mouseenter="onRowEnter(row)"
-                        @mouseleave="onRowLeave(row)"
-                        @click="onRowClick(row, $event)"
-                      >
-                        <td class="pl-4 pr-1 py-2 md:py-2.5" @click.stop>
-                          <input
-                            v-if="row.isManual"
-                            type="checkbox"
-                            :checked="selectedPartNumbers.has(row.number)"
-                            :aria-label="`Select ${row.name}`"
-                            class="w-4 h-4 rounded accent-teal-400 cursor-pointer"
-                            @change="toggleRowSelection(row.number)"
-                          />
-                          <span v-else class="block w-4" />
-                        </td>
-                        <td
-                          class="pl-4 pr-2 md:pl-5 md:pr-4 py-2 md:py-2.5 text-muted tabular-nums"
+                      <!-- Data rows -->
+                      <template v-for="row in group.rows" :key="row.number">
+                        <!-- Inline edit form for manual parts -->
+                        <tr
+                          v-if="
+                            row.isManual && editingPartNumber === row.number
+                          "
                         >
-                          {{ row.number }}
-                        </td>
-                        <td
-                          class="px-2 md:px-4 py-2 md:py-2.5 text-body font-medium"
+                          <td :colspan="tableColspan" class="px-4 py-1.5">
+                            <ManualPartRow
+                              :materials="materials"
+                              :initial="getManualEditInfo(row.number)"
+                              @save="
+                                (d: ManualPartInput) =>
+                                  handleUpdatePart(row.number, d)
+                              "
+                              @cancel="editingPartNumber = null"
+                            />
+                          </td>
+                        </tr>
+
+                        <!-- Normal data row -->
+                        <tr
+                          v-else
+                          class="group/row transition-colors text-[13px] cursor-pointer"
+                          :class="[
+                            row.leftoverCount > 0
+                              ? 'bg-amber-500/[0.06] hover:bg-amber-500/10'
+                              : 'hover:bg-surface',
+                            highlightedPartNumber === row.number
+                              ? 'bg-teal-500/12 ring-1 ring-inset ring-teal-400/40'
+                              : '',
+                          ]"
+                          @mouseenter="onRowEnter(row)"
+                          @mouseleave="onRowLeave(row)"
+                          @click="onRowClick(row, $event)"
                         >
-                          <div
-                            v-if="renamingPartNumber === row.number"
-                            class="inline-flex items-center gap-1"
-                          >
+                          <td class="pl-4 pr-1 py-2 md:py-2.5" @click.stop>
                             <input
-                              :ref="onPartNameInputMounted"
-                              v-model="partNameDraft"
-                              class="max-w-[14rem] text-[13px] font-medium bg-transparent text-teal-400 outline-none border-b border-teal-400/50"
-                              @keydown.enter.prevent="saveRenamePart(row)"
-                              @keydown.esc.prevent="cancelRenamePart"
-                              @blur="saveRenamePart(row)"
-                              @click.stop
-                              @dblclick.stop
+                              v-if="row.isManual"
+                              type="checkbox"
+                              :checked="selectedPartNumbers.has(row.number)"
+                              :aria-label="`Select ${row.name}`"
+                              class="w-4 h-4 rounded accent-teal-400 cursor-pointer"
+                              @change="toggleRowSelection(row.number)"
                             />
-                            <button
-                              type="button"
-                              class="p-0.5 rounded text-teal-400 hover:text-teal-300 transition-colors"
-                              title="Save"
-                              @mousedown.prevent
-                              @click="saveRenamePart(row)"
+                            <span v-else class="block w-4" />
+                          </td>
+                          <td
+                            class="pl-4 pr-2 md:pl-5 md:pr-4 py-2 md:py-2.5 text-muted tabular-nums"
+                          >
+                            {{ row.number }}
+                          </td>
+                          <td
+                            class="px-2 md:px-4 py-2 md:py-2.5 text-body font-medium"
+                          >
+                            <div
+                              v-if="renamingPartNumber === row.number"
+                              class="inline-flex items-center gap-1"
                             >
-                              <UIcon
-                                name="i-lucide-check"
-                                class="w-3.5 h-3.5"
+                              <input
+                                :ref="onPartNameInputMounted"
+                                v-model="partNameDraft"
+                                class="max-w-[14rem] text-[13px] font-medium bg-transparent text-teal-400 outline-none border-b border-teal-400/50"
+                                @keydown.enter.prevent="saveRenamePart(row)"
+                                @keydown.esc.prevent="cancelRenamePart"
+                                @blur="saveRenamePart(row)"
+                                @click.stop
+                                @dblclick.stop
                               />
-                            </button>
-                            <button
-                              type="button"
-                              class="p-0.5 rounded text-muted hover:text-body transition-colors"
-                              title="Cancel"
-                              @mousedown.prevent
-                              @click="cancelRenamePart"
-                            >
-                              <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          <div v-else class="inline-flex items-center gap-1.5">
-                            <span
-                              class="cursor-text"
-                              :title="
-                                row.isManual
-                                  ? 'Double click to edit part'
-                                  : 'Double click to rename part'
-                              "
-                              @dblclick="
-                                row.isManual
-                                  ? startEditManualPart(row.number)
-                                  : startRenamePart(row)
-                              "
-                            >
-                              {{ row.name }}
-                            </span>
-                            <UIcon
-                              v-if="row.leftoverCount > 0"
-                              name="i-lucide-triangle-alert"
-                              class="w-3.5 h-3.5 shrink-0 text-amber-500"
-                              :title="
-                                row.leftoverCount === row.qty
-                                  ? 'No board stock could be found for these dimensions'
-                                  : `${row.leftoverCount} of ${row.qty} could not be placed on any board`
-                              "
-                            />
-                            <button
-                              v-if="!row.isManual"
-                              type="button"
-                              class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
-                              title="Rename part"
-                              @click="startRenamePart(row)"
-                            >
-                              <UIcon
-                                name="i-lucide-square-pen"
-                                class="w-3.5 h-3.5"
-                              />
-                            </button>
-                            <template v-if="row.isManual">
                               <button
                                 type="button"
+                                class="p-0.5 rounded text-teal-400 hover:text-teal-300 transition-colors"
+                                title="Save"
+                                @mousedown.prevent
+                                @click="saveRenamePart(row)"
+                              >
+                                <UIcon
+                                  name="i-lucide-check"
+                                  class="w-3.5 h-3.5"
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                class="p-0.5 rounded text-muted hover:text-body transition-colors"
+                                title="Cancel"
+                                @mousedown.prevent
+                                @click="cancelRenamePart"
+                              >
+                                <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div
+                              v-else
+                              class="inline-flex items-center gap-1.5"
+                            >
+                              <span
+                                class="cursor-text"
+                                :title="
+                                  row.isManual
+                                    ? 'Double click to edit part'
+                                    : 'Double click to rename part'
+                                "
+                                @dblclick="
+                                  row.isManual
+                                    ? startEditManualPart(row.number)
+                                    : startRenamePart(row)
+                                "
+                              >
+                                {{ row.name }}
+                              </span>
+                              <UIcon
+                                v-if="row.leftoverCount > 0"
+                                name="i-lucide-triangle-alert"
+                                class="w-3.5 h-3.5 shrink-0 text-amber-500"
+                                :title="
+                                  row.leftoverCount === row.qty
+                                    ? 'No board stock could be found for these dimensions'
+                                    : `${row.leftoverCount} of ${row.qty} could not be placed on any board`
+                                "
+                              />
+                              <button
+                                v-if="!row.isManual"
+                                type="button"
                                 class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
-                                title="Edit part"
-                                @click="startEditManualPart(row.number)"
+                                title="Rename part"
+                                @click="startRenamePart(row)"
                               >
                                 <UIcon
                                   name="i-lucide-square-pen"
                                   class="w-3.5 h-3.5"
                                 />
                               </button>
-                              <button
-                                type="button"
-                                class="p-0.5 rounded-full text-dim hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
-                                title="Delete part"
-                                @click="handleRemovePart(row.number)"
-                              >
-                                <UIcon
-                                  name="i-lucide-trash-2"
-                                  class="w-3.5 h-3.5"
-                                />
-                              </button>
-                            </template>
-                          </div>
-                        </td>
-                        <td
-                          v-if="showModelColumn"
-                          class="hidden md:table-cell px-4 py-2.5 text-muted truncate max-w-[14rem]"
-                          :title="row.modelName"
-                        >
-                          {{ row.modelName }}
-                        </td>
-                        <td
-                          class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
-                        >
-                          {{ row.qty }}
-                        </td>
-                        <td
-                          class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
-                        >
-                          {{ formatDim(row.lengthUm) }}
-                        </td>
-                        <td
-                          class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
-                        >
-                          {{ formatDim(row.widthUm) }}
-                        </td>
-                        <td
-                          class="px-2 md:px-4 py-2 md:py-2.5 text-right text-muted tabular-nums"
-                        >
-                          {{ formatDim(row.thicknessUm) }}
-                        </td>
-                        <td class="px-2 md:px-4 py-2 md:py-2.5">
-                          <div
-                            v-if="
-                              activeId && !linearMaterials.has(row.material)
-                            "
-                            class="flex items-center gap-1"
+                              <template v-if="row.isManual">
+                                <button
+                                  type="button"
+                                  class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                  title="Edit part"
+                                  @click="startEditManualPart(row.number)"
+                                >
+                                  <UIcon
+                                    name="i-lucide-square-pen"
+                                    class="w-3.5 h-3.5"
+                                  />
+                                </button>
+                                <button
+                                  type="button"
+                                  class="p-0.5 rounded-full text-dim hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                  title="Delete part"
+                                  @click="handleRemovePart(row.number)"
+                                >
+                                  <UIcon
+                                    name="i-lucide-trash-2"
+                                    class="w-3.5 h-3.5"
+                                  />
+                                </button>
+                              </template>
+                            </div>
+                          </td>
+                          <td
+                            v-if="showModelColumn"
+                            class="hidden md:table-cell px-4 py-2.5 text-muted truncate max-w-[14rem]"
+                            :title="row.modelName"
                           >
-                            <!-- Unlocked state: plain icon button -->
-                            <button
-                              v-if="!row.grainLock"
-                              type="button"
-                              aria-label="Grain unlocked. Click to lock grain."
-                              title="Free rotation — click to lock grain"
-                              class="flex items-center px-1.5 py-0.5 rounded text-xs text-dim hover:text-muted transition-colors"
-                              @click="
-                                requestGrainLockChange(
-                                  row.number,
-                                  row.grainLock,
-                                  {
-                                    material: row.material,
-                                    thicknessUm: row.thicknessUm,
-                                    widthUm: row.widthUm,
-                                    lengthUm: row.lengthUm,
-                                  },
-                                )
-                              "
-                            >
-                              <UIcon
-                                name="i-lucide-lock-open"
-                                class="w-3.5 h-3.5"
-                              />
-                            </button>
-                            <!-- Locked state: chip with cycle + clear -->
+                            {{ row.modelName }}
+                          </td>
+                          <td
+                            class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
+                          >
+                            {{ row.qty }}
+                          </td>
+                          <td
+                            class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
+                          >
+                            {{ formatDim(row.lengthUm) }}
+                          </td>
+                          <td
+                            class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
+                          >
+                            {{ formatDim(row.widthUm) }}
+                          </td>
+                          <td
+                            class="px-2 md:px-4 py-2 md:py-2.5 text-right text-muted tabular-nums"
+                          >
+                            {{ formatDim(row.thicknessUm) }}
+                          </td>
+                          <td class="px-2 md:px-4 py-2 md:py-2.5">
                             <div
-                              v-else
-                              class="inline-flex items-center rounded-full bg-teal-400/10 border border-teal-400/25"
+                              v-if="
+                                activeId && !linearMaterials.has(row.material)
+                              "
+                              class="flex items-center gap-1"
                             >
+                              <!-- Unlocked state: plain icon button -->
                               <button
+                                v-if="!row.grainLock"
                                 type="button"
-                                :aria-label="
-                                  row.grainLock === 'length'
-                                    ? 'Grain locked to length. Click to lock width.'
-                                    : 'Grain locked to width. Click to lock length.'
-                                "
-                                :title="
-                                  row.grainLock === 'length'
-                                    ? 'Length with grain (↕) — click to lock width'
-                                    : 'Width with grain (↔) — click to lock length'
-                                "
-                                class="flex items-center gap-1 pl-2 pr-1 py-0.5 text-xs text-teal-400 hover:text-teal-300 transition-colors"
+                                aria-label="Grain unlocked. Click to lock grain."
+                                title="Free rotation — click to lock grain"
+                                class="flex items-center px-1.5 py-0.5 rounded text-xs text-dim hover:text-muted transition-colors"
                                 @click="
                                   requestGrainLockChange(
                                     row.number,
@@ -972,108 +988,145 @@ onUnmounted(() => {
                                 "
                               >
                                 <UIcon
-                                  name="i-lucide-lock"
-                                  class="w-3.5 h-3.5 shrink-0"
-                                />
-                                <UIcon
-                                  v-if="row.grainLock === 'length'"
-                                  name="i-ri-arrow-up-down-line"
-                                  class="w-3.5 h-3.5 shrink-0"
-                                />
-                                <UIcon
-                                  v-else
-                                  name="i-ri-arrow-left-right-line"
-                                  class="w-3.5 h-3.5 shrink-0"
+                                  name="i-lucide-lock-open"
+                                  class="w-3.5 h-3.5"
                                 />
                               </button>
-                              <button
-                                type="button"
-                                aria-label="Clear grain lock"
-                                title="Clear grain lock"
-                                class="flex items-center pr-1.5 pl-0.5 py-0.5 text-teal-400/60 hover:text-teal-300 transition-colors"
-                                @click="
-                                  updatePartGrainLock(
-                                    activeId!,
-                                    row.number,
-                                    undefined,
-                                  )
-                                "
+                              <!-- Locked state: chip with cycle + clear -->
+                              <div
+                                v-else
+                                class="inline-flex items-center rounded-full bg-teal-400/10 border border-teal-400/25"
                               >
-                                <UIcon name="i-lucide-x" class="w-3 h-3" />
-                              </button>
+                                <button
+                                  type="button"
+                                  :aria-label="
+                                    row.grainLock === 'length'
+                                      ? 'Grain locked to length. Click to lock width.'
+                                      : 'Grain locked to width. Click to lock length.'
+                                  "
+                                  :title="
+                                    row.grainLock === 'length'
+                                      ? 'Length with grain (↕) — click to lock width'
+                                      : 'Width with grain (↔) — click to lock length'
+                                  "
+                                  class="flex items-center gap-1 pl-2 pr-1 py-0.5 text-xs text-teal-400 hover:text-teal-300 transition-colors"
+                                  @click="
+                                    requestGrainLockChange(
+                                      row.number,
+                                      row.grainLock,
+                                      {
+                                        material: row.material,
+                                        thicknessUm: row.thicknessUm,
+                                        widthUm: row.widthUm,
+                                        lengthUm: row.lengthUm,
+                                      },
+                                    )
+                                  "
+                                >
+                                  <UIcon
+                                    name="i-lucide-lock"
+                                    class="w-3.5 h-3.5 shrink-0"
+                                  />
+                                  <UIcon
+                                    v-if="row.grainLock === 'length'"
+                                    name="i-ri-arrow-up-down-line"
+                                    class="w-3.5 h-3.5 shrink-0"
+                                  />
+                                  <UIcon
+                                    v-else
+                                    name="i-ri-arrow-left-right-line"
+                                    class="w-3.5 h-3.5 shrink-0"
+                                  />
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label="Clear grain lock"
+                                  title="Clear grain lock"
+                                  class="flex items-center pr-1.5 pl-0.5 py-0.5 text-teal-400/60 hover:text-teal-300 transition-colors"
+                                  @click="
+                                    updatePartGrainLock(
+                                      activeId!,
+                                      row.number,
+                                      undefined,
+                                    )
+                                  "
+                                >
+                                  <UIcon name="i-lucide-x" class="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                      </tr>
+                          </td>
+                        </tr>
+                      </template>
                     </template>
-                  </template>
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
 
-            <!-- No search results -->
-            <div
-              v-else-if="allRows.length > 0 && search.trim()"
-              class="flex flex-col items-center gap-2 py-8 text-sm text-muted"
-            >
-              <UIcon name="i-lucide-search-x" class="w-5 h-5 text-dim" />
-              No parts matching "{{ search }}"
-            </div>
+              <!-- No search results -->
+              <div
+                v-else-if="allRows.length > 0 && search.trim()"
+                class="flex flex-col items-center gap-2 py-8 text-sm text-muted"
+              >
+                <UIcon name="i-lucide-search-x" class="w-5 h-5 text-dim" />
+                No parts matching "{{ search }}"
+              </div>
+            </template>
           </template>
-        </template>
 
-        <p v-else class="text-center p-4 text-muted">
-          Create a project to get started.
-        </p>
-      </div>
-
-      <template v-if="activeProject && hasModelPreview && !isNarrow">
-        <div
-          role="separator"
-          :aria-orientation="isNarrow ? 'horizontal' : 'vertical'"
-          aria-label="Resize preview panel"
-          :class="[
-            'relative shrink-0 select-none group touch-none',
-            isNarrow ? 'h-3 cursor-row-resize' : 'w-3 cursor-col-resize',
-          ]"
-          @pointerdown="startPreviewResize"
-        >
-          <!-- Track line -->
-          <div
-            :class="[
-              'absolute transition-colors bg-mist-700/55',
-              isNarrow
-                ? 'inset-x-0 top-1/2 h-px -translate-y-1/2'
-                : 'inset-y-0 left-1/2 w-px -translate-x-1/2',
-              isResizingPreview
-                ? 'bg-teal-400/85'
-                : 'group-hover:bg-teal-400/65',
-            ]"
-          />
-          <!-- Grip pill -->
-          <div
-            :class="[
-              'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors bg-mist-700/60',
-              isNarrow ? 'w-14 h-1' : 'h-14 w-1',
-              isResizingPreview
-                ? 'bg-teal-400/90'
-                : 'group-hover:bg-teal-400/70',
-            ]"
-          />
+          <p v-else class="text-center p-4 text-muted">
+            Create a project to get started.
+          </p>
         </div>
 
-        <aside
-          class="relative shrink-0 min-h-0 bg-mist-950 border-b border-subtle md:border-b-0 md:shadow-[-1px_0_0_0_rgba(57,68,71,0.35)]"
-          :style="
-            isNarrow
-              ? { height: `${previewPanelSize}px`, width: '100%' }
-              : { width: `${previewPanelSize}px` }
-          "
-          @mouseleave="clearBomHover"
-        >
-          <ModelTab read-only default-scene-preview />
-        </aside>
-      </template>
+        <template v-if="activeProject && hasModelPreview && !isNarrow">
+          <div
+            role="separator"
+            :aria-orientation="isNarrow ? 'horizontal' : 'vertical'"
+            aria-label="Resize preview panel"
+            :class="[
+              'relative shrink-0 select-none group touch-none',
+              isNarrow ? 'h-3 cursor-row-resize' : 'w-3 cursor-col-resize',
+            ]"
+            @pointerdown="startPreviewResize"
+          >
+            <!-- Track line -->
+            <div
+              :class="[
+                'absolute transition-colors bg-mist-700/55',
+                isNarrow
+                  ? 'inset-x-0 top-1/2 h-px -translate-y-1/2'
+                  : 'inset-y-0 left-1/2 w-px -translate-x-1/2',
+                isResizingPreview
+                  ? 'bg-teal-400/85'
+                  : 'group-hover:bg-teal-400/65',
+              ]"
+            />
+            <!-- Grip pill -->
+            <div
+              :class="[
+                'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors bg-mist-700/60',
+                isNarrow ? 'w-14 h-1' : 'h-14 w-1',
+                isResizingPreview
+                  ? 'bg-teal-400/90'
+                  : 'group-hover:bg-teal-400/70',
+              ]"
+            />
+          </div>
+
+          <aside
+            class="relative shrink-0 min-h-0 bg-mist-950 border-b border-subtle md:border-b-0 md:shadow-[-1px_0_0_0_rgba(57,68,71,0.35)]"
+            :style="
+              isNarrow
+                ? { height: `${previewPanelSize}px`, width: '100%' }
+                : { width: `${previewPanelSize}px` }
+            "
+            @mouseleave="clearBomHover"
+          >
+            <ModelTab read-only default-scene-preview />
+          </aside>
+        </template>
+      </div>
     </div>
 
     <!-- Add Part modal -->
