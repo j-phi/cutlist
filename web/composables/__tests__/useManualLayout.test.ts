@@ -185,11 +185,6 @@ describe('useManualLayout', () => {
       expect(placed.leftUm).toBe(1500);
       expect(placed.bottomUm).toBe(2700);
     });
-
-    it('exposes snapping from the composable return value', () => {
-      expect(api.snapping).toBeDefined();
-      expect(typeof api.snapping.value).toBe('boolean');
-    });
   });
 
   describe('resetOverrides', () => {

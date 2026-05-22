@@ -4,6 +4,7 @@ import type {
   SheetBoardLayout,
   SheetBoardLayoutPlacement,
 } from 'cutlist';
+import { inject, computed, type ComputedRef } from 'vue';
 import PartListItem from './PartListItem.vue';
 
 const props = defineProps<{
@@ -32,9 +33,9 @@ interface DragPreview {
   widthUm: number;
   heightUm: number;
 }
-const dragPreview = inject<ReturnType<typeof ref<DragPreview | null>>>(
+const dragPreview = inject<ComputedRef<DragPreview | null>>(
   'dragPreview',
-  ref(null),
+  computed(() => null),
 );
 
 const widthPx = computed(() => getPx(props.layout.stock.widthUm));

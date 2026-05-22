@@ -222,7 +222,15 @@ function startPartDrag(
     hoverBoardRect.value = null;
 
     // Find the board element under the cursor.
-    const els = document.elementsFromPoint(e.clientX, e.clientY);
+    // Hide the ghost first so it doesn't intercept the hit test.
+    const ghostDivEl = ghostEl.value;
+    let els: Element[] = [];
+    try {
+      if (ghostDivEl) ghostDivEl.style.display = 'none';
+      els = document.elementsFromPoint(e.clientX, e.clientY);
+    } finally {
+      if (ghostDivEl) ghostDivEl.style.display = '';
+    }
     const boardEl = els.find(
       (el) => (el as HTMLElement).dataset?.boardIndex != null,
     ) as HTMLElement | undefined;
