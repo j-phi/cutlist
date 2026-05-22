@@ -113,8 +113,8 @@ const USelectStub = defineComponent({
   },
 });
 
-const UToggleStub = defineComponent({
-  name: 'UToggleStub',
+const USwitchStub = defineComponent({
+  name: 'USwitchStub',
   props: {
     modelValue: { type: Boolean, default: false },
     disabled: { type: Boolean, default: false },
@@ -178,7 +178,7 @@ describe('PreviewToolbar', () => {
         stubs: {
           UInput: UInputStub,
           USelect: USelectStub,
-          UToggle: UToggleStub,
+          USwitch: USwitchStub,
           UButton: UButtonStub,
           OptimizationSettingsPopover: true,
         },
@@ -247,14 +247,14 @@ describe('PreviewToolbar', () => {
     it('disables the Snapping toggle when manualMode is false', async () => {
       manualMode.value = false;
       const wrapper = getComponent();
-      const toggle = wrapper.find('[data-testid="toggle-snapping"] input');
+      const toggle = wrapper.find('[data-testid="toggle-snapping"]');
       expect(toggle.attributes('disabled')).toBeDefined();
     });
 
     it('enables the Snapping toggle when manualMode is true', async () => {
       manualMode.value = true;
       const wrapper = getComponent();
-      const toggle = wrapper.find('[data-testid="toggle-snapping"] input');
+      const toggle = wrapper.find('[data-testid="toggle-snapping"]');
       expect(toggle.attributes('disabled')).toBeUndefined();
     });
   });
@@ -335,7 +335,7 @@ describe('PreviewToolbar', () => {
     it('writes back to showPartNumbers when the Part #s toggle changes', async () => {
       showPartNumbers.value = true;
       const wrapper = getComponent();
-      const toggle = wrapper.find('[data-testid="toggle-part-numbers"] input');
+      const toggle = wrapper.find('[data-testid="toggle-part-numbers"]');
 
       await toggle.setValue(false);
 

@@ -94,40 +94,37 @@ const settingsOpen = ref(false);
       />
     </div>
 
-    <label
-      class="flex items-center gap-1.5 cursor-pointer"
+    <USwitch
+      v-model="showPartNumbers"
+      size="xs"
+      label="Part #s"
       data-testid="toggle-part-numbers"
-    >
-      <UToggle v-model="showPartNumbers" size="xs" />
-      <span class="text-xs text-muted whitespace-nowrap">Part #s</span>
-    </label>
+    />
 
-    <label
-      class="flex items-center gap-1.5 cursor-pointer"
+    <USwitch
+      v-model="showBomName"
+      size="xs"
+      label="Part names"
       data-testid="toggle-part-names"
-    >
-      <UToggle v-model="showBomName" size="xs" />
-      <span class="text-xs text-muted whitespace-nowrap">Part names</span>
-    </label>
+    />
 
     <div class="w-px h-4 bg-subtle shrink-0" />
 
-    <label
-      class="flex items-center gap-1.5 cursor-pointer"
-      data-testid="toggle-manual-placement"
+    <USwitch
+      v-model="manualMode"
+      size="xs"
+      label="Manual placement"
       title="Drag and drop parts between boards manually"
-    >
-      <UToggle v-model="manualMode" size="xs" />
-      <span class="text-xs text-muted whitespace-nowrap">Manual placement</span>
-    </label>
+      data-testid="toggle-manual-placement"
+    />
 
-    <label
-      class="flex items-center gap-1.5 cursor-pointer"
-      data-testid="toggle-snapping"
+    <USwitch
+      v-model="snapping"
+      size="xs"
+      label="Snapping"
+      :disabled="!manualMode"
       :class="{ 'opacity-50': !manualMode }"
-    >
-      <UToggle v-model="snapping" size="xs" :disabled="!manualMode" />
-      <span class="text-xs text-muted whitespace-nowrap">Snapping</span>
-    </label>
+      data-testid="toggle-snapping"
+    />
   </div>
 </template>
