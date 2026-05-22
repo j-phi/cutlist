@@ -13,6 +13,7 @@ const board = (
   thickness: mmToUm(thicknessMm),
   width: mmToUm(widthMm),
   length: mmToUm(lengthMm),
+  role: 'general',
 });
 
 const part = (

@@ -311,6 +311,46 @@ describe('generateBoardLayouts — linear routing', () => {
     expect(layout.placements[2].offsetUm).toBe(2 * (mToUm(0.5) + kerfUm));
   });
 
+  it('propagates role: general to the linear output stock', () => {
+    const stock: StockMatrix[] = [
+      {
+        kind: 'linear',
+        material: 'Pine 2x4',
+        size: {
+          crossSectionWidth: CSW_MM,
+          crossSectionThickness: CST_MM,
+          lengths: [2440],
+        },
+        role: 'general',
+      },
+    ];
+    const result = generateBoardLayouts([makeLinearPart(1, 1.0)], stock, {
+      ...baseConfig,
+      bladeWidth: 0,
+    });
+    expect(asLinear(result.layouts[0]).stock.role).toBe('general');
+  });
+
+  it('propagates role: offcut to the linear output stock', () => {
+    const stock: StockMatrix[] = [
+      {
+        kind: 'linear',
+        material: 'Pine 2x4',
+        size: {
+          crossSectionWidth: CSW_MM,
+          crossSectionThickness: CST_MM,
+          lengths: [2440],
+        },
+        role: 'offcut',
+      },
+    ];
+    const result = generateBoardLayouts([makeLinearPart(1, 1.0)], stock, {
+      ...baseConfig,
+      bladeWidth: 0,
+    });
+    expect(asLinear(result.layouts[0]).stock.role).toBe('offcut');
+  });
+
   it('reduceStockMatrix: expands a linear row into one LinearStock per length', () => {
     const expanded = reduceStockMatrix([
       {

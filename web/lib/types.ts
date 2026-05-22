@@ -46,9 +46,23 @@ export interface Oversize {
   crossSection: Micrometres;
 }
 
+/**
+ * Stock tier. `'offcut'` is finite inventory the user already owns and wants
+ * consumed first; `'general'` is infinite buyable stock (the default). The
+ * engine packs offcuts before general within each (material, thickness) group.
+ */
+export type StockRole = 'offcut' | 'general';
+
 /** Engine-side sheet stock. All dimensions are integer micrometres. */
 export interface SheetStock {
   kind: 'sheet';
+  /**
+   * Human label for this specific stock item (e.g. "Cabinet door offcut").
+   * Shown on the Layout page so cuts can be assigned to a physical board.
+   * Falls back to `material` when unset (legacy / YAML presets).
+   */
+  name?: string;
+  /** Category the part's material must match (e.g. "Plywood"). */
   material: string;
   thickness: Micrometres;
   width: Micrometres;
@@ -56,17 +70,34 @@ export interface SheetStock {
   color?: string;
   algorithm?: Algorithm;
   oversize?: Oversize;
+  /** Stock tier — defaults to `'general'` (infinite). */
+  role: StockRole;
+  /**
+   * For offcuts: how many physical boards of this exact size exist. `undefined`
+   * (always the case for `'general'`) means infinite supply.
+   */
+  quantity?: number;
 }
 
 /** Engine-side linear stock. All dimensions are integer micrometres. */
 export interface LinearStock {
   kind: 'linear';
+  /**
+   * Human label for this specific stock item. Shown on the Layout page.
+   * Falls back to `material` when unset (legacy / YAML presets).
+   */
+  name?: string;
+  /** Category the part's material must match (e.g. "Pine"). */
   material: string;
   crossSectionWidth: Micrometres;
   crossSectionThickness: Micrometres;
   length: Micrometres;
   color?: string;
   oversize?: Oversize;
+  /** Stock tier — defaults to `'general'` (infinite). */
+  role: StockRole;
+  /** For offcuts: finite stick count. `undefined` means infinite supply. */
+  quantity?: number;
 }
 
 const ZERO_OVERSIZE: Oversize = Object.freeze({
@@ -85,22 +116,43 @@ export const isSheetStock = (s: Stock): s is SheetStock => s.kind === 'sheet';
 
 const PositiveDimension = z.number().positive().finite();
 const NonNegativeMm = z.number().nonnegative().finite();
+const PositiveCount = z.number().int().positive();
 
 export const OversizeSchema = z.object({
   length: NonNegativeMm.default(0),
   crossSection: NonNegativeMm.default(0),
 });
 
+/**
+ * Stock tier. Stored per matrix entry; `'offcut'` rows carry a per-size
+ * `quantity` and are consumed before general stock. Absent ≡ `'general'`
+ * (infinite) — the engine fills the default in `reduceStockMatrix`, so legacy
+ * rows and the preset/manual UI never need to set it.
+ */
+export const StockRoleSchema = z.enum(['offcut', 'general']).optional();
+
 const SheetStockMatrixSchema = z.object({
   kind: z.literal('sheet').default('sheet'),
+  /**
+   * Per-item display name (Layout page). Optional for legacy YAML presets;
+   * `reduceStockMatrix` falls back to `material` when absent.
+   */
+  name: z.string().optional(),
+  /** Material category — what a part's material matches against. */
   material: z.string(),
   sizes: z.array(
     z.object({
       width: PositiveDimension,
       length: PositiveDimension,
       thickness: z.array(PositiveDimension),
+      /**
+       * Offcut-only: how many physical sheets of this size exist. Ignored for
+       * `'general'` stock (infinite). Absent ≡ 1 for offcuts.
+       */
+      quantity: PositiveCount.optional(),
     }),
   ),
+  role: StockRoleSchema,
   color: z.string().optional(),
   /**
    * Per-thickness packing algorithm overrides. Keys are the thickness as it
@@ -121,8 +173,15 @@ export type LinearStockSize = z.infer<typeof LinearStockSize>;
 
 const LinearStockMatrixSchema = z.object({
   kind: z.literal('linear'),
+  /**
+   * Per-item display name (Layout page). Optional for legacy YAML presets;
+   * `reduceStockMatrix` falls back to `material` when absent.
+   */
+  name: z.string().optional(),
+  /** Material category — what a part's material matches against. */
   material: z.string(),
   size: LinearStockSize,
+  role: StockRoleSchema,
   color: z.string().optional(),
   oversize: OversizeSchema.optional(),
 });
@@ -192,20 +251,28 @@ export type ConfigInput = z.input<typeof Config>;
 
 /** Per-board info attached to a sheet layout (output side). */
 export interface SheetBoardLayoutStock {
+  /** Display name of the stock item this board came from (Layout page). */
+  name: string;
   material: string;
   widthUm: Micrometres;
   lengthUm: Micrometres;
   thicknessUm: Micrometres;
   color?: string;
+  /** Which tier this board came from — lets the UI tally offcuts vs buys. */
+  role: StockRole;
 }
 
 /** Per-board info attached to a linear layout (output side). */
 export interface LinearBoardLayoutStock {
+  /** Display name of the stock item this board came from (Layout page). */
+  name: string;
   material: string;
   crossSectionWidthUm: Micrometres;
   crossSectionThicknessUm: Micrometres;
   lengthUm: Micrometres;
   color?: string;
+  /** Which tier this board came from — lets the UI tally offcuts vs buys. */
+  role: StockRole;
 }
 
 /**

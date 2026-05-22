@@ -8,6 +8,8 @@ export interface StockImportRow {
   widthMm: number;
   lengthMm: number;
   thicknessMm: number;
+  /** How many physical sheets of this size the user owns. Positive integer. */
+  quantity: number;
 }
 
 export interface StockParseOptions {
@@ -28,9 +30,19 @@ const ALIASES: Record<string, string[]> = {
   width: ['width', 'w'],
   length: ['height', 'length', 'len', 'h', 'l'],
   thickness: ['thickness', 'thick', 't'],
+  quantity: ['quantity', 'qty', 'count'],
 };
 
 const REQUIRED = ['name', 'width', 'length', 'thickness'];
+
+/** Parse an optional quantity cell to a positive integer; default 1. */
+function parseQuantity(raw: string): number {
+  const trimmed = raw.trim();
+  if (trimmed === '') return 1;
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n <= 0) return 1;
+  return n;
+}
 
 export function parseStockTable(
   text: string,
@@ -91,11 +103,17 @@ export function parseStockTable(
     const thicknessUm = dim('thickness', 'thickness');
     if (thicknessUm === undefined) continue;
 
+    // Quantity is optional. Absent, blank, or invalid (non-integer / ≤ 0)
+    // falls back to 1 rather than failing the row — a leftover sheet with an
+    // unparseable count is still one sheet.
+    const quantity = parseQuantity(cell('quantity'));
+
     rows.push({
       name,
       widthMm: umToMm(widthUm),
       lengthMm: umToMm(lengthUm),
       thicknessMm: umToMm(thicknessUm),
+      quantity,
     });
   }
 

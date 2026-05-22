@@ -11,8 +11,20 @@ describe('parseStockTable valid input', () => {
     const { rows, errors } = parseStockTable(csv, mmOpts);
     expect(errors).toEqual([]);
     expect(rows).toEqual([
-      { name: 'Plywood', widthMm: 1220, lengthMm: 2440, thicknessMm: 18 },
-      { name: 'Pine', widthMm: 1220, lengthMm: 2440, thicknessMm: 18 },
+      {
+        name: 'Plywood',
+        widthMm: 1220,
+        lengthMm: 2440,
+        thicknessMm: 18,
+        quantity: 1,
+      },
+      {
+        name: 'Pine',
+        widthMm: 1220,
+        lengthMm: 2440,
+        thicknessMm: 18,
+        quantity: 1,
+      },
     ]);
   });
 
@@ -30,6 +42,40 @@ describe('parseStockTable valid input', () => {
     const { rows } = parseStockTable(csv, mmOpts);
     expect(rows[0].widthMm).toBeCloseTo(1219.2, 4);
     expect(rows[0].lengthMm).toBeCloseTo(2438.4, 4);
+  });
+});
+
+describe('parseStockTable quantity column', () => {
+  it('parses a positive integer quantity via the qty alias', () => {
+    const csv = 'name,width,length,thickness,qty\nA,100mm,200mm,18mm,5';
+    expect(parseStockTable(csv, mmOpts).rows[0].quantity).toBe(5);
+  });
+
+  it('defaults quantity to 1 when the column is absent', () => {
+    const csv = 'name,width,length,thickness\nA,100mm,200mm,18mm';
+    expect(parseStockTable(csv, mmOpts).rows[0].quantity).toBe(1);
+  });
+
+  it.each([
+    ['blank cell', '100mm,200mm,18mm,'],
+    ['zero', '100mm,200mm,18mm,0'],
+    ['negative', '100mm,200mm,18mm,-3'],
+    ['fractional', '100mm,200mm,18mm,2.5'],
+    ['non-numeric', '100mm,200mm,18mm,abc'],
+  ])(
+    'falls back to 1 for an invalid quantity (%s) without skipping the row',
+    (_label, tail) => {
+      const csv = `name,width,length,thickness,quantity\nA,${tail}`;
+      const { rows, errors } = parseStockTable(csv, mmOpts);
+      expect(errors).toEqual([]);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].quantity).toBe(1);
+    },
+  );
+
+  it('accepts the count alias', () => {
+    const csv = 'name,width,length,thickness,count\nA,100mm,200mm,18mm,3';
+    expect(parseStockTable(csv, mmOpts).rows[0].quantity).toBe(3);
   });
 });
 

@@ -11,10 +11,12 @@ function makeLinear(
   return {
     kind: 'linear',
     stock: {
+      name: material,
       material,
       crossSectionWidthUm: 0.089 as Micrometres,
       crossSectionThicknessUm: 0.038 as Micrometres,
       lengthUm,
+      role: 'general',
     },
     placements: placements.map((m, i) => ({
       partNumber: i + 1,

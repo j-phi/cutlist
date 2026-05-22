@@ -76,6 +76,19 @@ const showLeftoverBanner = computed(
   () => unplacedCount.value > 0 && totalVisibleLayouts.value > 0,
 );
 
+// Stock materials that are configured but produce no layouts — show them as
+// "unneeded" so the user can audit their stock list.
+const unusedStockNames = computed<string[]>(() => {
+  if (!data.value) return [];
+  const used = new Set([
+    ...sheetLayouts.value.map((l) => l.stock.material),
+    ...linearLayouts.value.map((l) => l.stock.material),
+  ]);
+  return stocks.value
+    .map((s) => s.material)
+    .filter((m, i, arr) => !used.has(m) && arr.indexOf(m) === i);
+});
+
 const emptyState = computed(() => {
   if (stocks.value.length === 0) {
     return {
@@ -165,7 +178,10 @@ const emptyState = computed(() => {
 
     <!-- Warning banners -->
     <div
-      v-if="!error && (partCountWarning || showLeftoverBanner)"
+      v-if="
+        !error &&
+        (partCountWarning || showLeftoverBanner || unusedStockNames.length > 0)
+      "
       class="absolute bottom-14 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 max-w-md"
     >
       <div
@@ -190,6 +206,19 @@ const emptyState = computed(() => {
           {{ unplacedCount }}
           {{ unplacedCount === 1 ? 'part' : 'parts' }} could not be placed on
           matching stock
+        </span>
+      </div>
+      <div
+        v-if="unusedStockNames.length > 0"
+        class="bg-mist-800/80 border border-subtle rounded-lg px-4 py-2 flex items-center gap-2"
+      >
+        <UIcon name="i-lucide-package-x" class="w-4 h-4 text-dim shrink-0" />
+        <span class="text-xs text-muted">
+          Not needed:
+          <span v-for="(name, i) in unusedStockNames" :key="name"
+            >{{ name
+            }}<span v-if="i < unusedStockNames.length - 1">, </span></span
+          >
         </span>
       </div>
     </div>
@@ -220,6 +249,14 @@ const emptyState = computed(() => {
         </div>
         <ExportPdfButton />
       </div>
+    </div>
+
+    <!-- Sheet shopping list summary -->
+    <div
+      v-if="!error && data && filteredSheetLayouts.length > 0"
+      class="absolute top-16 right-3 z-10 max-w-xs bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
+    >
+      <SheetShoppingList :layouts="filteredSheetLayouts" :stocks="stocks" />
     </div>
 
     <!-- Controls -->

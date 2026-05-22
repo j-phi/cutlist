@@ -44,10 +44,12 @@ function makeLayout(
   return {
     kind: 'sheet',
     stock: {
+      name: 'Plywood',
       material: 'Plywood',
       widthUm,
       lengthUm,
       thicknessUm: 0.018 as Micrometres,
+      role: 'general',
     },
     placements: [],
     marginUm: 0 as Micrometres,

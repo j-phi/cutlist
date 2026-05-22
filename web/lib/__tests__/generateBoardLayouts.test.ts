@@ -217,6 +217,48 @@ describe('generateBoardLayouts', () => {
     ).toBe(true);
   });
 
+  it('propagates role: general to the output stock', () => {
+    const generalStock = [
+      {
+        kind: 'sheet' as const,
+        material: 'MDF',
+        sizes: [{ width: 1000, length: 3000, thickness: [18] }],
+        role: 'general' as const,
+      },
+    ];
+    const result = generateBoardLayouts(
+      [createPart(1, 0.5, 0.5)],
+      generalStock,
+      {
+        bladeWidth: 0 as Config['bladeWidth'],
+        margin: 0 as Config['margin'],
+        defaultAlgorithm: 'auto',
+      },
+    );
+    expect(result.layouts[0].stock.role).toBe('general');
+  });
+
+  it('propagates role: offcut to the output stock', () => {
+    const offcutStock = [
+      {
+        kind: 'sheet' as const,
+        material: 'MDF',
+        sizes: [{ width: 1000, length: 3000, thickness: [18], quantity: 1 }],
+        role: 'offcut' as const,
+      },
+    ];
+    const result = generateBoardLayouts(
+      [createPart(1, 0.5, 0.5)],
+      offcutStock,
+      {
+        bladeWidth: 0 as Config['bladeWidth'],
+        margin: 0 as Config['margin'],
+        defaultAlgorithm: 'auto',
+      },
+    );
+    expect(result.layouts[0].stock.role).toBe('offcut');
+  });
+
   it('is deterministic in auto mode', () => {
     const config: Config = {
       bladeWidth: 0 as Config['bladeWidth'],

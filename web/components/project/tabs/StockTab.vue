@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 import {
+  aggregateSheetShoppingList,
+  reduceStockMatrix,
   toCanonicalMm,
   type LinearStockMatrix,
   type SheetStockMatrix,
+  type StockMatrix,
 } from 'cutlist';
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
 import { FALLBACK_PALETTE } from '~/utils/materialColors';
@@ -167,24 +170,96 @@ function nextPaletteColor(): string {
   return FALLBACK_PALETTE[entries.value.length % FALLBACK_PALETTE.length];
 }
 
+// Split the unified stock array into the two tiers the UI renders separately.
+// Each entry keeps its real index in `stocks` so edits/removes/keys map back
+// to the correct underlying record — the lists are filtered views, not copies.
+interface IndexedEntry {
+  entry: StockMatrix;
+  idx: number;
+}
+
+const offcutEntries = computed<IndexedEntry[]>(() =>
+  entries.value
+    .map((entry, idx) => ({ entry, idx }))
+    .filter(({ entry }) => entry.role === 'offcut'),
+);
+
+const generalEntries = computed<IndexedEntry[]>(() =>
+  entries.value
+    .map((entry, idx) => ({ entry, idx }))
+    .filter(({ entry }) => entry.role !== 'offcut'),
+);
+
+// "To buy" projection: aggregate the current layout into per-(material,
+// thickness) general-sheet purchase counts. Offcuts are owned, so we only
+// surface the general (buyable) sizes the optimizer reached for. Reactive off
+// the shared layouts query — recomputes whenever stock/parts change.
+const { data: layoutData } = useBoardLayoutsQuery();
+const formatDistance = useFormatDistance();
+
+interface BuyLine {
+  key: string;
+  material: string;
+  count: number;
+  sizeLabel: string;
+}
+
+const buyLines = computed<BuyLine[]>(() => {
+  const layouts = layoutData.value?.layouts;
+  if (!layouts || layouts.length === 0) return [];
+  const expanded = reduceStockMatrix(entries.value);
+  const groups = aggregateSheetShoppingList(layouts, expanded);
+  const lines: BuyLine[] = [];
+  for (const group of groups) {
+    for (const size of group.generalSizes) {
+      if (size.count <= 0) continue;
+      const w = formatDistance(size.widthUm) ?? String(size.widthUm);
+      const l = formatDistance(size.lengthUm) ?? String(size.lengthUm);
+      lines.push({
+        key: `${group.material}-${group.thicknessUm}-${size.widthUm}x${size.lengthUm}`,
+        material: group.material,
+        count: size.count,
+        sizeLabel: `${w} × ${l}`,
+      });
+    }
+  }
+  return lines;
+});
+
+// Distinct, non-empty material categories across all stock — offered as
+// autocomplete suggestions on each card. Categories are intentionally shared
+// across items, so this is a deduped pool, not a uniqueness constraint.
+const materialOptions = computed<string[]>(() => {
+  const set = new Set<string>();
+  for (const e of entries.value) {
+    const m = e.material.trim();
+    if (m) set.add(m);
+  }
+  return [...set];
+});
+
 const duplicateNames = computed<Set<string>>(() => {
+  // Names are advisory labels (Layout page) and must be unambiguous across ALL
+  // entries — offcut and general alike — so the user can tell two leftover
+  // pieces apart. Categories may repeat freely; names should not.
   const counts = new Map<string, number>();
   for (const e of entries.value) {
-    const key = e.material.trim().toLowerCase();
+    const key = (e.name ?? '').trim().toLowerCase();
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const dup = new Set([...counts].filter(([, n]) => n > 1).map(([k]) => k));
   return new Set(
     entries.value
-      .filter((e) => dup.has(e.material.trim().toLowerCase()))
-      .map((e) => e.material),
+      .filter((e) => dup.has((e.name ?? '').trim().toLowerCase()))
+      .map((e) => e.name ?? ''),
   );
 });
 
 function addCustomSheet() {
   const blank: SheetStockMatrix = {
     kind: 'sheet',
-    material: 'New Material',
+    name: 'New sheet',
+    material: 'Uncategorized',
     sizes: [],
     color: nextPaletteColor(),
   };
@@ -196,7 +271,8 @@ function addCustomLinear() {
   const seed = (n: number) => toCanonicalMm(n, unit.value);
   const blank: LinearStockMatrix = {
     kind: 'linear',
-    material: 'New Timber',
+    name: 'New timber',
+    material: 'Uncategorized',
     color: nextPaletteColor(),
     size: {
       crossSectionWidth: unit.value === 'in' ? seed(3.5) : 89,
@@ -233,7 +309,7 @@ function addCustomLinear() {
           <UIcon name="i-lucide-download" class="w-7 h-7 text-teal-400" />
         </div>
         <p class="text-sm font-semibold text-teal-400">
-          Drop a .csv stock file
+          Drop a .csv offcut file
         </p>
       </div>
     </Transition>
@@ -265,7 +341,7 @@ function addCustomLinear() {
             data-testid="stock-import-csv"
             @click="showImport = true"
           >
-            Import CSV
+            Import offcuts
           </UButton>
           <UDropdownMenu
             :items="presetItems"
@@ -338,17 +414,78 @@ function addCustomLinear() {
         </div>
       </div>
 
-      <div v-else class="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
-        <StockCard
-          v-for="(entry, idx) in entries"
-          :key="entryKeys[idx]"
-          :model-value="entry"
-          :distance-unit="unit"
-          :precision="precision"
-          :duplicate-name="duplicateNames.has(entry.material)"
-          @update:model-value="(next) => update(idx, next)"
-          @remove="remove(idx)"
-        />
+      <div v-else class="flex-1 flex flex-col gap-6 min-h-0 overflow-y-auto">
+        <section
+          v-if="offcutEntries.length > 0"
+          class="flex flex-col gap-3"
+          data-testid="stock-offcuts-section"
+        >
+          <div class="flex flex-col gap-0.5">
+            <h3 class="text-sm font-semibold text-hi">Offcuts</h3>
+            <p class="text-xs text-muted">
+              Leftover sheets you already own. The optimizer consumes these
+              first, before any general stock. Set the quantity to how many of
+              each you have.
+            </p>
+          </div>
+          <StockCard
+            v-for="{ entry, idx } in offcutEntries"
+            :key="entryKeys[idx]"
+            :model-value="entry"
+            :distance-unit="unit"
+            :precision="precision"
+            :material-options="materialOptions"
+            :duplicate-name="duplicateNames.has(entry.name ?? '')"
+            show-quantity
+            @update:model-value="(next) => update(idx, next)"
+            @remove="remove(idx)"
+          />
+        </section>
+
+        <section
+          class="flex flex-col gap-3"
+          data-testid="stock-general-section"
+        >
+          <h3
+            v-if="offcutEntries.length > 0"
+            class="text-sm font-semibold text-hi"
+          >
+            General stock
+          </h3>
+
+          <div
+            v-if="buyLines.length > 0"
+            class="rounded-lg border border-subtle bg-surface px-3 py-2.5 flex flex-col gap-1"
+            data-testid="stock-buy-projection"
+          >
+            <p
+              class="text-[11px] uppercase tracking-wider text-dim font-medium"
+            >
+              Projected purchase
+            </p>
+            <ul class="flex flex-col gap-0.5">
+              <li
+                v-for="line in buyLines"
+                :key="line.key"
+                class="text-sm text-body"
+                data-testid="stock-buy-line"
+              >
+                Buy {{ line.count }}× {{ line.sizeLabel }} {{ line.material }}
+              </li>
+            </ul>
+          </div>
+          <StockCard
+            v-for="{ entry, idx } in generalEntries"
+            :key="entryKeys[idx]"
+            :model-value="entry"
+            :distance-unit="unit"
+            :precision="precision"
+            :material-options="materialOptions"
+            :duplicate-name="duplicateNames.has(entry.name ?? '')"
+            @update:model-value="(next) => update(idx, next)"
+            @remove="remove(idx)"
+          />
+        </section>
       </div>
     </div>
 
@@ -358,7 +495,7 @@ function addCustomLinear() {
           class="p-6 flex flex-col gap-4 bg-elevated border border-default rounded-lg"
         >
           <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-hi">Import stock</h2>
+            <h2 class="text-lg font-semibold text-hi">Offcut Stock Import</h2>
             <UButton
               size="xs"
               color="neutral"
@@ -368,16 +505,21 @@ function addCustomLinear() {
               @click="showImport = false"
             />
           </div>
+          <p class="text-xs text-muted">
+            Import the leftover sheets you already own. The optimizer consumes
+            these offcuts before any general stock.
+          </p>
           <p class="text-xs text-dim">
-            Columns: Name, Width, Height, Thickness — paste from Google Sheets
-            or a CSV.
+            Columns: Name, Width, Height, Thickness, and an optional Quantity
+            (how many of each you have — defaults to 1). Paste from Google
+            Sheets or a CSV.
           </p>
           <UTextarea
             v-model="pastedRows"
             :rows="4"
             class="w-full font-mono text-xs"
-            placeholder="Name	Width	Height	Thickness"
-            aria-label="Paste stock rows"
+            placeholder="Name	Width	Height	Thickness	Quantity"
+            aria-label="Paste offcut rows"
           />
           <div class="flex justify-end">
             <UButton
@@ -397,7 +539,7 @@ function addCustomLinear() {
             data-testid="stock-import-summary"
           >
             <p class="text-sm text-body">
-              Imported {{ csvImport.result.value.imported }} stock row{{
+              Imported {{ csvImport.result.value.imported }} offcut row{{
                 csvImport.result.value.imported === 1 ? '' : 's'
               }}.
             </p>

@@ -30,6 +30,8 @@ import { v3Migration } from './v3';
 import { v4Migration } from './v4';
 import { v5ProjectMigration, v5ModelMigration } from './v5';
 import { v6Migration } from './v6';
+import { v7Migration } from './v7';
+import { v8Migration } from './v8';
 
 export type { IdbRecord, RecordMigration, StoreName } from './types';
 export { migrateProjectToMmStorage } from './v3';
@@ -41,6 +43,8 @@ export {
   migrateModelSourceLabel,
 } from './v5';
 export { migrateProjectStockToArray } from './v6';
+export { migrateProjectStockRoles } from './v7';
+export { migrateProjectStockNames } from './v8';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
@@ -80,6 +84,16 @@ export const migrations: RecordMigration[] = [
   // (`stocks: StockMatrix[]`). The Dexie .version(6).upgrade() in
   // `~/composables/useIdb/db` runs the same transform.
   v6Migration,
+
+  // v7: stock entries gain a `role` tier ('offcut' | 'general') and offcut
+  // sizes carry a `quantity`. Pre-v7 stock is all general; stamp the default.
+  // Mirror of the Dexie .version(7).upgrade() in `~/composables/useIdb/db`.
+  v7Migration,
+
+  // v8: stock gains a per-item `name`; `material` becomes a category. The old
+  // `material` string moves to `name` and `material` resets to 'Uncategorized'.
+  // Mirror of the Dexie .version(8).upgrade() in `~/composables/useIdb/db`.
+  v8Migration,
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

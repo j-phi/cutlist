@@ -44,6 +44,7 @@ const LINEAR_PART_SORT_MODE: PartSortMode = 'long-side-desc';
 export * from './types';
 export * from './utils/units';
 export * from './utils/shoppingList';
+export * from './utils/sheetShoppingList';
 
 type PackerKind = 'tidy' | 'compact' | 'tight';
 type PartSortMode =
@@ -206,20 +207,24 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
           crossSection: mmToUm(item.oversize.crossSection ?? 0),
         }
       : undefined;
+    const role = item.role ?? 'general';
     if (item.kind === 'linear') {
       return item.size.lengths.map<LinearStock>((lenMm) => ({
         kind: 'linear',
+        name: item.name || item.material,
         material: item.material,
         crossSectionWidth: mmToUm(item.size.crossSectionWidth),
         crossSectionThickness: mmToUm(item.size.crossSectionThickness),
         length: mmToUm(lenMm),
         color: item.color,
         oversize,
+        role,
       }));
     }
     return item.sizes.flatMap<Stock>((size) =>
       size.thickness.map<SheetStock>((thickness) => ({
         kind: 'sheet',
+        name: item.name || item.material,
         material: item.material,
         thickness: mmToUm(thickness),
         width: mmToUm(size.width),
@@ -227,6 +232,10 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
         color: item.color,
         algorithm: item.thicknessAlgorithms?.[String(thickness)],
         oversize,
+        role,
+        // Offcuts: a missing count means one physical sheet. General stock is
+        // infinite, so quantity stays undefined regardless of any stray value.
+        quantity: role === 'offcut' ? (size.quantity ?? 1) : undefined,
       })),
     );
   });
@@ -407,11 +416,27 @@ function placeAllParts(
     options.randomSeed,
   );
   const leftovers: PartToCut[] = [];
-  const openBoards: OpenBoard[] = [];
 
-  for (const part of sortedParts) {
-    let placed = false;
-    for (const board of openBoards) {
+  // Offcuts are finite, owned, and consumed first; general stock is infinite
+  // and the buyable fallback. Open boards are split by tier so reuse always
+  // prefers offcuts. Candidate offcuts are tried smallest-first (best-fit, to
+  // use up small scraps); general largest-first (fewer boards).
+  const openOffcutBoards: OpenBoard[] = [];
+  const openGeneralBoards: OpenBoard[] = [];
+  const offcutStock = stock
+    .filter((s) => s.role === 'offcut')
+    .toSorted((a, b) => stockSortMetric(a) - stockSortMetric(b));
+  const generalStock = stock
+    .filter((s) => s.role !== 'offcut')
+    .toSorted((a, b) => stockSortMetric(b) - stockSortMetric(a));
+  // Remaining physical sheets per offcut stock. General stock is omitted →
+  // treated as infinite.
+  const offcutRemaining = new Map<Stock, number>(
+    offcutStock.map((s) => [s, s.quantity ?? 1]),
+  );
+
+  const tryReuse = (boards: OpenBoard[], part: PartToCut): boolean => {
+    for (const board of boards) {
       if (!canPartFitStock(board.stock, part)) continue;
       const placement = packer.tryPlaceInBinState(
         board.binState,
@@ -420,32 +445,54 @@ function placeAllParts(
       );
       if (placement) {
         board.placements.push(placement);
-        placed = true;
-        break;
+        return true;
       }
     }
-    if (placed) continue;
+    return false;
+  };
 
-    const board = stock.find((s) => canPartFitStock(s, part));
-    if (!board) {
-      leftovers.push(part);
-      continue;
+  // Open a fresh board from `candidates` in order, attempting real placement
+  // (canPartFitStock only matches material+thickness, not dimensions). On
+  // success the opened board is pushed to `open` and returned true.
+  const tryOpen = (
+    candidates: Stock[],
+    open: OpenBoard[],
+    part: PartToCut,
+    isOffcut: boolean,
+  ): boolean => {
+    for (const candidate of candidates) {
+      if (isOffcut && (offcutRemaining.get(candidate) ?? 0) <= 0) continue;
+      if (!canPartFitStock(candidate, part)) continue;
+      const binState = packer.createBinState(makeBoardRect(candidate, margin));
+      const placement = packer.tryPlaceInBinState(
+        binState,
+        makePartRect(part, candidate),
+        packerOptions,
+      );
+      if (!placement) continue;
+      open.push({ stock: candidate, binState, placements: [placement] });
+      if (isOffcut) {
+        offcutRemaining.set(
+          candidate,
+          (offcutRemaining.get(candidate) ?? 1) - 1,
+        );
+      }
+      return true;
     }
-    const binState = packer.createBinState(makeBoardRect(board, margin));
-    const placement = packer.tryPlaceInBinState(
-      binState,
-      makePartRect(part, board),
-      packerOptions,
-    );
-    if (!placement) {
-      leftovers.push(part);
-      continue;
-    }
-    openBoards.push({ stock: board, binState, placements: [placement] });
+    return false;
+  };
+
+  for (const part of sortedParts) {
+    const placed =
+      tryReuse(openOffcutBoards, part) ||
+      tryOpen(offcutStock, openOffcutBoards, part, true) ||
+      tryReuse(openGeneralBoards, part) ||
+      tryOpen(generalStock, openGeneralBoards, part, false);
+    if (!placed) leftovers.push(part);
   }
 
   return {
-    layouts: openBoards.map((b) => ({
+    layouts: [...openOffcutBoards, ...openGeneralBoards].map((b) => ({
       stock: b.stock,
       placements: b.placements,
     })),
@@ -585,8 +632,17 @@ function minimizeLayoutStock<L extends PotentialBoardLayout>(
 ): L {
   const margin = config.margin;
 
+  // An offcut layout sits on a specific physical sheet — never swap it for a
+  // different size. Only general boards shrink, and only onto other general
+  // sizes (shrinking onto an offcut would consume finite inventory the
+  // placement ledger never accounted for).
+  if (originalLayout.stock.role === 'offcut') return originalLayout;
+
   const altStock = stock
-    .filter((s) => areStocksEquivalent(originalLayout.stock, s))
+    .filter(
+      (s) =>
+        s.role !== 'offcut' && areStocksEquivalent(originalLayout.stock, s),
+    )
     .toSorted((a, b) => stockSortMetric(a) - stockSortMetric(b));
 
   for (const smallerStock of altStock) {
@@ -683,11 +739,13 @@ function serializeSheetLayout(
       serializePartToCutPlacement(p, oversize),
     ),
     stock: {
+      name: stock.name ?? stock.material,
       material: stock.material,
       thicknessUm: stock.thickness,
       widthUm: stock.width,
       lengthUm: stock.length,
       color: stock.color,
+      role: stock.role,
     },
     marginUm,
     algorithm: layout.algorithm,
@@ -723,11 +781,13 @@ function serializeLinearLayout(
   return {
     kind: 'linear',
     stock: {
+      name: stock.name ?? stock.material,
       material: stock.material,
       crossSectionWidthUm: stock.crossSectionWidth,
       crossSectionThicknessUm: stock.crossSectionThickness,
       lengthUm: stock.length,
       color: stock.color,
+      role: stock.role,
     },
     placements,
     wasteEndUm: Math.max(0, trailing) as Micrometres,

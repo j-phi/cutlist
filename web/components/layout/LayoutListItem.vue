@@ -124,11 +124,31 @@ const { x: mouseX, y: mouseY } = useMouse();
   <li
     class="flex flex-col items-center gap-3 shrink-0 board-li"
     :style="`contain-intrinsic-size:${widthPx} ${heightPx}`"
-    :aria-label="`Board ${boardIndex + 1}: ${layout.stock.material} ${length} by ${width}`"
+    :aria-label="`Board ${boardIndex + 1}: ${layout.stock.name} (${layout.stock.material}) ${length} by ${width}`"
   >
-    <span class="text-sm text-muted text-nowrap"
-      >{{ length }} &times; {{ width }}</span
+    <div
+      class="flex flex-col items-start gap-0.5 zoom-stable origin-bottom-left"
     >
+      <div class="flex items-baseline gap-2">
+        <span class="text-sm text-body font-medium text-nowrap">{{
+          layout.stock.name
+        }}</span>
+        <span class="text-xs text-muted text-nowrap">{{
+          layout.stock.material
+        }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-muted text-nowrap"
+          >{{ length }} &times; {{ width }}</span
+        >
+        <span
+          v-if="layout.stock.role === 'offcut'"
+          class="text-[10px] font-semibold leading-none px-1.5 py-1 rounded bg-amber-500/20 text-amber-400 uppercase tracking-wider shrink-0"
+          title="From your existing offcut inventory"
+          >Offcut</span
+        >
+      </div>
+    </div>
     <div
       ref="board"
       class="rounded relative shadow-lg shadow-black/30"

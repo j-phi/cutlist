@@ -73,10 +73,12 @@ function makeLayout(args: LayoutFactoryArgs): SheetBoardLayout {
   return {
     kind: 'sheet',
     stock: {
+      name: args.material,
       material: args.material,
       widthUm,
       lengthUm,
       thicknessUm: args.thicknessUm,
+      role: 'general',
     },
     placements,
     marginUm: 0 as Micrometres,

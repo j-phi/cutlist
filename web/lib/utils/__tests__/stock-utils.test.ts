@@ -10,6 +10,7 @@ function makeStock(material: string, thicknessUm: Micrometres): Stock {
     thickness: thicknessUm,
     width: mmToUm(600),
     length: mmToUm(2400),
+    role: 'general',
   };
 }
 
@@ -62,6 +63,7 @@ describe('canPartFitStock — linear with oversize', () => {
     crossSectionWidth: mmToUm(70),
     crossSectionThickness: mmToUm(45),
     length: mmToUm(2400),
+    role: 'general',
     ...overrides,
   });
   const part = (

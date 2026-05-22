@@ -106,19 +106,40 @@ describe('useStockCsvImport', () => {
     expect(matrices).toHaveLength(2);
     expect(matrices[0]).toMatchObject({
       kind: 'sheet',
-      material: 'Birch Ply',
-      sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      name: 'Birch Ply',
+      material: 'Uncategorized',
+      role: 'offcut',
+      sizes: [{ width: 1220, length: 2440, thickness: [18], quantity: 1 }],
     });
     expect(matrices[1]).toMatchObject({
       kind: 'sheet',
-      material: 'Pine',
-      sizes: [{ width: 140, length: 3000, thickness: [19] }],
+      name: 'Pine',
+      material: 'Uncategorized',
+      role: 'offcut',
+      sizes: [{ width: 140, length: 3000, thickness: [19], quantity: 1 }],
     });
     // Color comes from the palette.
     expect(matrices[0]!.color).toBe(FALLBACK_PALETTE[0]);
     expect(matrices[1]!.color).toBe(FALLBACK_PALETTE[1]);
 
     expect(api.result.value).toEqual({ imported: 2, errors: [] });
+  });
+
+  it('stamps the parsed per-row quantity onto sizes[0]', async () => {
+    const rec = makeRecorder();
+    const { api } = build(rec);
+
+    const tsv = [
+      'Name\tWidth\tHeight\tThickness\tQuantity',
+      'Half Sheet\t1220mm\t1220mm\t18mm\t4',
+    ].join('\n');
+    await api.importText(tsv);
+
+    const matrices = rec.calls[0]!;
+    expect(matrices[0]).toMatchObject({
+      role: 'offcut',
+      sizes: [{ quantity: 4 }],
+    });
   });
 
   it('offsets palette colors by the existing stock count', async () => {
@@ -145,7 +166,8 @@ describe('useStockCsvImport', () => {
     expect(rec.calls).toHaveLength(1);
     const matrices = rec.calls[0]!;
     expect(matrices).toHaveLength(1);
-    expect(matrices[0]!.material).toBe('Good Sheet');
+    expect(matrices[0]!.name).toBe('Good Sheet');
+    expect(matrices[0]!.material).toBe('Uncategorized');
 
     expect(api.result.value!.imported).toBe(1);
     expect(api.result.value!.errors).toHaveLength(2);

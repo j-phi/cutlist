@@ -6,10 +6,18 @@ const props = defineProps<{
   distanceUnit: 'in' | 'mm';
   precision: Precision;
   /**
-   * Another stock row uses the same material name. Materials are name-keyed
-   * across the app, so colliding names silently break stock→part grouping.
+   * Another stock item uses the same name. Names are advisory labels shown on
+   * the Layout page; a clash is surfaced as a warning, not auto-resolved.
    */
   duplicateName?: boolean;
+  /** Distinct material categories across all stock, offered as suggestions. */
+  materialOptions?: string[];
+  /**
+   * Render an offcut quantity input (how many physical sheets of this size the
+   * user owns). Offcut rows only — general stock is infinite, so quantity is
+   * meaningless there. Edits the `quantity` on `sizes[0]`.
+   */
+  showQuantity?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -20,12 +28,28 @@ const emit = defineEmits<{
 const isLinear = computed(() => props.modelValue.kind === 'linear');
 const typeLabel = computed(() => (isLinear.value ? 'timber' : 'sheet'));
 
-function onMaterial(name: string) {
-  emit('update:modelValue', { ...props.modelValue, material: name });
+// Native datalist id must be unique per card so each input binds its own list.
+const categoryListId = `stock-material-${useId()}`;
+
+const name = computed(() => props.modelValue.name ?? '');
+
+function onName(next: string) {
+  emit('update:modelValue', { ...props.modelValue, name: next });
 }
 
 // Trim only on blur — mid-edit keystrokes pass through so we don't fight
 // the user as they type "Pine " before adding the next word.
+function commitName() {
+  const trimmed = (props.modelValue.name ?? '').trim();
+  if (trimmed !== props.modelValue.name) {
+    emit('update:modelValue', { ...props.modelValue, name: trimmed });
+  }
+}
+
+function onMaterial(material: string) {
+  emit('update:modelValue', { ...props.modelValue, material });
+}
+
 function commitMaterial() {
   const trimmed = props.modelValue.material.trim();
   if (trimmed !== props.modelValue.material) {
@@ -35,6 +59,24 @@ function commitMaterial() {
 
 function onColor(color: string | undefined) {
   emit('update:modelValue', { ...props.modelValue, color });
+}
+
+// Offcut quantity lives on sizes[0]. Clamp to an integer ≥ 1: an offcut you
+// own is at least one sheet, and fractional sheets are nonsense.
+const quantity = computed<number>(() => {
+  const sheet = props.modelValue.kind === 'sheet' ? props.modelValue : null;
+  return sheet?.sizes[0]?.quantity ?? 1;
+});
+
+function onQuantity(raw: number | string) {
+  if (props.modelValue.kind !== 'sheet') return;
+  const sheet = props.modelValue;
+  const n = Math.floor(Number(raw));
+  const next = Number.isFinite(n) && n >= 1 ? n : 1;
+  const sizes = sheet.sizes.length
+    ? sheet.sizes.map((s, i) => (i === 0 ? { ...s, quantity: next } : s))
+    : [{ width: 0, length: 0, thickness: [], quantity: next }];
+  emit('update:modelValue', { ...sheet, sizes });
 }
 </script>
 
@@ -50,12 +92,12 @@ function onColor(color: string | undefined) {
         @update:model-value="onColor"
       />
       <UInput
-        :model-value="modelValue.material"
+        :model-value="name"
         class="flex-1"
-        placeholder="Material name"
+        placeholder="Stock name"
         data-testid="stock-material-name"
-        @update:model-value="onMaterial"
-        @blur="commitMaterial"
+        @update:model-value="onName"
+        @blur="commitName"
       />
       <span
         class="text-[11px] uppercase tracking-wider text-dim font-medium"
@@ -63,6 +105,26 @@ function onColor(color: string | undefined) {
       >
         {{ typeLabel }}
       </span>
+      <div
+        v-if="showQuantity"
+        class="flex items-center gap-1.5 shrink-0"
+        data-testid="stock-quantity"
+      >
+        <label
+          class="text-[11px] uppercase tracking-wider text-dim font-medium"
+        >
+          Qty
+        </label>
+        <UInput
+          :model-value="quantity"
+          type="number"
+          :min="1"
+          step="1"
+          class="w-16"
+          data-testid="stock-quantity-input"
+          @update:model-value="onQuantity"
+        />
+      </div>
       <UButton
         color="neutral"
         variant="ghost"
@@ -73,13 +135,35 @@ function onColor(color: string | undefined) {
       />
     </div>
 
+    <div class="flex items-center gap-2">
+      <label class="text-[11px] uppercase tracking-wider text-dim font-medium">
+        Material
+      </label>
+      <UInput
+        :model-value="modelValue.material"
+        class="flex-1"
+        placeholder="Material category, e.g. Plywood"
+        data-testid="stock-material-category"
+        :list="categoryListId"
+        @update:model-value="onMaterial"
+        @blur="commitMaterial"
+      />
+      <datalist :id="categoryListId">
+        <option
+          v-for="option in materialOptions ?? []"
+          :key="option"
+          :value="option"
+        />
+      </datalist>
+    </div>
+
     <p
       v-if="duplicateName"
       class="text-xs text-amber-400"
       data-testid="stock-duplicate-warning"
     >
-      Another stock row uses this material name. Rename one so parts route to
-      the right material.
+      Another stock item uses this name. Rename one so they stay easy to tell
+      apart on the Layout page.
     </p>
 
     <LinearDimensions

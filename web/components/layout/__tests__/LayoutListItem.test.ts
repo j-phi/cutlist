@@ -61,11 +61,13 @@ function makeLayout(
   return {
     kind: 'sheet',
     stock: {
+      name: 'Cabinet door offcut',
       material: 'Plywood',
       widthUm: 1.0 as Micrometres,
       lengthUm: 2.0 as Micrometres,
       thicknessUm: 0.018 as Micrometres,
       color: '#abcdef',
+      role: 'general',
     },
     placements,
     marginUm: 0 as Micrometres,
@@ -108,6 +110,14 @@ describe('LayoutListItem', () => {
       expect(style).toContain('--part-text-hover: #000005');
       expect(style).toContain('--part-grain: #000006');
       expect(style).toContain('background: #000001');
+    });
+
+    it('Should show the stock name and material category in the header', () => {
+      const component = getComponent(makeLayout());
+      const text = component.text();
+
+      expect(text).toContain('Cabinet door offcut');
+      expect(text).toContain('Plywood');
     });
   });
 

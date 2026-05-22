@@ -10,7 +10,6 @@ import {
 } from 'cutlist';
 
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
-import { uniqueMaterialName } from '~/composables/useStockMutations';
 import { UTextareaStub, UModalStub } from '~/test-utils/stubs';
 import StockTab from '../StockTab.vue';
 
@@ -36,12 +35,8 @@ mockNuxtImport('useProjects', () => () => ({ activeId }));
 mockNuxtImport('useStockMutations', () => () => ({
   add: (matrices: StockMatrix[]) => {
     addCalls.push(matrices);
-    // Mirror the real mutation's name-dedup so collision tests stay honest.
-    const list = stocks.value.slice();
-    for (const m of matrices) {
-      list.push({ ...m, material: uniqueMaterialName(m.material, list) });
-    }
-    stocks.value = list;
+    // Mirror the real mutation: append as-is, no dedup.
+    stocks.value = [...stocks.value, ...matrices];
   },
   update: (idx: number, m: StockMatrix) => {
     stocks.value = stocks.value.map((s, i) => (i === idx ? m : s));
@@ -52,6 +47,16 @@ mockNuxtImport('useStockMutations', () => () => ({
 }));
 
 mockNuxtImport('useToast', () => () => ({ add: () => {} }));
+
+// Buy-projection deps. Default to an empty layout so the projection stays
+// hidden; the projection test overrides `layoutData` per case.
+const layoutData = ref<{ layouts: unknown[] } | undefined>(undefined);
+mockNuxtImport('useBoardLayoutsQuery', () => () => ({ data: layoutData }));
+mockNuxtImport(
+  'useFormatDistance',
+  () => () => (um: number | null | undefined) =>
+    um == null ? undefined : `${um}mm`,
+);
 
 const UButtonStub = defineComponent({
   inheritAttrs: false,
@@ -131,21 +136,29 @@ const StockCardStub = defineComponent({
     modelValue: { type: Object, required: true },
     distanceUnit: { type: String, required: true },
     precision: { type: Object, required: true },
+    materialOptions: { type: Array, default: () => [] },
     duplicateName: { type: Boolean, default: false },
+    showQuantity: { type: Boolean, default: false },
   },
   emits: ['update:modelValue', 'remove'],
   setup(props, { emit }) {
     return () => {
       const mv = props.modelValue as {
         kind: 'sheet' | 'linear';
+        name?: string;
         material: string;
       };
       return h(
         'div',
         {
           'data-testid': `stock-card-${mv.kind === 'linear' ? 'timber' : 'sheet'}`,
+          'data-name': mv.name ?? '',
           'data-material': mv.material,
+          'data-material-options': (props.materialOptions as string[]).join(
+            ',',
+          ),
           'data-duplicate': String(props.duplicateName),
+          'data-show-quantity': String(props.showQuantity),
         },
         [
           h(
@@ -156,6 +169,21 @@ const StockCardStub = defineComponent({
               onClick: () => emit('remove'),
             },
             'remove',
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              'data-testid': 'stock-card-stub-rename',
+              // Emit a renamed copy so the parent's update(idx) is exercised
+              // against whichever real index this card maps to.
+              onClick: () =>
+                emit('update:modelValue', {
+                  ...(props.modelValue as object),
+                  material: `${mv.material}!`,
+                }),
+            },
+            'rename',
           ),
         ],
       );
@@ -242,6 +270,7 @@ describe('StockTab', () => {
     distanceUnit.value = 'mm';
     activeId.value = 'p1';
     addCalls.length = 0;
+    layoutData.value = undefined;
   });
 
   describe('Card list', () => {
@@ -279,11 +308,11 @@ describe('StockTab', () => {
 
   describe('Add custom', () => {
     it.each([
-      ['sheet', 'Sheet', 'stock-empty-add-sheet'],
-      ['timber', 'Timber', 'stock-empty-add-timber'],
+      ['sheet', 'Sheet', 'stock-empty-add-sheet', 'New sheet'],
+      ['timber', 'Timber', 'stock-empty-add-timber', 'New timber'],
     ] as const)(
-      'appends a blank %s via empty-state button and dropdown',
-      async (expectedKind, dropdownLabel, emptyTestId) => {
+      'appends a blank %s (named, Uncategorized) via empty-state button and dropdown',
+      async (expectedKind, dropdownLabel, emptyTestId, expectedName) => {
         // Empty-state path.
         stocks.value = [];
         let component = getComponent();
@@ -291,6 +320,8 @@ describe('StockTab', () => {
         expect(stocks.value[0].kind).toBe(
           expectedKind === 'sheet' ? 'sheet' : 'linear',
         );
+        expect(stocks.value[0].name).toBe(expectedName);
+        expect(stocks.value[0].material).toBe('Uncategorized');
 
         // Dropdown path on a non-empty list.
         stocks.value = [presetToMmStock(firstSheet())];
@@ -347,31 +378,62 @@ describe('StockTab', () => {
     });
   });
 
-  describe('Unique material names', () => {
-    it('auto-suffixes a second "Add Sheet" so the new card does not collide', async () => {
-      stocks.value = [];
-      const component = getComponent();
-      await clickItem(component, 'Sheet');
-      await clickItem(component, 'Sheet');
-      expect(stocks.value.map((r) => r.material)).toEqual([
-        'New Material',
-        'New Material (2)',
-      ]);
-    });
-
-    it('flags trim+case-insensitive collisions as duplicate', () => {
-      // "Pine", "pine ", and " PINE" are the same material to a human; the
-      // packer keys by exact string, so the duplicate warning has to catch
-      // these or the user silently gets distinct stock buckets.
+  describe('Duplicate names', () => {
+    it('flags trim+case-insensitive duplicate NAMES across all entries', () => {
+      // Names are advisory labels; the warning catches human-equal labels
+      // ("Sides", "sides ") so two pieces don't read identically on the Layout
+      // page. Distinct names — even sharing a category — are not flagged.
       stocks.value = [
-        { kind: 'sheet', material: 'Pine', sizes: [] },
-        { kind: 'sheet', material: 'pine ', sizes: [] },
-        { kind: 'sheet', material: 'Oak', sizes: [] },
+        { kind: 'sheet', name: 'Sides', material: 'Plywood', sizes: [] },
+        { kind: 'sheet', name: 'sides ', material: 'MDF', sizes: [] },
+        { kind: 'sheet', name: 'Top', material: 'Plywood', sizes: [] },
       ];
       const cards = getComponent().findAll('[data-testid="stock-card-sheet"]');
       expect(cards[0].attributes('data-duplicate')).toBe('true');
       expect(cards[1].attributes('data-duplicate')).toBe('true');
+      // Shares the "Plywood" category with card 0 but has a unique name.
       expect(cards[2].attributes('data-duplicate')).toBe('false');
+    });
+
+    it('flags a duplicate name shared between an offcut and a general row', () => {
+      // No offcut exemption: names must be unambiguous across both tiers.
+      stocks.value = [
+        { kind: 'sheet', name: 'Scrap', material: 'Plywood', sizes: [] },
+        {
+          kind: 'sheet',
+          name: 'Scrap',
+          material: 'Plywood',
+          role: 'offcut',
+          sizes: [{ width: 600, length: 600, thickness: [18], quantity: 1 }],
+        },
+      ];
+      const component = getComponent();
+      const offcut = component
+        .find('[data-testid="stock-offcuts-section"]')
+        .find('[data-material]');
+      const general = component
+        .find('[data-testid="stock-general-section"]')
+        .find('[data-material]');
+      expect(offcut.attributes('data-duplicate')).toBe('true');
+      expect(general.attributes('data-duplicate')).toBe('true');
+    });
+  });
+
+  describe('Material category suggestions', () => {
+    it('passes the distinct non-empty categories to every card', () => {
+      stocks.value = [
+        { kind: 'sheet', name: 'A', material: 'Plywood', sizes: [] },
+        { kind: 'sheet', name: 'B', material: 'MDF', sizes: [] },
+        { kind: 'sheet', name: 'C', material: 'Plywood', sizes: [] },
+        { kind: 'sheet', name: 'D', material: '', sizes: [] },
+      ];
+      const cards = getComponent().findAll('[data-testid="stock-card-sheet"]');
+      // Deduped, empty dropped, order preserved.
+      expect(cards[0].attributes('data-material-options')).toBe('Plywood,MDF');
+      // Same pool handed to all cards.
+      for (const c of cards) {
+        expect(c.attributes('data-material-options')).toBe('Plywood,MDF');
+      }
     });
   });
 
@@ -392,6 +454,118 @@ describe('StockTab', () => {
     });
   });
 
+  describe('Offcuts / general split', () => {
+    function offcut(material: string, quantity = 1): StockMatrix {
+      return {
+        kind: 'sheet',
+        material,
+        role: 'offcut',
+        sizes: [{ width: 1220, length: 1220, thickness: [18], quantity }],
+      };
+    }
+    function general(material: string): StockMatrix {
+      return { kind: 'sheet', material, sizes: [] };
+    }
+
+    it('renders offcuts and general stock in separate sections, only offcuts get showQuantity', () => {
+      stocks.value = [general('Ply'), offcut('Half Ply'), general('MDF')];
+      const component = getComponent();
+
+      const offcutSection = component.find(
+        '[data-testid="stock-offcuts-section"]',
+      );
+      const generalSection = component.find(
+        '[data-testid="stock-general-section"]',
+      );
+      expect(offcutSection.exists()).toBe(true);
+
+      const offcutCards = offcutSection.findAll('[data-material]');
+      expect(offcutCards.map((c) => c.attributes('data-material'))).toEqual([
+        'Half Ply',
+      ]);
+      expect(offcutCards[0].attributes('data-show-quantity')).toBe('true');
+
+      const generalCards = generalSection.findAll('[data-material]');
+      expect(generalCards.map((c) => c.attributes('data-material'))).toEqual([
+        'Ply',
+        'MDF',
+      ]);
+      expect(generalCards[0].attributes('data-show-quantity')).toBe('false');
+    });
+
+    it('hides the offcuts section when there are none', () => {
+      stocks.value = [general('Ply')];
+      expect(
+        getComponent().find('[data-testid="stock-offcuts-section"]').exists(),
+      ).toBe(false);
+    });
+
+    it('maps a filtered offcut row back to its real index when edited', async () => {
+      // Offcut sits at real index 1, between two general rows. Editing it must
+      // update index 1, not index 0 (its position within the offcut sublist).
+      stocks.value = [general('Ply'), offcut('Half Ply'), general('MDF')];
+      const component = getComponent();
+
+      const renameBtn = component
+        .find('[data-testid="stock-offcuts-section"]')
+        .find('[data-testid="stock-card-stub-rename"]');
+      await renameBtn.trigger('click');
+
+      expect(stocks.value.map((s) => s.material)).toEqual([
+        'Ply',
+        'Half Ply!',
+        'MDF',
+      ]);
+      expect(stocks.value[1].role).toBe('offcut');
+    });
+
+    it('removes the correct real index for a filtered offcut row', async () => {
+      stocks.value = [general('Ply'), offcut('Half Ply'), general('MDF')];
+      const component = getComponent();
+
+      await component
+        .find('[data-testid="stock-offcuts-section"]')
+        .find('[data-testid="stock-card-stub-remove"]')
+        .trigger('click');
+
+      expect(stocks.value.map((s) => s.material)).toEqual(['Ply', 'MDF']);
+    });
+  });
+
+  describe('Buy projection', () => {
+    it('lists projected general purchases from the layout, hidden when empty', async () => {
+      stocks.value = [{ kind: 'sheet', material: 'Ply', sizes: [] }];
+
+      let component = getComponent();
+      expect(
+        component.find('[data-testid="stock-buy-projection"]').exists(),
+      ).toBe(false);
+
+      // Two general Ply sheets of one size used in the layout.
+      const sheet = (n: number) => ({
+        stock: {
+          kind: 'sheet',
+          material: 'Ply',
+          role: 'general',
+          thicknessUm: 18000,
+          widthUm: 1220000,
+          lengthUm: 2440000,
+        },
+        // remaining layout fields are unused by aggregateSheetShoppingList
+        id: n,
+      });
+      layoutData.value = { layouts: [sheet(1), sheet(2)] };
+      component = getComponent();
+
+      const projection = component.find('[data-testid="stock-buy-projection"]');
+      expect(projection.exists()).toBe(true);
+      const lines = component.findAll('[data-testid="stock-buy-line"]');
+      expect(lines).toHaveLength(1);
+      expect(lines[0].text()).toMatch(/Buy 2×/);
+      expect(lines[0].text()).toContain('Ply');
+    });
+  });
+
   describe('CSV import', () => {
     it('imports pasted TSV into sheet stock via the modal', async () => {
       stocks.value = [];
@@ -409,10 +583,11 @@ describe('StockTab', () => {
       expect(matrices).toHaveLength(2);
       expect(matrices[0]).toMatchObject({
         kind: 'sheet',
-        material: 'Birch Ply',
+        name: 'Birch Ply',
+        material: 'Uncategorized',
         sizes: [{ width: 1220, length: 2440, thickness: [18] }],
       });
-      expect(matrices[1].material).toBe('Pine');
+      expect(matrices[1].name).toBe('Pine');
     });
 
     it('renders a skipped-row summary when some rows are invalid', async () => {
@@ -433,7 +608,7 @@ describe('StockTab', () => {
 
       const summary = component.find('[data-testid="stock-import-summary"]');
       expect(summary.exists()).toBe(true);
-      expect(summary.text()).toMatch(/Imported 1 stock row/);
+      expect(summary.text()).toMatch(/Imported 1 offcut row/);
       expect(summary.text()).toMatch(/Skipped 1 row/);
     });
 
@@ -464,7 +639,7 @@ describe('StockTab', () => {
 
       expect(addCalls).toHaveLength(1);
       expect(addCalls[0]).toHaveLength(2);
-      expect(addCalls[0][0].material).toBe('Birch Ply');
+      expect(addCalls[0][0].name).toBe('Birch Ply');
     });
   });
 });

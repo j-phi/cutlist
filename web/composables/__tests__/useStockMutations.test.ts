@@ -1,9 +1,10 @@
 // @vitest-environment nuxt
 /**
- * useStockMutations owns the policy that a stock material rename or delete
- * must cascade into `colorMap` (which references stock by name). Without the
- * cascade, BOM color→material assignments silently orphan, leaving stale
- * names in the BOM dropdown selection.
+ * useStockMutations owns the policy that a stock material *category* rename or
+ * delete cascades into `colorMap` (which references stock by category) — but
+ * ONLY when no other entry still uses that category. Categories are shared
+ * many-to-many across stock items, so a live category must keep its color
+ * mapping even after one card that used it changes or is removed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
@@ -75,11 +76,12 @@ afterEach(() => {
 });
 
 describe('useStockMutations', () => {
-  it('renaming a material rewrites every colorMap reference to the new name in the same patch', async () => {
+  it('recategorizing the only entry in a category rewrites its colorMap references', async () => {
+    // Plywood is used by exactly one entry (idx 0). Recategorizing it means the
+    // old category no longer exists, so its color mappings must follow.
     const { update } = useStockMutations();
     update(0, { kind: 'sheet', material: 'PlywoodX', sizes: [] });
 
-    // Synchronous: BOM dropdown / select model-values see the new name now.
     expect(activeProject.value!.colorMap).toEqual({
       red: 'PlywoodX',
       blue: 'MDF',
@@ -94,7 +96,27 @@ describe('useStockMutations', () => {
     });
   });
 
-  it('deleting a material drops every colorMap entry pointing to it in the same patch', async () => {
+  it('recategorizing one of several entries in a shared category leaves colorMap alone', async () => {
+    // Two cards share "Plywood"; recategorizing one keeps the category alive on
+    // the other, so the BOM color→Plywood mapping must NOT be rewritten.
+    activeProject.value!.stocks = [
+      { kind: 'sheet', material: 'Plywood', sizes: [] },
+      { kind: 'sheet', material: 'Plywood', sizes: [] },
+    ];
+    const { update } = useStockMutations();
+    update(0, { kind: 'sheet', material: 'Birch', sizes: [] });
+
+    expect(activeProject.value!.colorMap).toEqual({
+      red: 'Plywood',
+      blue: 'MDF',
+      green: 'Plywood',
+    });
+
+    await vi.advanceTimersByTimeAsync(400);
+    expect(updateCalls.some((c) => c.patch.colorMap)).toBe(false);
+  });
+
+  it('deleting the only entry in a category drops its colorMap entries', async () => {
     const { remove } = useStockMutations();
     remove(0);
 
@@ -108,7 +130,38 @@ describe('useStockMutations', () => {
     });
   });
 
-  it('updating a row without renaming leaves colorMap alone', async () => {
+  it('deleting one entry from a shared category keeps its colorMap entries', async () => {
+    activeProject.value!.stocks = [
+      { kind: 'sheet', material: 'Plywood', sizes: [] },
+      { kind: 'sheet', material: 'Plywood', sizes: [] },
+    ];
+    const { remove } = useStockMutations();
+    remove(0);
+
+    // Plywood still lives on the surviving entry, so its colors stay mapped.
+    expect(activeProject.value!.colorMap).toEqual({
+      red: 'Plywood',
+      blue: 'MDF',
+      green: 'Plywood',
+    });
+
+    await vi.advanceTimersByTimeAsync(400);
+    expect(updateCalls.some((c) => c.patch.colorMap)).toBe(false);
+  });
+
+  it('appends added matrices verbatim — categories and names are never auto-suffixed', () => {
+    const { add } = useStockMutations();
+    add([
+      { kind: 'sheet', name: 'Door offcut', material: 'Plywood', sizes: [] },
+      { kind: 'sheet', name: 'Door offcut', material: 'Plywood', sizes: [] },
+    ]);
+
+    const added = activeProject.value!.stocks.slice(-2);
+    expect(added.map((s) => s.material)).toEqual(['Plywood', 'Plywood']);
+    expect(added.map((s) => s.name)).toEqual(['Door offcut', 'Door offcut']);
+  });
+
+  it('updating a row without changing its category leaves colorMap alone', async () => {
     const { update } = useStockMutations();
     update(0, {
       kind: 'sheet',
@@ -123,6 +176,6 @@ describe('useStockMutations', () => {
     });
 
     await vi.advanceTimersByTimeAsync(400);
-    expect(updateCalls[0].patch.colorMap).toBeUndefined();
+    expect(updateCalls[0]?.patch.colorMap).toBeUndefined();
   });
 });

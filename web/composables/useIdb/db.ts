@@ -20,6 +20,8 @@ import {
   migrateProjectScalarsToUm,
   migrateModelToV5,
   migrateProjectStockToArray,
+  migrateProjectStockRoles,
+  migrateProjectStockNames,
 } from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
@@ -139,6 +141,34 @@ export class CutlistDB extends Dexie {
             Object.assign(p, migrateProjectStockToArray(p));
             // Object.assign can't remove the now-stale `stock` key.
             delete p.stock;
+          });
+      });
+
+    // v7 — stock entries gain a `role` tier ('offcut' | 'general'). Pre-v7
+    // stock is all general (infinite); stamp the default. The export pipeline
+    // runs the same transform via `migrateProjectStockRoles`.
+    this.version(7)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateProjectStockRoles(p));
+          });
+      });
+
+    // v8 — stock gains a per-item `name`; `material` becomes a category. The
+    // old `material` string moves to `name` and `material` resets to
+    // 'Uncategorized'. Export pipeline mirrors via `migrateProjectStockNames`.
+    this.version(8)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateProjectStockNames(p));
           });
       });
   }

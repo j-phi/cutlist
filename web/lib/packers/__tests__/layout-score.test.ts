@@ -10,6 +10,7 @@ const stock10x10: SheetStock = {
   thickness: um(18_000),
   width: um(10),
   length: um(10),
+  role: 'general',
 };
 
 function part(id: number): PartToCut {
