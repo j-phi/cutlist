@@ -20,26 +20,27 @@ const ALGORITHM_ITEMS = [
 ];
 
 // Drag-and-drop state
-let dragFromIndex = -1;
+let dragPassId = '';
 
 function onDragStart(index: number) {
-  dragFromIndex = index;
+  dragPassId = passOrder.value[index] ?? '';
 }
 
-function onDragOver(e: DragEvent, index: number) {
+function onDragOver(e: DragEvent, toIndex: number) {
   e.preventDefault();
-  if (dragFromIndex === -1 || dragFromIndex === index) return;
-  reorderPass(dragFromIndex, index);
-  dragFromIndex = index;
+  if (!dragPassId) return;
+  const fromIndex = passOrder.value.indexOf(dragPassId);
+  if (fromIndex === -1 || fromIndex === toIndex) return;
+  reorderPass(fromIndex, toIndex);
 }
 
 function onDrop(e: DragEvent) {
   e.preventDefault();
-  dragFromIndex = -1;
+  dragPassId = '';
 }
 
 function onDragEnd() {
-  dragFromIndex = -1;
+  dragPassId = '';
 }
 </script>
 

@@ -127,6 +127,18 @@ describe('OptimizationSettingsPopover', () => {
     expect(lastToggle.attributes('disabled')).toBeDefined();
   });
 
+  it('reorders passes via drag-and-drop: calls reorderPass with correct from/to indices', async () => {
+    const wrapper = getComponent();
+    const rows = wrapper.findAll('[data-testid^="pass-row-"]');
+
+    // Drag row 0 to row 2
+    await rows[0].trigger('dragstart', { dataTransfer: { setData: () => {} } });
+    await rows[2].trigger('dragover', { preventDefault: () => {} });
+
+    // reorderPass should have been called with (0, 2)
+    expect(reorderPass).toHaveBeenCalledWith(0, 2);
+  });
+
   it('calls resetToDefaults when the Reset button is clicked', async () => {
     const wrapper = getComponent();
     await wrapper.find('[data-testid="btn-reset"]').trigger('click');

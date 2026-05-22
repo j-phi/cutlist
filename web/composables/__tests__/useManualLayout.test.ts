@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { nextTick } from 'vue';
+import { effectScope, nextTick } from 'vue';
 import type {
   Micrometres,
   SheetBoardLayout,
@@ -247,6 +247,21 @@ describe('useManualLayout', () => {
       expect(api.canUndo.value).toBe(true);
       expect(api.canRedo.value).toBe(false);
     });
+
+    it('movePart stores snapshots independently — mutating overrides does not corrupt history', () => {
+      api.movePart(1, 1, 0, 0, 0);
+      const tip = api.overrides.value; // reference to current override array
+
+      api.movePart(2, 1, 0, 0, 0); // push second move
+      // tip should still reflect only the first move's state
+      expect(tip).toHaveLength(1);
+      expect(tip[0].partNumber).toBe(1);
+
+      // Undo should restore to first move (1 entry)
+      api.undo();
+      expect(api.overrides.value).toHaveLength(1);
+      expect(api.overrides.value[0].partNumber).toBe(1);
+    });
   });
 
   describe('text selection disabled during drag', () => {
@@ -262,6 +277,20 @@ describe('useManualLayout', () => {
       api.isDragging.value = false;
       await nextTick();
       expect(document.body.style.userSelect).toBe('');
+    });
+
+    it('isDragging watcher survives component scope disposal (effectScope(true))', async () => {
+      // Simulate a component scope being created and destroyed
+      const componentScope = effectScope();
+      componentScope.run(() => {
+        useManualLayout(); // re-call — should not install a second watcher, but verify the existing one survives
+      });
+      componentScope.stop(); // simulate component unmount
+
+      // The module-level watcher should still be active
+      api.isDragging.value = true;
+      await nextTick();
+      expect(document.body.style.userSelect).toBe('none');
     });
   });
 });

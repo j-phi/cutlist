@@ -145,14 +145,17 @@ function startPartDrag(
   }
 
   const onUp = (e: PointerEvent) => {
-    document.removeEventListener('pointerup', onUp);
     cleanup();
 
     // Temporarily hide the ghost so elementsFromPoint sees the board underneath.
     const ghost = ghostEl.value;
-    if (ghost) ghost.style.display = 'none';
-    const els = document.elementsFromPoint(e.clientX, e.clientY);
-    if (ghost) ghost.style.display = '';
+    let els: Element[] = [];
+    try {
+      if (ghost) ghost.style.display = 'none';
+      els = document.elementsFromPoint(e.clientX, e.clientY);
+    } finally {
+      if (ghost) ghost.style.display = '';
+    }
 
     const boardEl = els.find(
       (el) => (el as HTMLElement).dataset?.boardIndex != null,

@@ -32,7 +32,7 @@ const settingsOpen = ref(false);
 </script>
 
 <template>
-  <div v-if="!isLoading" class="flex items-center gap-3 flex-wrap">
+  <div v-if="!isLoading" class="relative flex items-center gap-3 flex-wrap">
     <!-- Optimize button -->
     <UButton
       size="xs"
