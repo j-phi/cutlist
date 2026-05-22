@@ -4,12 +4,12 @@ import { umToMm, type Micrometres, type SheetBoardLayout } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
 import type { PdfScale } from '../exportPdf';
 import {
-  A4_H_MM,
-  A4_W_MM,
   BOARD_TITLE_BAND_MM,
   FOOTER_BAND_MM,
   HEADER_BAND_MM,
   LEGEND_BAND_MM,
+  LETTER_H_MM,
+  LETTER_W_MM,
   MM,
 } from './constants';
 import { addPage, type Ctx } from './context';
@@ -45,8 +45,8 @@ export function drawBoardTiles(
 
   // Decide page orientation per board so the board fills as much as possible
   const landscape = paperWmm > paperHmm;
-  const pageWmm = landscape ? A4_H_MM : A4_W_MM;
-  const pageHmm = landscape ? A4_W_MM : A4_H_MM;
+  const pageWmm = landscape ? LETTER_H_MM : LETTER_W_MM;
+  const pageHmm = landscape ? LETTER_W_MM : LETTER_H_MM;
 
   const margin = ctx.opts.margin;
   const overlap = ctx.opts.tileOverlap;
@@ -155,24 +155,20 @@ function drawBoardTilePage(
   const tileHpt = geom.printableHmm * MM;
   const tileXpt = tileXmm * MM;
   const tileYpt = tileYmm * MM;
+  const tileTopYpt = tileYpt + tileHpt;
 
-  // Tile origin in board-paper coordinates (bottom-left of board)
-  // Board paper origin matches bottom-left at (tileXpt, tileYpt) for tile (0,0).
-  // For each tile we shift the board left/up so that the visible portion
-  // corresponds to (col*step, row*step) of the board.
   const stepWpt = (geom.printableWmm - overlap) * MM;
   const stepHpt = (geom.printableHmm - overlap) * MM;
-  const offsetXpt = col * stepWpt;
-  const offsetYpt = row * stepHpt;
 
   // Board outline in board-paper coordinates
   const boardWpt = geom.paperWmm * MM;
   const boardHpt = geom.paperHmm * MM;
 
-  // Translate board into page coordinates (bottom-left origin = tile origin
-  // minus offset).
-  const boardX = tileXpt - offsetXpt;
-  const boardY = tileYpt - offsetYpt;
+  // Anchor the board's top-left to the tile's top-left for tile (0,0).
+  // Each column step shifts the board left; each row step shifts it up so
+  // the next section below is revealed in the fixed tile window.
+  const boardX = tileXpt - col * stepWpt;
+  const boardY = tileTopYpt - boardHpt + row * stepHpt;
 
   // Clip everything to the tile rectangle by drawing a clip box. pdf-lib
   // doesn't directly expose clipping for us, so we instead draw all rects with

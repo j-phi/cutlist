@@ -3,10 +3,10 @@
  */
 export const MM = 2.83464566929;
 
-/** ISO 216 A4 width in mm. */
-export const A4_W_MM = 210;
-/** ISO 216 A4 height in mm. */
-export const A4_H_MM = 297;
+/** US Letter width in mm (8.5 in). */
+export const LETTER_W_MM = 215.9;
+/** US Letter height in mm (11 in). */
+export const LETTER_H_MM = 279.4;
 
 /** Vertical space reserved for the page header (title + date + rule). */
 export const HEADER_BAND_MM = 12;

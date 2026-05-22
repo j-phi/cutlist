@@ -3,10 +3,10 @@ import type { PDFPage } from 'pdf-lib';
 import type { BoardLayoutLeftover, Micrometres } from 'cutlist';
 import { groupPartsByNumber } from '~/lib/utils/bom-utils';
 import {
-  A4_H_MM,
-  A4_W_MM,
   FOOTER_BAND_MM,
   HEADER_BAND_MM,
+  LETTER_H_MM,
+  LETTER_W_MM,
   MM,
 } from './constants';
 import { addPage, type Ctx } from './context';
@@ -40,24 +40,24 @@ export function aggregateBom(
 export function drawBomPages(ctx: Ctx, rows: BomRow[]) {
   const margin = ctx.opts.margin;
   const colHeaders = ['#', 'Part Name', 'QTY', 'Material', 'Size'];
-  // Column widths in mm (must sum <= A4_W_MM - 2*margin = 190)
+  // Column widths in mm (must sum <= LETTER_W_MM - 2*margin ≈ 195.9)
   const colWidthsMm = [10, 54, 12, 44, 70];
   const rowHeightMm = 7;
   const headerRowHeightMm = 8;
   const titleAreaMm = 10;
 
   const usableHMm =
-    A4_H_MM - 2 * margin - HEADER_BAND_MM - FOOTER_BAND_MM - titleAreaMm;
+    LETTER_H_MM - 2 * margin - HEADER_BAND_MM - FOOTER_BAND_MM - titleAreaMm;
   const rowsPerPage = Math.floor((usableHMm - headerRowHeightMm) / rowHeightMm);
 
   let cursor = 0;
   let pageNum = 0;
   while (cursor < rows.length || pageNum === 0) {
     pageNum++;
-    const page = addPage(ctx, { wMm: A4_W_MM, hMm: A4_H_MM });
+    const page = addPage(ctx, { wMm: LETTER_W_MM, hMm: LETTER_H_MM });
 
     // Title
-    const titleY = A4_H_MM * MM - (margin + HEADER_BAND_MM) * MM - 4 * MM;
+    const titleY = LETTER_H_MM * MM - (margin + HEADER_BAND_MM) * MM - 4 * MM;
     page.drawText('Bill of Materials', {
       x: margin * MM,
       y: titleY - 6,

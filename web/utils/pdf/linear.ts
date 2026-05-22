@@ -7,10 +7,10 @@ import {
   type Micrometres,
 } from 'cutlist';
 import {
-  A4_H_MM,
-  A4_W_MM,
   FOOTER_BAND_MM,
   HEADER_BAND_MM,
+  LETTER_H_MM,
+  LETTER_W_MM,
   MM,
 } from './constants';
 import { addPage, type Ctx } from './context';
@@ -86,8 +86,8 @@ export function drawLinearPages(ctx: Ctx, layouts: LinearBoardLayout[]): void {
 
   const { formatSize } = ctx.opts;
   const margin = ctx.opts.margin;
-  const pageWmm = A4_W_MM;
-  const pageHmm = A4_H_MM;
+  const pageWmm = LETTER_W_MM;
+  const pageHmm = LETTER_H_MM;
   const contentWmm = pageWmm - 2 * margin;
 
   // Top-of-content cursor in PDF points (measured from page top).
