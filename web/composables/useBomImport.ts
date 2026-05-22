@@ -119,6 +119,9 @@ export function useBomImport({ activeId, onModelParsed }: UseBomImportOptions) {
     importingFile,
     fileInput,
     pickFile,
+    // Exposed so callers can route a pre-filtered file list (e.g. BomTab
+    // splitting a drop into model files vs. .csv parts files).
+    importFiles,
     bind: {
       dropZone: { onDragover: onDragOver, onDragleave: onDragLeave, onDrop },
       fileInput: { onChange },

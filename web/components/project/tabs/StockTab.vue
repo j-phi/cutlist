@@ -7,6 +7,7 @@ import {
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
 import { FALLBACK_PALETTE } from '~/utils/materialColors';
 import { useStockMutations } from '~/composables/useStockMutations';
+import { useStockCsvImport } from '~/composables/useStockCsvImport';
 import ViewerSidePanel from '~/components/viewer/ViewerSidePanel.vue';
 import {
   STORAGE_KEYS,
@@ -18,6 +19,69 @@ const { stocks, distanceUnit, precision } = useProjectSettings();
 const { activeId } = useProjects();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 const { add, update, remove } = useStockMutations();
+
+// ── Bulk stock import (paste / .csv drop → sheet stock) ───────────────────────
+
+const csvImport = useStockCsvImport({
+  activeId,
+  distanceUnit: unit,
+  stocks,
+  addStock: add,
+});
+
+const showImport = ref(false);
+const pastedRows = ref('');
+
+async function onImportPaste() {
+  const text = pastedRows.value;
+  if (!text.trim()) return;
+  await csvImport.importText(text);
+  // Clear only when at least one row imported, so the user can fix and retry.
+  if (csvImport.result.value && csvImport.result.value.imported > 0) {
+    pastedRows.value = '';
+  }
+}
+
+// Reset the paste summary each time the import modal opens.
+watch(showImport, (open) => {
+  if (open) {
+    csvImport.clearResult();
+    pastedRows.value = '';
+  }
+});
+
+// ── Drag-and-drop .csv import ─────────────────────────────────────────────────
+
+const isDragging = ref(false);
+
+function hasCsv(e: DragEvent): boolean {
+  const items = e.dataTransfer?.items;
+  if (!items) return false;
+  return [...items].some((i) => i.kind === 'file');
+}
+
+function onDragover(e: DragEvent) {
+  if (!hasCsv(e)) return;
+  e.preventDefault();
+  isDragging.value = true;
+}
+
+function onDragleave(e: DragEvent) {
+  // Ignore leaves that bubble from children still inside the drop zone.
+  if (e.currentTarget && e.relatedTarget instanceof Node) {
+    if ((e.currentTarget as Node).contains(e.relatedTarget)) return;
+  }
+  isDragging.value = false;
+}
+
+async function onDrop(e: DragEvent) {
+  e.preventDefault();
+  isDragging.value = false;
+  const files = [...(e.dataTransfer?.files ?? [])].filter((f) =>
+    f.name.toLowerCase().endsWith('.csv'),
+  );
+  if (files.length) await csvImport.importFiles(files);
+}
 
 function loadHelpCollapsed(projectId: string): boolean {
   const stored = getLocalStorageJson<boolean>(
@@ -145,7 +209,35 @@ function addCustomLinear() {
 </script>
 
 <template>
-  <div class="absolute inset-0 grid overflow-hidden grid-cols-[auto_1fr]">
+  <div
+    class="absolute inset-0 grid overflow-hidden grid-cols-[auto_1fr]"
+    @dragover="onDragover"
+    @dragleave="onDragleave"
+    @drop="onDrop"
+  >
+    <Transition
+      enter-active-class="transition-opacity duration-150"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-150"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="isDragging"
+        class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-overlay border-2 border-dashed border-teal-400/50 rounded-lg m-1 pointer-events-none"
+      >
+        <div
+          class="w-14 h-14 rounded-2xl bg-teal-400/10 flex items-center justify-center"
+        >
+          <UIcon name="i-lucide-download" class="w-7 h-7 text-teal-400" />
+        </div>
+        <p class="text-sm font-semibold text-teal-400">
+          Drop a .csv stock file
+        </p>
+      </div>
+    </Transition>
+
     <ViewerSidePanel
       title="How stock works"
       :collapsed="helpCollapsed"
@@ -165,6 +257,16 @@ function addCustomLinear() {
           materials.
         </p>
         <div class="flex items-center gap-2 shrink-0">
+          <UButton
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-clipboard-paste"
+            size="sm"
+            data-testid="stock-import-csv"
+            @click="showImport = true"
+          >
+            Import CSV
+          </UButton>
           <UDropdownMenu
             :items="presetItems"
             :disabled="presetItems.length === 0"
@@ -249,5 +351,78 @@ function addCustomLinear() {
         />
       </div>
     </div>
+
+    <UModal v-model:open="showImport" :ui="{ content: 'sm:max-w-2xl' }">
+      <template #content>
+        <div
+          class="p-6 flex flex-col gap-4 bg-elevated border border-default rounded-lg"
+        >
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-hi">Import stock</h2>
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-x"
+              class="rounded-full"
+              @click="showImport = false"
+            />
+          </div>
+          <p class="text-xs text-dim">
+            Columns: Name, Width, Height, Thickness — paste from Google Sheets
+            or a CSV.
+          </p>
+          <UTextarea
+            v-model="pastedRows"
+            :rows="4"
+            class="w-full font-mono text-xs"
+            placeholder="Name	Width	Height	Thickness"
+            aria-label="Paste stock rows"
+          />
+          <div class="flex justify-end">
+            <UButton
+              size="sm"
+              :disabled="!pastedRows.trim()"
+              icon="i-lucide-clipboard-paste"
+              data-testid="stock-import-rows"
+              @click="onImportPaste"
+            >
+              Import rows
+            </UButton>
+          </div>
+
+          <div
+            v-if="csvImport.result.value"
+            class="bg-surface rounded-md p-3 flex flex-col gap-1"
+            data-testid="stock-import-summary"
+          >
+            <p class="text-sm text-body">
+              Imported {{ csvImport.result.value.imported }} stock row{{
+                csvImport.result.value.imported === 1 ? '' : 's'
+              }}.
+            </p>
+            <div
+              v-if="csvImport.result.value.errors.length"
+              class="flex flex-col gap-0.5"
+            >
+              <p class="text-xs text-muted">
+                Skipped {{ csvImport.result.value.errors.length }} row{{
+                  csvImport.result.value.errors.length === 1 ? '' : 's'
+                }}:
+              </p>
+              <ul class="flex flex-col gap-0.5">
+                <li
+                  v-for="(err, i) in csvImport.result.value.errors"
+                  :key="i"
+                  class="text-xs text-dim"
+                >
+                  Row {{ err.row }}: {{ err.message }}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

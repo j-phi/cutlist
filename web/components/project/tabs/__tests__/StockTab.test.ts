@@ -10,19 +10,48 @@ import {
 } from 'cutlist';
 
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
+import { uniqueMaterialName } from '~/composables/useStockMutations';
+import { UTextareaStub, UModalStub } from '~/test-utils/stubs';
 import StockTab from '../StockTab.vue';
 
 const stocks = ref<StockMatrix[]>([]);
 const distanceUnit = ref<'mm' | 'in'>('mm');
+const activeId = ref<string | null>('p1');
 const precision = computed(() =>
   distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
 );
+
+// `add` records into the reactive stocks list (mirrors the real mutation's
+// observable effect) so assertions are over outcome, not mock metadata.
+const addCalls: StockMatrix[][] = [];
 
 mockNuxtImport('useProjectSettings', () => () => ({
   stocks,
   distanceUnit,
   precision,
 }));
+
+mockNuxtImport('useProjects', () => () => ({ activeId }));
+
+mockNuxtImport('useStockMutations', () => () => ({
+  add: (matrices: StockMatrix[]) => {
+    addCalls.push(matrices);
+    // Mirror the real mutation's name-dedup so collision tests stay honest.
+    const list = stocks.value.slice();
+    for (const m of matrices) {
+      list.push({ ...m, material: uniqueMaterialName(m.material, list) });
+    }
+    stocks.value = list;
+  },
+  update: (idx: number, m: StockMatrix) => {
+    stocks.value = stocks.value.map((s, i) => (i === idx ? m : s));
+  },
+  remove: (idx: number) => {
+    stocks.value = stocks.value.filter((_, i) => i !== idx);
+  },
+}));
+
+mockNuxtImport('useToast', () => () => ({ add: () => {} }));
 
 const UButtonStub = defineComponent({
   inheritAttrs: false,
@@ -142,6 +171,8 @@ function getComponent() {
         UIcon: true,
         UDropdownMenu: UDropdownMenuStub,
         StockCard: StockCardStub,
+        UTextarea: UTextareaStub,
+        UModal: UModalStub,
       },
     },
   });
@@ -185,10 +216,32 @@ function clickItem(
   return button.trigger('click');
 }
 
+function fireDrop(component: ReturnType<typeof getComponent>, files: File[]) {
+  const root = component.element as HTMLElement;
+  const dt = new DataTransfer();
+  for (const f of files) dt.items.add(f);
+  const event = new DragEvent('drop', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'dataTransfer', { value: dt });
+  root.dispatchEvent(event);
+}
+
+async function flush(component: ReturnType<typeof getComponent>) {
+  await new Promise((r) => setTimeout(r, 0));
+  await component.vm.$nextTick();
+}
+
+const VALID_TSV = [
+  'Name\tWidth\tHeight\tThickness',
+  'Birch Ply\t1220mm\t2440mm\t18mm',
+  'Pine\t140mm\t3000mm\t19mm',
+].join('\n');
+
 describe('StockTab', () => {
   afterEach(() => {
     stocks.value = [];
     distanceUnit.value = 'mm';
+    activeId.value = 'p1';
+    addCalls.length = 0;
   });
 
   describe('Card list', () => {
@@ -336,6 +389,82 @@ describe('StockTab', () => {
 
       expect(stocks.value).toHaveLength(1);
       expect(stocks.value[0].kind).toBe('linear');
+    });
+  });
+
+  describe('CSV import', () => {
+    it('imports pasted TSV into sheet stock via the modal', async () => {
+      stocks.value = [];
+      const component = getComponent();
+
+      await component.find('[data-testid="stock-import-csv"]').trigger('click');
+      await component.find('textarea').setValue(VALID_TSV);
+      await component
+        .find('[data-testid="stock-import-rows"]')
+        .trigger('click');
+      await flush(component);
+
+      expect(addCalls).toHaveLength(1);
+      const matrices = addCalls[0];
+      expect(matrices).toHaveLength(2);
+      expect(matrices[0]).toMatchObject({
+        kind: 'sheet',
+        material: 'Birch Ply',
+        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+      });
+      expect(matrices[1].material).toBe('Pine');
+    });
+
+    it('renders a skipped-row summary when some rows are invalid', async () => {
+      stocks.value = [];
+      const component = getComponent();
+      const tsv = [
+        'Name\tWidth\tHeight\tThickness',
+        'Good\t1220mm\t2440mm\t18mm',
+        '\t1220mm\t2440mm\t18mm', // missing name
+      ].join('\n');
+
+      await component.find('[data-testid="stock-import-csv"]').trigger('click');
+      await component.find('textarea').setValue(tsv);
+      await component
+        .find('[data-testid="stock-import-rows"]')
+        .trigger('click');
+      await flush(component);
+
+      const summary = component.find('[data-testid="stock-import-summary"]');
+      expect(summary.exists()).toBe(true);
+      expect(summary.text()).toMatch(/Imported 1 stock row/);
+      expect(summary.text()).toMatch(/Skipped 1 row/);
+    });
+
+    it('retains the pasted text when no rows import, so the user can fix and retry', async () => {
+      stocks.value = [];
+      const component = getComponent();
+
+      await component.find('[data-testid="stock-import-csv"]').trigger('click');
+      // Header missing the required Thickness column → 0 rows imported.
+      const tsv = ['Name\tWidth\tHeight', 'Good\t1220mm\t2440mm'].join('\n');
+      const textarea = component.find('textarea');
+      await textarea.setValue(tsv);
+      await component
+        .find('[data-testid="stock-import-rows"]')
+        .trigger('click');
+      await flush(component);
+
+      expect(addCalls).toEqual([]);
+      expect((textarea.element as HTMLTextAreaElement).value).not.toBe('');
+    });
+
+    it('adds sheet stock when a .csv file is dropped', async () => {
+      stocks.value = [];
+      const component = getComponent();
+
+      fireDrop(component, [new File([VALID_TSV], 'stock.csv')]);
+      await flush(component);
+
+      expect(addCalls).toHaveLength(1);
+      expect(addCalls[0]).toHaveLength(2);
+      expect(addCalls[0][0].material).toBe('Birch Ply');
     });
   });
 });

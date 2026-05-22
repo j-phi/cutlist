@@ -80,6 +80,29 @@ export const UInputStub = defineComponent({
   },
 });
 
+export const UTextareaStub = defineComponent({
+  name: 'UTextareaStub',
+  props: {
+    modelValue: { type: String, default: '' },
+    placeholder: { type: String, default: undefined },
+    rows: { type: [String, Number], default: undefined },
+  },
+  emits: ['update:modelValue'],
+  setup(props, { attrs, emit }) {
+    return () =>
+      h('textarea', {
+        ...attrs,
+        placeholder: props.placeholder,
+        value: props.modelValue ?? '',
+        onInput: (event: Event) =>
+          emit(
+            'update:modelValue',
+            (event.target as HTMLTextAreaElement).value,
+          ),
+      });
+  },
+});
+
 /**
  * UModal — renders the `content` slot inside a `<section data-testid="modal">`
  * when open. Mirrors the v-model:open contract so tests can drive the close

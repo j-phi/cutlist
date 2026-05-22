@@ -19,7 +19,13 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 import type { StockMatrix } from 'cutlist';
 
 import BomTab from '../BomTab.vue';
-import { UButtonStub, UInputStub, UModalStub } from '~/test-utils/stubs';
+import {
+  UButtonStub,
+  UInputStub,
+  UModalStub,
+  UTextareaStub,
+} from '~/test-utils/stubs';
+import type { ManualPartInput } from '~/composables/useProjects';
 
 // ── Recording stand-ins for parsers ──────────────────────────────────────────
 //
@@ -75,6 +81,10 @@ const renameCalls: Array<{
   partNumber: number;
   name: string;
 }> = [];
+const addManualPartsCalls: Array<{
+  projectId: string;
+  inputs: ManualPartInput[];
+}> = [];
 
 mockNuxtImport('useProjects', () => () => ({
   activeProject,
@@ -87,6 +97,9 @@ mockNuxtImport('useProjects', () => () => ({
   removeModel: () => {},
   toggleModel: () => {},
   addManualPart: async () => {},
+  addManualParts: async (projectId: string, inputs: ManualPartInput[]) => {
+    addManualPartsCalls.push({ projectId, inputs });
+  },
   updateManualPart: async () => {},
   removeManualPart: async () => {},
   updatePartNameOverride: async (
@@ -181,6 +194,7 @@ mockNuxtImport('usePersistedSplitPanel', () => () => ({
 const stubs = {
   UButton: UButtonStub,
   UInput: UInputStub,
+  UTextarea: UTextareaStub,
   UIcon: true,
   UCheckbox: true,
   UModal: UModalStub,
@@ -244,6 +258,7 @@ beforeEach(() => {
   parseAssimpCalls.length = 0;
   addModelCalls.length = 0;
   renameCalls.length = 0;
+  addManualPartsCalls.length = 0;
   toastCalls.length = 0;
   activeId.value = 'project-1';
   projectModels.value = [];
@@ -299,6 +314,31 @@ describe('BomTab — drag-and-drop import', () => {
     const errToast = toastCalls.find((t) => t.color === 'error');
     expect(errToast).toBeDefined();
     expect(errToast!.description).toContain('bad gltf');
+  });
+
+  it('Should route a mixed .csv + model drop to both importers without clobbering', async () => {
+    parseGltfImpl = async () => ({ ...baseParseResult, rawSource: { v: 1 } });
+    const component = getComponent();
+
+    const csv = new File(
+      [
+        [
+          'Name\tQuantity\tLength\tWidth\tMaterial',
+          'Side\t2\t750mm\t300mm\tPlywood',
+        ].join('\n'),
+      ],
+      'parts.csv',
+    );
+    fireDrop(component, [csv, makeFile('cabinet.gltf')]);
+    await flushImport(component);
+
+    // Parts path
+    expect(addManualPartsCalls).toHaveLength(1);
+    expect(addManualPartsCalls[0].inputs[0].name).toBe('Side');
+    // Model path — still runs in the same drop
+    expect(parseGltfCalls.map((f) => f.name)).toEqual(['cabinet.gltf']);
+    expect(addModelCalls).toHaveLength(1);
+    expect(addModelCalls[0].model.source).toBe('gltf');
   });
 });
 
@@ -369,6 +409,86 @@ describe('BomTab — inline rename', () => {
 
     expect(renameCalls).toEqual([]);
     expect(toastCalls.some((t) => t.color === 'error')).toBe(true);
+  });
+});
+
+describe('BomTab — paste bulk import', () => {
+  /** Open the Add Part modal so the paste section renders. */
+  async function openModal(component: ReturnType<typeof getComponent>) {
+    (component.vm as unknown as { showAddForm: boolean }).showAddForm = true;
+    await component.vm.$nextTick();
+  }
+
+  it('Should parse pasted TSV and forward valid rows to addManualParts', async () => {
+    const component = getComponent();
+    await openModal(component);
+
+    const textarea = component.get('textarea');
+    await textarea.setValue(
+      [
+        'Name\tQuantity\tLength\tWidth\tMaterial',
+        'Side\t2\t750mm\t300mm\tPlywood',
+      ].join('\n'),
+    );
+
+    const importBtn = component
+      .findAll('button')
+      .find((b) => b.text().includes('Import rows'));
+    expect(importBtn).toBeDefined();
+    await importBtn!.trigger('click');
+    await flushImport(component);
+
+    expect(addManualPartsCalls).toHaveLength(1);
+    expect(addManualPartsCalls[0].projectId).toBe('project-1');
+    const inputs = addManualPartsCalls[0].inputs;
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0].name).toBe('Side');
+    expect(inputs[0].qty).toBe(2);
+    expect(inputs[0].material).toBe('Plywood');
+  });
+
+  it('Should render a skipped-row summary for invalid rows', async () => {
+    const component = getComponent();
+    await openModal(component);
+
+    const textarea = component.get('textarea');
+    await textarea.setValue(
+      [
+        'Name\tQuantity\tLength\tWidth\tMaterial',
+        'Good\t1\t500mm\t200mm\tOak',
+        '\t2\t500mm\t200mm\tOak', // missing name → skipped
+      ].join('\n'),
+    );
+
+    const importBtn = component
+      .findAll('button')
+      .find((b) => b.text().includes('Import rows'));
+    await importBtn!.trigger('click');
+    await flushImport(component);
+
+    expect(addManualPartsCalls[0].inputs).toHaveLength(1);
+    // The summary surfaces the skipped row to the user.
+    expect(component.text()).toContain('Skipped 1 row');
+  });
+
+  it('Should retain the pasted text when no rows import, so the user can fix and retry', async () => {
+    const component = getComponent();
+    await openModal(component);
+
+    const textarea = component.get('textarea');
+    // Header missing the required Width column → 0 rows imported.
+    await textarea.setValue(
+      ['Name\tQuantity\tLength\tMaterial', 'A\t1\t500mm\tOak'].join('\n'),
+    );
+
+    const importBtn = component
+      .findAll('button')
+      .find((b) => b.text().includes('Import rows'));
+    await importBtn!.trigger('click');
+    await flushImport(component);
+
+    expect(addManualPartsCalls).toEqual([]);
+    expect((textarea.element as HTMLTextAreaElement).value).not.toBe('');
   });
 });
 
