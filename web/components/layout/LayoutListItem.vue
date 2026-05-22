@@ -1,5 +1,9 @@
 <script lang="ts" setup>
-import type { SheetBoardLayout, SheetBoardLayoutPlacement } from 'cutlist';
+import type {
+  Micrometres,
+  SheetBoardLayout,
+  SheetBoardLayoutPlacement,
+} from 'cutlist';
 import PartListItem from './PartListItem.vue';
 
 const props = defineProps<{
@@ -12,6 +16,26 @@ const formatDistance = useFormatDistance();
 const { requestGrainLockChange } = useGrainLockConfirm();
 const { isRulerActive, getMeasurementsForBoard } = useRulerStore();
 const boardMeasurements = getMeasurementsForBoard(props.boardIndex);
+const { manualMode, isDragging } = useManualLayout();
+
+type StartPartDrag = (
+  placement: SheetBoardLayoutPlacement,
+  boardIndex: number,
+  event: PointerEvent,
+) => void;
+const startPartDrag = inject<StartPartDrag>('startPartDrag', () => {});
+
+interface DragPreview {
+  boardIndex: number;
+  leftUm: number;
+  bottomUm: number;
+  widthUm: number;
+  heightUm: number;
+}
+const dragPreview = inject<ReturnType<typeof ref<DragPreview | null>>>(
+  'dragPreview',
+  ref(null),
+);
 
 const widthPx = computed(() => getPx(props.layout.stock.widthUm));
 const heightPx = computed(() => getPx(props.layout.stock.lengthUm));
@@ -92,6 +116,31 @@ function onPointerDown(e: PointerEvent) {
   const hit = hitTest(e);
   if (hit == null) return;
   const placement = props.layout.placements[hit];
+
+  if (manualMode.value) {
+    // In manual mode: drag to move the part; stationary click does nothing.
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragStarted = false;
+
+    const onMove = (e2: PointerEvent) => {
+      if (dragStarted) return;
+      if (
+        Math.hypot(e2.clientX - startX, e2.clientY - startY) >= CLICK_THRESHOLD
+      ) {
+        dragStarted = true;
+        startPartDrag(placement, props.boardIndex, e2);
+      }
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    return;
+  }
+
   const startX = e.clientX;
   const startY = e.clientY;
   document.addEventListener(
@@ -110,11 +159,28 @@ function onPointerDown(e: PointerEvent) {
   );
 }
 
-const hoveredPlacement = computed<SheetBoardLayoutPlacement | null>(() =>
-  hoveredIndex.value != null
+const hoveredPlacement = computed<SheetBoardLayoutPlacement | null>(() => {
+  if (isDragging.value) return null;
+  return hoveredIndex.value != null
     ? (props.layout.placements[hoveredIndex.value] ?? null)
-    : null,
+    : null;
+});
+
+// Drop preview for this board during a drag.
+const showPreview = computed(
+  () => dragPreview.value?.boardIndex === props.boardIndex,
 );
+
+const previewStyle = computed(() => {
+  if (!showPreview.value || !dragPreview.value) return null;
+  const dp = dragPreview.value;
+  return {
+    left: getPx(dp.leftUm as Micrometres),
+    bottom: getPx(dp.bottomUm as Micrometres),
+    width: getPx(dp.widthUm as Micrometres),
+    height: getPx(dp.heightUm as Micrometres),
+  };
+});
 
 // Tooltip tracks the mouse cursor (teleported to body, fixed position).
 const { x: mouseX, y: mouseY } = useMouse();
@@ -133,6 +199,7 @@ const { x: mouseX, y: mouseY } = useMouse();
       ref="board"
       class="rounded relative shadow-lg shadow-black/30"
       :style="boardStyle"
+      :data-board-index="boardIndex"
       @pointermove="onPointerMove"
       @pointerleave="onPointerLeave"
       @pointerdown="onPointerDown"
@@ -157,6 +224,20 @@ const { x: mouseX, y: mouseY } = useMouse();
         v-if="isRulerActive || boardMeasurements.length > 0"
         :layout="layout"
         :board-index="boardIndex"
+      />
+      <!-- Snap indicator: shown while dragging a part over this board -->
+      <div
+        v-if="showPreview && previewStyle"
+        data-snap-indicator
+        class="absolute rounded-xs pointer-events-none border border-white/60"
+        :style="{
+          left: previewStyle.left,
+          bottom: previewStyle.bottom,
+          width: previewStyle.width,
+          height: previewStyle.height,
+          background: 'var(--part-color)',
+          opacity: '0.35',
+        }"
       />
     </div>
     <Teleport to="body">
