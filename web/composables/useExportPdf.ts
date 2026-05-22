@@ -8,7 +8,7 @@ export default function () {
   const { activeProject } = useProjects();
   const { allRows } = useBomRows();
   const formatDistance = useFormatDistance();
-  const { showPartNumbers } = useProjectSettings();
+  const { showPartNumbers, showBomName } = useProjectSettings();
   const { measurements } = useRulerStore();
 
   const isExporting = ref(false);
@@ -40,6 +40,7 @@ export default function () {
         leftovers: layouts.value?.leftovers ?? [],
         formatSize: formatDistance,
         showPartNumbers: !!showPartNumbers.value,
+        showBomName: !!showBomName.value,
         measurements: measurements.value,
       });
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });

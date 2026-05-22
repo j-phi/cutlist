@@ -248,12 +248,17 @@ function drawStick(
     }
     const lengthLabel = formatSize(placement.lengthUm) ?? '';
     const showNumbers = ctx.opts.showPartNumbers;
-    const fullLabel = showNumbers
-      ? `${placement.partNumber} · ${lengthLabel}`
-      : lengthLabel;
-    const fallbackLabel = showNumbers
-      ? String(placement.partNumber)
-      : lengthLabel;
+    const showName = ctx.opts.showBomName;
+    const labelParts: string[] = [];
+    if (showNumbers) labelParts.push(String(placement.partNumber));
+    if (showName && placement.name) labelParts.push(placement.name);
+    labelParts.push(lengthLabel);
+    const fullLabel = labelParts.join(' · ');
+    const fallbackParts: string[] = [];
+    if (showNumbers) fallbackParts.push(String(placement.partNumber));
+    if (showName && placement.name) fallbackParts.push(placement.name);
+    const fallbackLabel =
+      fallbackParts.length > 0 ? fallbackParts.join(' · ') : lengthLabel;
     const fullW = ctx.font.widthOfTextAtSize(fullLabel, chipFontSize);
     const fallbackW = ctx.font.widthOfTextAtSize(fallbackLabel, chipFontSize);
     const padding = 2;

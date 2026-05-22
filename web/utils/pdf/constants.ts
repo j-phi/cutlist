@@ -12,7 +12,7 @@ export const A4_H_MM = 297;
 export const HEADER_BAND_MM = 12;
 /** Vertical space reserved below the content area (currently unused). */
 export const FOOTER_BAND_MM = 0;
-/** Vertical space for the per-board material/size subtitle line. */
-export const BOARD_TITLE_BAND_MM = 8;
+/** Vertical space for the per-board stock name + material/size subtitle lines. */
+export const BOARD_TITLE_BAND_MM = 16;
 /** Horizontal space reserved for a side legend column (currently unused). */
 export const LEGEND_BAND_MM = 0;

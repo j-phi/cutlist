@@ -131,7 +131,9 @@ watch(showAddForm, (open) => {
 
 // ── Materials list ───────────────────────────────────────────────────────────
 
-const materials = computed(() => stocks.value.map((s) => s.material));
+const materials = computed(() => [
+  ...new Set(stocks.value.map((s) => s.material).filter(Boolean)),
+]);
 
 // ── Manual part tracking ─────────────────────────────────────────────────────
 
@@ -227,7 +229,96 @@ function formatDim(um: Micrometres | undefined | null): string {
   return s.replace(/\s*"$/, '');
 }
 
-const tableColspan = computed(() => (showModelColumn.value ? 8 : 7));
+const tableColspan = computed(() => (showModelColumn.value ? 9 : 8));
+
+// ── Bulk selection ───────────────────────────────────────────────────────────
+
+const selectedPartNumbers = reactive(new Set<number>());
+
+// All manual part numbers currently visible (across all filteredGroups)
+const allVisibleManualPns = computed(() => {
+  const result = new Set<number>();
+  for (const group of filteredGroups.value) {
+    for (const row of group.rows) {
+      if (row.isManual) result.add(row.number);
+    }
+  }
+  return result;
+});
+
+// Are all visible manual rows selected?
+const isAllSelected = computed(
+  () =>
+    allVisibleManualPns.value.size > 0 &&
+    [...allVisibleManualPns.value].every((pn) => selectedPartNumbers.has(pn)),
+);
+
+// How many selected rows are manual (editable)?
+const selectedEditableCount = computed(() => {
+  let count = 0;
+  for (const pn of selectedPartNumbers) {
+    if (manualPartNumbers.value.has(pn)) count++;
+  }
+  return count;
+});
+
+function toggleSelectAll() {
+  if (selectedPartNumbers.size > 0) {
+    selectedPartNumbers.clear();
+  } else {
+    for (const pn of allVisibleManualPns.value) {
+      selectedPartNumbers.add(pn);
+    }
+  }
+}
+
+function toggleRowSelection(pn: number) {
+  if (selectedPartNumbers.has(pn)) {
+    selectedPartNumbers.delete(pn);
+  } else {
+    selectedPartNumbers.add(pn);
+  }
+}
+
+function clearSelection() {
+  selectedPartNumbers.clear();
+}
+
+async function handleBulkApply(patch: {
+  material?: string;
+  lengthUm?: Micrometres;
+  widthUm?: Micrometres;
+  thicknessUm?: Micrometres;
+}) {
+  if (!activeId.value) return;
+  const pid = activeId.value;
+  for (const pn of selectedPartNumbers) {
+    if (!manualPartNumbers.value.has(pn)) continue;
+    const existing = getManualEditInfo(pn);
+    if (!existing) continue;
+    await updateManualPart(pid, pn - manualPartOffset.value, {
+      name: existing.name,
+      qty: existing.qty,
+      widthUm: patch.widthUm ?? existing.widthUm,
+      lengthUm: patch.lengthUm ?? existing.lengthUm,
+      thicknessUm: patch.thicknessUm ?? existing.thicknessUm,
+      material: patch.material ?? existing.material,
+      grainLock: existing.grainLock,
+    });
+  }
+  clearSelection();
+}
+
+async function handleBulkDelete() {
+  if (!activeId.value) return;
+  const toDelete = [...selectedPartNumbers].filter((pn) =>
+    manualPartNumbers.value.has(pn),
+  );
+  clearSelection();
+  for (const pn of toDelete) {
+    await handleRemovePart(pn);
+  }
+}
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -496,6 +587,17 @@ onUnmounted(() => {
               />
             </div>
 
+            <!-- Bulk edit bar — shown when items are selected -->
+            <BulkEditBar
+              v-if="selectedPartNumbers.size > 0"
+              :selected-count="selectedPartNumbers.size"
+              :editable-count="selectedEditableCount"
+              :materials="materials"
+              @apply="handleBulkApply"
+              @delete="handleBulkDelete"
+              @clear="clearSelection"
+            />
+
             <!-- Table owns its horizontal scroll so the search / summary
                  bar above stays anchored on narrow viewports. -->
             <div v-if="filteredGroups.length > 0" class="overflow-x-auto">
@@ -507,6 +609,19 @@ onUnmounted(() => {
                   class="sticky top-0 z-10 bg-base shadow-[inset_0_-1px_0_var(--color-mist-800)]"
                 >
                   <tr>
+                    <th class="pl-4 pr-1 py-2.5 w-8">
+                      <input
+                        type="checkbox"
+                        :checked="isAllSelected"
+                        :indeterminate="
+                          selectedPartNumbers.size > 0 && !isAllSelected
+                        "
+                        :disabled="allVisibleManualPns.size === 0"
+                        aria-label="Select all manual parts"
+                        class="w-4 h-4 rounded accent-teal-400 cursor-pointer disabled:opacity-30 disabled:cursor-default"
+                        @change="toggleSelectAll"
+                      />
+                    </th>
                     <BomSortableHeader
                       column-key="number"
                       label="#"
@@ -647,6 +762,17 @@ onUnmounted(() => {
                         @mouseleave="onRowLeave(row)"
                         @click="onRowClick(row, $event)"
                       >
+                        <td class="pl-4 pr-1 py-2 md:py-2.5" @click.stop>
+                          <input
+                            v-if="row.isManual"
+                            type="checkbox"
+                            :checked="selectedPartNumbers.has(row.number)"
+                            :aria-label="`Select ${row.name}`"
+                            class="w-4 h-4 rounded accent-teal-400 cursor-pointer"
+                            @change="toggleRowSelection(row.number)"
+                          />
+                          <span v-else class="block w-4" />
+                        </td>
                         <td
                           class="pl-4 pr-2 md:pl-5 md:pr-4 py-2 md:py-2.5 text-muted tabular-nums"
                         >
@@ -743,11 +869,14 @@ onUnmounted(() => {
                               </button>
                               <button
                                 type="button"
-                                class="p-0.5 rounded-full text-dim hover:text-muted opacity-0 group-hover/row:opacity-100 transition-opacity"
-                                title="Remove part"
+                                class="p-0.5 rounded-full text-dim hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                title="Delete part"
                                 @click="handleRemovePart(row.number)"
                               >
-                                <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
+                                <UIcon
+                                  name="i-lucide-trash-2"
+                                  class="w-3.5 h-3.5"
+                                />
                               </button>
                             </template>
                           </div>

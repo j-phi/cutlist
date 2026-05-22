@@ -18,6 +18,7 @@ const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
 const margin = ref<Micrometres | undefined>(mmToUm(0));
 const defaultAlgorithm = ref<Algorithm | undefined>('auto');
 const showPartNumbers = ref<boolean | undefined>(true);
+const showBomName = ref<boolean | undefined>(true);
 const stock = ref<string | undefined>('');
 const isLoading = ref(false);
 const precision = computed(() =>
@@ -30,6 +31,7 @@ mockNuxtImport('useProjectSettings', () => () => ({
   margin,
   defaultAlgorithm,
   showPartNumbers,
+  showBomName,
   stock,
   isLoading,
   precision,
@@ -104,6 +106,7 @@ describe('PreviewToolbar', () => {
     margin.value = mmToUm(0);
     defaultAlgorithm.value = 'auto';
     showPartNumbers.value = true;
+    showBomName.value = true;
     isLoading.value = false;
   });
 
@@ -133,7 +136,7 @@ describe('PreviewToolbar', () => {
 
       expect(component.find('select').exists()).toBe(true);
       expect(component.findAll('input[type="text"]')).toHaveLength(2);
-      expect(component.findAll('input[type="checkbox"]')).toHaveLength(1);
+      expect(component.findAll('input[type="checkbox"]')).toHaveLength(2);
     });
   });
 

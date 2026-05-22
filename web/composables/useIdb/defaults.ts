@@ -32,6 +32,7 @@ export function applyProjectDefaults(
     margin: p.margin ?? DEFAULT_SETTINGS.margin,
     defaultAlgorithm: p.defaultAlgorithm ?? DEFAULT_SETTINGS.defaultAlgorithm,
     showPartNumbers: p.showPartNumbers ?? DEFAULT_SETTINGS.showPartNumbers,
+    showBomName: p.showBomName ?? DEFAULT_SETTINGS.showBomName,
   } as IdbProject;
 }
 

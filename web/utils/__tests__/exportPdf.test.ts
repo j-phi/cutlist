@@ -26,6 +26,7 @@ function makeOptions(overrides?: Partial<ExportPdfOptions>): ExportPdfOptions {
     leftovers,
     formatSize,
     showPartNumbers: true,
+    showBomName: true,
     ...overrides,
   };
 }
@@ -263,11 +264,13 @@ describe('exportCutlistPdf', () => {
         kind: 'linear',
         wasteEndUm: 0.2 as Micrometres,
         stock: {
+          name: 'Pine 2x4',
           material: 'Pine 2x4',
           crossSectionWidthUm: 0.0381 as Micrometres,
           crossSectionThicknessUm: 0.0889 as Micrometres,
           lengthUm: 2.4384 as Micrometres,
           color: '#dcc391',
+          role: 'general',
         },
         placements: [
           {
@@ -298,11 +301,13 @@ describe('exportCutlistPdf', () => {
         kind: 'linear',
         wasteEndUm: 0.4 as Micrometres,
         stock: {
+          name: 'Pine 2x4',
           material: 'Pine 2x4',
           crossSectionWidthUm: 0.0381 as Micrometres,
           crossSectionThicknessUm: 0.0889 as Micrometres,
           lengthUm: 3.048 as Micrometres,
           color: '#dcc391',
+          role: 'general',
         },
         placements: [
           {
@@ -342,10 +347,12 @@ describe('exportCutlistPdf', () => {
         kind: 'linear',
         wasteEndUm: 0 as Micrometres,
         stock: {
+          name: 'Pine 2x6',
           material: 'Pine 2x6',
           crossSectionWidthUm: 0.0381 as Micrometres,
           crossSectionThicknessUm: 0.1397 as Micrometres,
           lengthUm: 2.4384 as Micrometres,
+          role: 'general',
         },
         placements: [],
       },
@@ -353,10 +360,12 @@ describe('exportCutlistPdf', () => {
         kind: 'linear',
         wasteEndUm: 0 as Micrometres,
         stock: {
+          name: 'Pine 2x4',
           material: 'Pine 2x4',
           crossSectionWidthUm: 0.0381 as Micrometres,
           crossSectionThicknessUm: 0.0889 as Micrometres,
           lengthUm: 2.4384 as Micrometres,
+          role: 'general',
         },
         placements: [],
       },
@@ -365,6 +374,51 @@ describe('exportCutlistPdf', () => {
     expect(result).toBeInstanceOf(Uint8Array);
     const header = new TextDecoder().decode(result.slice(0, 5));
     expect(header).toBe('%PDF-');
+  });
+
+  it('adds a sheet shopping-list section for sheet layouts', async () => {
+    // Two layouts: a general sheet that gets the buy list, vs. an empty BOM
+    // that has no sheet section at all.
+    const baseline = await exportCutlistPdf(makeOptions());
+    const withSheets = await exportCutlistPdf(
+      makeOptions({
+        layouts: [
+          {
+            stock: {
+              material: 'Plywood',
+              widthUm: 1.22 as Micrometres,
+              lengthUm: 2.44 as Micrometres,
+              thicknessUm: 0.018 as Micrometres,
+              role: 'general',
+            },
+            placements: [],
+            wasteRatio: 0,
+          },
+          {
+            stock: {
+              material: 'Plywood',
+              widthUm: 0.6 as Micrometres,
+              lengthUm: 1.2 as Micrometres,
+              thicknessUm: 0.018 as Micrometres,
+              role: 'offcut',
+            },
+            placements: [],
+            wasteRatio: 0,
+          },
+        ] as any,
+      }),
+    );
+    const header = new TextDecoder().decode(withSheets.slice(0, 5));
+    expect(header).toBe('%PDF-');
+    // Sheet section (plus the per-board tiles) must add bytes over an empty BOM.
+    expect(withSheets.length).toBeGreaterThan(baseline.length);
+  });
+
+  it('omits the sheet shopping-list section when there are no sheet layouts', async () => {
+    // No layouts at all → no sheet section, same byte count as the bare BOM.
+    const baseline = await exportCutlistPdf(makeOptions());
+    const same = await exportCutlistPdf(makeOptions({ layouts: [] }));
+    expect(same.length).toBe(baseline.length);
   });
 
   it('handles leftovers in BOM aggregation', async () => {

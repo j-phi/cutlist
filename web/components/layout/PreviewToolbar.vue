@@ -8,6 +8,7 @@ const {
   precision,
   defaultAlgorithm,
   showPartNumbers,
+  showBomName,
   isLoading,
 } = useProjectSettings();
 
@@ -73,6 +74,11 @@ const ALGORITHM_ITEMS = [
     <label class="flex items-center gap-1.5 cursor-pointer">
       <UCheckbox v-model="showPartNumbers" />
       <span class="text-xs text-muted whitespace-nowrap">Part #s</span>
+    </label>
+
+    <label class="flex items-center gap-1.5 cursor-pointer">
+      <UCheckbox v-model="showBomName" />
+      <span class="text-xs text-muted whitespace-nowrap">Part names</span>
     </label>
   </div>
 </template>

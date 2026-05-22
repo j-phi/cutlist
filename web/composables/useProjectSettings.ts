@@ -107,6 +107,14 @@ export default createSharedComposable(() => {
     },
   });
 
+  const showBomName = computed<boolean | undefined>({
+    get: () => activeProject.value?.showBomName,
+    set: (value) => {
+      if (value == null) return;
+      queueWrite({ showBomName: value });
+    },
+  });
+
   const stocks = computed<StockMatrix[]>({
     get: () => activeProject.value?.stocks ?? [],
     set: (value) => {
@@ -163,6 +171,7 @@ export default createSharedComposable(() => {
     margin,
     defaultAlgorithm,
     showPartNumbers,
+    showBomName,
     stocks,
     distanceUnit,
     precision,

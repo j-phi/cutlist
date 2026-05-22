@@ -19,6 +19,7 @@ export interface CutlistSettings {
   margin: Micrometres;
   defaultAlgorithm: Algorithm;
   showPartNumbers: boolean;
+  showBomName: boolean;
 }
 
 /** Default display precision for the given unit. */
@@ -710,4 +711,5 @@ export const DEFAULT_SETTINGS: CutlistSettings = {
   margin: um(0),
   defaultAlgorithm: 'auto',
   showPartNumbers: true,
+  showBomName: true,
 };

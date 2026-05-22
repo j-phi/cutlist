@@ -61,7 +61,7 @@ const iconSize = computed(() => {
   return `${Math.max(14, Math.min(28, raw))}px`;
 });
 
-const { showPartNumbers } = useProjectSettings();
+const { showPartNumbers, showBomName } = useProjectSettings();
 </script>
 
 <template>
@@ -97,6 +97,14 @@ const { showPartNumbers } = useProjectSettings();
         :style="`font-size:${fontSize};line-height:${fontSize}`"
       >
         {{ placement.partNumber }}
+      </p>
+      <p
+        v-if="showBomName"
+        class="absolute inset-x-0 bottom-0 text-clip part-number text-center px-px pb-px font-medium truncate"
+        :style="`font-size:${fontSize};line-height:${fontSize}`"
+        :title="placement.name"
+      >
+        {{ placement.name }}
       </p>
       <!-- Grain lock indicator (always visible when locked) -->
       <div

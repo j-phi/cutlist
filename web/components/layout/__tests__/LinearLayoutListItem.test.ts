@@ -25,6 +25,7 @@ mockNuxtImport('getMaterialColor', () => (_hex: string | undefined) => ({
 mockNuxtImport('useGetPx', () => () => (m: number) => `${m * 500}px`);
 mockNuxtImport('useProjectSettings', () => () => ({
   showPartNumbers: { value: true },
+  showBomName: { value: false },
 }));
 
 function makePlacement(
@@ -50,11 +51,13 @@ function makeLayout(
   return {
     kind: 'linear',
     stock: {
+      name: 'Leftover rail',
       material: 'Pine 2x4',
       crossSectionWidthUm: 0.089 as Micrometres,
       crossSectionThicknessUm: 0.038 as Micrometres,
       lengthUm: 2.0 as Micrometres,
       color: '#abcdef',
+      role: 'general',
     },
     placements: [makePlacement()],
     wasteEndUm: 0 as Micrometres,
@@ -141,6 +144,12 @@ describe('LinearLayoutListItem', () => {
     expect(text).toContain('2000mm');
     expect(text).toContain('2 cuts');
     expect(text).toContain('500mm waste');
+  });
+
+  it('renders the stock name and material category in the header', () => {
+    const text = getComponent(makeLayout()).text();
+    expect(text).toContain('Leftover rail');
+    expect(text).toContain('Pine 2x4');
   });
 
   it('renders the stick at absolute pixel scale matching the sheet renderer', () => {

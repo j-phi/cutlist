@@ -10,6 +10,7 @@ import { drawBomPages, type BomRow } from './pdf/bom';
 import { drawBoardTiles } from './pdf/board';
 import type { Ctx } from './pdf/context';
 import { drawLinearPages } from './pdf/linear';
+import { drawSheetShoppingPages } from './pdf/sheets';
 
 export type PdfScale = 1 | 5 | 10 | 20 | 50;
 
@@ -31,6 +32,7 @@ export interface ExportPdfOptions {
   leftovers: BoardLayoutLeftover[];
   formatSize: (um: Micrometres) => string | undefined;
   showPartNumbers: boolean;
+  showBomName: boolean;
   measurements?: RulerMeasurement[];
 }
 
@@ -58,6 +60,11 @@ export async function exportCutlistPdf(
 
   // Page 1+: BOM
   drawBomPages(ctx, opts.bomRows);
+
+  // Sheet shopping list — how many sheets to buy, per material+thickness.
+  // Project stock isn't plumbed into export options, so this reports offcuts
+  // used (not total available); the aggregator falls back gracefully.
+  drawSheetShoppingPages(ctx, opts.layouts);
 
   // Pages: each board, possibly tiled
   const measurements = opts.measurements ?? [];

@@ -40,6 +40,8 @@ export interface IdbProject {
   defaultAlgorithm: Algorithm;
   /** Whether to render part numbers in visualizations. */
   showPartNumbers: boolean;
+  /** Whether to render BOM part names on layout pieces. */
+  showBomName: boolean;
   createdAt: string;
   updatedAt: string;
 }

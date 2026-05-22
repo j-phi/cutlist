@@ -8,7 +8,7 @@ const props = defineProps<{
 
 const formatDistance = useFormatDistance();
 const getPx = useGetPx();
-const { showPartNumbers } = useProjectSettings();
+const { showPartNumbers, showBomName } = useProjectSettings();
 
 const colors = computed(() => getMaterialColor(props.layout.stock.color));
 
@@ -46,14 +46,16 @@ const chips = computed<ChipView[]>(() => {
   if (totalUm <= 0) return [];
   return props.layout.placements.map((p) => {
     const lengthLabel = formatDistance(p.lengthUm) ?? '';
+    const parts: string[] = [];
+    if (showPartNumbers.value) parts.push(String(p.partNumber));
+    if (showBomName.value) parts.push(p.name);
+    parts.push(lengthLabel);
     return {
       key: `${p.partNumber}:${p.instanceNumber}`,
       leftPct: (p.offsetUm / totalUm) * 100,
       widthPct: (p.lengthUm / totalUm) * 100,
       allowancePct: (p.allowanceLengthUm / p.lengthUm) * 100,
-      label: showPartNumbers.value
-        ? `${p.partNumber} · ${lengthLabel}`
-        : lengthLabel,
+      label: parts.join(' · '),
     };
   });
 });
@@ -71,13 +73,22 @@ const wasteStyle = computed(() => {
 <template>
   <li
     class="flex flex-col gap-2 linear-stick"
-    :aria-label="`Stick ${boardIndex + 1}: ${layout.stock.material} ${length}`"
+    :aria-label="`Stick ${boardIndex + 1}: ${layout.stock.name} (${layout.stock.material}) ${length}`"
   >
     <div
       class="text-xs text-muted flex items-center gap-2 zoom-stable origin-bottom-left"
     >
       <span>#{{ boardIndex + 1 }}</span>
+      <span class="text-body font-medium">{{ layout.stock.name }}</span>
+      <span>{{ layout.stock.material }}</span>
+      <span aria-hidden="true">&middot;</span>
       <span>{{ length }} stick</span>
+      <span
+        v-if="layout.stock.role === 'offcut'"
+        class="text-[10px] font-semibold leading-none px-1.5 py-1 rounded bg-amber-500/20 text-amber-400 uppercase tracking-wider"
+        title="From your existing offcut inventory"
+        >Offcut</span
+      >
       <span aria-hidden="true">&middot;</span>
       <span>{{ cutCount }} {{ cutCount === 1 ? 'cut' : 'cuts' }}</span>
       <template v-if="wasteLabel">

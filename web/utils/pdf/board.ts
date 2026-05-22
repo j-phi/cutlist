@@ -1,4 +1,4 @@
-import { rgb } from 'pdf-lib';
+import { degrees, rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
 import { umToMm, type Micrometres, type SheetBoardLayout } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
@@ -93,7 +93,7 @@ function drawBoardTilePage(
   geom: TileGeom,
   measurements: RulerMeasurement[],
 ) {
-  const { scale, formatSize, showPartNumbers } = ctx.opts;
+  const { scale, formatSize, showPartNumbers, showBomName } = ctx.opts;
   const margin = ctx.opts.margin;
   const overlap = ctx.opts.tileOverlap;
   const stock = layout.stock;
@@ -106,19 +106,47 @@ function drawBoardTilePage(
   const page = addPage(ctx, { wMm: geom.pageWmm, hMm: geom.pageHmm }, subtitle);
   const { width: pageW, height: pageH } = page.getSize();
 
-  // Board title line
-  const boardTitleY = pageH - (margin + HEADER_BAND_MM) * MM - 8;
+  // Board title area: two lines below the header rule.
+  const titleAreaTop = pageH - (margin + HEADER_BAND_MM) * MM;
+  const stockNameY = titleAreaTop - 13; // first line baseline
+  const materialY = titleAreaTop - 27; // second line baseline
+
+  // Line 1: stock name (prominent)
+  const stockName = (stock as { name?: string }).name || stock.material;
+  page.drawText(stockName, {
+    x: margin * MM,
+    y: stockNameY,
+    size: 12,
+    font: ctx.fontBold,
+    color: rgb(0.08, 0.08, 0.08),
+  });
+
+  // Offcut badge — amber, right-aligned on the same line as the stock name
+  const isOffcut = (stock as { role?: string }).role === 'offcut';
+  if (isOffcut) {
+    const badge = 'OFFCUT';
+    const badgeW = ctx.fontBold.widthOfTextAtSize(badge, 8);
+    page.drawText(badge, {
+      x: pageW - margin * MM - badgeW,
+      y: stockNameY + 1,
+      size: 8,
+      font: ctx.fontBold,
+      color: rgb(0.85, 0.55, 0.1),
+    });
+  }
+
+  // Line 2: material + dimensions (smaller, dimmer)
   const sizeText = `${formatSize(stock.lengthUm) ?? ''} × ${formatSize(stock.widthUm) ?? ''} × ${formatSize(stock.thicknessUm) ?? ''}`;
   page.drawText(`${stock.material}  ·  ${sizeText}`, {
     x: margin * MM,
-    y: boardTitleY,
+    y: materialY,
     size: 9,
-    font: ctx.fontBold,
-    color: rgb(0.1, 0.1, 0.1),
+    font: ctx.font,
+    color: rgb(0.35, 0.35, 0.35),
   });
 
-  // Scale legend on the right side of the board title line
-  drawScaleLegend(ctx, page, pageW, boardTitleY, scale);
+  // Scale legend on the right side of the material line
+  drawScaleLegend(ctx, page, pageW, materialY, scale);
 
   // Tile area in PDF points
   const tileXmm = margin;
@@ -219,9 +247,8 @@ function drawBoardTilePage(
         { color: ALLOWANCE_COLOR, spacing: 2, thickness: 0.3 },
       );
     }
+    // Part number — top-right corner (matches on-screen PartListItem).
     if (showPartNumbers) {
-      // Part number sizing: half part width, capped at 1 inch real-world
-      // (matches PartListItem.vue), then scaled to paper coordinates.
       const ONE_INCH_MM = 25.4;
       const realCapMm = Math.min(placedWidthMm / 2, ONE_INCH_MM);
       const fontPt = (realCapMm / scale) * MM;
@@ -235,7 +262,6 @@ function drawBoardTilePage(
       const textW = ctx.font.widthOfTextAtSize(label, usePt);
       const lx = px + pw - textW - 2;
       const ly = py + ph - usePt - 1;
-      // Only draw if visible inside tile
       if (
         lx >= tileXpt &&
         lx + textW <= tileXpt + tileWpt &&
@@ -250,6 +276,26 @@ function drawBoardTilePage(
           color: rgb(0.2, 0.2, 0.2),
         });
       }
+    }
+
+    // Part name — centered in the piece, rotated 90° for portrait pieces.
+    if (showBomName && placement.name) {
+      drawPartName(
+        ctx,
+        page,
+        placement.name,
+        px,
+        py,
+        pw,
+        ph,
+        placedWidthMm,
+        placedLengthMm,
+        scale,
+        tileXpt,
+        tileYpt,
+        tileWpt,
+        tileHpt,
+      );
     }
   }
 
@@ -267,6 +313,86 @@ function drawBoardTilePage(
       tileWpt,
       tileHpt,
     );
+  }
+}
+
+/**
+ * Draw the part name centered inside its placed rectangle.
+ * Portrait pieces (taller than wide) get the text rotated 90° CCW so it reads
+ * along the long axis without overflowing the narrow width.
+ */
+function drawPartName(
+  ctx: Ctx,
+  page: ReturnType<Ctx['doc']['addPage']>,
+  name: string,
+  px: number,
+  py: number,
+  pw: number,
+  ph: number,
+  placedWidthMm: number,
+  placedLengthMm: number,
+  scale: number,
+  tileXpt: number,
+  tileYpt: number,
+  tileWpt: number,
+  tileHpt: number,
+) {
+  const isPortrait = placedLengthMm > placedWidthMm;
+  const shortMm = Math.min(placedWidthMm, placedLengthMm);
+  const longPt = ((isPortrait ? placedLengthMm : placedWidthMm) / scale) * MM;
+
+  // Font size: cap at one-third of the shorter physical dimension, max 14pt.
+  const ONE_INCH_MM = 25.4;
+  const capMm = Math.min(shortMm / 3, ONE_INCH_MM);
+  const rawPt = (capMm / scale) * MM;
+  const namePt = Math.max(5, Math.min(14, rawPt));
+
+  const textW = ctx.font.widthOfTextAtSize(name, namePt);
+
+  // Skip if text would overflow more than 85% of the long dimension.
+  if (textW > longPt * 0.85) return;
+
+  const cx = px + pw / 2;
+  const cy = py + ph / 2;
+
+  if (isPortrait) {
+    // 90° CCW rotation: text width maps to the vertical axis, height to horizontal.
+    // Origin is placed so the visual center of the text lands at (cx, cy).
+    const originX = cx + namePt / 2;
+    const originY = cy - textW / 2;
+
+    // Verify the piece itself is at least partially inside the tile before drawing.
+    if (px + pw < tileXpt || px > tileXpt + tileWpt) return;
+    if (py + ph < tileYpt || py > tileYpt + tileHpt) return;
+
+    page.drawText(name, {
+      x: originX,
+      y: originY,
+      size: namePt,
+      font: ctx.font,
+      color: rgb(0.2, 0.2, 0.2),
+      rotate: degrees(90),
+    });
+  } else {
+    // Horizontal: center the text in the rectangle.
+    const lx = cx - textW / 2;
+    const ly = cy - namePt / 2;
+
+    // Only draw if fully inside tile.
+    if (
+      lx >= tileXpt &&
+      lx + textW <= tileXpt + tileWpt &&
+      ly >= tileYpt &&
+      ly + namePt <= tileYpt + tileHpt
+    ) {
+      page.drawText(name, {
+        x: lx,
+        y: ly,
+        size: namePt,
+        font: ctx.font,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+    }
   }
 }
 
