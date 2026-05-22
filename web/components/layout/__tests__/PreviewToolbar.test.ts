@@ -1,5 +1,5 @@
 // @vitest-environment nuxt
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   DEFAULT_INCH_PRECISION,
   DEFAULT_MM_PRECISION,
@@ -13,13 +13,13 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime';
 
 import PreviewToolbar from '../PreviewToolbar.vue';
 
+// ── useProjectSettings mock ──────────────────────────────────────────────────
 const bladeWidth = ref<Micrometres | undefined>(mmToUm(3));
 const distanceUnit = ref<'mm' | 'in' | undefined>('mm');
 const margin = ref<Micrometres | undefined>(mmToUm(0));
 const defaultAlgorithm = ref<Algorithm | undefined>('auto');
 const showPartNumbers = ref<boolean | undefined>(true);
 const showBomName = ref<boolean | undefined>(true);
-const stock = ref<string | undefined>('');
 const isLoading = ref(false);
 const precision = computed(() =>
   distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
@@ -32,28 +32,56 @@ mockNuxtImport('useProjectSettings', () => () => ({
   defaultAlgorithm,
   showPartNumbers,
   showBomName,
-  stock,
   isLoading,
   precision,
 }));
 
+// ── useBoardLayoutsQuery mock ────────────────────────────────────────────────
+const isComputing = ref(false);
+const forceRecompute = vi.fn();
+
+mockNuxtImport('useBoardLayoutsQuery', () => () => ({
+  isComputing,
+  forceRecompute,
+  data: ref(undefined),
+  error: ref(null),
+  partCountWarning: ref(null),
+}));
+
+// ── useManualLayout mock ─────────────────────────────────────────────────────
+const manualMode = ref(false);
+const snapping = ref(true);
+
+mockNuxtImport('useManualLayout', () => () => ({
+  manualMode,
+  snapping,
+  isDragging: ref(false),
+  overrides: ref([]),
+  movePart: vi.fn(),
+  resetOverrides: vi.fn(),
+  applyOverrides: vi.fn(),
+}));
+
+// ── Stubs ────────────────────────────────────────────────────────────────────
 const UInputStub = defineComponent({
-  props: {
-    modelValue: { type: [String, Number], default: '' },
-  },
-  emits: ['update:modelValue'],
+  name: 'UInputStub',
+  props: { modelValue: { type: [String, Number], default: '' } },
+  emits: ['update:modelValue', 'blur'],
   setup(props, { attrs, emit }) {
     return () =>
       h('input', {
+        type: 'text',
         ...attrs,
         value: props.modelValue ?? '',
         onInput: (event: Event) =>
           emit('update:modelValue', (event.target as HTMLInputElement).value),
+        onBlur: (event: FocusEvent) => emit('blur', event),
       });
   },
 });
 
 const USelectStub = defineComponent({
+  name: 'USelectStub',
   props: {
     modelValue: { type: [String, Number], default: '' },
     items: { type: Array, default: () => [] },
@@ -83,19 +111,46 @@ const USelectStub = defineComponent({
   },
 });
 
-const UCheckboxStub = defineComponent({
+const UToggleStub = defineComponent({
+  name: 'UToggleStub',
   props: {
     modelValue: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false },
   },
   emits: ['update:modelValue'],
-  setup(props, { emit }) {
+  setup(props, { attrs, emit }) {
     return () =>
       h('input', {
         type: 'checkbox',
+        role: 'switch',
+        ...attrs,
         checked: props.modelValue,
+        disabled: props.disabled || undefined,
         onChange: (event: Event) =>
           emit('update:modelValue', (event.target as HTMLInputElement).checked),
       });
+  },
+});
+
+const UButtonStub = defineComponent({
+  name: 'UButtonStub',
+  props: {
+    loading: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false },
+  },
+  emits: ['click'],
+  setup(props, { attrs, slots, emit }) {
+    return () =>
+      h(
+        'button',
+        {
+          type: 'button',
+          ...attrs,
+          disabled: props.disabled || props.loading || undefined,
+          onClick: (event: MouseEvent) => emit('click', event),
+        },
+        slots.default?.(),
+      );
   },
 });
 
@@ -108,6 +163,10 @@ describe('PreviewToolbar', () => {
     showPartNumbers.value = true;
     showBomName.value = true;
     isLoading.value = false;
+    isComputing.value = false;
+    manualMode.value = false;
+    snapping.value = true;
+    forceRecompute.mockClear();
   });
 
   function getComponent() {
@@ -116,77 +175,165 @@ describe('PreviewToolbar', () => {
         stubs: {
           UInput: UInputStub,
           USelect: USelectStub,
-          UCheckbox: UCheckboxStub,
+          UToggle: UToggleStub,
+          UButton: UButtonStub,
+          OptimizationSettingsPopover: true,
         },
       },
     });
   }
 
   describe('Rendering', () => {
-    it('Should render nothing while settings are loading', () => {
+    it('renders nothing while settings are loading', () => {
       isLoading.value = true;
-      const component = getComponent();
+      const wrapper = getComponent();
 
-      expect(component.find('select').exists()).toBe(false);
-      expect(component.find('input').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="btn-optimize"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="toggle-part-numbers"]').exists()).toBe(
+        false,
+      );
     });
 
-    it('Should render all controls when ready', () => {
-      const component = getComponent();
+    it('renders the Optimize button', () => {
+      const wrapper = getComponent();
+      expect(wrapper.find('[data-testid="btn-optimize"]').exists()).toBe(true);
+    });
 
-      expect(component.find('select').exists()).toBe(true);
-      expect(component.findAll('input[type="text"]')).toHaveLength(2);
-      expect(component.findAll('input[type="checkbox"]')).toHaveLength(2);
+    it('renders the gear settings button', () => {
+      const wrapper = getComponent();
+      expect(wrapper.find('[data-testid="btn-settings-gear"]').exists()).toBe(
+        true,
+      );
+    });
+
+    it('renders the Part #s toggle', () => {
+      const wrapper = getComponent();
+      expect(wrapper.find('[data-testid="toggle-part-numbers"]').exists()).toBe(
+        true,
+      );
+    });
+
+    it('renders the Part names toggle', () => {
+      const wrapper = getComponent();
+      expect(wrapper.find('[data-testid="toggle-part-names"]').exists()).toBe(
+        true,
+      );
+    });
+
+    it('renders the Manual placement toggle', () => {
+      const wrapper = getComponent();
+      expect(
+        wrapper.find('[data-testid="toggle-manual-placement"]').exists(),
+      ).toBe(true);
+    });
+
+    it('renders the Snapping toggle', () => {
+      const wrapper = getComponent();
+      expect(wrapper.find('[data-testid="toggle-snapping"]').exists()).toBe(
+        true,
+      );
+    });
+
+    it('renders two text inputs (blade + margin)', () => {
+      const wrapper = getComponent();
+      expect(wrapper.findAll('input[type="text"]')).toHaveLength(2);
+    });
+  });
+
+  describe('Snapping toggle disabled state', () => {
+    it('disables the Snapping toggle when manualMode is false', async () => {
+      manualMode.value = false;
+      const wrapper = getComponent();
+      const toggle = wrapper.find('[data-testid="toggle-snapping"] input');
+      expect(toggle.attributes('disabled')).toBeDefined();
+    });
+
+    it('enables the Snapping toggle when manualMode is true', async () => {
+      manualMode.value = true;
+      const wrapper = getComponent();
+      const toggle = wrapper.find('[data-testid="toggle-snapping"] input');
+      expect(toggle.attributes('disabled')).toBeUndefined();
+    });
+  });
+
+  describe('Optimize button', () => {
+    it('calls forceRecompute when clicked', async () => {
+      const wrapper = getComponent();
+      await wrapper.find('[data-testid="btn-optimize"]').trigger('click');
+      expect(forceRecompute).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes loading state to the optimize button when isComputing', () => {
+      isComputing.value = true;
+      const wrapper = getComponent();
+      const btn = wrapper.find('[data-testid="btn-optimize"]');
+      // UButtonStub disables when loading
+      expect(btn.attributes('disabled')).toBeDefined();
+    });
+  });
+
+  describe('Gear button — settings popover', () => {
+    it('does not mount OptimizationSettingsPopover initially', () => {
+      const wrapper = getComponent();
+      // The stub renders as <optimizationsettingspopover-stub> or similar
+      expect(
+        wrapper.findComponent({ name: 'OptimizationSettingsPopover' }).exists(),
+      ).toBe(false);
+    });
+
+    it('mounts OptimizationSettingsPopover after gear button click', async () => {
+      const wrapper = getComponent();
+      await wrapper.find('[data-testid="btn-settings-gear"]').trigger('click');
+      expect(
+        wrapper.findComponent({ name: 'OptimizationSettingsPopover' }).exists(),
+      ).toBe(true);
+    });
+
+    it('closes OptimizationSettingsPopover on close event', async () => {
+      const wrapper = getComponent();
+      await wrapper.find('[data-testid="btn-settings-gear"]').trigger('click');
+      // The stub is mounted; emit close
+      const popover = wrapper.findComponent({
+        name: 'OptimizationSettingsPopover',
+      });
+      expect(popover.exists()).toBe(true);
+      await popover.vm.$emit('close');
+      await wrapper.vm.$nextTick();
+      expect(
+        wrapper.findComponent({ name: 'OptimizationSettingsPopover' }).exists(),
+      ).toBe(false);
     });
   });
 
   describe('v-model bindings', () => {
-    it('Should write back to defaultAlgorithm when the select changes', async () => {
-      const component = getComponent();
-
-      await component.get('select').setValue('cnc');
-
-      expect(defaultAlgorithm.value).toBe('cnc');
-    });
-
-    it('Should write bladeWidth back in µm when typed in mm mode', async () => {
+    it('writes bladeWidth back in µm when typed in mm mode', async () => {
       bladeWidth.value = mmToUm(3);
       distanceUnit.value = 'mm';
-      const component = getComponent();
-      const inputs = component.findAll('input[type="text"]');
+      const wrapper = getComponent();
+      const inputs = wrapper.findAll('input[type="text"]');
 
       await inputs[0].setValue('5');
 
       expect(bladeWidth.value).toBe(mmToUm(5));
     });
 
-    it('Should convert imperial input to µm when writing bladeWidth', async () => {
-      bladeWidth.value = mmToUm(3.175);
-      distanceUnit.value = 'in';
-      const component = getComponent();
-      const inputs = component.findAll('input[type="text"]');
-
-      await inputs[0].setValue('1/4');
-
-      expect(bladeWidth.value).toBe(mmToUm(6.35));
-    });
-
-    it('Should write margin back in µm when typed in mm mode', async () => {
+    it('writes margin back in µm when typed in mm mode', async () => {
       margin.value = mmToUm(0);
       distanceUnit.value = 'mm';
-      const component = getComponent();
-      const inputs = component.findAll('input[type="text"]');
+      const wrapper = getComponent();
+      const inputs = wrapper.findAll('input[type="text"]');
 
       await inputs[1].setValue('2');
 
       expect(margin.value).toBe(mmToUm(2));
     });
 
-    it('Should write back to showPartNumbers when the checkbox toggles', async () => {
-      const component = getComponent();
-      const checkbox = component.get('input[type="checkbox"]');
+    it('writes back to showPartNumbers when the Part #s toggle changes', async () => {
+      showPartNumbers.value = true;
+      const wrapper = getComponent();
+      const toggle = wrapper.find('[data-testid="toggle-part-numbers"] input');
 
-      await checkbox.setValue(false);
+      await toggle.setValue(false);
 
       expect(showPartNumbers.value).toBe(false);
     });

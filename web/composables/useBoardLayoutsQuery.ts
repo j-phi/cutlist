@@ -15,6 +15,9 @@ import {
 import { fingerprint } from '~/utils/fingerprint';
 import * as layoutCache from '~/composables/boardLayoutsCache';
 
+/** Incrementing key — bump to force a cache-bypass recompute for the active project. */
+const recomputeKey = ref(0);
+
 type LayoutResult = {
   /** Sheet (2D) board layouts, unchanged shape for legacy consumers. */
   layouts: SheetBoardLayout[];
@@ -90,7 +93,11 @@ export default createSharedComposable(() => {
       parts: partsVal,
       stocks: st,
       config,
-      fingerprint: fingerprint({ parts: partsVal, stocks: st, config }),
+      // Include recomputeKey so bumping it invalidates activeInputs and
+      // triggers the watcher even when parts/stock/config haven't changed.
+      fingerprint:
+        fingerprint({ parts: partsVal, stocks: st, config }) +
+        `:rk${recomputeKey.value}`,
     };
   });
 
@@ -201,10 +208,17 @@ export default createSharedComposable(() => {
     { immediate: true },
   );
 
+  function forceRecompute(): void {
+    const pid = activeId.value;
+    if (pid) layoutCache.remove(pid);
+    recomputeKey.value++;
+  }
+
   return {
     data,
     isComputing,
     error,
     partCountWarning,
+    forceRecompute,
   };
 });

@@ -1,0 +1,144 @@
+// @vitest-environment nuxt
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { ref } from 'vue';
+import { shallowMount } from '@vue/test-utils';
+import { mockNuxtImport } from '@nuxt/test-utils/runtime';
+
+import OptimizationSettingsPopover from '../OptimizationSettingsPopover.vue';
+
+// ── useProjectSettings mock (for defaultAlgorithm) ───────────────────────────
+const defaultAlgorithm = ref<string | undefined>('auto');
+
+mockNuxtImport('useProjectSettings', () => () => ({
+  defaultAlgorithm,
+  bladeWidth: ref(undefined),
+  distanceUnit: ref('mm'),
+  margin: ref(undefined),
+  showPartNumbers: ref(true),
+  showBomName: ref(true),
+  isLoading: ref(false),
+  precision: ref({ kind: 'decimal', step: 0.1 }),
+  stocks: ref([]),
+}));
+
+// ── useOptimizationSettings mock ─────────────────────────────────────────────
+// We import the real composable via mock to control its state
+const DEFAULT_PASS_ORDER = [
+  'tidy-rip-long-side',
+  'tidy-rip-area',
+  'tidy-crosscut-long-side',
+  'compact-bssf-long-side',
+  'compact-bssf-area',
+  'cnc-area',
+  'cnc-perimeter',
+  'cnc-random',
+];
+
+const passOrder = ref([...DEFAULT_PASS_ORDER]);
+const enabledPasses = ref(new Set(DEFAULT_PASS_ORDER));
+const resetToDefaults = vi.fn(() => {
+  passOrder.value = [...DEFAULT_PASS_ORDER];
+  enabledPasses.value = new Set(DEFAULT_PASS_ORDER);
+});
+const togglePass = vi.fn((passId: string) => {
+  const next = new Set(enabledPasses.value);
+  if (next.has(passId)) {
+    if (next.size <= 1) return;
+    next.delete(passId);
+  } else {
+    next.add(passId);
+  }
+  enabledPasses.value = next;
+});
+const reorderPass = vi.fn();
+
+mockNuxtImport('useOptimizationSettings', () => () => ({
+  passOrder,
+  enabledPasses,
+  resetToDefaults,
+  togglePass,
+  reorderPass,
+  PASS_LABELS: {},
+  DEFAULT_PASS_ORDER,
+}));
+
+describe('OptimizationSettingsPopover', () => {
+  beforeEach(() => {
+    passOrder.value = [...DEFAULT_PASS_ORDER];
+    enabledPasses.value = new Set(DEFAULT_PASS_ORDER);
+    resetToDefaults.mockClear();
+    togglePass.mockClear();
+    reorderPass.mockClear();
+    defaultAlgorithm.value = 'auto';
+  });
+
+  function getComponent() {
+    return shallowMount(OptimizationSettingsPopover, {
+      global: {
+        stubs: {
+          UButton: {
+            name: 'UButton',
+            props: ['disabled', 'loading', 'icon', 'color', 'variant', 'size'],
+            emits: ['click'],
+            template:
+              '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+          },
+          USelect: {
+            name: 'USelect',
+            props: ['modelValue', 'items'],
+            emits: ['update:modelValue'],
+            template:
+              '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="typeof item === \'string\' ? item : item.value" :value="typeof item === \'string\' ? item : item.value">{{ typeof item === \'string\' ? item : item.label }}</option></select>',
+          },
+        },
+      },
+    });
+  }
+
+  it('renders all pass rows', () => {
+    const wrapper = getComponent();
+    const rows = wrapper.findAll('[data-testid^="pass-row-"]');
+    expect(rows).toHaveLength(DEFAULT_PASS_ORDER.length);
+  });
+
+  it('emits close when the X button is clicked', async () => {
+    const wrapper = getComponent();
+    await wrapper.find('[data-testid="btn-close"]').trigger('click');
+    expect(wrapper.emitted('close')).toHaveLength(1);
+  });
+
+  it('disabling a pass removes it from enabledPasses', async () => {
+    const wrapper = getComponent();
+    // Toggle off the first pass
+    const firstToggle = wrapper.find(
+      `[data-testid="pass-toggle-${DEFAULT_PASS_ORDER[0]}"]`,
+    );
+    await firstToggle.trigger('change');
+    expect(enabledPasses.value.has(DEFAULT_PASS_ORDER[0])).toBe(false);
+  });
+
+  it('disables the last remaining toggle so the set cannot be emptied', async () => {
+    // Enable only one pass
+    enabledPasses.value = new Set(['tidy-rip-long-side']);
+    const wrapper = getComponent();
+    const lastToggle = wrapper.find(
+      '[data-testid="pass-toggle-tidy-rip-long-side"]',
+    );
+    expect(lastToggle.attributes('disabled')).toBeDefined();
+  });
+
+  it('calls resetToDefaults when the Reset button is clicked', async () => {
+    const wrapper = getComponent();
+    await wrapper.find('[data-testid="btn-reset"]').trigger('click');
+    expect(resetToDefaults).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-enables all passes after reset', async () => {
+    // Disable a few passes first
+    enabledPasses.value = new Set(['tidy-rip-long-side', 'cnc-area']);
+    const wrapper = getComponent();
+    await wrapper.find('[data-testid="btn-reset"]').trigger('click');
+    // resetToDefaults mock restores enabledPasses
+    expect(enabledPasses.value.size).toBe(DEFAULT_PASS_ORDER.length);
+  });
+});

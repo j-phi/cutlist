@@ -1,16 +1,19 @@
 <script lang="ts" setup>
 import { useDimensionInput } from '~/composables/useDimensionInput';
+import useBoardLayoutsQuery from '~/composables/useBoardLayoutsQuery';
 
 const {
   bladeWidth,
   distanceUnit,
   margin,
   precision,
-  defaultAlgorithm,
   showPartNumbers,
   showBomName,
   isLoading,
 } = useProjectSettings();
+
+const { manualMode, snapping } = useManualLayout();
+const { isComputing, forceRecompute } = useBoardLayoutsQuery();
 
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
@@ -25,25 +28,41 @@ const { input: marginInput, commit: commitMargin } = useDimensionInput(
   precision,
 );
 
-const ALGORITHM_ITEMS = [
-  { label: 'Auto', value: 'auto' },
-  { label: 'Tidy', value: 'tidy' },
-  { label: 'Compact', value: 'compact' },
-  { label: 'CNC', value: 'cnc' },
-];
+const settingsOpen = ref(false);
 </script>
 
 <template>
   <div v-if="!isLoading" class="flex items-center gap-3 flex-wrap">
-    <div class="flex items-center gap-1.5">
-      <label class="text-xs text-muted whitespace-nowrap">Default cut</label>
-      <USelect
-        v-model="defaultAlgorithm"
-        :items="ALGORITHM_ITEMS"
-        size="xs"
-        class="w-24"
-      />
-    </div>
+    <!-- Optimize button -->
+    <UButton
+      size="xs"
+      color="neutral"
+      variant="soft"
+      icon="i-lucide-sparkles"
+      :loading="isComputing"
+      data-testid="btn-optimize"
+      @click="forceRecompute"
+    >
+      Optimize
+    </UButton>
+
+    <!-- Gear — optimization settings -->
+    <UButton
+      square
+      size="xs"
+      color="neutral"
+      variant="ghost"
+      icon="i-lucide-settings-2"
+      title="Optimization settings"
+      data-testid="btn-settings-gear"
+      @click="settingsOpen = !settingsOpen"
+    />
+
+    <!-- Optimization settings popover -->
+    <OptimizationSettingsPopover
+      v-if="settingsOpen"
+      @close="settingsOpen = false"
+    />
 
     <div class="flex items-center gap-1.5">
       <label class="text-xs text-muted whitespace-nowrap"
@@ -71,14 +90,40 @@ const ALGORITHM_ITEMS = [
       />
     </div>
 
-    <label class="flex items-center gap-1.5 cursor-pointer">
-      <UCheckbox v-model="showPartNumbers" />
+    <label
+      class="flex items-center gap-1.5 cursor-pointer"
+      data-testid="toggle-part-numbers"
+    >
+      <UToggle v-model="showPartNumbers" size="xs" />
       <span class="text-xs text-muted whitespace-nowrap">Part #s</span>
     </label>
 
-    <label class="flex items-center gap-1.5 cursor-pointer">
-      <UCheckbox v-model="showBomName" />
+    <label
+      class="flex items-center gap-1.5 cursor-pointer"
+      data-testid="toggle-part-names"
+    >
+      <UToggle v-model="showBomName" size="xs" />
       <span class="text-xs text-muted whitespace-nowrap">Part names</span>
+    </label>
+
+    <div class="w-px h-4 bg-subtle shrink-0" />
+
+    <label
+      class="flex items-center gap-1.5 cursor-pointer"
+      data-testid="toggle-manual-placement"
+      title="Drag and drop parts between boards manually"
+    >
+      <UToggle v-model="manualMode" size="xs" />
+      <span class="text-xs text-muted whitespace-nowrap">Manual placement</span>
+    </label>
+
+    <label
+      class="flex items-center gap-1.5 cursor-pointer"
+      data-testid="toggle-snapping"
+      :class="{ 'opacity-50': !manualMode }"
+    >
+      <UToggle v-model="snapping" size="xs" :disabled="!manualMode" />
+      <span class="text-xs text-muted whitespace-nowrap">Snapping</span>
     </label>
   </div>
 </template>
