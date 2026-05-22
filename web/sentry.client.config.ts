@@ -1,9 +1,12 @@
 import * as Sentry from '@sentry/nuxt';
 
+// Sentry is hard-disabled. Flip to true (and provide a DSN) to re-enable.
+const SENTRY_ENABLED = false;
+
 const config = useRuntimeConfig();
 const dsn = config.public.sentryDsn;
 
-if (dsn) {
+if (SENTRY_ENABLED && dsn) {
   Sentry.init({
     dsn,
     tracesSampleRate: 0.1,

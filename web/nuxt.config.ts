@@ -4,6 +4,7 @@ import pkg from '../package.json';
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
+  telemetry: false,
   appConfig: {
     version: pkg.version,
   },
@@ -64,15 +65,6 @@ export default defineNuxtConfig({
             'Import GLTF assemblies and generate optimised cutlists for boards and panels.',
         },
       ],
-      script:
-        process.env.NODE_ENV === 'production'
-          ? [
-              {
-                async: true,
-                src: 'https://scripts.simpleanalyticscdn.com/latest.js',
-              },
-            ]
-          : [],
     },
   },
 });

@@ -23,6 +23,9 @@ function closeMobileMenu() {
   showMobileMenu.value = false;
 }
 
+// Feedback depends on Sentry, which is hard-disabled. See sentry.client.config.ts.
+const feedbackEnabled = false;
+
 async function openFeedback() {
   const feedback = Sentry.getFeedback();
   if (!feedback) return;
@@ -274,6 +277,7 @@ function openNewProject() {
     </button>
 
     <button
+      v-if="feedbackEnabled"
       class="hidden sm:flex shrink-0 px-3 items-center gap-1.5 border-l border-subtle text-muted hover:text-teal-400 transition-colors"
       title="Report an issue"
       aria-label="Report an issue"
@@ -413,6 +417,7 @@ function openNewProject() {
           <span class="text-sm">Import project</span>
         </button>
         <button
+          v-if="feedbackEnabled"
           class="flex items-center gap-3 w-full px-4 py-3 text-left text-body hover:bg-surface border-b border-subtle transition-colors"
           @click="openFeedbackFromMenu"
         >

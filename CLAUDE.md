@@ -399,6 +399,18 @@ Why: glTF/OBB extraction drifts a few µm between instances of the same physical
 
 Never call `formatDistance` for an editable field — the input layer owns the round-trip.
 
+## Telemetry & Analytics
+
+All third-party data collection is currently **disabled**. There are three independent sources, each with its own off switch:
+
+| Source              | What it did                        | Disabled via                                                                                                      | Re-enable                                                      |
+| ------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **Nuxt telemetry**  | Anonymous framework usage stats    | `telemetry: false` in `web/nuxt.config.ts`                                                                        | Remove the line (or set `true`)                                |
+| **SimpleAnalytics** | Page-view script (production only) | Removed the `<script>` entry from `app.head` in `web/nuxt.config.ts`                                              | Re-add the `simpleanalyticscdn.com/latest.js` script tag       |
+| **Sentry**          | Error reporting + feedback widget  | `SENTRY_ENABLED = false` guard in `web/sentry.client.config.ts`; `feedbackEnabled = false` in `ProjectTopBar.vue` | Flip both flags to `true` and provide `NUXT_PUBLIC_SENTRY_DSN` |
+
+Sentry is **hard-disabled, not removed**: the SDK module, the scattered `Sentry.captureException/captureMessage/logger` calls, and the feedback handlers all remain in place. When the SDK is never initialized those calls are harmless no-ops, and the "Report an issue" buttons are hidden behind `feedbackEnabled`. The `about`/`terms` pages still describe Sentry as the error-reporting backend — update that copy if the disable becomes permanent.
+
 ## Key Config Files
 
 - `web/nuxt.config.ts` — Nuxt config (SSR off, modules)
