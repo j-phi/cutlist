@@ -105,64 +105,82 @@ function onKeydown(e: KeyboardEvent) {
     :aria-label="formAriaLabel"
     @keydown="onKeydown"
   >
-    <div class="grid grid-cols-12 gap-2 items-center">
+    <!-- Row 1: Name + Qty -->
+    <div class="flex gap-2 items-center">
       <UInput
         v-model="name"
         placeholder="Part name"
         size="sm"
-        class="col-span-3"
+        class="flex-1 min-w-0"
         autofocus
       />
-      <label class="col-span-1 text-xs text-muted">L ({{ unit }})</label>
-      <UInput
-        id="manual-part-length"
-        v-model="lengthInput"
-        :placeholder="placeholder"
-        size="sm"
-        type="text"
-        inputmode="decimal"
-        class="col-span-1"
-        @blur="commitLength"
-        @keydown.enter.prevent="submit"
-      />
-      <label class="col-span-1 text-xs text-muted">W ({{ unit }})</label>
-      <UInput
-        id="manual-part-width"
-        v-model="widthInput"
-        :placeholder="placeholder"
-        size="sm"
-        type="text"
-        inputmode="decimal"
-        class="col-span-1"
-        @blur="commitWidth"
-        @keydown.enter.prevent="submit"
-      />
-      <label class="col-span-1 text-xs text-muted">T ({{ unit }})</label>
-      <UInput
-        id="manual-part-thickness"
-        v-model="thicknessInput"
-        :placeholder="placeholder"
-        size="sm"
-        type="text"
-        inputmode="decimal"
-        class="col-span-1"
-        @blur="commitThickness"
-        @keydown.enter.prevent="submit"
-      />
-      <UInputNumber
-        id="manual-part-qty"
-        v-model="qty"
-        :min="1"
-        size="sm"
-        class="col-span-1"
-      />
-      <USelect
-        v-model="material"
-        :items="materials"
-        size="sm"
-        class="col-span-1"
-        aria-label="Material"
-      />
+      <div class="flex items-center gap-1.5 shrink-0">
+        <label class="text-xs text-muted">Qty</label>
+        <UInputNumber
+          id="manual-part-qty"
+          v-model="qty"
+          :min="1"
+          size="sm"
+          class="w-24"
+        />
+      </div>
+    </div>
+    <!-- Row 2: L, W, T + Material -->
+    <div class="flex gap-2 items-end">
+      <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+        <label for="manual-part-length" class="text-xs text-muted"
+          >L ({{ unit }})</label
+        >
+        <UInput
+          id="manual-part-length"
+          v-model="lengthInput"
+          :placeholder="placeholder"
+          size="sm"
+          type="text"
+          inputmode="decimal"
+          @blur="commitLength"
+          @keydown.enter.prevent="submit"
+        />
+      </div>
+      <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+        <label for="manual-part-width" class="text-xs text-muted"
+          >W ({{ unit }})</label
+        >
+        <UInput
+          id="manual-part-width"
+          v-model="widthInput"
+          :placeholder="placeholder"
+          size="sm"
+          type="text"
+          inputmode="decimal"
+          @blur="commitWidth"
+          @keydown.enter.prevent="submit"
+        />
+      </div>
+      <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+        <label for="manual-part-thickness" class="text-xs text-muted"
+          >T ({{ unit }})</label
+        >
+        <UInput
+          id="manual-part-thickness"
+          v-model="thicknessInput"
+          :placeholder="placeholder"
+          size="sm"
+          type="text"
+          inputmode="decimal"
+          @blur="commitThickness"
+          @keydown.enter.prevent="submit"
+        />
+      </div>
+      <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+        <label class="text-xs text-muted">Material</label>
+        <USelect
+          v-model="material"
+          :items="materials"
+          size="sm"
+          aria-label="Material"
+        />
+      </div>
     </div>
     <div class="flex gap-2 justify-between">
       <div class="flex items-center gap-2">

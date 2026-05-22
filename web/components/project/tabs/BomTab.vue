@@ -15,6 +15,7 @@ const {
   removeModel,
   toggleModel,
   addManualPart,
+  addManualParts,
   updateManualPart,
   removeManualPart,
   updatePartNameOverride,
@@ -70,12 +71,62 @@ const {
   importingFile,
   fileInput,
   pickFile,
+  importFiles: importModelFiles,
   bind: importBind,
 } = useBomImport({
   activeId,
   onModelParsed: (model) => {
     if (activeId.value) addModel(activeId.value, model);
   },
+});
+
+// ── Bulk BOM import (paste / .csv drop → manual parts) ────────────────────────
+
+const csvImport = useBomCsvImport({
+  activeId,
+  distanceUnit: computed(() => distanceUnit.value ?? 'mm'),
+  addManualParts,
+});
+
+const pastedRows = ref('');
+
+async function onImportPaste() {
+  const text = pastedRows.value;
+  if (!text.trim()) return;
+  await csvImport.importText(text);
+  // Clear only when at least one row imported, so the user can fix and retry.
+  if (csvImport.result.value && csvImport.result.value.imported > 0) {
+    pastedRows.value = '';
+  }
+}
+
+/**
+ * Split a drop by extension: `.csv` files go to the manual-part importer,
+ * everything else to the 3D-model importer. We reuse useBomImport's drag
+ * visuals (onDragover/onDragleave) and override only the drop handler.
+ */
+async function onDropFiles(e: DragEvent) {
+  e.preventDefault();
+  isDragging.value = false;
+  const files = [...(e.dataTransfer?.files ?? [])];
+  const csv = files.filter((f) => f.name.toLowerCase().endsWith('.csv'));
+  const models = files.filter((f) => !f.name.toLowerCase().endsWith('.csv'));
+  if (csv.length) await csvImport.importFiles(csv);
+  if (models.length) await importModelFiles(models);
+}
+
+const dropZoneBind = {
+  onDragover: importBind.dropZone.onDragover,
+  onDragleave: importBind.dropZone.onDragleave,
+  onDrop: onDropFiles,
+};
+
+// Reset the paste summary each time the Add Part modal opens.
+watch(showAddForm, (open) => {
+  if (open) {
+    csvImport.clearResult();
+    pastedRows.value = '';
+  }
 });
 
 // ── Materials list ───────────────────────────────────────────────────────────
@@ -271,7 +322,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="absolute inset-0 overflow-hidden" v-bind="importBind.dropZone">
+  <div class="absolute inset-0 overflow-hidden" v-bind="dropZoneBind">
     <input
       ref="fileInput"
       type="file"
@@ -301,7 +352,7 @@ onUnmounted(() => {
           <UIcon name="i-lucide-download" class="w-7 h-7 text-teal-400" />
         </div>
         <p class="text-sm font-semibold text-teal-400">
-          Drop a 3D model file to import
+          Drop a 3D model or .csv parts file
         </p>
       </div>
     </Transition>
@@ -897,7 +948,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Add Part modal -->
-    <UModal v-model:open="showAddForm">
+    <UModal v-model:open="showAddForm" :ui="{ content: 'sm:max-w-3xl' }">
       <template #content>
         <div
           class="p-6 flex flex-col gap-4 bg-elevated border border-default rounded-lg"
@@ -918,6 +969,64 @@ onUnmounted(() => {
             @save="handleAddPart"
             @cancel="showAddForm = false"
           />
+
+          <!-- Paste-from-spreadsheet bulk import -->
+          <div class="border-t border-subtle pt-4 flex flex-col gap-2">
+            <h3 class="text-sm font-semibold text-hi">
+              Paste from a spreadsheet
+            </h3>
+            <p class="text-xs text-dim">
+              Columns: Part Name, Quantity, Length, Width, Material — paste from
+              Google Sheets or a CSV.
+            </p>
+            <UTextarea
+              v-model="pastedRows"
+              :rows="4"
+              class="w-full font-mono text-xs"
+              placeholder="Part Name	Quantity	Length	Width	Material"
+              aria-label="Paste BOM rows"
+            />
+            <div class="flex justify-end">
+              <UButton
+                size="sm"
+                :disabled="!pastedRows.trim()"
+                icon="i-lucide-clipboard-paste"
+                @click="onImportPaste"
+              >
+                Import rows
+              </UButton>
+            </div>
+
+            <div
+              v-if="csvImport.result.value"
+              class="bg-surface rounded-md p-3 flex flex-col gap-1"
+            >
+              <p class="text-sm text-body">
+                Imported {{ csvImport.result.value.imported }} part row{{
+                  csvImport.result.value.imported === 1 ? '' : 's'
+                }}.
+              </p>
+              <div
+                v-if="csvImport.result.value.errors.length"
+                class="flex flex-col gap-0.5"
+              >
+                <p class="text-xs text-muted">
+                  Skipped {{ csvImport.result.value.errors.length }} row{{
+                    csvImport.result.value.errors.length === 1 ? '' : 's'
+                  }}:
+                </p>
+                <ul class="flex flex-col gap-0.5">
+                  <li
+                    v-for="(err, i) in csvImport.result.value.errors"
+                    :key="i"
+                    class="text-xs text-dim"
+                  >
+                    Row {{ err.row }}: {{ err.message }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       </template>
     </UModal>
