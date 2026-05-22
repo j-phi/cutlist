@@ -50,11 +50,12 @@ export default function (
   whenever(container, (el) => {
     if (instance) return;
     const { isRulerActive } = useRulerStore();
+    const { manualMode } = useManualLayout();
     instance = panzoom(el, {
       autocenter: true,
       minZoom: 0.05,
       maxZoom: 10,
-      beforeMouseDown: () => isRulerActive.value,
+      beforeMouseDown: () => isRulerActive.value || manualMode.value,
     });
     instance.on('zoom', () => {
       scale.value = instance?.getTransform().scale;

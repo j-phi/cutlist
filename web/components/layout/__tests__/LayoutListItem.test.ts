@@ -12,6 +12,15 @@ import LayoutListItem from '../LayoutListItem.vue';
 const requestGrainLockChange = vi.fn();
 const isRulerActive = ref(false);
 const boardMeasurements = ref<unknown[]>([]);
+const manualMode = ref(false);
+const isDragging = ref(false);
+const snapping = ref(true);
+
+mockNuxtImport('useManualLayout', () => () => ({
+  manualMode,
+  isDragging,
+  snapping,
+}));
 
 mockNuxtImport('useGetPx', () => () => (m: number) => `${m * 100}px`);
 mockNuxtImport(
@@ -75,8 +84,20 @@ function makeLayout(
   };
 }
 
+interface DragPreview {
+  boardIndex: number;
+  leftUm: number;
+  bottomUm: number;
+  widthUm: number;
+  heightUm: number;
+}
+
 describe('LayoutListItem', () => {
-  function getComponent(layout: SheetBoardLayout, boardIndex = 0) {
+  function getComponent(
+    layout: SheetBoardLayout,
+    boardIndex = 0,
+    dragPreviewValue: DragPreview | null = null,
+  ) {
     return shallowMount(LayoutListItem, {
       props: { layout, boardIndex },
       global: {
@@ -85,6 +106,10 @@ describe('LayoutListItem', () => {
           BoardRulerOverlay: true,
           PartDetailsTooltip: true,
           Teleport: true,
+        },
+        provide: {
+          dragPreview: ref(dragPreviewValue),
+          startPartDrag: () => {},
         },
       },
       attachTo: document.body,
@@ -95,6 +120,9 @@ describe('LayoutListItem', () => {
     requestGrainLockChange.mockClear();
     isRulerActive.value = false;
     boardMeasurements.value = [];
+    manualMode.value = false;
+    isDragging.value = false;
+    snapping.value = true;
     vi.restoreAllMocks();
   });
 
@@ -195,6 +223,40 @@ describe('LayoutListItem', () => {
       );
 
       expect(requestGrainLockChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Snap indicator (drop preview)', () => {
+    it('Should render the snap indicator when dragPreview targets this board', () => {
+      const preview: DragPreview = {
+        boardIndex: 0,
+        leftUm: 0,
+        bottomUm: 0,
+        widthUm: 300000,
+        heightUm: 600000,
+      };
+      const component = getComponent(makeLayout(), 0, preview);
+
+      expect(component.find('[data-snap-indicator]').exists()).toBe(true);
+    });
+
+    it('Should NOT render the snap indicator when dragPreview targets a different board', () => {
+      const preview: DragPreview = {
+        boardIndex: 1, // different from boardIndex=0
+        leftUm: 0,
+        bottomUm: 0,
+        widthUm: 300000,
+        heightUm: 600000,
+      };
+      const component = getComponent(makeLayout(), 0, preview);
+
+      expect(component.find('[data-snap-indicator]').exists()).toBe(false);
+    });
+
+    it('Should NOT render the snap indicator when dragPreview is null', () => {
+      const component = getComponent(makeLayout(), 0, null);
+
+      expect(component.find('[data-snap-indicator]').exists()).toBe(false);
     });
   });
 });

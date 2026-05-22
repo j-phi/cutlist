@@ -80,20 +80,32 @@ function preferenceFor(material: string, thicknessUm: number): Algorithm {
 }
 
 const groups = computed<LayoutGroup[]>(() => {
+  // Attach original indices before sorting so boardIndex stays stable.
+  const withOrig = props.layouts.map((layout, origIdx) => ({
+    layout,
+    origIdx,
+  }));
+
   // Stable sort: material → thickness → fuller boards first.
-  const sorted = [...props.layouts].sort((a, b) => {
-    const mat = a.stock.material.localeCompare(b.stock.material);
+  withOrig.sort((a, b) => {
+    const mat = a.layout.stock.material.localeCompare(b.layout.stock.material);
     if (mat !== 0) return mat;
-    const thick = a.stock.thicknessUm - b.stock.thicknessUm;
+    const thick = a.layout.stock.thicknessUm - b.layout.stock.thicknessUm;
     if (thick !== 0) return thick;
-    const areaA = a.placements.reduce((s, p) => s + p.widthUm * p.lengthUm, 0);
-    const areaB = b.placements.reduce((s, p) => s + p.widthUm * p.lengthUm, 0);
+    const areaA = a.layout.placements.reduce(
+      (s, p) => s + p.widthUm * p.lengthUm,
+      0,
+    );
+    const areaB = b.layout.placements.reduce(
+      (s, p) => s + p.widthUm * p.lengthUm,
+      0,
+    );
     return areaB - areaA;
   });
 
   const map = new Map<string, LayoutGroup>();
-  for (let i = 0; i < sorted.length; i++) {
-    const layout = sorted[i];
+  for (let i = 0; i < withOrig.length; i++) {
+    const { layout, origIdx } = withOrig[i];
     const key = `${layout.stock.material}__${layout.stock.thicknessUm}`;
     let entry = map.get(key);
     if (!entry) {
@@ -113,7 +125,8 @@ const groups = computed<LayoutGroup[]>(() => {
       map.set(key, entry);
     }
     entry.layouts.push(layout);
-    entry.indices.push(i);
+    // Use the original index so boardIndex always maps back to props.layouts.
+    entry.indices.push(origIdx);
   }
   return [...map.values()];
 });

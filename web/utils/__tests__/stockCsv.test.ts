@@ -13,6 +13,7 @@ describe('parseStockTable valid input', () => {
     expect(rows).toEqual([
       {
         name: 'Plywood',
+        material: '',
         widthMm: 1220,
         lengthMm: 2440,
         thicknessMm: 18,
@@ -20,6 +21,7 @@ describe('parseStockTable valid input', () => {
       },
       {
         name: 'Pine',
+        material: '',
         widthMm: 1220,
         lengthMm: 2440,
         thicknessMm: 18,
@@ -103,6 +105,33 @@ describe('parseStockTable per-cell units', () => {
   });
 });
 
+describe('parseStockTable material column', () => {
+  it('parses a Material cell via the material/category/type aliases', () => {
+    const csv =
+      'name,width,height,thickness,material\nScrap,100mm,200mm,18mm,Birch Ply';
+    const { rows, errors } = parseStockTable(csv, mmOpts);
+    expect(errors).toEqual([]);
+    expect(rows[0].name).toBe('Scrap');
+    expect(rows[0].material).toBe('Birch Ply');
+  });
+
+  it('leaves material blank when the column is absent', () => {
+    const csv = 'name,width,height,thickness\nScrap,100mm,200mm,18mm';
+    expect(parseStockTable(csv, mmOpts).rows[0].material).toBe('');
+  });
+});
+
+describe('parseStockTable optional name', () => {
+  it('keeps a row with a blank name (name is no longer required)', () => {
+    const csv = 'width,height,thickness,material\n100mm,200mm,18mm,Plywood';
+    const { rows, errors } = parseStockTable(csv, mmOpts);
+    expect(errors).toEqual([]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('');
+    expect(rows[0].material).toBe('Plywood');
+  });
+});
+
 describe('parseStockTable partial import', () => {
   it('skips invalid rows with messages and keeps the valid ones', () => {
     const csv = [
@@ -110,9 +139,8 @@ describe('parseStockTable partial import', () => {
       'Good,100mm,200mm,18mm', // row 1 valid
       'NoThick,100mm,200mm,', // row 2 missing thickness cell
       'ZeroW,0mm,200mm,18mm', // row 3 zero width
-      ',100mm,200mm,18mm', // row 4 empty name
-      'BadDim,xyz,200mm,18mm', // row 5 unparseable width
-      'Good2,300mm,400mm,12mm', // row 6 valid
+      'BadDim,xyz,200mm,18mm', // row 4 unparseable width
+      'Good2,300mm,400mm,12mm', // row 5 valid
     ].join('\n');
     const { rows, errors } = parseStockTable(csv, mmOpts);
 
@@ -121,8 +149,7 @@ describe('parseStockTable partial import', () => {
     const byRow = Object.fromEntries(errors.map((e) => [e.row, e.message]));
     expect(byRow[2]).toMatch(/thick/i);
     expect(byRow[3]).toMatch(/width/i);
-    expect(byRow[4]).toMatch(/name/i);
-    expect(byRow[5]).toMatch(/width/i);
+    expect(byRow[4]).toMatch(/width/i);
     expect(errors.find((e) => e.row === 2)!.raw).toContain('NoThick');
   });
 });

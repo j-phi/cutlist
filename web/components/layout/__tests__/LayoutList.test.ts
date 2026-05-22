@@ -154,7 +154,9 @@ describe('LayoutList', () => {
       const component = getComponent(layouts);
       const items = component.findAllComponents({ name: 'LayoutListItem' });
 
-      expect(items.map((i) => i.props('boardIndex'))).toEqual([0, 1, 2, 3]);
+      // boardIndex is the original index in props.layouts (before sorting),
+      // so it maps: Birch12→2, Birch25→1, Plywood18big→3, Plywood18small→0.
+      expect(items.map((i) => i.props('boardIndex'))).toEqual([2, 1, 3, 0]);
       expect(
         items.map((i) => {
           const l = i.props('layout') as SheetBoardLayout;

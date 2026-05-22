@@ -7,13 +7,19 @@ import { formatRelativeDate } from '~/utils/formatRelativeDate';
 
 type ProjectRow = Awaited<ReturnType<typeof getAllProjectsByRecency>>[number];
 
-const { openProject, permanentlyDeleteProject, resetDatabase } = useProjects();
+const {
+  openProject,
+  duplicateProject,
+  permanentlyDeleteProject,
+  resetDatabase,
+} = useProjects();
 
 const rows = ref<ProjectRow[]>([]);
 const thumbs = ref<Map<string, string>>(new Map());
 const loading = ref(true);
 const error = ref<string | null>(null);
 const pendingDeleteId = ref<string | null>(null);
+const duplicatingId = ref<string | null>(null);
 const showResetConfirm = ref(false);
 const showNewProject = ref(false);
 
@@ -36,6 +42,17 @@ onMounted(async () => {
 async function handleOpen(id: string) {
   if (pendingDeleteId.value === id) return;
   await openProject(id);
+}
+
+async function handleDuplicate(id: string) {
+  if (duplicatingId.value) return;
+  duplicatingId.value = id;
+  try {
+    await duplicateProject(id);
+    rows.value = await getAllProjectsByRecency();
+  } finally {
+    duplicatingId.value = null;
+  }
 }
 
 async function confirmDelete(id: string) {
@@ -187,16 +204,35 @@ function onResetClick() {
                       Delete
                     </button>
                   </template>
-                  <button
-                    v-else
-                    type="button"
-                    class="p-1.5 rounded text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                    :aria-label="`Delete ${row.name}`"
-                    title="Delete project"
-                    @click="pendingDeleteId = row.id"
-                  >
-                    <UIcon name="i-lucide-trash-2" class="w-4 h-4" />
-                  </button>
+                  <template v-else>
+                    <button
+                      type="button"
+                      class="p-1.5 rounded text-muted hover:text-body opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                      :aria-label="`Duplicate ${row.name}`"
+                      title="Duplicate project"
+                      :disabled="duplicatingId === row.id"
+                      @click.stop="handleDuplicate(row.id)"
+                    >
+                      <UIcon
+                        :name="
+                          duplicatingId === row.id
+                            ? 'i-lucide-loader-circle'
+                            : 'i-lucide-copy'
+                        "
+                        class="w-4 h-4"
+                        :class="{ 'animate-spin': duplicatingId === row.id }"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      class="p-1.5 rounded text-red-500 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:text-red-400"
+                      :aria-label="`Delete ${row.name}`"
+                      title="Delete project"
+                      @click.stop="pendingDeleteId = row.id"
+                    >
+                      <UIcon name="i-lucide-trash-2" class="w-4 h-4" />
+                    </button>
+                  </template>
                 </div>
               </li>
             </ul>

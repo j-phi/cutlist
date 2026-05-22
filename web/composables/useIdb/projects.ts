@@ -119,6 +119,45 @@ export async function updateProject(
   return updated;
 }
 
+/**
+ * Deep-copies a project and all its models. Build docs, scenes, annotations,
+ * and assets are intentionally excluded — the copy starts clean.
+ */
+export async function duplicateProject(id: string): Promise<IdbProject> {
+  const db = await getDb();
+  const [source, models] = await Promise.all([
+    db.projects.get(id),
+    db.models.where('projectId').equals(id).toArray(),
+  ]);
+  if (!source) throw new Error(`Project ${id} not found`);
+
+  const now = new Date().toISOString();
+  const newProjectId = crypto.randomUUID();
+  const copy: IdbProject = {
+    ...source,
+    id: newProjectId,
+    name: `Copy of ${source.name}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await safeWrite(() =>
+    db.transaction('rw', [db.projects, db.models], async () => {
+      await db.projects.put(copy);
+      for (const model of models) {
+        await db.models.put({
+          ...model,
+          id: crypto.randomUUID(),
+          projectId: newProjectId,
+          createdAt: now,
+        });
+      }
+    }),
+  );
+
+  return copy;
+}
+
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDb();
   await safeWrite(() =>

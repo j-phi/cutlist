@@ -10,6 +10,7 @@ import {
 } from 'cutlist';
 
 import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
+import { consolidateStock } from '~/utils/consolidateStock';
 import { UTextareaStub, UModalStub } from '~/test-utils/stubs';
 import StockTab from '../StockTab.vue';
 
@@ -43,6 +44,11 @@ mockNuxtImport('useStockMutations', () => () => ({
   },
   remove: (idx: number) => {
     stocks.value = stocks.value.filter((_, i) => i !== idx);
+  },
+  consolidate: () => {
+    const { result, removed } = consolidateStock(stocks.value);
+    if (removed > 0) stocks.value = result;
+    return removed;
   },
 }));
 
@@ -580,14 +586,16 @@ describe('StockTab', () => {
 
       expect(addCalls).toHaveLength(1);
       const matrices = addCalls[0];
-      expect(matrices).toHaveLength(2);
+      // No Material column → both rows collapse into one Uncategorized panel.
+      expect(matrices).toHaveLength(1);
       expect(matrices[0]).toMatchObject({
         kind: 'sheet',
-        name: 'Birch Ply',
         material: 'Uncategorized',
-        sizes: [{ width: 1220, length: 2440, thickness: [18] }],
+        sizes: [
+          { width: 1220, length: 2440, thickness: [18] },
+          { width: 140, length: 3000, thickness: [19] },
+        ],
       });
-      expect(matrices[1].name).toBe('Pine');
     });
 
     it('renders a skipped-row summary when some rows are invalid', async () => {
@@ -596,7 +604,7 @@ describe('StockTab', () => {
       const tsv = [
         'Name\tWidth\tHeight\tThickness',
         'Good\t1220mm\t2440mm\t18mm',
-        '\t1220mm\t2440mm\t18mm', // missing name
+        'Bad\tx\t2440mm\t18mm', // unparseable width
       ].join('\n');
 
       await component.find('[data-testid="stock-import-csv"]').trigger('click');
@@ -638,8 +646,50 @@ describe('StockTab', () => {
       await flush(component);
 
       expect(addCalls).toHaveLength(1);
-      expect(addCalls[0]).toHaveLength(2);
-      expect(addCalls[0][0].name).toBe('Birch Ply');
+      // One Uncategorized panel holding both dropped rows as sizes.
+      expect(addCalls[0]).toHaveLength(1);
+      expect((addCalls[0][0] as { sizes: unknown[] }).sizes).toHaveLength(2);
+    });
+
+    it('consolidates duplicate-material offcut panels into one via the toolbar', async () => {
+      stocks.value = [
+        {
+          kind: 'sheet',
+          material: 'Ply',
+          role: 'offcut',
+          sizes: [{ width: 1220, length: 2440, thickness: [18], quantity: 1 }],
+        },
+        {
+          kind: 'sheet',
+          material: 'Ply',
+          role: 'offcut',
+          sizes: [{ width: 600, length: 600, thickness: [18], quantity: 2 }],
+        },
+      ];
+      const component = getComponent();
+
+      const btn = component.find('[data-testid="stock-consolidate"]');
+      expect(btn.exists()).toBe(true);
+      await btn.trigger('click');
+      await flush(component);
+
+      expect(stocks.value).toHaveLength(1);
+      expect(stocks.value[0].material).toBe('Ply');
+      expect((stocks.value[0] as { sizes: unknown[] }).sizes).toEqual([
+        { width: 1220, length: 2440, thickness: [18], quantity: 1 },
+        { width: 600, length: 600, thickness: [18], quantity: 2 },
+      ]);
+    });
+
+    it('hides the consolidate button when no materials share a panel', () => {
+      stocks.value = [
+        { kind: 'sheet', material: 'Ply', role: 'offcut', sizes: [] },
+        { kind: 'sheet', material: 'MDF', role: 'offcut', sizes: [] },
+      ];
+      const component = getComponent();
+      expect(component.find('[data-testid="stock-consolidate"]').exists()).toBe(
+        false,
+      );
     });
   });
 });

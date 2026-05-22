@@ -12,8 +12,12 @@ const {
   isLoading,
 } = useProjectSettings();
 
-const { manualMode, snapping } = useManualLayout();
-const { isComputing, forceRecompute } = useBoardLayoutsQuery();
+const { manualMode, snapping, pushOptimizeEntry } = useManualLayout();
+const { isComputing, captureAndRecompute } = useBoardLayoutsQuery();
+
+function handleOptimize() {
+  captureAndRecompute(pushOptimizeEntry);
+}
 
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 
@@ -41,7 +45,7 @@ const settingsOpen = ref(false);
       icon="i-lucide-sparkles"
       :loading="isComputing"
       data-testid="btn-optimize"
-      @click="forceRecompute"
+      @click="handleOptimize"
     >
       Optimize
     </UButton>

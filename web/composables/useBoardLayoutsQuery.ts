@@ -214,11 +214,42 @@ export default createSharedComposable(() => {
     recomputeKey.value++;
   }
 
+  /**
+   * Capture the current layout cache snapshot, push an undo/redo entry via the
+   * provided callback, then trigger a recompute. The onUndo callback restores the
+   * pre-Optimize layouts (using the current fingerprint so the watcher won't
+   * immediately overwrite them). The onRedo callback re-triggers forceRecompute.
+   */
+  function captureAndRecompute(
+    pushEntry: (onUndo: () => void, onRedo: () => void) => void,
+  ): void {
+    const pid = activeId.value;
+    if (!pid) {
+      forceRecompute();
+      return;
+    }
+    const snapshot = layoutCache.get(pid);
+    pushEntry(
+      () => {
+        const fp = activeInputs.value?.fingerprint;
+        if (!fp) return;
+        if (snapshot) {
+          // Restore pre-Optimize layouts with the current fingerprint so the
+          // activeInputs watcher sees a cache hit and skips recompute.
+          layoutCache.set(pid, { ...snapshot, fingerprint: fp });
+        }
+      },
+      () => forceRecompute(),
+    );
+    forceRecompute();
+  }
+
   return {
     data,
     isComputing,
     error,
     partCountWarning,
     forceRecompute,
+    captureAndRecompute,
   };
 });

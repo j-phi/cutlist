@@ -41,16 +41,24 @@ function makeRecorder() {
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
+// No Material column → both rows collapse into one Uncategorized panel.
 const VALID_TSV = [
   'Name\tWidth\tHeight\tThickness',
   'Birch Ply\t1220mm\t2440mm\t18mm',
   'Pine\t140mm\t3000mm\t19mm',
 ].join('\n');
 
+// Distinct materials, with one material repeating across two rows.
+const MATERIAL_TSV = [
+  'Name\tWidth\tHeight\tThickness\tMaterial\tQuantity',
+  'Big Birch\t1220mm\t2440mm\t18mm\tBirch Ply\t2',
+  'Small Birch\t600mm\t600mm\t18mm\tBirch Ply\t3',
+  'MDF Scrap\t800mm\t400mm\t12mm\tMDF\t1',
+].join('\n');
+
 const MIXED_TSV = [
   'Name\tWidth\tHeight\tThickness',
   'Good Sheet\t1220mm\t2440mm\t18mm',
-  '\t1220mm\t2440mm\t18mm', // missing name → skipped
   'Bad Width\tx\t2440mm\t18mm', // bad width → skipped
 ].join('\n');
 
@@ -95,7 +103,7 @@ describe('useStockCsvImport', () => {
     };
   }
 
-  it('imports valid TSV rows into addStock as SheetStockMatrix entries', async () => {
+  it('collapses material-less rows into one Uncategorized offcut panel', async () => {
     const rec = makeRecorder();
     const { api } = build(rec);
 
@@ -103,29 +111,76 @@ describe('useStockCsvImport', () => {
 
     expect(rec.calls).toHaveLength(1);
     const matrices = rec.calls[0]!;
-    expect(matrices).toHaveLength(2);
+    // Both rows share the absent → Uncategorized material, so one panel.
+    expect(matrices).toHaveLength(1);
     expect(matrices[0]).toMatchObject({
       kind: 'sheet',
-      name: 'Birch Ply',
+      // Differing row names → fall back to the material as the panel label.
+      name: 'Uncategorized',
       material: 'Uncategorized',
       role: 'offcut',
-      sizes: [{ width: 1220, length: 2440, thickness: [18], quantity: 1 }],
+      color: FALLBACK_PALETTE[0],
+      sizes: [
+        { width: 1220, length: 2440, thickness: [18], quantity: 1 },
+        { width: 140, length: 3000, thickness: [19], quantity: 1 },
+      ],
     });
-    expect(matrices[1]).toMatchObject({
-      kind: 'sheet',
-      name: 'Pine',
-      material: 'Uncategorized',
-      role: 'offcut',
-      sizes: [{ width: 140, length: 3000, thickness: [19], quantity: 1 }],
-    });
-    // Color comes from the palette.
-    expect(matrices[0]!.color).toBe(FALLBACK_PALETTE[0]);
-    expect(matrices[1]!.color).toBe(FALLBACK_PALETTE[1]);
 
+    // imported reflects parsed ROWS, not the panel count.
     expect(api.result.value).toEqual({ imported: 2, errors: [] });
   });
 
-  it('stamps the parsed per-row quantity onto sizes[0]', async () => {
+  it('groups rows by material, merging the repeated material into one panel', async () => {
+    const rec = makeRecorder();
+    const { api } = build(rec);
+
+    await api.importText(MATERIAL_TSV);
+
+    const matrices = rec.calls[0]!;
+    expect(matrices).toHaveLength(2);
+
+    const birch = matrices.find((m) => m.material === 'Birch Ply')!;
+    expect(birch).toMatchObject({
+      kind: 'sheet',
+      role: 'offcut',
+      // Two differing names under one material → label is the material.
+      name: 'Birch Ply',
+      sizes: [
+        { width: 1220, length: 2440, thickness: [18], quantity: 2 },
+        { width: 600, length: 600, thickness: [18], quantity: 3 },
+      ],
+    });
+
+    const mdf = matrices.find((m) => m.material === 'MDF')!;
+    expect(mdf).toMatchObject({
+      // Single row under this material → keep its name.
+      name: 'MDF Scrap',
+      sizes: [{ width: 800, length: 400, thickness: [12], quantity: 1 }],
+    });
+
+    expect(api.result.value).toEqual({ imported: 3, errors: [] });
+  });
+
+  it('merges same-size different-thickness rows of a material into one size', async () => {
+    const rec = makeRecorder();
+    const { api } = build(rec);
+
+    // Same w×l, same quantity, different thickness → one size, two thicknesses.
+    const tsv = [
+      'Width\tHeight\tThickness\tMaterial\tQuantity',
+      '1220mm\t2440mm\t18mm\tPly\t2',
+      '1220mm\t2440mm\t12mm\tPly\t2',
+    ].join('\n');
+    await api.importText(tsv);
+
+    const matrices = rec.calls[0]!;
+    expect(matrices).toHaveLength(1);
+    expect((matrices[0] as { sizes: unknown[] }).sizes).toEqual([
+      { width: 1220, length: 2440, thickness: [12, 18], quantity: 2 },
+    ]);
+  });
+
+  it('stamps the parsed per-row quantity onto the size', async () => {
     const rec = makeRecorder();
     const { api } = build(rec);
 
@@ -150,7 +205,8 @@ describe('useStockCsvImport', () => {
     ];
     const { api } = build(rec, { seed });
 
-    await api.importText(VALID_TSV);
+    // Two distinct materials → two panels, colored from the offset onward.
+    await api.importText(MATERIAL_TSV);
 
     const matrices = rec.calls[0]!;
     expect(matrices[0]!.color).toBe(FALLBACK_PALETTE[2]);
@@ -170,7 +226,7 @@ describe('useStockCsvImport', () => {
     expect(matrices[0]!.material).toBe('Uncategorized');
 
     expect(api.result.value!.imported).toBe(1);
-    expect(api.result.value!.errors).toHaveLength(2);
+    expect(api.result.value!.errors).toHaveLength(1);
   });
 
   it('does not call addStock when no valid rows parse', async () => {
@@ -200,11 +256,12 @@ describe('useStockCsvImport', () => {
     const rec = makeRecorder();
     const { api } = build(rec);
 
-    const csv = new File([VALID_TSV], 'stock.csv');
-    const txt = new File([VALID_TSV], 'notes.txt');
+    const csv = new File([MATERIAL_TSV], 'stock.csv');
+    const txt = new File([MATERIAL_TSV], 'notes.txt');
     await api.importFiles([txt, csv]);
 
     expect(rec.calls).toHaveLength(1);
+    // Three rows across two materials → two panels.
     expect(rec.calls[0]!).toHaveLength(2);
     expect(api.isImporting.value).toBe(false);
   });

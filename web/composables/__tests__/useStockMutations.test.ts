@@ -161,6 +161,44 @@ describe('useStockMutations', () => {
     expect(added.map((s) => s.name)).toEqual(['Door offcut', 'Door offcut']);
   });
 
+  it('consolidate merges same role+material panels and returns the removed count', () => {
+    activeProject.value!.stocks = [
+      {
+        kind: 'sheet',
+        material: 'Plywood',
+        role: 'offcut',
+        sizes: [{ width: 1220, length: 2440, thickness: [18], quantity: 1 }],
+      },
+      { kind: 'sheet', material: 'MDF', role: 'offcut', sizes: [] },
+      {
+        kind: 'sheet',
+        material: 'Plywood',
+        role: 'offcut',
+        sizes: [{ width: 600, length: 600, thickness: [18], quantity: 2 }],
+      },
+    ];
+    const { consolidate } = useStockMutations();
+    const removed = consolidate();
+
+    expect(removed).toBe(1);
+    expect(activeProject.value!.stocks).toHaveLength(2);
+    const ply = activeProject.value!.stocks.find(
+      (s) => s.material === 'Plywood',
+    ) as { sizes: unknown[] };
+    expect(ply.sizes).toEqual([
+      { width: 1220, length: 2440, thickness: [18], quantity: 1 },
+      { width: 600, length: 600, thickness: [18], quantity: 2 },
+    ]);
+  });
+
+  it('consolidate is a no-op (returns 0, no write) when nothing shares a panel', () => {
+    // Distinct materials → nothing to merge; stocks reference must be untouched.
+    const before = activeProject.value!.stocks;
+    const { consolidate } = useStockMutations();
+    expect(consolidate()).toBe(0);
+    expect(activeProject.value!.stocks).toBe(before);
+  });
+
   it('updating a row without changing its category leaves colorMap alone', async () => {
     const { update } = useStockMutations();
     update(0, {

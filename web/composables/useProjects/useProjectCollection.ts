@@ -94,6 +94,14 @@ export default function useProjectCollection() {
     await navigateTo(projectPath(id, null));
   }
 
+  async function duplicateProject(id: string) {
+    const copy = await idb.duplicateProject(id);
+    projectList.value = [
+      { id: copy.id, name: copy.name, updatedAt: copy.updatedAt },
+      ...projectList.value,
+    ];
+  }
+
   async function permanentlyDeleteProject(id: string) {
     projectList.value = projectList.value.filter((p) => p.id !== id);
     removeOpenTab(id);
@@ -130,6 +138,7 @@ export default function useProjectCollection() {
     appendProject,
     closeProject,
     openProject,
+    duplicateProject,
     permanentlyDeleteProject,
     resetDatabase,
     renameProject,

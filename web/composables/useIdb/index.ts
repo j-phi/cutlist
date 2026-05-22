@@ -28,6 +28,7 @@ import {
   createProject,
   updateProject,
   deleteProject,
+  duplicateProject,
 } from './projects';
 import {
   createModel,
@@ -90,6 +91,7 @@ export function useIdb() {
     createProject,
     updateProject,
     deleteProject,
+    duplicateProject,
     createModel,
     updateModel,
     deleteModel,

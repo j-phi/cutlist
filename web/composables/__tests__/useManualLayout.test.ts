@@ -69,6 +69,7 @@ describe('useManualLayout', () => {
     api.resetOverrides();
     api.manualMode.value = false;
     api.isDragging.value = false;
+    api.snapping.value = true;
     // Also reset document.body.style.userSelect between tests
     document.body.style.userSelect = '';
   });
@@ -158,6 +159,38 @@ describe('useManualLayout', () => {
     });
   });
 
+  describe('snap-to-grid', () => {
+    it('rounds position to nearest 1 mm when snapping is enabled', () => {
+      const part = makePlacement(1, 1, 0, 0, 300000, 600000);
+      const board0 = makeLayout([part]);
+      const board1 = makeLayout([]);
+      const layouts = [board0, board1];
+
+      api.snapping.value = true;
+      api.movePart(1, 1, 1, 1500, 2700); // 1.5 mm → 2000, 2.7 mm → 3000
+
+      const result = api.applyOverrides(layouts);
+      const placed = result[1].placements[0];
+      expect(placed.leftUm).toBe(2000);
+      expect(placed.bottomUm).toBe(3000);
+    });
+
+    it('uses exact position when snapping is disabled', () => {
+      const part = makePlacement(1, 1, 0, 0, 300000, 600000);
+      const board0 = makeLayout([part]);
+      const board1 = makeLayout([]);
+      const layouts = [board0, board1];
+
+      api.snapping.value = false;
+      api.movePart(1, 1, 1, 1500, 2700);
+
+      const result = api.applyOverrides(layouts);
+      const placed = result[1].placements[0];
+      expect(placed.leftUm).toBe(1500);
+      expect(placed.bottomUm).toBe(2700);
+    });
+  });
+
   describe('resetOverrides', () => {
     it('clears all overrides and both history stacks', () => {
       api.movePart(1, 1, 0, 0, 0);
@@ -171,6 +204,7 @@ describe('useManualLayout', () => {
 
   describe('undo / redo stack', () => {
     it('undo removes the most recent movePart, redo restores it', () => {
+      api.snapping.value = false; // use exact positions for predictability
       api.movePart(1, 1, 0, 10000, 20000);
       api.movePart(2, 1, 0, 30000, 40000);
       api.movePart(3, 1, 0, 50000, 60000);
@@ -204,6 +238,7 @@ describe('useManualLayout', () => {
     });
 
     it('movePart after undo clears the redo stack', () => {
+      api.snapping.value = false;
       api.movePart(1, 1, 0, 10000, 20000);
       api.movePart(2, 1, 0, 30000, 40000);
 
@@ -216,6 +251,7 @@ describe('useManualLayout', () => {
     });
 
     it('resetOverrides clears both undo and redo stacks', () => {
+      api.snapping.value = false;
       api.movePart(1, 1, 0, 10000, 20000);
       api.undo();
       // now canRedo is true
@@ -225,6 +261,7 @@ describe('useManualLayout', () => {
     });
 
     it('redo when future is empty is a no-op', () => {
+      api.snapping.value = false;
       api.movePart(1, 1, 0, 10000, 20000);
       expect(api.canRedo.value).toBe(false);
       api.redo(); // no-op
@@ -235,6 +272,7 @@ describe('useManualLayout', () => {
       expect(api.canUndo.value).toBe(false);
       expect(api.canRedo.value).toBe(false);
 
+      api.snapping.value = false;
       api.movePart(1, 1, 0, 0, 0);
       expect(api.canUndo.value).toBe(true);
       expect(api.canRedo.value).toBe(false);
@@ -261,6 +299,58 @@ describe('useManualLayout', () => {
       api.undo();
       expect(api.overrides.value).toHaveLength(1);
       expect(api.overrides.value[0].partNumber).toBe(1);
+    });
+  });
+
+  describe('pushOptimizeEntry (Optimize undo/redo)', () => {
+    it('makes the Optimize action undoable and redoable via callbacks', () => {
+      const undoCalls: string[] = [];
+      const redoCalls: string[] = [];
+
+      api.snapping.value = false;
+      api.movePart(1, 1, 0, 10000, 20000);
+      api.pushOptimizeEntry(
+        () => undoCalls.push('undo'),
+        () => redoCalls.push('redo'),
+      );
+      api.movePart(2, 1, 0, 30000, 40000);
+
+      expect(api.canUndo.value).toBe(true);
+      expect(api.overrides.value).toHaveLength(2);
+
+      api.undo(); // undo movePart(2)
+      expect(undoCalls).toHaveLength(0);
+      expect(api.overrides.value).toHaveLength(1);
+
+      api.undo(); // undo optimize — fires onUndo
+      expect(undoCalls).toEqual(['undo']);
+      expect(api.overrides.value).toHaveLength(1); // optimize didn't change overrides
+
+      api.undo(); // undo movePart(1)
+      expect(api.overrides.value).toHaveLength(0);
+
+      api.redo(); // redo movePart(1)
+      expect(redoCalls).toHaveLength(0);
+      expect(api.overrides.value).toHaveLength(1);
+
+      api.redo(); // redo optimize — fires onRedo
+      expect(redoCalls).toEqual(['redo']);
+
+      api.redo(); // redo movePart(2)
+      expect(api.overrides.value).toHaveLength(2);
+    });
+
+    it('clears the redo stack', () => {
+      api.snapping.value = false;
+      api.movePart(1, 1, 0, 10000, 20000);
+      api.undo();
+      expect(api.canRedo.value).toBe(true);
+
+      api.pushOptimizeEntry(
+        () => {},
+        () => {},
+      );
+      expect(api.canRedo.value).toBe(false);
     });
   });
 

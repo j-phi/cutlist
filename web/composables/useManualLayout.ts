@@ -13,17 +13,24 @@ interface PartOverride {
   bottomUm: Micrometres;
 }
 
+interface HistoryEntry {
+  overrides: PartOverride[];
+  onUndo?: () => void;
+  onRedo?: () => void;
+}
+
 // Module-level singleton — shared across all callers
 const manualMode = ref(false);
 const isDragging = ref(false);
 const snapping = ref(true);
 
-// Undo/redo history stacks. Each entry is a full snapshot of overrides.
-const past = ref<PartOverride[][]>([]);
-const future = ref<PartOverride[][]>([]);
+// Undo/redo history stacks. Each entry is a full snapshot of overrides plus
+// optional callbacks for actions that go beyond override changes (e.g. Optimize).
+const past = ref<HistoryEntry[]>([]);
+const future = ref<HistoryEntry[]>([]);
 
 // overrides is derived from the tip of the past stack
-const overrides = computed(() => past.value.at(-1) ?? []);
+const overrides = computed(() => past.value.at(-1)?.overrides ?? []);
 
 const canUndo = computed(() => past.value.length > 0);
 const canRedo = computed(() => future.value.length > 0);
@@ -45,6 +52,7 @@ function undo() {
   if (past.value.length === 0) return;
   const tip = past.value[past.value.length - 1];
   past.value = past.value.slice(0, -1);
+  tip.onUndo?.();
   future.value = [tip, ...future.value];
 }
 
@@ -52,6 +60,7 @@ function redo() {
   if (future.value.length === 0) return;
   const [head, ...rest] = future.value;
   future.value = rest;
+  head.onRedo?.();
   past.value = [...past.value, head];
 }
 
@@ -79,6 +88,8 @@ function ensureKeyListener() {
   });
 }
 
+const SNAP_UM = 1000; // 1 mm
+
 export function useManualLayout() {
   ensureUserSelectWatch();
   ensureKeyListener();
@@ -95,6 +106,13 @@ export function useManualLayout() {
     leftUm: number,
     bottomUm: number,
   ) {
+    const snappedLeft = snapping.value
+      ? Math.round(leftUm / SNAP_UM) * SNAP_UM
+      : leftUm;
+    const snappedBottom = snapping.value
+      ? Math.round(bottomUm / SNAP_UM) * SNAP_UM
+      : bottomUm;
+
     // Snapshot the current state, remove any existing override for this part,
     // then push the new one as a new history entry.
     const current = overrides.value.filter(
@@ -107,12 +125,20 @@ export function useManualLayout() {
         partNumber,
         instanceNumber,
         boardIndex,
-        leftUm: leftUm as Micrometres,
-        bottomUm: bottomUm as Micrometres,
+        leftUm: snappedLeft as Micrometres,
+        bottomUm: snappedBottom as Micrometres,
       },
     ];
-    past.value = [...past.value, next];
+    past.value = [...past.value, { overrides: next }];
     // New action clears the redo stack
+    future.value = [];
+  }
+
+  function pushOptimizeEntry(onUndo: () => void, onRedo: () => void) {
+    past.value = [
+      ...past.value,
+      { overrides: overrides.value, onUndo, onRedo },
+    ];
     future.value = [];
   }
 
@@ -190,6 +216,7 @@ export function useManualLayout() {
     canUndo,
     canRedo,
     movePart,
+    pushOptimizeEntry,
     undo,
     redo,
     resetOverrides,

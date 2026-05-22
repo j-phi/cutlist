@@ -1,8 +1,61 @@
 import { ref, type Ref } from 'vue';
 import type { StockMatrix, SheetStockMatrix } from 'cutlist';
-import { parseStockTable } from '~/utils/stockCsv';
+import { parseStockTable, type StockImportRow } from '~/utils/stockCsv';
 import type { TableRowError } from '~/utils/delimitedTable';
+import { mergeSheetSizes } from '~/utils/consolidateStock';
 import { FALLBACK_PALETTE } from '~/utils/materialColors';
+
+/** Blank-material rows collapse into this single fallback offcut category. */
+const FALLBACK_MATERIAL = 'Uncategorized';
+
+/**
+ * Group parsed offcut rows by material into one SheetStockMatrix per category,
+ * folding rows that share a material into a single panel with multiple board
+ * sizes. Rows with no material land in a single `Uncategorized` panel.
+ *
+ * Group order follows first appearance; palette colors are offset by the
+ * existing stock count so imported panels don't clash with what's already
+ * there. The panel name is the shared row name when every row in the group
+ * agrees, otherwise the material category.
+ */
+function groupRowsToMatrices(
+  rows: StockImportRow[],
+  baseCount: number,
+): SheetStockMatrix[] {
+  const order: string[] = [];
+  const byMaterial = new Map<string, StockImportRow[]>();
+  for (const row of rows) {
+    const material = row.material || FALLBACK_MATERIAL;
+    const existing = byMaterial.get(material);
+    if (existing) existing.push(row);
+    else {
+      byMaterial.set(material, [row]);
+      order.push(material);
+    }
+  }
+
+  return order.map((material, i) => {
+    const group = byMaterial.get(material)!;
+    const names = [...new Set(group.map((r) => r.name).filter(Boolean))];
+    const sizes = mergeSheetSizes(
+      group.map((r) => ({
+        width: r.widthMm,
+        length: r.lengthMm,
+        thickness: [r.thicknessMm],
+        quantity: r.quantity,
+      })),
+      'offcut',
+    );
+    return {
+      kind: 'sheet',
+      name: names.length === 1 ? names[0] : material,
+      material,
+      role: 'offcut',
+      color: FALLBACK_PALETTE[(baseCount + i) % FALLBACK_PALETTE.length],
+      sizes,
+    };
+  });
+}
 
 export interface StockCsvImportResult {
   /** Number of input rows imported (one SheetStockMatrix per row). */
@@ -44,25 +97,7 @@ export function useStockCsvImport(opts: UseStockCsvImportOptions) {
     });
 
     if (rows.length > 0) {
-      const baseCount = stocks.value.length;
-      const matrices: SheetStockMatrix[] = rows.map((row, i) => ({
-        kind: 'sheet',
-        // The imported label is the per-item name (Layout page); the user
-        // assigns a material category later. Offcuts start uncategorized.
-        name: row.name,
-        material: 'Uncategorized',
-        role: 'offcut',
-        color: FALLBACK_PALETTE[(baseCount + i) % FALLBACK_PALETTE.length],
-        sizes: [
-          {
-            width: row.widthMm,
-            length: row.lengthMm,
-            thickness: [row.thicknessMm],
-            quantity: row.quantity,
-          },
-        ],
-      }));
-      addStock(matrices);
+      addStock(groupRowsToMatrices(rows, stocks.value.length));
     }
 
     result.value = { imported: rows.length, errors };

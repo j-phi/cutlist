@@ -1,4 +1,5 @@
 import type { StockMatrix } from 'cutlist';
+import { consolidateStock } from '~/utils/consolidateStock';
 
 // `colorMap` references stock by material *category* (many items can share a
 // category). Renaming or removing a stock cascades into colorMap only when the
@@ -50,5 +51,17 @@ export function useStockMutations() {
     }
   }
 
-  return { add, update, remove };
+  /**
+   * Merge sheet panels that share a `(role, material)` into one panel, folding
+   * their board sizes together. Returns the number of panels eliminated;
+   * writes only when something actually merged. Materials are unchanged (we
+   * only merge within a category), so no colorMap cascade is needed.
+   */
+  function consolidate(): number {
+    const { result, removed } = consolidateStock(stocks.value);
+    if (removed > 0) stocks.value = result;
+    return removed;
+  }
+
+  return { add, update, remove, consolidate };
 }

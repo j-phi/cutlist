@@ -38,11 +38,11 @@ mockNuxtImport('useProjectSettings', () => () => ({
 
 // ── useBoardLayoutsQuery mock ────────────────────────────────────────────────
 const isComputing = ref(false);
-const forceRecompute = vi.fn();
+const captureAndRecompute = vi.fn();
 
 mockNuxtImport('useBoardLayoutsQuery', () => () => ({
   isComputing,
-  forceRecompute,
+  captureAndRecompute,
   data: ref(undefined),
   error: ref(null),
   partCountWarning: ref(null),
@@ -51,6 +51,7 @@ mockNuxtImport('useBoardLayoutsQuery', () => () => ({
 // ── useManualLayout mock ─────────────────────────────────────────────────────
 const manualMode = ref(false);
 const snapping = ref(true);
+const pushOptimizeEntry = vi.fn();
 
 mockNuxtImport('useManualLayout', () => () => ({
   manualMode,
@@ -58,6 +59,7 @@ mockNuxtImport('useManualLayout', () => () => ({
   isDragging: ref(false),
   overrides: ref([]),
   movePart: vi.fn(),
+  pushOptimizeEntry,
   resetOverrides: vi.fn(),
   applyOverrides: vi.fn(),
 }));
@@ -166,7 +168,8 @@ describe('PreviewToolbar', () => {
     isComputing.value = false;
     manualMode.value = false;
     snapping.value = true;
-    forceRecompute.mockClear();
+    captureAndRecompute.mockClear();
+    pushOptimizeEntry.mockClear();
   });
 
   function getComponent() {
@@ -257,10 +260,11 @@ describe('PreviewToolbar', () => {
   });
 
   describe('Optimize button', () => {
-    it('calls forceRecompute when clicked', async () => {
+    it('calls captureAndRecompute with pushOptimizeEntry when clicked', async () => {
       const wrapper = getComponent();
       await wrapper.find('[data-testid="btn-optimize"]').trigger('click');
-      expect(forceRecompute).toHaveBeenCalledTimes(1);
+      expect(captureAndRecompute).toHaveBeenCalledTimes(1);
+      expect(captureAndRecompute).toHaveBeenCalledWith(pushOptimizeEntry);
     });
 
     it('passes loading state to the optimize button when isComputing', () => {

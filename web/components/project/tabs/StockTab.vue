@@ -21,7 +21,8 @@ import {
 const { stocks, distanceUnit, precision } = useProjectSettings();
 const { activeId } = useProjects();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
-const { add, update, remove } = useStockMutations();
+const { add, update, remove, consolidate } = useStockMutations();
+const toast = useToast();
 
 // ── Bulk stock import (paste / .csv drop → sheet stock) ───────────────────────
 
@@ -282,6 +283,36 @@ function addCustomLinear() {
   };
   add([blank]);
 }
+
+// Offer "Consolidate" only when two or more sheet panels share a (role,
+// material) — i.e. there's an actual merge to perform.
+const canConsolidate = computed<boolean>(() => {
+  const seen = new Set<string>();
+  for (const m of entries.value) {
+    if (m.kind !== 'sheet') continue;
+    const key = `${m.role ?? 'general'} ${m.material}`;
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
+});
+
+function onConsolidate() {
+  const removed = consolidate();
+  toast.add(
+    removed > 0
+      ? {
+          title: 'Consolidated',
+          description: `Merged ${removed} duplicate material panel${
+            removed === 1 ? '' : 's'
+          }.`,
+        }
+      : {
+          title: 'Nothing to consolidate',
+          description: 'No materials share a panel.',
+        },
+  );
+}
 </script>
 
 <template>
@@ -333,6 +364,17 @@ function addCustomLinear() {
           materials.
         </p>
         <div class="flex items-center gap-2 shrink-0">
+          <UButton
+            v-if="canConsolidate"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-combine"
+            size="sm"
+            data-testid="stock-consolidate"
+            @click="onConsolidate"
+          >
+            Consolidate materials
+          </UButton>
           <UButton
             color="neutral"
             variant="outline"
@@ -510,15 +552,16 @@ function addCustomLinear() {
             these offcuts before any general stock.
           </p>
           <p class="text-xs text-dim">
-            Columns: Name, Width, Height, Thickness, and an optional Quantity
-            (how many of each you have — defaults to 1). Paste from Google
-            Sheets or a CSV.
+            Columns: Width, Height, Thickness, plus optional Name, Material, and
+            Quantity (how many of each — defaults to 1). Rows that share a
+            Material are grouped onto one panel; rows with no Material land in a
+            single Uncategorized panel. Paste from Google Sheets or a CSV.
           </p>
           <UTextarea
             v-model="pastedRows"
             :rows="4"
             class="w-full font-mono text-xs"
-            placeholder="Name	Width	Height	Thickness	Quantity"
+            placeholder="Name	Width	Height	Thickness	Material	Quantity"
             aria-label="Paste offcut rows"
           />
           <div class="flex justify-end">

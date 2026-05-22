@@ -3,7 +3,13 @@ import { parseDimCell } from './bomCsv';
 import { parseDelimitedTable, type TableRowError } from './delimitedTable';
 
 export interface StockImportRow {
+  /** Per-item label (Layout page). Optional — blank when no Name column/cell. */
   name: string;
+  /**
+   * Material category. Blank when no Material column/cell; the import groups
+   * blank-material rows under a single fallback category.
+   */
+  material: string;
   /** Stored as a plain mm number (NOT µm). */
   widthMm: number;
   lengthMm: number;
@@ -26,14 +32,18 @@ export interface StockParseResult {
 // "Height" but it maps to the sheet's LENGTH dimension, so both aliases land
 // on the same `length` key.
 const ALIASES: Record<string, string[]> = {
-  name: ['name', 'material', 'stock', 'label'],
+  name: ['name', 'label', 'stock'],
+  material: ['material', 'category', 'type'],
   width: ['width', 'w'],
   length: ['height', 'length', 'len', 'h', 'l'],
   thickness: ['thickness', 'thick', 't'],
   quantity: ['quantity', 'qty', 'count'],
 };
 
-const REQUIRED = ['name', 'width', 'length', 'thickness'];
+// Name and Material are optional: the import groups by material (blank → a
+// single fallback category) and uses the material as the panel label when no
+// name is given. Only the dimensions are mandatory.
+const REQUIRED = ['width', 'length', 'thickness'];
 
 /** Parse an optional quantity cell to a positive integer; default 1. */
 function parseQuantity(raw: string): number {
@@ -80,10 +90,7 @@ export function parseStockTable(
       errors.push({ row: dataRow, raw, message });
 
     const name = cell('name').trim();
-    if (name === '') {
-      fail('missing name');
-      continue;
-    }
+    const material = cell('material').trim();
 
     const dim = (key: string, label: string): Micrometres | undefined => {
       const um = parseDimCell(cell(key), options.defaultUnit);
@@ -110,6 +117,7 @@ export function parseStockTable(
 
     rows.push({
       name,
+      material,
       widthMm: umToMm(widthUm),
       lengthMm: umToMm(lengthUm),
       thicknessMm: umToMm(thicknessUm),

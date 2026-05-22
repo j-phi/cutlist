@@ -14,8 +14,14 @@ import {
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
 const { activeId } = useProjects();
 const { stocks } = useProjectSettings();
-const { manualMode, isDragging, movePart, applyOverrides, resetOverrides } =
-  useManualLayout();
+const {
+  manualMode,
+  isDragging,
+  snapping,
+  movePart,
+  applyOverrides,
+  resetOverrides,
+} = useManualLayout();
 
 const container = ref<HTMLDivElement>();
 const gridEl = ref<HTMLDivElement>();
@@ -97,6 +103,10 @@ interface DragGhost {
 const dragGhost = ref<DragGhost | null>(null);
 const ghostEl = ref<HTMLDivElement | null>(null);
 
+// Drop-preview state — which board the cursor is over during a drag.
+const hoverBoardIndex = ref<number | null>(null);
+const hoverBoardRect = ref<DOMRect | null>(null);
+
 const ghostColor = computed(() => {
   if (!dragGhost.value) return '#67787c';
   const layout = filteredSheetLayouts.value[dragGhost.value.sourceBoardIndex];
@@ -118,6 +128,60 @@ const ghostSize = computed(() => {
   return { w: raw.w * factor, h: raw.h * factor };
 });
 
+interface DragPreview {
+  boardIndex: number;
+  leftUm: number;
+  bottomUm: number;
+  widthUm: number;
+  heightUm: number;
+}
+
+const SNAP_UM = 1000;
+
+const dragPreviewData = computed<DragPreview | null>(() => {
+  if (
+    !dragGhost.value ||
+    hoverBoardIndex.value === null ||
+    !hoverBoardRect.value
+  )
+    return null;
+  const target = filteredSheetLayouts.value[hoverBoardIndex.value];
+  if (!target) return null;
+
+  const rect = hoverBoardRect.value;
+  const u = (dragGhost.value.x - rect.left) / rect.width;
+  const v = (dragGhost.value.y - rect.top) / rect.height;
+  const xUm = u * target.stock.widthUm;
+  const yUm = (1 - v) * target.stock.lengthUm;
+
+  const { placement } = dragGhost.value;
+  const w = placement.rightUm - placement.leftUm;
+  const h = placement.topUm - placement.bottomUm;
+  const rawLeft = xUm - w / 2;
+  const rawBottom = yUm - h / 2;
+
+  const snappingActive = snapping.value;
+  const leftUm = snappingActive
+    ? Math.round(rawLeft / SNAP_UM) * SNAP_UM
+    : rawLeft;
+  const bottomUm = snappingActive
+    ? Math.round(rawBottom / SNAP_UM) * SNAP_UM
+    : rawBottom;
+
+  const maxLeft = Math.max(0, target.stock.widthUm - w);
+  const maxBottom = Math.max(0, target.stock.lengthUm - h);
+
+  return {
+    boardIndex: hoverBoardIndex.value,
+    leftUm: Math.max(0, Math.min(leftUm, maxLeft)),
+    bottomUm: Math.max(0, Math.min(bottomUm, maxBottom)),
+    widthUm: w,
+    heightUm: h,
+  };
+});
+
+provide('dragPreview', dragPreviewData);
+
 function startPartDrag(
   placement: SheetBoardLayoutPlacement,
   sourceBoardIndex: number,
@@ -135,12 +199,33 @@ function startPartDrag(
     if (dragGhost.value) {
       dragGhost.value = { ...dragGhost.value, x: e.clientX, y: e.clientY };
     }
+
+    // Find which board element the cursor is over using elementsFromPoint.
+    // Hide the ghost element first so it doesn't intercept the hit test.
+    const ghostDivEl = ghostEl.value;
+    if (ghostDivEl) ghostDivEl.style.display = 'none';
+    const els = document.elementsFromPoint(e.clientX, e.clientY);
+    if (ghostDivEl) ghostDivEl.style.display = '';
+
+    const boardEl = els.find(
+      (el) => (el as HTMLElement).dataset?.boardIndex != null,
+    ) as HTMLElement | undefined;
+
+    if (boardEl) {
+      hoverBoardIndex.value = parseInt(boardEl.dataset.boardIndex!);
+      hoverBoardRect.value = boardEl.getBoundingClientRect();
+    } else {
+      hoverBoardIndex.value = null;
+      hoverBoardRect.value = null;
+    }
   };
 
   function cleanup() {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('keydown', onKeyDown);
     isDragging.value = false;
+    hoverBoardIndex.value = null;
+    hoverBoardRect.value = null;
     dragGhost.value = null;
   }
 
