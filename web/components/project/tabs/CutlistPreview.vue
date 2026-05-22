@@ -1,10 +1,16 @@
 <script lang="ts" setup>
-import type { SheetBoardLayout, LinearBoardLayout } from 'cutlist';
+import type {
+  SheetBoardLayout,
+  LinearBoardLayout,
+  SheetBoardLayoutPlacement,
+} from 'cutlist';
 import { projectPath } from '~/utils/projectTabs';
 
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
 const { activeId } = useProjects();
 const { stocks } = useProjectSettings();
+const { manualMode, isDragging, movePart, applyOverrides, resetOverrides } =
+  useManualLayout();
 
 const container = ref<HTMLDivElement>();
 const gridEl = ref<HTMLDivElement>();
@@ -29,6 +35,9 @@ const sheetLayouts = computed<SheetBoardLayout[]>(
 const linearLayouts = computed<LinearBoardLayout[]>(
   () => data.value?.linearLayouts ?? [],
 );
+
+// Clear overrides when the engine produces a new result.
+watch(data, () => resetOverrides());
 
 const stockOptions = computed(() => {
   const seen = new Set<string>();
@@ -65,6 +74,120 @@ const filteredSheetLayouts = computed<SheetBoardLayout[]>(() => {
     (l) => stockKey(l.stock) === selectedStock.value,
   );
 });
+
+// Apply manual overrides on top of engine layouts.
+const displaySheetLayouts = computed<SheetBoardLayout[]>(() =>
+  manualMode.value
+    ? applyOverrides(filteredSheetLayouts.value)
+    : filteredSheetLayouts.value,
+);
+
+// Drag-ghost state.
+interface DragGhost {
+  placement: SheetBoardLayoutPlacement;
+  sourceBoardIndex: number;
+  x: number;
+  y: number;
+}
+const dragGhost = ref<DragGhost | null>(null);
+const ghostEl = ref<HTMLDivElement | null>(null);
+
+const ghostColor = computed(() => {
+  if (!dragGhost.value) return '#67787c';
+  const layout = filteredSheetLayouts.value[dragGhost.value.sourceBoardIndex];
+  return getMaterialColor(layout?.stock.color).part;
+});
+
+const PX_PER_UM = 1 / 2000;
+const ghostSize = computed(() => {
+  if (!dragGhost.value) return { w: 40, h: 40 };
+  const { placement } = dragGhost.value;
+  const zoom = scale.value ?? 1;
+  const raw = {
+    w: (placement.rightUm - placement.leftUm) * PX_PER_UM * zoom,
+    h: (placement.topUm - placement.bottomUm) * PX_PER_UM * zoom,
+  };
+  // Cap so the ghost stays usable at extreme zoom levels.
+  const maxDim = Math.max(raw.w, raw.h);
+  const factor = maxDim > 160 ? 160 / maxDim : maxDim < 24 ? 24 / maxDim : 1;
+  return { w: raw.w * factor, h: raw.h * factor };
+});
+
+function startPartDrag(
+  placement: SheetBoardLayoutPlacement,
+  sourceBoardIndex: number,
+  event: PointerEvent,
+) {
+  dragGhost.value = {
+    placement,
+    sourceBoardIndex,
+    x: event.clientX,
+    y: event.clientY,
+  };
+  isDragging.value = true;
+
+  const onMove = (e: PointerEvent) => {
+    if (dragGhost.value) {
+      dragGhost.value = { ...dragGhost.value, x: e.clientX, y: e.clientY };
+    }
+  };
+
+  function cleanup() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('keydown', onKeyDown);
+    isDragging.value = false;
+    dragGhost.value = null;
+  }
+
+  const onUp = (e: PointerEvent) => {
+    document.removeEventListener('pointerup', onUp);
+    cleanup();
+
+    // Temporarily hide the ghost so elementsFromPoint sees the board underneath.
+    const ghost = ghostEl.value;
+    if (ghost) ghost.style.display = 'none';
+    const els = document.elementsFromPoint(e.clientX, e.clientY);
+    if (ghost) ghost.style.display = '';
+
+    const boardEl = els.find(
+      (el) => (el as HTMLElement).dataset?.boardIndex != null,
+    ) as HTMLElement | undefined;
+
+    if (boardEl) {
+      const targetBoardIndex = parseInt(boardEl.dataset.boardIndex!);
+      const rect = boardEl.getBoundingClientRect();
+      const u = (e.clientX - rect.left) / rect.width;
+      const v = (e.clientY - rect.top) / rect.height;
+      const target = filteredSheetLayouts.value[targetBoardIndex];
+      if (target) {
+        const xUm = u * target.stock.widthUm;
+        const yUm = (1 - v) * target.stock.lengthUm;
+        const w = placement.rightUm - placement.leftUm;
+        const h = placement.topUm - placement.bottomUm;
+        movePart(
+          placement.partNumber,
+          placement.instanceNumber,
+          targetBoardIndex,
+          xUm - w / 2,
+          yUm - h / 2,
+        );
+      }
+    }
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      document.removeEventListener('pointerup', onUp);
+      cleanup();
+    }
+  };
+
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp, { once: true });
+  document.addEventListener('keydown', onKeyDown);
+}
+
+provide('startPartDrag', startPartDrag);
 
 const totalVisibleLayouts = computed(
   () => filteredSheetLayouts.value.length + linearLayouts.value.length,
@@ -155,8 +278,8 @@ const emptyState = computed(() => {
           >
             <div class="grid grid-flow-col auto-cols-max items-start">
               <LayoutList
-                v-if="filteredSheetLayouts.length > 0"
-                :layouts="filteredSheetLayouts"
+                v-if="displaySheetLayouts.length > 0"
+                :layouts="displaySheetLayouts"
               />
               <LinearLayoutList
                 v-if="linearLayouts.length > 0"
@@ -258,6 +381,22 @@ const emptyState = computed(() => {
     >
       <SheetShoppingList :layouts="filteredSheetLayouts" :stocks="stocks" />
     </div>
+
+    <!-- Drag ghost (follows cursor while a part is being dragged) -->
+    <Teleport to="body">
+      <div
+        v-if="dragGhost"
+        ref="ghostEl"
+        class="fixed pointer-events-none z-[9999] rounded-xs shadow-xl opacity-80 border border-white/20"
+        :style="{
+          left: `${dragGhost.x - ghostSize.w / 2}px`,
+          top: `${dragGhost.y - ghostSize.h / 2}px`,
+          width: `${ghostSize.w}px`,
+          height: `${ghostSize.h}px`,
+          background: ghostColor,
+        }"
+      />
+    </Teleport>
 
     <!-- Controls -->
     <div class="absolute bottom-4 right-4 flex gap-3 z-10">
