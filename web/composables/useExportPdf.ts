@@ -24,7 +24,7 @@ export default function () {
     })),
   );
 
-  async function download(scale: PdfScale) {
+  async function download(scale: PdfScale, showDimensions = false) {
     if (!bomRows.value.length) return;
     isExporting.value = true;
     error.value = undefined;
@@ -41,6 +41,7 @@ export default function () {
         formatSize: formatDistance,
         showPartNumbers: !!showPartNumbers.value,
         showBomName: !!showBomName.value,
+        showDimensions,
         measurements: measurements.value,
       });
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });

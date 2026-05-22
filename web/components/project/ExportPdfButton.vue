@@ -5,9 +5,11 @@ const { download, isExporting, error, canExport } = useExportPdf();
 const { isComputing } = useBoardLayoutsQuery();
 
 const isOpen = ref(false);
-const scale = ref<PdfScale>(10);
+const scale = ref<PdfScale>('auto');
+const showDimensions = ref(false);
 
 const scaleOptions: { label: string; value: PdfScale }[] = [
+  { label: 'Auto (fit each board to page)', value: 'auto' },
   { label: '1:1 (full size, will tile)', value: 1 },
   { label: '1:5', value: 5 },
   { label: '1:10', value: 10 },
@@ -16,7 +18,7 @@ const scaleOptions: { label: string; value: PdfScale }[] = [
 ];
 
 async function onDownload() {
-  await download(scale.value);
+  await download(scale.value, showDimensions.value);
   if (!error.value) isOpen.value = false;
 }
 </script>
@@ -60,9 +62,10 @@ async function onDownload() {
             />
           </div>
           <p class="text-sm text-muted">
-            Generates an A4 PDF with the BOM table and each board layout drawn
-            at the chosen scale. Boards larger than one page will be tiled with
-            crop marks.
+            Generates a PDF with the BOM table and each board layout drawn at
+            the chosen scale. "Auto" picks the largest integer scale that fits
+            each board on a single page. Fixed scales tile boards that don't
+            fit.
           </p>
 
           <UFormField label="Scale" class="w-full">
@@ -74,6 +77,11 @@ async function onDownload() {
               class="w-full"
             />
           </UFormField>
+
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <UCheckbox v-model="showDimensions" />
+            <span class="text-sm text-body">Show dimensions on pieces</span>
+          </label>
 
           <div
             v-if="error"

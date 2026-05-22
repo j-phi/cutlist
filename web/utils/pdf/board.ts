@@ -2,7 +2,6 @@ import { degrees, rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
 import { umToMm, type Micrometres, type SheetBoardLayout } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
-import type { PdfScale } from '../exportPdf';
 import {
   BOARD_TITLE_BAND_MM,
   FOOTER_BAND_MM,
@@ -15,6 +14,29 @@ import {
 import { addPage, type Ctx } from './context';
 import { drawClippedHatch, drawClippedRect, drawTileBorder } from './geometry';
 import { drawMeasurement } from './measurements';
+
+/**
+ * Find the smallest integer scale ≥ 1 that fits the board on a single page.
+ * Orientation (portrait/landscape) follows the board's own aspect ratio.
+ */
+export function computeBoardScale(
+  boardWmm: number,
+  boardHmm: number,
+  margin: number,
+): number {
+  const landscape = boardWmm > boardHmm;
+  const pageWmm = landscape ? LETTER_H_MM : LETTER_W_MM;
+  const pageHmm = landscape ? LETTER_W_MM : LETTER_H_MM;
+  const printableWmm = pageWmm - 2 * margin - LEGEND_BAND_MM;
+  const printableHmm =
+    pageHmm -
+    2 * margin -
+    HEADER_BAND_MM -
+    BOARD_TITLE_BAND_MM -
+    FOOTER_BAND_MM;
+  const minScale = Math.max(boardWmm / printableWmm, boardHmm / printableHmm);
+  return Math.max(1, Math.ceil(minScale));
+}
 
 /** Indigo-500 (Tailwind) for material-allowance hatching. */
 const ALLOWANCE_COLOR = rgb(0.388, 0.4, 0.945);
@@ -35,13 +57,18 @@ export function drawBoardTiles(
   totalBoards: number,
   measurements: RulerMeasurement[],
 ) {
-  const { scale } = ctx.opts;
   const stock = layout.stock;
   const boardWmm = umToMm(stock.widthUm);
   const boardLmm = umToMm(stock.lengthUm);
+
+  const effectiveScale =
+    ctx.opts.scale === 'auto'
+      ? computeBoardScale(boardWmm, boardLmm, ctx.opts.margin)
+      : ctx.opts.scale;
+
   // Paper dimensions (mm) at the chosen scale
-  const paperWmm = boardWmm / scale;
-  const paperHmm = boardLmm / scale;
+  const paperWmm = boardWmm / effectiveScale;
+  const paperHmm = boardLmm / effectiveScale;
 
   // Decide page orientation per board so the board fills as much as possible
   const landscape = paperWmm > paperHmm;
@@ -76,6 +103,7 @@ export function drawBoardTiles(
         rows,
         { pageWmm, pageHmm, paperWmm, paperHmm, printableWmm, printableHmm },
         measurements,
+        effectiveScale,
       );
     }
   }
@@ -92,11 +120,13 @@ function drawBoardTilePage(
   rows: number,
   geom: TileGeom,
   measurements: RulerMeasurement[],
+  effectiveScale: number,
 ) {
-  const { scale, formatSize, showPartNumbers, showBomName } = ctx.opts;
+  const { formatSize, showPartNumbers, showBomName } = ctx.opts;
   const margin = ctx.opts.margin;
   const overlap = ctx.opts.tileOverlap;
   const stock = layout.stock;
+  const scale = effectiveScale;
 
   const subtitle =
     cols * rows > 1
@@ -274,12 +304,17 @@ function drawBoardTilePage(
       }
     }
 
-    // Part name — centered in the piece, rotated 90° for portrait pieces.
-    if (showBomName && placement.name) {
-      drawPartName(
+    // Part labels: name and/or dimensions, non-overlapping.
+    const nameToDraw = showBomName ? (placement.name ?? null) : null;
+    const dimLabel = ctx.opts.showDimensions
+      ? `${formatSize((placement.rightUm - placement.leftUm) as Micrometres) ?? `${Math.round(placedWidthMm)}mm`} × ${formatSize((placement.topUm - placement.bottomUm) as Micrometres) ?? `${Math.round(placedLengthMm)}mm`}`
+      : null;
+    if (nameToDraw || dimLabel) {
+      drawPartLabels(
         ctx,
         page,
-        placement.name,
+        nameToDraw,
+        dimLabel,
         px,
         py,
         pw,
@@ -313,14 +348,22 @@ function drawBoardTilePage(
 }
 
 /**
- * Draw the part name centered inside its placed rectangle.
- * Portrait pieces (taller than wide) get the text rotated 90° CCW so it reads
- * along the long axis without overflowing the narrow width.
+ * Draw the part name and/or dimension label (W × H) inside the placed rectangle.
+ *
+ * Landscape pieces: name above, dims below, stacked vertically and centered.
+ * Portrait pieces (90° CCW): name and dims side-by-side in the reading direction
+ *   (name first, dims to the right), the pair centered on the narrow axis —
+ *   exactly the landscape block layout rotated 90° CCW.
+ *
+ * Text is centered on the *visible* portion of the piece within the tile so that
+ * pieces near tile edges always receive a label. Font sizes scale down to a
+ * minimum before a label is dropped.
  */
-function drawPartName(
+function drawPartLabels(
   ctx: Ctx,
   page: ReturnType<Ctx['doc']['addPage']>,
-  name: string,
+  name: string | null,
+  dimLabel: string | null,
   px: number,
   py: number,
   pw: number,
@@ -333,61 +376,160 @@ function drawPartName(
   tileWpt: number,
   tileHpt: number,
 ) {
+  // Clamp to visible portion — pieces near tile edges use their visible centre.
+  const visX1 = Math.max(px, tileXpt);
+  const visY1 = Math.max(py, tileYpt);
+  const visX2 = Math.min(px + pw, tileXpt + tileWpt);
+  const visY2 = Math.min(py + ph, tileYpt + tileHpt);
+  if (visX2 <= visX1 || visY2 <= visY1) return;
+
   const isPortrait = placedLengthMm > placedWidthMm;
   const shortMm = Math.min(placedWidthMm, placedLengthMm);
-  const longPt = ((isPortrait ? placedLengthMm : placedWidthMm) / scale) * MM;
-
-  // Font size: cap at one-third of the shorter physical dimension, max 14pt.
+  const visLongPt = isPortrait ? visY2 - visY1 : visX2 - visX1;
   const ONE_INCH_MM = 25.4;
-  const capMm = Math.min(shortMm / 3, ONE_INCH_MM);
-  const rawPt = (capMm / scale) * MM;
-  const namePt = Math.max(5, Math.min(14, rawPt));
+  const GAP = 2; // pt between name and dim label
+  const MIN_NAME_PT = 4;
+  const MIN_DIM_PT = 3;
 
-  const textW = ctx.font.widthOfTextAtSize(name, namePt);
+  // Compute font size + rendered width, scaling down proportionally before
+  // dropping a label so small pieces still receive readable (if tiny) text.
+  const fitLabel = (
+    text: string,
+    maxPt: number,
+    minPt: number,
+    capMm: number,
+  ): { pt: number; w: number } | null => {
+    let pt = Math.min(maxPt, Math.max(minPt, (capMm / scale) * MM));
+    let w = ctx.font.widthOfTextAtSize(text, pt);
+    if (w > visLongPt * 0.85) {
+      pt = Math.max(minPt, (pt * visLongPt * 0.85) / w);
+      w = ctx.font.widthOfTextAtSize(text, pt);
+      if (w > visLongPt) return null; // even min size won't fit
+    }
+    return { pt, w };
+  };
 
-  // Skip if text would overflow more than 85% of the long dimension.
-  if (textW > longPt * 0.85) return;
+  const nameFit = name
+    ? fitLabel(name, 14, MIN_NAME_PT, Math.min(shortMm / 3, ONE_INCH_MM))
+    : null;
+  const dimFit = dimLabel
+    ? fitLabel(dimLabel, 10, MIN_DIM_PT, Math.min(shortMm / 4, ONE_INCH_MM))
+    : null;
 
-  const cx = px + pw / 2;
-  const cy = py + ph / 2;
+  if (!nameFit && !dimFit) return;
+
+  const visCx = (visX1 + visX2) / 2;
+  const visCy = (visY1 + visY2) / 2;
 
   if (isPortrait) {
-    // 90° CCW rotation: text width maps to the vertical axis, height to horizontal.
-    // Origin is placed so the visual center of the text lands at (cx, cy).
-    const originX = cx + namePt / 2;
-    const originY = cy - textW / 2;
-
-    // Verify the piece itself is at least partially inside the tile before drawing.
-    if (px + pw < tileXpt || px > tileXpt + tileWpt) return;
-    if (py + ph < tileYpt || py > tileYpt + tileHpt) return;
-
-    page.drawText(name, {
-      x: originX,
-      y: originY,
-      size: namePt,
-      font: ctx.font,
-      color: rgb(0.2, 0.2, 0.2),
-      rotate: degrees(90),
-    });
-  } else {
-    // Horizontal: center the text in the rectangle.
-    const lx = cx - textW / 2;
-    const ly = cy - namePt / 2;
-
-    // Only draw if fully inside tile.
-    if (
-      lx >= tileXpt &&
-      lx + textW <= tileXpt + tileWpt &&
-      ly >= tileYpt &&
-      ly + namePt <= tileYpt + tileHpt
-    ) {
-      page.drawText(name, {
-        x: lx,
-        y: ly,
-        size: namePt,
+    // Portrait: both labels rotated 90° CCW, each running along the long (y) axis.
+    // Two-column layout — name in the left column (lower x), dims in the right
+    // column (higher x) — mirroring how landscape stacks name above dims but
+    // rotated 90° CCW. Each label is independently y-centered at visCy; the
+    // combined [name | gap | dims] block is x-centered at visCx.
+    //
+    // For 90° CCW text the baseline is the RIGHT edge of the glyph body, so:
+    //   nameOriginX = visCx + (namePt − GAP − dimPt) / 2
+    //   dimOriginX  = visCx + (namePt + GAP + dimPt) / 2
+    if (nameFit && dimFit) {
+      const blockXWidth = nameFit.pt + GAP + dimFit.pt;
+      const visNarrowPt = visX2 - visX1;
+      if (blockXWidth <= visNarrowPt * 0.9) {
+        page.drawText(name!, {
+          x: visCx + (nameFit.pt - GAP - dimFit.pt) / 2,
+          y: visCy - nameFit.w / 2,
+          size: nameFit.pt,
+          font: ctx.font,
+          color: rgb(0.2, 0.2, 0.2),
+          rotate: degrees(90),
+        });
+        page.drawText(dimLabel!, {
+          x: visCx + (nameFit.pt + GAP + dimFit.pt) / 2,
+          y: visCy - dimFit.w / 2,
+          size: dimFit.pt,
+          font: ctx.font,
+          color: rgb(0.35, 0.35, 0.35),
+          rotate: degrees(90),
+        });
+        return;
+      }
+      // Not enough narrow width for two columns — fall through to name only.
+    }
+    if (nameFit) {
+      page.drawText(name!, {
+        x: visCx + nameFit.pt / 2,
+        y: visCy - nameFit.w / 2,
+        size: nameFit.pt,
         font: ctx.font,
         color: rgb(0.2, 0.2, 0.2),
+        rotate: degrees(90),
       });
+    } else if (dimFit) {
+      page.drawText(dimLabel!, {
+        x: visCx + dimFit.pt / 2,
+        y: visCy - dimFit.w / 2,
+        size: dimFit.pt,
+        font: ctx.font,
+        color: rgb(0.35, 0.35, 0.35),
+        rotate: degrees(90),
+      });
+    }
+  } else {
+    // Landscape: name above (higher y), dims below, centered at visCx/visCy.
+    const drawText = (
+      text: string,
+      pt: number,
+      w: number,
+      lx: number,
+      ly: number,
+      color: ReturnType<typeof rgb>,
+    ) => {
+      if (
+        lx >= tileXpt &&
+        lx + w <= tileXpt + tileWpt &&
+        ly >= tileYpt &&
+        ly + pt <= tileYpt + tileHpt
+      ) {
+        page.drawText(text, { x: lx, y: ly, size: pt, font: ctx.font, color });
+      }
+    };
+
+    if (nameFit && dimFit) {
+      const blockH = nameFit.pt + GAP + dimFit.pt;
+      drawText(
+        name!,
+        nameFit.pt,
+        nameFit.w,
+        visCx - nameFit.w / 2,
+        visCy - blockH / 2 + dimFit.pt + GAP,
+        rgb(0.2, 0.2, 0.2),
+      );
+      drawText(
+        dimLabel!,
+        dimFit.pt,
+        dimFit.w,
+        visCx - dimFit.w / 2,
+        visCy - blockH / 2,
+        rgb(0.35, 0.35, 0.35),
+      );
+    } else if (nameFit) {
+      drawText(
+        name!,
+        nameFit.pt,
+        nameFit.w,
+        visCx - nameFit.w / 2,
+        visCy - nameFit.pt / 2,
+        rgb(0.2, 0.2, 0.2),
+      );
+    } else if (dimFit) {
+      drawText(
+        dimLabel!,
+        dimFit.pt,
+        dimFit.w,
+        visCx - dimFit.w / 2,
+        visCy - dimFit.pt / 2,
+        rgb(0.35, 0.35, 0.35),
+      );
     }
   }
 }
@@ -397,7 +539,7 @@ function drawScaleLegend(
   page: PDFPage,
   pageW: number,
   baselineY: number,
-  scale: PdfScale,
+  scale: number,
 ) {
   // 100mm of real-world (or 50mm for 1:1) bar length
   const realMm = scale === 1 ? 50 : 100;

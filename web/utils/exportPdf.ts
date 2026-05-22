@@ -12,7 +12,7 @@ import type { Ctx } from './pdf/context';
 import { drawLinearPages } from './pdf/linear';
 import { drawSheetShoppingPages } from './pdf/sheets';
 
-export type PdfScale = 1 | 5 | 10 | 20 | 50;
+export type PdfScale = 1 | 5 | 10 | 20 | 50 | 'auto';
 
 export interface ExportPdfOptions {
   documentName: string;
@@ -33,6 +33,7 @@ export interface ExportPdfOptions {
   formatSize: (um: Micrometres) => string | undefined;
   showPartNumbers: boolean;
   showBomName: boolean;
+  showDimensions: boolean;
   measurements?: RulerMeasurement[];
 }
 

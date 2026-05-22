@@ -2,7 +2,6 @@ import { rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
 import { umToMm, type Micrometres } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
-import type { PdfScale } from '../exportPdf';
 import { MM } from './constants';
 import type { Ctx } from './context';
 import { drawArrowH, drawArrowV, drawClippedLine } from './geometry';
@@ -13,7 +12,7 @@ export function drawMeasurement(
   m: RulerMeasurement,
   boardX: number,
   boardY: number,
-  scale: PdfScale,
+  scale: number,
   cx: number,
   cy: number,
   cw: number,

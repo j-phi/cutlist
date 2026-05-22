@@ -3,6 +3,15 @@ import { mmToUm, type Micrometres } from 'cutlist';
 import type { LinearBoardLayout } from 'cutlist';
 import { exportCutlistPdf, type ExportPdfOptions } from '../exportPdf';
 import { aggregateBom } from '../pdf/bom';
+import { computeBoardScale } from '../pdf/board';
+import {
+  BOARD_TITLE_BAND_MM,
+  FOOTER_BAND_MM,
+  HEADER_BAND_MM,
+  LEGEND_BAND_MM,
+  LETTER_H_MM,
+  LETTER_W_MM,
+} from '../pdf/constants';
 
 const formatSize = (m: number) => `${Math.round(m * 1000)}mm`;
 
@@ -27,6 +36,7 @@ function makeOptions(overrides?: Partial<ExportPdfOptions>): ExportPdfOptions {
     formatSize,
     showPartNumbers: true,
     showBomName: true,
+    showDimensions: false,
     ...overrides,
   };
 }
@@ -414,6 +424,43 @@ describe('exportCutlistPdf', () => {
     expect(withSheets.length).toBeGreaterThan(baseline.length);
   });
 
+  it('renders dimension labels on pieces when showDimensions is true', async () => {
+    const placement = {
+      partNumber: 1,
+      instanceNumber: 1,
+      name: 'Side Panel',
+      material: 'Plywood',
+      widthUm: mmToUm(500),
+      lengthUm: mmToUm(800),
+      thicknessUm: mmToUm(18),
+      leftUm: 0 as Micrometres,
+      rightUm: mmToUm(500),
+      bottomUm: 0 as Micrometres,
+      topUm: mmToUm(800),
+    };
+    const stock = {
+      material: 'Plywood',
+      widthUm: mmToUm(1220),
+      lengthUm: mmToUm(2440),
+      thicknessUm: mmToUm(18),
+    };
+    const makeLayout = (showDimensions: boolean) =>
+      makeOptions({
+        showDimensions,
+        showBomName: false,
+        showPartNumbers: false,
+        layouts: [{ stock, placements: [placement], wasteRatio: 0.1 }] as any,
+      });
+
+    const withDims = await exportCutlistPdf(makeLayout(true));
+    const withoutDims = await exportCutlistPdf(makeLayout(false));
+    expect(withDims).toBeInstanceOf(Uint8Array);
+    const header = new TextDecoder().decode(withDims.slice(0, 5));
+    expect(header).toBe('%PDF-');
+    // Dimension labels add text content so the PDF must be larger than without them.
+    expect(withDims.length).toBeGreaterThan(withoutDims.length);
+  });
+
   it('omits the sheet shopping-list section when there are no sheet layouts', async () => {
     // No layouts at all → no sheet section, same byte count as the bare BOM.
     const baseline = await exportCutlistPdf(makeOptions());
@@ -438,5 +485,73 @@ describe('exportCutlistPdf', () => {
       }),
     );
     expect(result).toBeInstanceOf(Uint8Array);
+  });
+
+  it('produces a valid PDF with scale: auto', async () => {
+    const result = await exportCutlistPdf(
+      makeOptions({
+        scale: 'auto',
+        layouts: [
+          {
+            stock: {
+              material: 'Plywood',
+              widthUm: mmToUm(1220),
+              lengthUm: mmToUm(2440),
+              thicknessUm: mmToUm(18),
+            },
+            placements: [],
+            wasteRatio: 0,
+          },
+        ] as any,
+      }),
+    );
+    expect(result).toBeInstanceOf(Uint8Array);
+    const header = new TextDecoder().decode(result.slice(0, 5));
+    expect(header).toBe('%PDF-');
+  });
+});
+
+describe('computeBoardScale', () => {
+  const margin = 10;
+
+  it('returns a scale that fits the board on one page', () => {
+    // 2440×1220 board — landscape orientation
+    const scale = computeBoardScale(2440, 1220, margin);
+    const printableWmm = LETTER_H_MM - 2 * margin - LEGEND_BAND_MM;
+    const printableHmm =
+      LETTER_W_MM -
+      2 * margin -
+      HEADER_BAND_MM -
+      BOARD_TITLE_BAND_MM -
+      FOOTER_BAND_MM;
+    expect(2440 / scale).toBeLessThanOrEqual(printableWmm);
+    expect(1220 / scale).toBeLessThanOrEqual(printableHmm);
+  });
+
+  it('returns an integer scale', () => {
+    const scale = computeBoardScale(2440, 1220, margin);
+    expect(Number.isInteger(scale)).toBe(true);
+  });
+
+  it('returns at least 1 for very small boards', () => {
+    expect(computeBoardScale(10, 10, margin)).toBe(1);
+  });
+
+  it('uses landscape orientation for wide boards', () => {
+    const landscapeScale = computeBoardScale(2440, 1220, margin);
+    // Landscape page gives more width; scale should not require tiling
+    const printableWmm = LETTER_H_MM - 2 * margin - LEGEND_BAND_MM;
+    expect(2440 / landscapeScale).toBeLessThanOrEqual(printableWmm + 0.001);
+  });
+
+  it('uses portrait orientation for tall boards', () => {
+    const portraitScale = computeBoardScale(600, 2400, margin);
+    const printableHmm =
+      LETTER_H_MM -
+      2 * margin -
+      HEADER_BAND_MM -
+      BOARD_TITLE_BAND_MM -
+      FOOTER_BAND_MM;
+    expect(2400 / portraitScale).toBeLessThanOrEqual(printableHmm + 0.001);
   });
 });
