@@ -22,6 +22,10 @@ interface MockProject {
   showPartNumbers: boolean;
   distanceUnit: 'in' | 'mm';
   precision: typeof DEFAULT_SETTINGS.precision;
+  layoutAlignH: 'left' | 'right';
+  layoutAlignV: 'top' | 'bottom';
+  labelPlacement: 'top' | 'center';
+  optimizationObjective: 'boards' | 'waste' | 'cost';
 }
 
 const activeProject = ref<MockProject | null>(null);
@@ -61,6 +65,10 @@ beforeEach(() => {
     showPartNumbers: DEFAULT_SETTINGS.showPartNumbers,
     distanceUnit: 'mm' as const,
     precision: DEFAULT_SETTINGS.precision,
+    layoutAlignH: DEFAULT_SETTINGS.layoutAlignH,
+    layoutAlignV: DEFAULT_SETTINGS.layoutAlignV,
+    labelPlacement: DEFAULT_SETTINGS.labelPlacement,
+    optimizationObjective: DEFAULT_SETTINGS.optimizationObjective,
   });
   updateCalls.length = 0;
   vi.useFakeTimers();
@@ -94,5 +102,18 @@ describe('useProjectSettings', () => {
         sizes: [{ width: 1220, length: 2440, thickness: [18] }],
       },
     ]);
+  });
+
+  it('defaults optimizationObjective to "boards" on a fresh project and round-trips a write', async () => {
+    const { optimizationObjective } = useProjectSettings();
+    expect(optimizationObjective.value).toBe('boards');
+
+    optimizationObjective.value = 'cost';
+    // Local state updates synchronously via patchActiveProject.
+    expect(optimizationObjective.value).toBe('cost');
+
+    await vi.advanceTimersByTimeAsync(400);
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0].patch.optimizationObjective).toBe('cost');
   });
 });

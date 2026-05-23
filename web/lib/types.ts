@@ -23,6 +23,17 @@ export const MicrometresSchema = z
 export const Algorithm = z.enum(['auto', 'tidy', 'compact', 'cnc']);
 export type Algorithm = z.infer<typeof Algorithm>;
 
+/**
+ * What the pass tournament optimises for when ranking layouts (F11).
+ * - `'boards'`: fewest boards, then least waste (current default behaviour).
+ * - `'waste'`: least waste area.
+ * - `'cost'`: lowest material cost (requires priced stock — F2's `cost`).
+ *
+ * Substrate only at this stage: the scorer does not yet branch on this value.
+ */
+export const OptimizationObjective = z.enum(['boards', 'waste', 'cost']);
+export type OptimizationObjective = z.infer<typeof OptimizationObjective>;
+
 export const SearchPass = z.union([
   z.literal('tidy-rip-long-side'),
   z.literal('tidy-rip-area'),
@@ -267,6 +278,12 @@ export const Config = z.object({
   bladeWidth: MicrometresSchema.default(mmToUm(3.175)),
   defaultAlgorithm: Algorithm.default('auto'),
   margin: MicrometresSchema.default(um(0)),
+  /**
+   * What the pass tournament optimises for (F11). Defaults to `'boards'`,
+   * which is the historical behaviour. Participates in the layout-cache
+   * fingerprint because it changes packing OUTPUT (which layout wins).
+   */
+  optimizationObjective: OptimizationObjective.default('boards'),
   /**
    * Optional cap on the number of search passes run per stock group in
    * `auto` mode. When unset, every pass in the default list (or the

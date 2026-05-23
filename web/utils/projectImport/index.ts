@@ -31,6 +31,7 @@ import {
   MicrometresSchema,
   StockMatrix,
   type Micrometres,
+  type OptimizationObjective,
   type Precision,
 } from 'cutlist';
 import { defaultSceneIdForModel, isDefaultSceneId } from '~/utils/defaultScene';
@@ -56,9 +57,18 @@ const PartSchema = z.object({
   grainLock: z.enum(['length', 'width']).optional(),
 });
 
+const BandedEdgesSchema = z.object({
+  length1: z.boolean(),
+  length2: z.boolean(),
+  width1: z.boolean(),
+  width2: z.boolean(),
+});
+
 const PartOverrideSchema = z.object({
   grainLock: z.enum(['length', 'width']).optional(),
   name: z.string().optional(),
+  bandedEdges: BandedEdgesSchema.optional(),
+  bandingThicknessUm: MicrometresSchema.optional(),
 });
 
 const ColorInfoSchema = z.object({
@@ -230,6 +240,24 @@ const ProjectExportSchema = z.object({
       .default(DEFAULT_SETTINGS.defaultAlgorithm),
     showPartNumbers: z.boolean().default(DEFAULT_SETTINGS.showPartNumbers),
     showBomName: z.boolean().default(DEFAULT_SETTINGS.showBomName),
+    layoutAlignH: z
+      .enum(['left', 'right'])
+      .default(DEFAULT_SETTINGS.layoutAlignH),
+    layoutAlignV: z
+      .enum(['top', 'bottom'])
+      .default(DEFAULT_SETTINGS.layoutAlignV),
+    labelPlacement: z
+      .enum(['top', 'center'])
+      .default(DEFAULT_SETTINGS.labelPlacement),
+    bandingThicknessUm: MicrometresSchema.default(
+      DEFAULT_SETTINGS.bandingThicknessUm,
+    ),
+    subtractBandingThickness: z
+      .boolean()
+      .default(DEFAULT_SETTINGS.subtractBandingThickness),
+    optimizationObjective: z
+      .enum(['boards', 'waste', 'cost'])
+      .default(DEFAULT_SETTINGS.optimizationObjective),
     createdAt: z.string(),
     updatedAt: z.string(),
   }),
@@ -258,6 +286,12 @@ export interface ProjectImportDb {
       defaultAlgorithm?: 'auto' | 'tidy' | 'compact' | 'cnc';
       showPartNumbers?: boolean;
       showBomName?: boolean;
+      layoutAlignH?: 'left' | 'right';
+      layoutAlignV?: 'top' | 'bottom';
+      labelPlacement?: 'top' | 'center';
+      bandingThicknessUm?: Micrometres;
+      subtractBandingThickness?: boolean;
+      optimizationObjective?: OptimizationObjective;
     },
   ) => Promise<{ id: string }>;
   updateProject: (
@@ -324,6 +358,12 @@ export async function importProjectData(
     defaultAlgorithm: data.project.defaultAlgorithm,
     showPartNumbers: data.project.showPartNumbers,
     showBomName: data.project.showBomName,
+    layoutAlignH: data.project.layoutAlignH,
+    layoutAlignV: data.project.layoutAlignV,
+    labelPlacement: data.project.labelPlacement,
+    bandingThicknessUm: data.project.bandingThicknessUm,
+    subtractBandingThickness: data.project.subtractBandingThickness,
+    optimizationObjective: data.project.optimizationObjective,
   });
   await idb.updateProject(newProject.id, {
     colorMap: data.project.colorMap,
@@ -475,6 +515,16 @@ function transactionalImportDb(
         showPartNumbers:
           opts?.showPartNumbers ?? DEFAULT_SETTINGS.showPartNumbers,
         showBomName: opts?.showBomName ?? DEFAULT_SETTINGS.showBomName,
+        layoutAlignH: opts?.layoutAlignH ?? DEFAULT_SETTINGS.layoutAlignH,
+        layoutAlignV: opts?.layoutAlignV ?? DEFAULT_SETTINGS.layoutAlignV,
+        labelPlacement: opts?.labelPlacement ?? DEFAULT_SETTINGS.labelPlacement,
+        bandingThicknessUm:
+          opts?.bandingThicknessUm ?? DEFAULT_SETTINGS.bandingThicknessUm,
+        subtractBandingThickness:
+          opts?.subtractBandingThickness ??
+          DEFAULT_SETTINGS.subtractBandingThickness,
+        optimizationObjective:
+          opts?.optimizationObjective ?? DEFAULT_SETTINGS.optimizationObjective,
         createdAt: now,
         updatedAt: now,
       };

@@ -23,6 +23,7 @@ import {
   migrateProjectStockRoles,
   migrateProjectStockNames,
   migrateProjectStockCost,
+  migrateProjectPhase1Fields,
 } from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
@@ -186,6 +187,22 @@ export class CutlistDB extends Dexie {
           .toCollection()
           .modify((p: Record<string, unknown>) => {
             Object.assign(p, migrateProjectStockCost(p));
+          });
+      });
+
+    // v10 — batch of Phase-1 persisted project fields (XR-1): layout alignment
+    // (F13), label placement (F20), banding defaults (F7), and the
+    // optimization objective (F11). The new `PartOverride` fields are
+    // migration-free (read-path safety net). The export pipeline runs the same
+    // transform via `migrateProjectPhase1Fields`.
+    this.version(10)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateProjectPhase1Fields(p));
           });
       });
   }

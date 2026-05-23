@@ -9,7 +9,13 @@
  */
 
 import type { JSONContent } from '@tiptap/core';
-import type { Algorithm, Micrometres, Precision, StockMatrix } from 'cutlist';
+import type {
+  Algorithm,
+  Micrometres,
+  OptimizationObjective,
+  Precision,
+  StockMatrix,
+} from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 import type { CameraMode, CameraPose, ObjectOffset } from '~/utils/types';
 
@@ -42,13 +48,70 @@ export interface IdbProject {
   showPartNumbers: boolean;
   /** Whether to render BOM part names on layout pieces. */
   showBomName: boolean;
+  /**
+   * Horizontal alignment for the rigid layout post-process (F13). Applied at
+   * the render boundary, never in the packer — presentational, so it does NOT
+   * bust the layout cache. Default `'left'`.
+   */
+  layoutAlignH: 'left' | 'right';
+  /**
+   * Vertical alignment for the rigid layout post-process (F13). Presentational
+   * (see `layoutAlignH`). Default `'bottom'`.
+   */
+  layoutAlignV: 'top' | 'bottom';
+  /**
+   * Where part labels anchor on a piece (F20): the top band or the centroid.
+   * Presentational — does NOT bust the layout cache. Default `'center'`.
+   */
+  labelPlacement: 'top' | 'center';
+  /**
+   * Project default edge-banding thickness (F7), integer micrometres. Used
+   * when a part has banded edges but no per-part override. `0` ≡ no banding.
+   * Feeds the cut-size subtraction when `subtractBandingThickness` is on, so
+   * it participates in the layout-cache fingerprint.
+   */
+  bandingThicknessUm: Micrometres;
+  /**
+   * When true, banded edges reduce the part's cut size (F7 FR-BND-5); when
+   * false (default), banding is a finish overlay and the nominal size is fed
+   * to the packer unchanged. Affects packing OUTPUT → in the fingerprint.
+   */
+  subtractBandingThickness: boolean;
+  /**
+   * What the pass tournament optimises for (F11). Mirrors the engine
+   * `Config.optimizationObjective`; participates in the layout-cache
+   * fingerprint. Default `'boards'`.
+   */
+  optimizationObjective: OptimizationObjective;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Which of a part's four edges are banded (F7). Named explicitly rather than
+ * an array so counting is trivial and JSON serialisation is stable:
+ *   banded length-edges = +length1 +length2  (0..2) → reduces `width`
+ *   banded width-edges  = +width1  +width2   (0..2) → reduces `length`
+ */
+export interface BandedEdges {
+  /** The two edges running along the part's length (the long sides). */
+  length1: boolean;
+  length2: boolean;
+  /** The two edges running along the part's width (the short sides). */
+  width1: boolean;
+  width2: boolean;
 }
 
 export interface PartOverride {
   grainLock?: 'length' | 'width';
   name?: string;
+  /** Banded edge selection (F7). Absent ≡ no edges banded. */
+  bandedEdges?: BandedEdges;
+  /**
+   * Per-part banding thickness override (F7), integer micrometres. Absent ≡
+   * fall back to the project default `bandingThicknessUm`.
+   */
+  bandingThicknessUm?: Micrometres;
 }
 
 export interface IdbModel {

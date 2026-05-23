@@ -6,6 +6,7 @@ import {
   type Algorithm,
   type LinearStockMatrix,
   type Micrometres,
+  type OptimizationObjective,
   type Precision,
   type SheetStockMatrix,
   type StockMatrix,
@@ -20,6 +21,17 @@ export interface CutlistSettings {
   defaultAlgorithm: Algorithm;
   showPartNumbers: boolean;
   showBomName: boolean;
+  /** Layout alignment (F13). Presentational. */
+  layoutAlignH: 'left' | 'right';
+  layoutAlignV: 'top' | 'bottom';
+  /** Label placement (F20). Presentational. */
+  labelPlacement: 'top' | 'center';
+  /** Project default edge-banding thickness (F7), integer µm. */
+  bandingThicknessUm: Micrometres;
+  /** Whether banding reduces cut size (F7). */
+  subtractBandingThickness: boolean;
+  /** Pass-tournament objective (F11). */
+  optimizationObjective: OptimizationObjective;
 }
 
 /** Default display precision for the given unit. */
@@ -712,4 +724,10 @@ export const DEFAULT_SETTINGS: CutlistSettings = {
   defaultAlgorithm: 'auto',
   showPartNumbers: true,
   showBomName: true,
+  layoutAlignH: 'left',
+  layoutAlignV: 'bottom',
+  labelPlacement: 'center',
+  bandingThicknessUm: um(0),
+  subtractBandingThickness: false,
+  optimizationObjective: 'boards',
 };

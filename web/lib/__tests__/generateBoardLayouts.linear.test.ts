@@ -20,6 +20,7 @@ const baseConfig: Config = {
   bladeWidth: mmToUm(3.175),
   margin: mmToUm(0),
   defaultAlgorithm: 'auto',
+  optimizationObjective: 'boards',
 };
 
 // Cross-section: 1.5" × 3.5" → 38.1mm × 88.9mm. We keep the round numbers

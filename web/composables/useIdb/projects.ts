@@ -4,7 +4,13 @@
  * orphans.
  */
 
-import type { Algorithm, Micrometres, Precision, StockMatrix } from 'cutlist';
+import type {
+  Algorithm,
+  Micrometres,
+  OptimizationObjective,
+  Precision,
+  StockMatrix,
+} from 'cutlist';
 import { DEFAULT_SETTINGS, defaultPrecisionForUnit } from '~/utils/settings';
 import { getDb, safeWrite } from './db';
 import { applyProjectDefaults, applyModelDefaults } from './defaults';
@@ -79,6 +85,12 @@ export async function createProject(
     defaultAlgorithm?: Algorithm;
     showPartNumbers?: boolean;
     showBomName?: boolean;
+    layoutAlignH?: 'left' | 'right';
+    layoutAlignV?: 'top' | 'bottom';
+    labelPlacement?: 'top' | 'center';
+    bandingThicknessUm?: Micrometres;
+    subtractBandingThickness?: boolean;
+    optimizationObjective?: OptimizationObjective;
   },
 ): Promise<IdbProject> {
   const db = await getDb();
@@ -98,6 +110,16 @@ export async function createProject(
       opts?.defaultAlgorithm ?? DEFAULT_SETTINGS.defaultAlgorithm,
     showPartNumbers: opts?.showPartNumbers ?? DEFAULT_SETTINGS.showPartNumbers,
     showBomName: opts?.showBomName ?? DEFAULT_SETTINGS.showBomName,
+    layoutAlignH: opts?.layoutAlignH ?? DEFAULT_SETTINGS.layoutAlignH,
+    layoutAlignV: opts?.layoutAlignV ?? DEFAULT_SETTINGS.layoutAlignV,
+    labelPlacement: opts?.labelPlacement ?? DEFAULT_SETTINGS.labelPlacement,
+    bandingThicknessUm:
+      opts?.bandingThicknessUm ?? DEFAULT_SETTINGS.bandingThicknessUm,
+    subtractBandingThickness:
+      opts?.subtractBandingThickness ??
+      DEFAULT_SETTINGS.subtractBandingThickness,
+    optimizationObjective:
+      opts?.optimizationObjective ?? DEFAULT_SETTINGS.optimizationObjective,
     createdAt: now,
     updatedAt: now,
   };

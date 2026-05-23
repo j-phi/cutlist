@@ -30,6 +30,12 @@ function makeProject(id: string, models: Project['models'] = []): Project {
     defaultAlgorithm: DEFAULT_SETTINGS.defaultAlgorithm,
     showPartNumbers: DEFAULT_SETTINGS.showPartNumbers,
     showBomName: DEFAULT_SETTINGS.showBomName,
+    layoutAlignH: DEFAULT_SETTINGS.layoutAlignH,
+    layoutAlignV: DEFAULT_SETTINGS.layoutAlignV,
+    labelPlacement: DEFAULT_SETTINGS.labelPlacement,
+    bandingThicknessUm: DEFAULT_SETTINGS.bandingThicknessUm,
+    subtractBandingThickness: DEFAULT_SETTINGS.subtractBandingThickness,
+    optimizationObjective: DEFAULT_SETTINGS.optimizationObjective,
   };
 }
 

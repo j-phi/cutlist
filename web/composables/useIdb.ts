@@ -14,9 +14,12 @@ export {
   applyModelDefaults,
   applyAnnotationDefaults,
   applyBuildDocDefaults,
+  applyPartOverrideDefaults,
+  NO_BANDED_EDGES,
 } from './useIdb/index';
 export type {
   AnnotationPatch,
+  BandedEdges,
   IdbProject,
   PartOverride,
   IdbModel,

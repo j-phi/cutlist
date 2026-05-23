@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fingerprint } from '../fingerprint';
+import { fingerprint, layoutFingerprint } from '../fingerprint';
 
 describe('fingerprint', () => {
   it('produces the same hash for structurally equal inputs', () => {
@@ -29,6 +29,53 @@ describe('fingerprint', () => {
     const a = fingerprint({ x: { y: 1 } });
     const b = fingerprint({ x: { y: 2 } });
     expect(a).not.toBe(b);
+  });
+});
+
+describe('layoutFingerprint — which inputs bust the layout cache', () => {
+  const base = {
+    parts: [{ partNumber: 1, width: 100, length: 200, thickness: 18 }],
+    stocks: [{ kind: 'sheet', material: 'Ply' }],
+    config: {
+      bladeWidth: 3175,
+      margin: 0,
+      defaultAlgorithm: 'auto',
+      optimizationObjective: 'boards' as const,
+    },
+    banding: { thicknessUm: 0, subtract: false },
+  };
+
+  it('changes when optimizationObjective changes (output-affecting)', () => {
+    const a = layoutFingerprint(base);
+    const b = layoutFingerprint({
+      ...base,
+      config: { ...base.config, optimizationObjective: 'cost' },
+    });
+    expect(a).not.toBe(b);
+  });
+
+  it('changes when subtractBandingThickness flips (output-affecting)', () => {
+    const a = layoutFingerprint(base);
+    const b = layoutFingerprint({
+      ...base,
+      banding: { thicknessUm: 0, subtract: true },
+    });
+    expect(a).not.toBe(b);
+  });
+
+  it('changes when bandingThicknessUm changes (output-affecting)', () => {
+    const a = layoutFingerprint(base);
+    const b = layoutFingerprint({
+      ...base,
+      banding: { thicknessUm: 2000, subtract: false },
+    });
+    expect(a).not.toBe(b);
+  });
+
+  it('is stable across structurally equal inputs', () => {
+    expect(layoutFingerprint(base)).toBe(
+      layoutFingerprint({ ...base, banding: { ...base.banding } }),
+    );
   });
 });
 

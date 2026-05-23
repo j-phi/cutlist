@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { mmToUm, type Micrometres } from 'cutlist';
-import { useIdb, applyModelDefaults } from '../useIdb';
+import {
+  useIdb,
+  applyModelDefaults,
+  applyPartOverrideDefaults,
+} from '../useIdb';
 import { resetDatabase } from '../useIdb/db';
 import { DEFAULT_SETTINGS } from '../../utils/settings';
 import type { IdbModel, IdbBuildDoc } from '../useIdb';
@@ -277,6 +281,33 @@ describe('model CRUD', () => {
     expect(result.source).toBe('gltf');
     expect(result.enabled).toBe(true);
     expect(result.partOverrides).toEqual({});
+  });
+
+  it('applyPartOverrideDefaults hydrates an old override without bandedEdges to no edges banded', () => {
+    // Pre-v10 override carrying only grainLock (the F7 banding fields are
+    // migration-free; the read path fills the absence).
+    const result = applyPartOverrideDefaults({ grainLock: 'length' });
+    expect(result.bandedEdges).toEqual({
+      length1: false,
+      length2: false,
+      width1: false,
+      width2: false,
+    });
+    // Unrelated fields preserved; banding thickness stays undefined so the
+    // resolver falls back to the project default.
+    expect(result.grainLock).toBe('length');
+    expect(result.bandingThicknessUm).toBeUndefined();
+  });
+
+  it('applyPartOverrideDefaults preserves an explicit bandedEdges selection', () => {
+    const explicit = {
+      length1: true,
+      length2: false,
+      width1: true,
+      width2: false,
+    };
+    const result = applyPartOverrideDefaults({ bandedEdges: explicit });
+    expect(result.bandedEdges).toEqual(explicit);
   });
 });
 

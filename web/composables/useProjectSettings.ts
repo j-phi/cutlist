@@ -11,6 +11,7 @@
 import {
   type Algorithm,
   type Micrometres,
+  type OptimizationObjective,
   type Precision,
   type StockMatrix,
 } from 'cutlist';
@@ -115,6 +116,58 @@ export default createSharedComposable(() => {
     },
   });
 
+  // ── F13: layout alignment (presentational — applied at render boundary). ──
+  const layoutAlignH = computed<'left' | 'right' | undefined>({
+    get: () => activeProject.value?.layoutAlignH,
+    set: (value) => {
+      if (value == null) return;
+      queueWrite({ layoutAlignH: value });
+    },
+  });
+
+  const layoutAlignV = computed<'top' | 'bottom' | undefined>({
+    get: () => activeProject.value?.layoutAlignV,
+    set: (value) => {
+      if (value == null) return;
+      queueWrite({ layoutAlignV: value });
+    },
+  });
+
+  // ── F20: label placement (presentational). ──
+  const labelPlacement = computed<'top' | 'center' | undefined>({
+    get: () => activeProject.value?.labelPlacement,
+    set: (value) => {
+      if (value == null) return;
+      queueWrite({ labelPlacement: value });
+    },
+  });
+
+  // ── F7: edge-banding project defaults. ──
+  const bandingThicknessUm = computed<Micrometres | undefined>({
+    get: () => activeProject.value?.bandingThicknessUm,
+    set: (value) => {
+      if (value == null) return;
+      queueWrite({ bandingThicknessUm: value });
+    },
+  });
+
+  const subtractBandingThickness = computed<boolean | undefined>({
+    get: () => activeProject.value?.subtractBandingThickness,
+    set: (value) => {
+      if (value == null) return;
+      queueWrite({ subtractBandingThickness: value });
+    },
+  });
+
+  // ── F11: optimization objective (busts the layout cache). ──
+  const optimizationObjective = computed<OptimizationObjective | undefined>({
+    get: () => activeProject.value?.optimizationObjective,
+    set: (value) => {
+      if (value == null) return;
+      queueWrite({ optimizationObjective: value });
+    },
+  });
+
   const stocks = computed<StockMatrix[]>({
     get: () => activeProject.value?.stocks ?? [],
     set: (value) => {
@@ -172,6 +225,12 @@ export default createSharedComposable(() => {
     defaultAlgorithm,
     showPartNumbers,
     showBomName,
+    layoutAlignH,
+    layoutAlignV,
+    labelPlacement,
+    bandingThicknessUm,
+    subtractBandingThickness,
+    optimizationObjective,
     stocks,
     distanceUnit,
     precision,

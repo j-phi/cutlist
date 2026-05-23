@@ -48,6 +48,7 @@ describe('generateBoardLayouts', () => {
       bladeWidth: 0 as Config['bladeWidth'],
       margin: 0 as Config['margin'],
       defaultAlgorithm: 'auto',
+      optimizationObjective: 'boards',
     };
     const result = generateBoardLayouts([createPart(1, 2, 1)], stock, config);
 
@@ -70,6 +71,7 @@ describe('generateBoardLayouts', () => {
       bladeWidth: 0 as Config['bladeWidth'],
       margin: 0 as Config['margin'],
       defaultAlgorithm: 'cnc',
+      optimizationObjective: 'boards',
     };
     const result = generateBoardLayouts([createPart(1, 2, 1)], stock, config);
 
@@ -264,6 +266,7 @@ describe('generateBoardLayouts', () => {
       bladeWidth: 0 as Config['bladeWidth'],
       margin: 0 as Config['margin'],
       defaultAlgorithm: 'auto',
+      optimizationObjective: 'boards',
     };
     const parts = [
       createPart(1, 1, 1),

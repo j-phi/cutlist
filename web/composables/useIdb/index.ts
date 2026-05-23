@@ -66,9 +66,12 @@ export {
   applyModelDefaults,
   applyAnnotationDefaults,
   applyBuildDocDefaults,
+  applyPartOverrideDefaults,
+  NO_BANDED_EDGES,
 } from './defaults';
 export type { AnnotationPatch } from './annotations';
 export type {
+  BandedEdges,
   IdbProject,
   PartOverride,
   IdbModel,

@@ -33,6 +33,7 @@ import { v6Migration } from './v6';
 import { v7Migration } from './v7';
 import { v8Migration } from './v8';
 import { v9Migration } from './v9';
+import { v10Migration } from './v10';
 
 export type { IdbRecord, RecordMigration, StoreName } from './types';
 export { migrateProjectToMmStorage } from './v3';
@@ -47,6 +48,7 @@ export { migrateProjectStockToArray } from './v6';
 export { migrateProjectStockRoles } from './v7';
 export { migrateProjectStockNames } from './v8';
 export { migrateProjectStockCost } from './v9';
+export { migrateProjectPhase1Fields } from './v10';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
@@ -101,6 +103,13 @@ export const migrations: RecordMigration[] = [
   // F2). Purely additive — a v8 record is already valid at v9 — so the
   // transform is a no-op. Mirror of the Dexie .version(9).upgrade().
   v9Migration,
+
+  // v10 — batch of Phase-1 persisted project fields (XR-1: one bump for all
+  // same-phase fields): layout alignment (F13), label placement (F20), the
+  // banding defaults (F7), and the optimization objective (F11). The new
+  // `PartOverride` fields are migration-free (read-path safety net). Mirror of
+  // the Dexie .version(10).upgrade() in `~/composables/useIdb/db`.
+  v10Migration,
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

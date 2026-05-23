@@ -1,4 +1,10 @@
-import type { Algorithm, Micrometres, Precision, StockMatrix } from 'cutlist';
+import type {
+  Algorithm,
+  Micrometres,
+  OptimizationObjective,
+  Precision,
+  StockMatrix,
+} from 'cutlist';
 import type { ColorInfo, NodePartMapping, Part } from '~/utils/modelTypes';
 
 export interface Model {
@@ -45,6 +51,17 @@ export interface Project {
   showPartNumbers: boolean;
   /** Whether to render BOM part names in visualizations. */
   showBomName: boolean;
+  /** Layout alignment (F13) — presentational, applied at the render boundary. */
+  layoutAlignH: 'left' | 'right';
+  layoutAlignV: 'top' | 'bottom';
+  /** Label placement (F20) — presentational. */
+  labelPlacement: 'top' | 'center';
+  /** Project default edge-banding thickness (F7), integer µm. */
+  bandingThicknessUm: Micrometres;
+  /** Whether banding reduces the part's cut size (F7). */
+  subtractBandingThickness: boolean;
+  /** Pass-tournament objective (F11) — participates in the layout fingerprint. */
+  optimizationObjective: OptimizationObjective;
 }
 
 export interface ProjectListItem {

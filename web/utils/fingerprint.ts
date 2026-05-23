@@ -22,3 +22,24 @@ function fnv1aHex(str: string): string {
 export function fingerprint(value: unknown): string {
   return fnv1aHex(JSON.stringify(value));
 }
+
+/**
+ * Build the layout-cache fingerprint for a set of packing inputs.
+ *
+ * Single source of truth for *which* inputs bust the layout cache. Anything
+ * that changes packing OUTPUT must be hashed; presentational settings must
+ * NOT be — toggling them should re-render from the cached layout instantly:
+ *   - included: `parts`, `stocks`, `config` (incl. `optimizationObjective`),
+ *     and the banding inputs (they feed the F7 cut-size subtraction).
+ *   - excluded by construction: the F13 alignment + F20 label-placement
+ *     fields are applied at the render boundary, post-pack, so they never
+ *     reach this function.
+ */
+export function layoutFingerprint(input: {
+  parts: unknown;
+  stocks: unknown;
+  config: unknown;
+  banding: { thicknessUm: number; subtract: boolean };
+}): string {
+  return fingerprint(input);
+}

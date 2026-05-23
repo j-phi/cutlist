@@ -12,7 +12,7 @@ import {
   computingProjects,
   PART_COUNT_SOFT_LIMIT,
 } from '~/composables/useComputationWorker';
-import { fingerprint } from '~/utils/fingerprint';
+import { layoutFingerprint } from '~/utils/fingerprint';
 import * as layoutCache from '~/composables/boardLayoutsCache';
 
 /** Incrementing key — bump to force a cache-bypass recompute for the active project. */
@@ -45,7 +45,15 @@ const EMPTY_RESULT: LayoutResult = {
 export default createSharedComposable(() => {
   const { activeProject, activeId, enabledModels, projectLoading } =
     useProjects();
-  const { bladeWidth, defaultAlgorithm, margin, stocks } = useProjectSettings();
+  const {
+    bladeWidth,
+    defaultAlgorithm,
+    margin,
+    stocks,
+    optimizationObjective,
+    bandingThicknessUm,
+    subtractBandingThickness,
+  } = useProjectSettings();
 
   const parts = computed<PartToCut[] | undefined>(() => {
     const project = activeProject.value;
@@ -81,12 +89,15 @@ export default createSharedComposable(() => {
     const alg = defaultAlgorithm.value;
     const mg = margin.value;
     const st = stocks.value;
+    const obj = optimizationObjective.value;
     if (!pid || partsVal == null) return undefined;
-    if (bw == null || alg == null || mg == null) return undefined;
+    if (bw == null || alg == null || mg == null || obj == null)
+      return undefined;
     const config: ConfigInput = {
       bladeWidth: bw,
       margin: mg,
       defaultAlgorithm: alg,
+      optimizationObjective: obj,
     };
     return {
       projectId: pid,
@@ -95,9 +106,24 @@ export default createSharedComposable(() => {
       config,
       // Include recomputeKey so bumping it invalidates activeInputs and
       // triggers the watcher even when parts/stock/config haven't changed.
+      //
+      // Banding inputs (`bandingThicknessUm`, `subtractBandingThickness`) feed
+      // the cut-size subtraction at the Part→PartToCut boundary (F7) — they
+      // change packing OUTPUT, so they MUST bust the layout cache. Until that
+      // subtraction lands the parts don't yet reflect banding, so the fields
+      // enter the fingerprint explicitly here. The presentational F13/F20
+      // fields (alignment, label placement) are deliberately absent — they're
+      // applied post-pack and must NOT invalidate the cache.
       fingerprint:
-        fingerprint({ parts: partsVal, stocks: st, config }) +
-        `:rk${recomputeKey.value}`,
+        layoutFingerprint({
+          parts: partsVal,
+          stocks: st,
+          config,
+          banding: {
+            thicknessUm: bandingThicknessUm.value ?? 0,
+            subtract: subtractBandingThickness.value ?? false,
+          },
+        }) + `:rk${recomputeKey.value}`,
     };
   });
 

@@ -16,6 +16,7 @@ const baseConfig: Config = {
   bladeWidth: 0 as Config['bladeWidth'],
   margin: 0 as Config['margin'],
   defaultAlgorithm: 'auto',
+  optimizationObjective: 'boards',
 };
 
 function makePart(

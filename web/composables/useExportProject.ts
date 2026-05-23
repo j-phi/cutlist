@@ -1,4 +1,10 @@
-import type { Algorithm, Micrometres, Precision, StockMatrix } from 'cutlist';
+import type {
+  Algorithm,
+  Micrometres,
+  OptimizationObjective,
+  Precision,
+  StockMatrix,
+} from 'cutlist';
 import { trackEvent } from '~/utils/analytics';
 import type {
   IdbAnnotation,
@@ -40,6 +46,12 @@ export interface ProjectExport {
     defaultAlgorithm: Algorithm;
     showPartNumbers: boolean;
     showBomName: boolean;
+    layoutAlignH: 'left' | 'right';
+    layoutAlignV: 'top' | 'bottom';
+    labelPlacement: 'top' | 'center';
+    bandingThicknessUm: Micrometres;
+    subtractBandingThickness: boolean;
+    optimizationObjective: OptimizationObjective;
     createdAt: string;
     updatedAt: string;
   };
@@ -142,6 +154,12 @@ export async function buildExportData(
       defaultAlgorithm: idbProject.defaultAlgorithm,
       showPartNumbers: idbProject.showPartNumbers,
       showBomName: idbProject.showBomName,
+      layoutAlignH: idbProject.layoutAlignH,
+      layoutAlignV: idbProject.layoutAlignV,
+      labelPlacement: idbProject.labelPlacement,
+      bandingThicknessUm: idbProject.bandingThicknessUm,
+      subtractBandingThickness: idbProject.subtractBandingThickness,
+      optimizationObjective: idbProject.optimizationObjective,
       createdAt: idbProject.createdAt,
       updatedAt: idbProject.updatedAt,
     },
