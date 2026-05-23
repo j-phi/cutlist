@@ -4,16 +4,18 @@ import type {
   LinearBoardLayout,
   SheetBoardLayoutPlacement,
 } from 'cutlist';
+import { reduceStockMatrix, isSheetStock } from 'cutlist';
 import { projectPath } from '~/utils/projectTabs';
 import {
   STORAGE_KEYS,
   getLocalStorageJson,
   setLocalStorageJson,
 } from '~/utils/localStorage';
+import { computeAlignmentSnap } from '~/composables/useManualLayout';
 
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
 const { activeId } = useProjects();
-const { stocks } = useProjectSettings();
+const { stocks, bladeWidth, margin } = useProjectSettings();
 const {
   manualMode,
   isDragging,
@@ -50,39 +52,100 @@ const linearLayouts = computed<LinearBoardLayout[]>(
 // Clear overrides when the engine produces a new result.
 watch(data, () => resetOverrides());
 
+const OFFCUTS_KEY = '__offcuts__';
+
 const stockOptions = computed(() => {
   const seen = new Set<string>();
-  const options: { label: string; value: string }[] = [];
+  const options: {
+    label: string;
+    sublabel: string;
+    value: string;
+    role: string;
+  }[] = [];
+  let offcutCount = 0;
+
   for (const layout of sheetLayouts.value) {
+    if (layout.stock.role === 'offcut') {
+      offcutCount++;
+      continue;
+    }
     const key = stockKey(layout.stock);
     if (!seen.has(key)) {
       seen.add(key);
-      const thickness = formatDistance(layout.stock.thicknessUm);
+      const w = formatDistance(layout.stock.widthUm);
+      const l = formatDistance(layout.stock.lengthUm);
       options.push({
-        label: `${thickness} ${layout.stock.material}`,
+        label: layout.stock.name,
+        sublabel: `${w} × ${l}`,
         value: key,
+        role: 'general',
       });
     }
   }
+
+  if (offcutCount > 0) {
+    options.push({
+      label: 'Offcuts',
+      sublabel: `${offcutCount} board${offcutCount !== 1 ? 's' : ''}`,
+      value: OFFCUTS_KEY,
+      role: 'offcut',
+    });
+  }
+
   return options;
 });
 
-const ALL = '__all__';
-const selectedStock = ref(ALL);
+const appliedKeys = ref(new Set<string>());
+const pendingKeys = ref(new Set<string>());
+const stockDropdownOpen = ref(false);
 
 watch(stockOptions, (opts) => {
-  if (
-    selectedStock.value !== ALL &&
-    !opts.some((o) => o.value === selectedStock.value)
-  ) {
-    selectedStock.value = ALL;
+  const validKeys = new Set(opts.map((o) => o.value));
+  if (appliedKeys.value.size > 0) {
+    const next = new Set(
+      [...appliedKeys.value].filter((k) => validKeys.has(k)),
+    );
+    if (next.size !== appliedKeys.value.size) appliedKeys.value = next;
+  }
+  if (pendingKeys.value.size > 0) {
+    const next = new Set(
+      [...pendingKeys.value].filter((k) => validKeys.has(k)),
+    );
+    if (next.size !== pendingKeys.value.size) pendingKeys.value = next;
   }
 });
 
+watch(stockDropdownOpen, (open) => {
+  if (open) pendingKeys.value = new Set(appliedKeys.value);
+});
+
+const selectedLabel = computed(() => {
+  if (appliedKeys.value.size === 0) return 'All';
+  if (appliedKeys.value.size === 1) {
+    const key = [...appliedKeys.value][0];
+    return stockOptions.value.find((o) => o.value === key)?.label ?? 'Stock';
+  }
+  return `${appliedKeys.value.size} selected`;
+});
+
+function togglePending(key: string) {
+  const next = new Set(pendingKeys.value);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  pendingKeys.value = next;
+}
+
+function applyFilter() {
+  appliedKeys.value = new Set(pendingKeys.value);
+  stockDropdownOpen.value = false;
+}
+
 const filteredSheetLayouts = computed<SheetBoardLayout[]>(() => {
-  if (selectedStock.value === ALL) return sheetLayouts.value;
-  return sheetLayouts.value.filter(
-    (l) => stockKey(l.stock) === selectedStock.value,
+  if (appliedKeys.value.size === 0) return sheetLayouts.value;
+  return sheetLayouts.value.filter((l) =>
+    l.stock.role === 'offcut'
+      ? appliedKeys.value.has(OFFCUTS_KEY)
+      : appliedKeys.value.has(stockKey(l.stock)),
   );
 });
 
@@ -136,8 +199,6 @@ interface DragPreview {
   heightUm: number;
 }
 
-const SNAP_UM = 1000;
-
 const dragPreviewData = computed<DragPreview | null>(() => {
   if (
     !dragGhost.value ||
@@ -145,7 +206,7 @@ const dragPreviewData = computed<DragPreview | null>(() => {
     !hoverBoardRect.value
   )
     return null;
-  const target = filteredSheetLayouts.value[hoverBoardIndex.value];
+  const target = displaySheetLayouts.value[hoverBoardIndex.value];
   if (!target) return null;
 
   const rect = hoverBoardRect.value;
@@ -160,13 +221,26 @@ const dragPreviewData = computed<DragPreview | null>(() => {
   const rawLeft = xUm - w / 2;
   const rawBottom = yUm - h / 2;
 
-  const snappingActive = snapping.value;
-  const leftUm = snappingActive
-    ? Math.round(rawLeft / SNAP_UM) * SNAP_UM
-    : rawLeft;
-  const bottomUm = snappingActive
-    ? Math.round(rawBottom / SNAP_UM) * SNAP_UM
-    : rawBottom;
+  let leftUm: number;
+  let bottomUm: number;
+
+  if (snapping.value) {
+    const snapped = computeAlignmentSnap(
+      rawLeft,
+      rawBottom,
+      w,
+      h,
+      target,
+      bladeWidth.value ?? 0,
+      placement.partNumber,
+      placement.instanceNumber,
+    );
+    leftUm = snapped.leftUm;
+    bottomUm = snapped.bottomUm;
+  } else {
+    leftUm = rawLeft;
+    bottomUm = rawBottom;
+  }
 
   const maxLeft = Math.max(0, target.stock.widthUm - w);
   const maxBottom = Math.max(0, target.stock.lengthUm - h);
@@ -251,18 +325,39 @@ function startPartDrag(
       const rect = boardEl.getBoundingClientRect();
       const u = (e.clientX - rect.left) / rect.width;
       const v = (e.clientY - rect.top) / rect.height;
-      const target = filteredSheetLayouts.value[targetBoardIndex];
+      const target = displaySheetLayouts.value[targetBoardIndex];
       if (target) {
         const xUm = u * target.stock.widthUm;
         const yUm = (1 - v) * target.stock.lengthUm;
         const w = placement.rightUm - placement.leftUm;
         const h = placement.topUm - placement.bottomUm;
+        const rawLeft = xUm - w / 2;
+        const rawBottom = yUm - h / 2;
+
+        let finalLeft = rawLeft;
+        let finalBottom = rawBottom;
+
+        if (snapping.value) {
+          const snapped = computeAlignmentSnap(
+            rawLeft,
+            rawBottom,
+            w,
+            h,
+            target,
+            bladeWidth.value ?? 0,
+            placement.partNumber,
+            placement.instanceNumber,
+          );
+          finalLeft = snapped.leftUm;
+          finalBottom = snapped.bottomUm;
+        }
+
         movePart(
           placement.partNumber,
           placement.instanceNumber,
           targetBoardIndex,
-          xUm - w / 2,
-          yUm - h / 2,
+          finalLeft,
+          finalBottom,
         );
       }
     }
@@ -352,6 +447,88 @@ watch(helpCollapsed, (value) => {
       value,
     );
   }
+});
+
+function loadShoppingListHidden(projectId: string): boolean {
+  const stored = getLocalStorageJson<boolean>(
+    STORAGE_KEYS.ui.projectLayoutShoppingListHidden(projectId),
+  );
+  return typeof stored === 'boolean' ? stored : false;
+}
+
+const shoppingListHidden = ref(
+  activeId.value ? loadShoppingListHidden(activeId.value) : false,
+);
+
+watch(activeId, (id) => {
+  if (id) shoppingListHidden.value = loadShoppingListHidden(id);
+});
+
+watch(shoppingListHidden, (value) => {
+  if (activeId.value) {
+    setLocalStorageJson(
+      STORAGE_KEYS.ui.projectLayoutShoppingListHidden(activeId.value),
+      value,
+    );
+  }
+});
+
+function loadShowUnused(projectId: string): boolean {
+  const stored = getLocalStorageJson<boolean>(
+    STORAGE_KEYS.ui.projectLayoutShowUnused(projectId),
+  );
+  return typeof stored === 'boolean' ? stored : false;
+}
+
+const showUnused = ref(activeId.value ? loadShowUnused(activeId.value) : false);
+
+watch(activeId, (id) => {
+  if (id) showUnused.value = loadShowUnused(id);
+});
+
+watch(showUnused, (value) => {
+  if (activeId.value) {
+    setLocalStorageJson(
+      STORAGE_KEYS.ui.projectLayoutShowUnused(activeId.value),
+      value,
+    );
+  }
+});
+
+const unusedOffcutLayouts = computed<SheetBoardLayout[]>(() => {
+  if (!showUnused.value) return [];
+  const allStock = reduceStockMatrix(stocks.value).filter(isSheetStock);
+  const offcutStock = allStock.filter((s) => s.role === 'offcut');
+  const result: SheetBoardLayout[] = [];
+  for (const stock of offcutStock) {
+    const usedCount = sheetLayouts.value.filter(
+      (l) =>
+        l.stock.role === 'offcut' &&
+        l.stock.material === stock.material &&
+        l.stock.widthUm === stock.width &&
+        l.stock.lengthUm === stock.length &&
+        l.stock.thicknessUm === stock.thickness,
+    ).length;
+    const available = stock.quantity ?? 1;
+    for (let i = usedCount; i < available; i++) {
+      result.push({
+        kind: 'sheet',
+        stock: {
+          name: stock.name ?? stock.material,
+          material: stock.material,
+          widthUm: stock.width,
+          lengthUm: stock.length,
+          thicknessUm: stock.thickness,
+          color: stock.color,
+          role: 'offcut',
+        },
+        placements: [],
+        marginUm: (margin.value ?? 0) as import('cutlist').Micrometres,
+        algorithm: 'tidy',
+      });
+    }
+  }
+  return result;
 });
 </script>
 
@@ -491,12 +668,104 @@ watch(helpCollapsed, (value) => {
             class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
           >
             <label class="text-xs text-muted whitespace-nowrap">Stock</label>
-            <USelect
-              v-model="selectedStock"
-              :items="[{ label: 'All', value: ALL }, ...stockOptions]"
-              size="xs"
-              class="w-36"
-            />
+            <UPopover
+              v-model:open="stockDropdownOpen"
+              :content="{ side: 'bottom', align: 'end', sideOffset: 4 }"
+            >
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="soft"
+                trailing-icon="i-lucide-chevron-down"
+                class="min-w-[110px] justify-between"
+              >
+                {{ selectedLabel }}
+              </UButton>
+              <template #content>
+                <div
+                  class="min-w-[220px] max-h-80 overflow-y-auto flex flex-col"
+                >
+                  <!-- Apply button pinned at top -->
+                  <div
+                    class="sticky top-0 z-10 px-2 py-2 border-b border-subtle bg-elevated"
+                  >
+                    <UButton
+                      size="xs"
+                      color="primary"
+                      block
+                      @click="applyFilter"
+                    >
+                      Apply
+                    </UButton>
+                  </div>
+                  <!-- All option -->
+                  <button
+                    type="button"
+                    class="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-mist-700/50 transition-colors text-left"
+                    @click="pendingKeys = new Set()"
+                  >
+                    <div
+                      class="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors"
+                      :class="
+                        pendingKeys.size === 0
+                          ? 'bg-primary-500 border-primary-500'
+                          : 'border-mist-600'
+                      "
+                    >
+                      <UIcon
+                        v-if="pendingKeys.size === 0"
+                        name="i-lucide-check"
+                        class="w-2.5 h-2.5 text-white"
+                      />
+                    </div>
+                    <span
+                      :class="
+                        pendingKeys.size === 0
+                          ? 'text-hi font-medium'
+                          : 'text-body'
+                      "
+                      >All</span
+                    >
+                  </button>
+                  <!-- Individual stock options -->
+                  <button
+                    v-for="opt in stockOptions"
+                    :key="opt.value"
+                    type="button"
+                    class="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-mist-700/50 transition-colors text-left"
+                    @click="togglePending(opt.value)"
+                  >
+                    <div
+                      class="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors"
+                      :class="
+                        pendingKeys.has(opt.value)
+                          ? 'bg-primary-500 border-primary-500'
+                          : 'border-mist-600'
+                      "
+                    >
+                      <UIcon
+                        v-if="pendingKeys.has(opt.value)"
+                        name="i-lucide-check"
+                        class="w-2.5 h-2.5 text-white"
+                      />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div
+                        class="truncate"
+                        :class="
+                          pendingKeys.has(opt.value)
+                            ? 'text-hi font-medium'
+                            : 'text-body'
+                        "
+                      >
+                        {{ opt.label }}
+                      </div>
+                      <div class="text-xs text-dim">{{ opt.sublabel }}</div>
+                    </div>
+                  </button>
+                </div>
+              </template>
+            </UPopover>
           </div>
           <ExportPdfButton />
         </div>
@@ -504,7 +773,12 @@ watch(helpCollapsed, (value) => {
 
       <!-- Sheet shopping list summary -->
       <div
-        v-if="!error && data && filteredSheetLayouts.length > 0"
+        v-if="
+          !error &&
+          data &&
+          filteredSheetLayouts.length > 0 &&
+          !shoppingListHidden
+        "
         class="absolute top-16 right-3 z-10 max-w-xs bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
       >
         <SheetShoppingList :layouts="filteredSheetLayouts" :stocks="stocks" />
@@ -528,6 +802,35 @@ watch(helpCollapsed, (value) => {
 
       <!-- Controls -->
       <div class="absolute bottom-4 right-4 flex gap-3 z-10">
+        <div
+          v-if="!error && data && filteredSheetLayouts.length > 0"
+          class="bg-overlay backdrop-blur border border-subtle rounded-lg"
+        >
+          <UButton
+            :title="shoppingListHidden ? 'Show buy list' : 'Hide buy list'"
+            square
+            size="lg"
+            :color="shoppingListHidden ? 'neutral' : 'primary'"
+            :variant="shoppingListHidden ? 'ghost' : 'solid'"
+            @click="shoppingListHidden = !shoppingListHidden"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M16 5H3" />
+              <path d="M16 12H3" />
+              <path d="M11 19H3" />
+              <path d="m15 18 2 2 4-4" />
+            </svg>
+          </UButton>
+        </div>
         <RulerToggle
           class="bg-overlay backdrop-blur border border-subtle rounded-lg"
         />

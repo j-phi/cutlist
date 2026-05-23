@@ -32,6 +32,14 @@ export const STORAGE_KEYS = {
     projectLayoutHelpCollapsed(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/layout-help-collapsed/v1`;
     },
+    // Whether the shopping list overlay on the Layout tab is hidden, scoped per project.
+    projectLayoutShoppingListHidden(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/layout-shopping-list-hidden/v1`;
+    },
+    // Whether unused offcuts are shown as empty boards on the Layout tab, scoped per project.
+    projectLayoutShowUnused(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/layout-show-unused/v1`;
+    },
     // Last-visited workspace tab for a project (ProjectTabId string).
     projectActiveTab(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/active-tab/v1`;

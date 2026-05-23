@@ -88,7 +88,79 @@ function ensureKeyListener() {
   });
 }
 
-const SNAP_UM = 1000; // 1 mm
+export const SNAP_THRESHOLD_UM = 5000; // 5 mm attraction radius
+
+/**
+ * Snaps (rawLeft, rawBottom) to the nearest alignment position on a board:
+ * margin insets and tile-edge + blade-width offsets. Returns the raw values
+ * unchanged when no candidate falls within SNAP_THRESHOLD_UM.
+ *
+ * Pass excludePartNumber/excludeInstanceNumber to skip the tile being dragged
+ * so it doesn't attract to its own edges.
+ */
+export function computeAlignmentSnap(
+  rawLeft: number,
+  rawBottom: number,
+  partW: number,
+  partH: number,
+  board: SheetBoardLayout,
+  bladeWidthUm: number,
+  excludePartNumber?: number,
+  excludeInstanceNumber?: number,
+): { leftUm: number; bottomUm: number } {
+  const mg = board.marginUm;
+  const boardW = board.stock.widthUm;
+  const boardL = board.stock.lengthUm;
+
+  const others = board.placements.filter(
+    (p) =>
+      !(
+        p.partNumber === excludePartNumber &&
+        p.instanceNumber === excludeInstanceNumber
+      ),
+  );
+
+  const xCandidates: number[] = [
+    mg,
+    boardW - mg - partW,
+    ...others.flatMap((p) => [
+      p.rightUm + bladeWidthUm,
+      p.leftUm - partW - bladeWidthUm,
+    ]),
+  ];
+
+  const yCandidates: number[] = [
+    mg,
+    boardL - mg - partH,
+    ...others.flatMap((p) => [
+      p.topUm + bladeWidthUm,
+      p.bottomUm - partH - bladeWidthUm,
+    ]),
+  ];
+
+  function snapNearest(
+    raw: number,
+    candidates: number[],
+    maxPos: number,
+  ): number {
+    let best = raw;
+    let bestDist = SNAP_THRESHOLD_UM;
+    for (const c of candidates) {
+      const clamped = Math.max(0, Math.min(c, maxPos));
+      const dist = Math.abs(raw - clamped);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = clamped;
+      }
+    }
+    return best;
+  }
+
+  return {
+    leftUm: snapNearest(rawLeft, xCandidates, boardW - partW),
+    bottomUm: snapNearest(rawBottom, yCandidates, boardL - partH),
+  };
+}
 
 export function useManualLayout() {
   ensureUserSelectWatch();
@@ -106,13 +178,6 @@ export function useManualLayout() {
     leftUm: number,
     bottomUm: number,
   ) {
-    const snappedLeft = snapping.value
-      ? Math.round(leftUm / SNAP_UM) * SNAP_UM
-      : leftUm;
-    const snappedBottom = snapping.value
-      ? Math.round(bottomUm / SNAP_UM) * SNAP_UM
-      : bottomUm;
-
     // Snapshot the current state, remove any existing override for this part,
     // then push the new one as a new history entry.
     const current = overrides.value.filter(
@@ -125,8 +190,8 @@ export function useManualLayout() {
         partNumber,
         instanceNumber,
         boardIndex,
-        leftUm: snappedLeft as Micrometres,
-        bottomUm: snappedBottom as Micrometres,
+        leftUm: leftUm as Micrometres,
+        bottomUm: bottomUm as Micrometres,
       },
     ];
     past.value = [...past.value, { overrides: next }];

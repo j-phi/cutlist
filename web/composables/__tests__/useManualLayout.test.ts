@@ -5,7 +5,7 @@ import type {
   SheetBoardLayout,
   SheetBoardLayoutPlacement,
 } from 'cutlist';
-import { useManualLayout } from '../useManualLayout';
+import { useManualLayout, computeAlignmentSnap } from '../useManualLayout';
 
 function um(n: number): Micrometres {
   return n as Micrometres;
@@ -159,35 +159,74 @@ describe('useManualLayout', () => {
     });
   });
 
-  describe('snap-to-grid', () => {
-    it('rounds position to nearest 1 mm when snapping is enabled', () => {
-      const part = makePlacement(1, 1, 0, 0, 300000, 600000);
-      const board0 = makeLayout([part]);
-      const board1 = makeLayout([]);
-      const layouts = [board0, board1];
+  describe('computeAlignmentSnap', () => {
+    const blade = 3175; // µm, ~1/8" kerf
 
-      api.snapping.value = true;
-      api.movePart(1, 1, 1, 1500, 2700); // 1.5 mm → 2000, 2.7 mm → 3000
-
-      const result = api.applyOverrides(layouts);
-      const placed = result[1].placements[0];
-      expect(placed.leftUm).toBe(2000);
-      expect(placed.bottomUm).toBe(3000);
+    it('snaps to margin edge when within 5 mm', () => {
+      const board = { ...makeLayout([]), marginUm: um(5000) };
+      // raw=3000 → |3000-5000|=2000 < 5000 → snaps to 5000
+      const r = computeAlignmentSnap(3000, 3000, 300000, 600000, board, blade);
+      expect(r.leftUm).toBe(5000);
+      expect(r.bottomUm).toBe(5000);
     });
 
-    it('uses exact position when snapping is disabled', () => {
-      const part = makePlacement(1, 1, 0, 0, 300000, 600000);
-      const board0 = makeLayout([part]);
-      const board1 = makeLayout([]);
-      const layouts = [board0, board1];
+    it('does not snap when farther than 5 mm from any candidate', () => {
+      const board = { ...makeLayout([]), marginUm: um(5000) };
+      // raw=50000 → far from margin 5000 and far from right margin 900000
+      const r = computeAlignmentSnap(
+        50000,
+        50000,
+        300000,
+        600000,
+        board,
+        blade,
+      );
+      expect(r.leftUm).toBe(50000);
+      expect(r.bottomUm).toBe(50000);
+    });
 
-      api.snapping.value = false;
-      api.movePart(1, 1, 1, 1500, 2700);
+    it('snaps to right edge of an existing tile + blade width', () => {
+      const existing = makePlacement(2, 1, 0, 0, 200000, 300000);
+      const board = makeLayout([existing]);
+      // candidate = 200000 + 3175 = 203175; raw=205000 → dist=1825 < 5000
+      const r = computeAlignmentSnap(205000, 0, 100000, 100000, board, blade);
+      expect(r.leftUm).toBe(203175);
+    });
 
-      const result = api.applyOverrides(layouts);
-      const placed = result[1].placements[0];
-      expect(placed.leftUm).toBe(1500);
-      expect(placed.bottomUm).toBe(2700);
+    it('snaps to bottom of an existing tile minus blade width (tile above)', () => {
+      const existing = makePlacement(2, 1, 0, 500000, 200000, 800000);
+      const board = makeLayout([existing]);
+      // candidate = existing.bottomUm - partH - blade = 500000 - 100000 - 3175 = 396825
+      // raw=398000 → dist=1175 < 5000
+      const r = computeAlignmentSnap(0, 398000, 100000, 100000, board, blade);
+      expect(r.bottomUm).toBe(396825);
+    });
+
+    it('snaps to right board margin', () => {
+      const board = makeLayout([], 1200000, 2400000); // marginUm = 0
+      // right margin candidate = 1200000 - 0 - 300000 = 900000
+      // raw=897000 → dist=3000 < 5000
+      const r = computeAlignmentSnap(897000, 0, 300000, 600000, board, blade);
+      expect(r.leftUm).toBe(900000);
+    });
+
+    it('excludes the dragged part so it does not snap to itself', () => {
+      const dragged = makePlacement(1, 1, 100000, 0, 200000, 300000);
+      const board = makeLayout([dragged]);
+      // Without exclusion, right edge candidate = 200000 + 3175 = 203175
+      // raw=203000 would snap to 203175 (dist=175 < 5000)
+      // With exclusion, no tile candidates → only margin 0 and 900000 (far) → stays at 203000
+      const r = computeAlignmentSnap(
+        203000,
+        0,
+        100000,
+        100000,
+        board,
+        blade,
+        1,
+        1,
+      );
+      expect(r.leftUm).toBe(203000);
     });
   });
 
