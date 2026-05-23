@@ -9,10 +9,12 @@ import { USelectStub } from '~/test-utils/stubs';
 
 type SheetLayout = {
   stock: {
+    name: string;
     material: string;
     thicknessUm: number;
     widthUm: number;
     lengthUm: number;
+    role?: string;
   };
 };
 
@@ -52,7 +54,13 @@ const activeId = ref<string | null>('proj-1');
 mockNuxtImport('useProjects', () => () => ({ activeId }));
 
 const stocks = ref<Array<unknown>>([{ material: 'Plywood' }]);
-mockNuxtImport('useProjectSettings', () => () => ({ stocks }));
+const bladeWidth = ref<number | undefined>(3175);
+const margin = ref<number | undefined>(0);
+mockNuxtImport('useProjectSettings', () => () => ({
+  stocks,
+  bladeWidth,
+  margin,
+}));
 
 const scale = ref<number | undefined>(1);
 const resetZoom = vi.fn();
@@ -78,7 +86,34 @@ function makeLayout(
   widthUm = 1.22,
   lengthUm = 2.44,
 ): SheetLayout {
-  return { stock: { material, thicknessUm, widthUm, lengthUm } };
+  return {
+    stock: {
+      name: material,
+      material,
+      thicknessUm,
+      widthUm,
+      lengthUm,
+      role: 'general',
+    },
+  };
+}
+
+function makeOffcutLayout(
+  material: string,
+  thicknessUm: number,
+  widthUm = 0.5,
+  lengthUm = 0.8,
+): SheetLayout {
+  return {
+    stock: {
+      name: `${material} offcut`,
+      material,
+      thicknessUm,
+      widthUm,
+      lengthUm,
+      role: 'offcut',
+    },
+  };
 }
 
 function makeLinearLayout(
@@ -111,6 +146,12 @@ const TaggedUButton = {
   emits: ['click'],
 };
 
+// Renders both the trigger slot and the content slot so tests can click
+// checkbox buttons without needing to open a real floating popover.
+const UPopoverPassThrough = {
+  template: '<div><slot /><slot name="content" /></div>',
+};
+
 function getComponent() {
   return shallowMount(CutlistPreview, {
     global: {
@@ -118,6 +159,7 @@ function getComponent() {
         UIcon: true,
         USelect: USelectStub,
         UButton: TaggedUButton,
+        UPopover: UPopoverPassThrough,
         LayoutList: {
           template:
             '<div data-testid="layout-list" :data-count="layouts.length" />',
@@ -143,6 +185,8 @@ beforeEach(() => {
   error.value = null;
   partCountWarning.value = null;
   stocks.value = [{ material: 'Plywood' }];
+  bladeWidth.value = 3175;
+  margin.value = 0;
   scale.value = 1;
   resetZoom.mockClear();
   zoomIn.mockClear();
@@ -252,10 +296,12 @@ describe('CutlistPreview', () => {
       },
     ])('$scenario', ({ layouts, visible }) => {
       data.value = { layouts, linearLayouts: [], leftovers: [] };
-      expect(getComponent().find('select').exists()).toBe(visible);
+      expect(getComponent().find('[data-testid="stock-filter"]').exists()).toBe(
+        visible,
+      );
     });
 
-    it('Should filter layouts by stock key on change and reset to __all__ when the selected option disappears', async () => {
+    it('filters layouts when a stock option is selected and resets when that stock disappears', async () => {
       data.value = {
         layouts: [makeLayout('Plywood', 0.018), makeLayout('MDF', 0.012)],
         linearLayouts: [],
@@ -264,31 +310,54 @@ describe('CutlistPreview', () => {
       const component = getComponent();
       await nextTick();
 
-      const select = component.get('select');
-      await select.setValue('MDF__0.012__1.22__2.44');
+      // Click the MDF checkbox then Apply to filter down to one board.
+      const mdfBtn = component
+        .findAll('button')
+        .find((b) => b.text().includes('MDF'));
+      await mdfBtn!.trigger('click');
+      const applyBtn = component
+        .findAll('button')
+        .find((b) => b.text() === 'Apply');
+      await applyBtn!.trigger('click');
       await nextTick();
 
-      const list = component.get('[data-testid="layout-list"]');
-      expect(list.attributes('data-count')).toBe('1');
+      expect(
+        component.get('[data-testid="layout-list"]').attributes('data-count'),
+      ).toBe('1');
 
-      // Drop MDF; selection must reset.
+      // Remove MDF from the data; the selection must auto-reset.
       data.value = {
         layouts: [makeLayout('Plywood', 0.018)],
         linearLayouts: [],
         leftovers: [],
       };
       await nextTick();
-      // With one option remaining, dropdown is hidden.
-      expect(component.find('select').exists()).toBe(false);
+      // With one option remaining, the filter is hidden and all boards show.
+      expect(component.find('[data-testid="stock-filter"]').exists()).toBe(
+        false,
+      );
+      expect(
+        component.get('[data-testid="layout-list"]').attributes('data-count'),
+      ).toBe('1');
+    });
 
+    it('groups all offcuts into a single Offcuts checkbox', () => {
       data.value = {
-        layouts: [makeLayout('Plywood', 0.018), makeLayout('Birch', 0.018)],
+        layouts: [
+          makeLayout('Plywood', 0.018),
+          makeOffcutLayout('Plywood', 0.018, 0.6, 1.2),
+          makeOffcutLayout('Plywood', 0.018, 0.4, 0.9),
+        ],
         linearLayouts: [],
         leftovers: [],
       };
-      await nextTick();
-      const restored = component.get('select');
-      expect((restored.element as HTMLSelectElement).value).toBe('__all__');
+      const component = getComponent();
+      // Two offcut boards → one "Offcuts" option, not two individual ones.
+      const offcutBtns = component
+        .findAll('button')
+        .filter((b) => b.text().includes('Offcuts'));
+      expect(offcutBtns).toHaveLength(1);
+      expect(offcutBtns[0].text()).toContain('2 boards');
     });
 
     it('Should not include linear stock in the sheet stock filter', () => {
@@ -300,7 +369,9 @@ describe('CutlistPreview', () => {
       // One sheet stock + one linear stock → sheet filter is hidden because
       // the sheet side has only one option. Linear stock must not pad the
       // sheet's option count.
-      expect(getComponent().find('select').exists()).toBe(false);
+      expect(getComponent().find('[data-testid="stock-filter"]').exists()).toBe(
+        false,
+      );
     });
   });
 

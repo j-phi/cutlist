@@ -581,8 +581,12 @@ const unusedOffcutLayouts = computed<SheetBoardLayout[]>(() => {
             >
               <div class="grid grid-flow-col auto-cols-max items-start">
                 <LayoutList
-                  v-if="displaySheetLayouts.length > 0"
+                  v-if="
+                    displaySheetLayouts.length > 0 ||
+                    unusedOffcutLayouts.length > 0
+                  "
                   :layouts="displaySheetLayouts"
+                  :unused-layouts="unusedOffcutLayouts"
                 />
                 <LinearLayoutList
                   v-if="linearLayouts.length > 0"
@@ -659,12 +663,13 @@ const unusedOffcutLayouts = computed<SheetBoardLayout[]>(() => {
         <div
           class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
         >
-          <PreviewToolbar />
+          <PreviewToolbar v-model:show-unused="showUnused" />
         </div>
 
         <div class="flex items-center gap-2 ml-auto">
           <div
             v-if="stockOptions.length > 1"
+            data-testid="stock-filter"
             class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
           >
             <label class="text-xs text-muted whitespace-nowrap">Stock</label>

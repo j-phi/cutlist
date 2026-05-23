@@ -10,6 +10,7 @@ import {
 
 const props = defineProps<{
   layouts: SheetBoardLayout[];
+  unusedLayouts?: SheetBoardLayout[];
 }>();
 
 const getPx = useGetPx();
@@ -161,6 +162,44 @@ function algorithmMenu(group: LayoutGroup) {
     onSelect: () => setOverride(group.material, group.thicknessUm, alg),
   }));
 }
+
+interface UnusedGroup {
+  key: string;
+  material: string;
+  thickness: string;
+  thicknessUm: number;
+  layouts: SheetBoardLayout[];
+}
+
+const unusedGroups = computed<UnusedGroup[]>(() => {
+  const map = new Map<string, UnusedGroup>();
+  for (const layout of props.unusedLayouts ?? []) {
+    const key = `${layout.stock.material}__${layout.stock.thicknessUm}`;
+    let entry = map.get(key);
+    if (!entry) {
+      entry = {
+        key,
+        material: layout.stock.material,
+        thickness: formatDistance(layout.stock.thicknessUm) ?? '',
+        thicknessUm: layout.stock.thicknessUm,
+        layouts: [],
+      };
+      map.set(key, entry);
+    }
+    entry.layouts.push(layout);
+  }
+  return [...map.values()];
+});
+
+function unusedForGroup(group: LayoutGroup): SheetBoardLayout[] {
+  const key = `${group.material}__${group.thicknessUm}`;
+  return unusedGroups.value.find((g) => g.key === key)?.layouts ?? [];
+}
+
+const orphanUnusedGroups = computed<UnusedGroup[]>(() => {
+  const usedKeys = new Set(groups.value.map((g) => g.key));
+  return unusedGroups.value.filter((g) => !usedKeys.has(g.key));
+});
 </script>
 
 <template>
@@ -217,6 +256,71 @@ function algorithmMenu(group: LayoutGroup) {
             :key="group.indices[ri * 10 + i]"
             :layout="layout"
             :board-index="group.indices[ri * 10 + i]"
+          />
+        </div>
+
+        <!-- Unused offcuts in this group -->
+        <template v-if="unusedForGroup(group).length > 0">
+          <div
+            class="zoom-stable mt-4 origin-bottom-left flex items-center gap-2"
+          >
+            <div class="h-px flex-1 bg-mist-700/50" />
+            <span class="text-[10px] uppercase tracking-wider text-dim shrink-0"
+              >Available offcuts</span
+            >
+            <div class="h-px flex-1 bg-mist-700/50" />
+          </div>
+          <div
+            v-for="(row, ri) in chunkArray(unusedForGroup(group), 10)"
+            :key="`unused-${ri}`"
+            class="flex mt-4 opacity-50"
+            :style="`gap:${gap}`"
+          >
+            <LayoutListItem
+              v-for="(layout, i) of row"
+              :key="`unused-${group.key}-${ri * 10 + i}`"
+              :layout="layout"
+              :board-index="-1"
+              :read-only="true"
+            />
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Orphan unused groups (material+thickness with no placed layouts) -->
+    <template
+      v-for="uGroup in orphanUnusedGroups"
+      :key="`orphan-${uGroup.key}`"
+    >
+      <div class="self-stretch flex flex-col items-center shrink-0 mx-6">
+        <div class="w-px flex-1 bg-mist-600/50" />
+      </div>
+
+      <div class="shrink-0 opacity-50">
+        <div class="zoom-stable mb-6 origin-bottom-left">
+          <div class="flex items-baseline gap-3">
+            <h2 class="text-2xl font-bold text-teal-400">
+              {{ uGroup.material }}
+            </h2>
+            <span class="text-2xl font-bold text-muted">{{
+              uGroup.thickness
+            }}</span>
+          </div>
+          <div class="mt-1.5 text-xs text-dim">Available offcuts</div>
+        </div>
+        <div
+          v-for="(row, ri) in chunkArray(uGroup.layouts, 10)"
+          :key="ri"
+          class="flex"
+          :style="`gap:${gap}` + (ri > 0 ? `;margin-top:${gap}` : '')"
+        >
+          <LayoutListItem
+            v-for="(layout, i) of row"
+            :key="`orphan-item-${ri * 10 + i}`"
+            :layout="layout"
+            :board-index="-1"
+            :read-only="true"
           />
         </div>
       </div>

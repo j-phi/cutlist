@@ -105,7 +105,7 @@ const { showPartNumbers, showBomName } = useProjectSettings();
       </p>
       <p
         v-if="showBomName"
-        class="absolute inset-x-0 bottom-0 text-clip part-number text-center px-px pb-px font-medium truncate"
+        class="absolute inset-x-0 bottom-0 part-name part-number text-center px-px pb-px font-medium overflow-hidden break-words"
         :style="`font-size:${fontSize};line-height:${fontSize}`"
         :title="placement.name"
       >
@@ -114,7 +114,7 @@ const { showPartNumbers, showBomName } = useProjectSettings();
       <!-- Grain lock indicator (always visible when locked) -->
       <div
         v-if="placement.grainLock"
-        class="absolute bottom-0.5 left-0.5 flex items-center gap-px part-grain"
+        class="absolute top-0.5 left-0.5 flex items-center gap-px part-grain"
       >
         <svg
           viewBox="0 0 24 24"
@@ -178,6 +178,11 @@ const { showPartNumbers, showBomName } = useProjectSettings();
 }
 .part-number {
   color: var(--part-text, #333);
+}
+.part-name {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .is-hovered .part-number {
   color: var(--part-text-hover, #111);

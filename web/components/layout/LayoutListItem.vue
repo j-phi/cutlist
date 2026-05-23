@@ -10,6 +10,7 @@ import PartListItem from './PartListItem.vue';
 const props = defineProps<{
   layout: SheetBoardLayout;
   boardIndex: number;
+  readOnly?: boolean;
 }>();
 
 const getPx = useGetPx();
@@ -103,17 +104,19 @@ function hitTest(e: PointerEvent): number | null {
 }
 
 function onPointerMove(e: PointerEvent) {
+  if (props.readOnly) return;
   hoveredIndex.value = isRulerActive.value ? null : hitTest(e);
 }
 
 function onPointerLeave() {
+  if (props.readOnly) return;
   hoveredIndex.value = null;
 }
 
 const CLICK_THRESHOLD = 5;
 
 function onPointerDown(e: PointerEvent) {
-  if (isRulerActive.value) return;
+  if (props.readOnly || isRulerActive.value) return;
   const hit = hitTest(e);
   if (hit == null) return;
   const placement = props.layout.placements[hit];
@@ -220,7 +223,7 @@ const { x: mouseX, y: mouseY } = useMouse();
       ref="board"
       class="rounded relative shadow-lg shadow-black/30"
       :style="boardStyle"
-      :data-board-index="boardIndex"
+      :data-board-index="readOnly ? undefined : boardIndex"
       @pointermove="onPointerMove"
       @pointerleave="onPointerLeave"
       @pointerdown="onPointerDown"

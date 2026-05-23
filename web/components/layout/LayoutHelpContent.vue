@@ -63,6 +63,29 @@
 
     <section class="space-y-1.5">
       <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
+        Panel order
+      </h3>
+      <p>
+        Controls how boards are sorted within each material group. Found in
+        Optimization settings (<span class="text-body">⚙</span> icon).
+      </p>
+      <ul class="list-disc pl-4 marker:text-dim space-y-1">
+        <li>
+          <span class="text-body">Board order</span> — keeps boards in the
+          sequence the packing engine produced them. Panels stay fixed while you
+          drag parts between boards in manual placement, so nothing jumps
+          unexpectedly.
+        </li>
+        <li>
+          <span class="text-body">Fullest first</span> — sorts the most densely
+          packed boards to the front. Useful for spotting waste at a glance:
+          nearly-full boards appear first, sparse boards last.
+        </li>
+      </ul>
+    </section>
+
+    <section class="space-y-1.5">
+      <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
         Part labels
       </h3>
       <ul class="list-disc pl-4 marker:text-dim space-y-1">
