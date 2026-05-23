@@ -41,6 +41,9 @@ mockNuxtImport('useProjectSettings', () => () => ({
   isLoading: ref(false),
 }));
 
+const panelOrder = ref<'board' | 'fullest'>('board');
+mockNuxtImport('useOptimizationSettings', () => () => ({ panelOrder }));
+
 interface LayoutFactoryArgs {
   material: string;
   thicknessUm: Micrometres;
@@ -121,14 +124,18 @@ function overrideFor(
 
 afterEach(() => {
   vi.restoreAllMocks();
+  panelOrder.value = 'board';
 });
 
 describe('LayoutList', () => {
   describe('Group sorting', () => {
-    it('Should sort by material → thickness → fuller boards first', () => {
+    // Two Plywood-18 boards (origIdx 0 = sparse, origIdx 3 = full) bracket a
+    // Birch-25 and a Birch-12 board, so we can observe both the group ordering
+    // (material → thickness) and the within-group tiebreak.
+    function mixedLayouts(): SheetBoardLayout[] {
       const big = [{}, {}, {}];
       const small = [{}];
-      const layouts: SheetBoardLayout[] = [
+      return [
         makeLayout({
           material: 'Plywood',
           thicknessUm: mmToUm(18),
@@ -150,12 +157,24 @@ describe('LayoutList', () => {
           placements: big,
         }),
       ];
+    }
 
-      const component = getComponent(layouts);
+    it('Should keep the packer board order within a group by default (panels do not shift on manual moves)', () => {
+      panelOrder.value = 'board';
+      const component = getComponent(mixedLayouts());
       const items = component.findAllComponents({ name: 'LayoutListItem' });
 
-      // boardIndex is the original index in props.layouts (before sorting),
-      // so it maps: Birch12→2, Birch25→1, Plywood18big→3, Plywood18small→0.
+      // Groups order by material → thickness, but the two Plywood-18 boards
+      // keep their original index order (0 before 3) rather than fuller-first.
+      expect(items.map((i) => i.props('boardIndex'))).toEqual([2, 1, 0, 3]);
+    });
+
+    it('Should sort fuller boards first within a group when panelOrder is "fullest"', () => {
+      panelOrder.value = 'fullest';
+      const component = getComponent(mixedLayouts());
+      const items = component.findAllComponents({ name: 'LayoutListItem' });
+
+      // The full Plywood-18 board (origIdx 3) now precedes the sparse one (0).
       expect(items.map((i) => i.props('boardIndex'))).toEqual([2, 1, 3, 0]);
       expect(
         items.map((i) => {

@@ -16,6 +16,7 @@ const getPx = useGetPx();
 const gap = getPx(mmToUm(4 * MM_PER_IN));
 const formatDistance = useFormatDistance();
 const { stocks, defaultAlgorithm } = useProjectSettings();
+const { panelOrder } = useOptimizationSettings();
 
 const ALGORITHM_LABEL: Record<Algorithm, string> = {
   auto: 'Auto',
@@ -86,12 +87,17 @@ const groups = computed<LayoutGroup[]>(() => {
     origIdx,
   }));
 
-  // Stable sort: material → thickness → fuller boards first.
+  // Sort: material → thickness, then a tiebreak chosen by panelOrder.
+  // 'board' (default) leaves the packer's board order intact — Array.sort is
+  // stable, so returning 0 keeps origIdx order and panels never shift when a
+  // part is dragged between boards in manual placement. 'fullest' puts the
+  // most-filled boards first.
   withOrig.sort((a, b) => {
     const mat = a.layout.stock.material.localeCompare(b.layout.stock.material);
     if (mat !== 0) return mat;
     const thick = a.layout.stock.thicknessUm - b.layout.stock.thicknessUm;
     if (thick !== 0) return thick;
+    if (panelOrder.value !== 'fullest') return 0;
     const areaA = a.layout.placements.reduce(
       (s, p) => s + p.widthUm * p.lengthUm,
       0,

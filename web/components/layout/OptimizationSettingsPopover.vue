@@ -6,6 +6,7 @@ const { defaultAlgorithm } = useProjectSettings();
 const {
   passOrder,
   enabledPasses,
+  panelOrder,
   togglePass,
   reorderPass,
   resetToDefaults,
@@ -17,6 +18,11 @@ const ALGORITHM_ITEMS = [
   { label: 'Tidy', value: 'tidy' },
   { label: 'Compact', value: 'compact' },
   { label: 'CNC', value: 'cnc' },
+];
+
+const PANEL_ORDER_ITEMS = [
+  { label: 'Board order', value: 'board' },
+  { label: 'Fullest first', value: 'fullest' },
 ];
 
 // Drag-and-drop state
@@ -72,6 +78,18 @@ function onDragEnd() {
         :items="ALGORITHM_ITEMS"
         size="xs"
         class="flex-1"
+      />
+    </div>
+
+    <!-- Panel order -->
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-muted whitespace-nowrap">Panel order</label>
+      <USelect
+        v-model="panelOrder"
+        :items="PANEL_ORDER_ITEMS"
+        size="xs"
+        class="flex-1"
+        title="Board order keeps panels fixed while you drag parts between boards. Fullest first sorts the most-filled boards to the front."
       />
     </div>
 

@@ -1,7 +1,14 @@
 /**
  * Optimization pass configuration — module-level reactive state shared across
- * all callers. Persisted only in-memory for now (resets on page load).
+ * all callers. Pass order/enablement is in-memory only (resets on page load);
+ * `panelOrder` persists to localStorage.
  */
+
+import {
+  STORAGE_KEYS,
+  getLocalStorageJson,
+  setLocalStorageJson,
+} from '~/utils/localStorage';
 
 export const PASS_LABELS: Record<
   string,
@@ -46,6 +53,16 @@ export const PASS_LABELS: Record<
   },
 };
 
+/**
+ * How board panels are ordered within each (material, thickness) group on the
+ * Layout tab. `'board'` keeps the packer's board order (stable — panels never
+ * shift when a part is dragged between boards in manual placement). `'fullest'`
+ * sorts the most-filled boards first.
+ */
+export type PanelOrder = 'board' | 'fullest';
+
+export const DEFAULT_PANEL_ORDER: PanelOrder = 'board';
+
 export const DEFAULT_PASS_ORDER: string[] = [
   'tidy-rip-long-side',
   'tidy-rip-area',
@@ -61,10 +78,36 @@ export const DEFAULT_PASS_ORDER: string[] = [
 const passOrder = ref<string[]>([...DEFAULT_PASS_ORDER]);
 const enabledPasses = ref<Set<string>>(new Set(DEFAULT_PASS_ORDER));
 
+function loadPanelOrder(): PanelOrder {
+  const stored = getLocalStorageJson<PanelOrder>(
+    STORAGE_KEYS.ui.layoutPanelOrder,
+  );
+  return stored === 'board' || stored === 'fullest'
+    ? stored
+    : DEFAULT_PANEL_ORDER;
+}
+const panelOrder = ref<PanelOrder>(loadPanelOrder());
+
+// Persist panelOrder to localStorage on change. Installed once at module level
+// so it outlives any single component scope.
+let persistInstalled = false;
+function ensurePanelOrderPersist() {
+  if (persistInstalled) return;
+  persistInstalled = true;
+  effectScope(true).run(() => {
+    watch(panelOrder, (val) => {
+      setLocalStorageJson(STORAGE_KEYS.ui.layoutPanelOrder, val);
+    });
+  });
+}
+
 export function useOptimizationSettings() {
+  ensurePanelOrderPersist();
+
   function resetToDefaults(): void {
     passOrder.value = [...DEFAULT_PASS_ORDER];
     enabledPasses.value = new Set(DEFAULT_PASS_ORDER);
+    panelOrder.value = DEFAULT_PANEL_ORDER;
   }
 
   function togglePass(passId: string): void {
@@ -90,6 +133,7 @@ export function useOptimizationSettings() {
   return {
     passOrder,
     enabledPasses,
+    panelOrder,
     resetToDefaults,
     togglePass,
     reorderPass,

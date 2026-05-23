@@ -36,6 +36,7 @@ const DEFAULT_PASS_ORDER = [
 
 const passOrder = ref([...DEFAULT_PASS_ORDER]);
 const enabledPasses = ref(new Set(DEFAULT_PASS_ORDER));
+const panelOrder = ref<'board' | 'fullest'>('board');
 const resetToDefaults = vi.fn(() => {
   passOrder.value = [...DEFAULT_PASS_ORDER];
   enabledPasses.value = new Set(DEFAULT_PASS_ORDER);
@@ -55,6 +56,7 @@ const reorderPass = vi.fn();
 mockNuxtImport('useOptimizationSettings', () => () => ({
   passOrder,
   enabledPasses,
+  panelOrder,
   resetToDefaults,
   togglePass,
   reorderPass,
@@ -70,6 +72,7 @@ describe('OptimizationSettingsPopover', () => {
     togglePass.mockClear();
     reorderPass.mockClear();
     defaultAlgorithm.value = 'auto';
+    panelOrder.value = 'board';
   });
 
   function getComponent() {
@@ -137,6 +140,15 @@ describe('OptimizationSettingsPopover', () => {
 
     // reorderPass should have been called with (0, 2)
     expect(reorderPass).toHaveBeenCalledWith(0, 2);
+  });
+
+  it('updates panelOrder when the Panel order select changes', async () => {
+    const wrapper = getComponent();
+    // Two USelects render: [0] default algorithm, [1] panel order.
+    const selects = wrapper.findAll('select');
+    expect(selects).toHaveLength(2);
+    await selects[1].setValue('fullest');
+    expect(panelOrder.value).toBe('fullest');
   });
 
   it('calls resetToDefaults when the Reset button is clicked', async () => {

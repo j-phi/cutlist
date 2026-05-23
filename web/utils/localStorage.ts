@@ -36,6 +36,8 @@ export const STORAGE_KEYS = {
     projectActiveTab(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/active-tab/v1`;
     },
+    // How Layout-tab board panels are ordered within a group ('board' | 'fullest'). Global.
+    layoutPanelOrder: '@cutlist/ui/layout-panel-order/v1',
   },
 } as const;
 
