@@ -17,17 +17,44 @@ function makeSheet(
   widthUm: number,
   lengthUm: number,
   role: 'offcut' | 'general',
+  opts: { cost?: number; fillRatio?: number } = {},
 ): SheetBoardLayout {
+  // A single placement covering `fillRatio` of the board area, so the
+  // component's yield display has a deterministic value.
+  const fill = opts.fillRatio ?? 0;
+  const placements =
+    fill > 0
+      ? [
+          {
+            partNumber: 1,
+            instanceNumber: 1,
+            name: 'P',
+            material,
+            widthUm: widthUm as Micrometres,
+            lengthUm: (lengthUm * fill) as Micrometres,
+            thicknessUm: 18000 as Micrometres,
+            leftUm: 0 as Micrometres,
+            rightUm: widthUm as Micrometres,
+            bottomUm: 0 as Micrometres,
+            topUm: (lengthUm * fill) as Micrometres,
+            allowanceWidthUm: 0 as Micrometres,
+            allowanceLengthUm: 0 as Micrometres,
+          },
+        ]
+      : [];
   return {
+    kind: 'sheet',
     stock: {
       material,
       widthUm: widthUm as Micrometres,
       lengthUm: lengthUm as Micrometres,
       thicknessUm: 18000 as Micrometres,
       role,
+      ...(opts.cost === undefined ? {} : { cost: opts.cost }),
     },
-    placements: [],
-    wasteRatio: 0,
+    placements,
+    marginUm: 0 as Micrometres,
+    algorithm: 'tidy',
   } as unknown as SheetBoardLayout;
 }
 
@@ -78,5 +105,27 @@ describe('SheetShoppingList', () => {
 
   it('renders nothing when there are no layouts', () => {
     expect(mountList([]).html()).toBe('<!--v-if-->');
+  });
+
+  it('shows yield % per group and material cost when priced', () => {
+    const text = mountList([
+      // One board half filled → 50% yield, costing 60.
+      makeSheet('Plywood', 1000, 1000, 'general', {
+        cost: 60,
+        fillRatio: 0.5,
+      }),
+    ]).text();
+    expect(text).toContain('Yield: 50%');
+    expect(text).toContain('Cost: 60');
+    expect(text).toContain('Total material cost: 60');
+  });
+
+  it('omits cost (no $0) for an unpriced group but still shows yield', () => {
+    const text = mountList([
+      makeSheet('MDF', 1000, 1000, 'general', { fillRatio: 1 }),
+    ]).text();
+    expect(text).toContain('Yield: 100%');
+    expect(text).not.toContain('Cost:');
+    expect(text).not.toContain('Total material cost');
   });
 });

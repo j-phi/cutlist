@@ -32,6 +32,7 @@ import { v5ProjectMigration, v5ModelMigration } from './v5';
 import { v6Migration } from './v6';
 import { v7Migration } from './v7';
 import { v8Migration } from './v8';
+import { v9Migration } from './v9';
 
 export type { IdbRecord, RecordMigration, StoreName } from './types';
 export { migrateProjectToMmStorage } from './v3';
@@ -45,6 +46,7 @@ export {
 export { migrateProjectStockToArray } from './v6';
 export { migrateProjectStockRoles } from './v7';
 export { migrateProjectStockNames } from './v8';
+export { migrateProjectStockCost } from './v9';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
@@ -94,6 +96,11 @@ export const migrations: RecordMigration[] = [
   // `material` string moves to `name` and `material` resets to 'Uncategorized'.
   // Mirror of the Dexie .version(8).upgrade() in `~/composables/useIdb/db`.
   v8Migration,
+
+  // v9: stock sizes gain an optional `cost?: number` (material-cost reporting,
+  // F2). Purely additive — a v8 record is already valid at v9 — so the
+  // transform is a no-op. Mirror of the Dexie .version(9).upgrade().
+  v9Migration,
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

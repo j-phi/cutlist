@@ -77,6 +77,11 @@ export interface SheetStock {
    * (always the case for `'general'`) means infinite supply.
    */
   quantity?: number;
+  /**
+   * Optional, currency-agnostic per-board cost. Drives material-cost reporting
+   * (F2). `undefined` ≡ unpriced — the shopping list omits cost for the group.
+   */
+  cost?: number;
 }
 
 /** Engine-side linear stock. All dimensions are integer micrometres. */
@@ -98,6 +103,11 @@ export interface LinearStock {
   role: StockRole;
   /** For offcuts: finite stick count. `undefined` means infinite supply. */
   quantity?: number;
+  /**
+   * Optional, currency-agnostic per-stick cost. Drives material-cost reporting
+   * (F2). `undefined` ≡ unpriced.
+   */
+  cost?: number;
 }
 
 const ZERO_OVERSIZE: Oversize = Object.freeze({
@@ -117,6 +127,8 @@ export const isSheetStock = (s: Stock): s is SheetStock => s.kind === 'sheet';
 const PositiveDimension = z.number().positive().finite();
 const NonNegativeMm = z.number().nonnegative().finite();
 const PositiveCount = z.number().int().positive();
+/** Currency-agnostic cost: rejects negative and non-finite values (FR-COST-4). */
+const PositiveCost = z.number().positive().finite();
 
 export const OversizeSchema = z.object({
   length: NonNegativeMm.default(0),
@@ -157,6 +169,11 @@ const SheetStockMatrixSchema = z.object({
        * `'general'` stock (infinite). Absent ≡ 1 for offcuts.
        */
       quantity: PositiveCount.optional(),
+      /**
+       * Optional, currency-agnostic per-board cost for material-cost reporting
+       * (F2). Must be positive and finite; absent ≡ unpriced.
+       */
+      cost: PositiveCost.optional(),
     }),
   ),
   role: StockRoleSchema,
@@ -175,6 +192,11 @@ export const LinearStockSize = z.object({
   crossSectionWidth: PositiveDimension,
   crossSectionThickness: PositiveDimension,
   lengths: z.array(PositiveDimension),
+  /**
+   * Optional, currency-agnostic per-stick cost for material-cost reporting
+   * (F2). Must be positive and finite; absent ≡ unpriced.
+   */
+  cost: PositiveCost.optional(),
 });
 export type LinearStockSize = z.infer<typeof LinearStockSize>;
 
@@ -267,6 +289,8 @@ export interface SheetBoardLayoutStock {
   color?: string;
   /** Which tier this board came from — lets the UI tally offcuts vs buys. */
   role: StockRole;
+  /** Currency-agnostic per-board cost (F2). `undefined` ≡ unpriced. */
+  cost?: number;
 }
 
 /** Per-board info attached to a linear layout (output side). */
@@ -280,6 +304,8 @@ export interface LinearBoardLayoutStock {
   color?: string;
   /** Which tier this board came from — lets the UI tally offcuts vs buys. */
   role: StockRole;
+  /** Currency-agnostic per-stick cost (F2). `undefined` ≡ unpriced. */
+  cost?: number;
 }
 
 /**

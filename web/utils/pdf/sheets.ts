@@ -2,6 +2,7 @@ import { rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
 import {
   aggregateSheetShoppingList,
+  sheetShoppingProjectCost,
   type Micrometres,
   type SheetBoardLayout,
   type SheetShoppingListGroup,
@@ -17,7 +18,13 @@ import {
 import { addPage, type Ctx } from './context';
 
 const TITLE_AREA_MM = 10;
-const GROUP_BLOCK_HEIGHT_MM = 20;
+// Material header + up to four detail lines (offcut, buy, yield, cost).
+const GROUP_BLOCK_HEIGHT_MM = 30;
+
+/** Plain numeric format for currency-agnostic costs (trim trailing zeros). */
+function formatCost(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
 
 /**
  * Append a sheet shopping-list section: per (material, thickness) group, how
@@ -50,6 +57,22 @@ export function drawSheetShoppingPages(
     }
     drawGroup(ctx, page, margin, cursorY, group);
     cursorY -= GROUP_BLOCK_HEIGHT_MM * MM;
+  }
+
+  // Project material total (omitted when no group is priced — FR-COST-2).
+  const total = sheetShoppingProjectCost(groups);
+  if (total !== undefined) {
+    if (cursorY - 14 < bottomY(page, margin)) {
+      page = addPage(ctx, { wMm: pageWmm, hMm: pageHmm }, 'Sheet Goods');
+      cursorY = topY(page, margin) - TITLE_AREA_MM * MM;
+    }
+    page.drawText(`Total material cost: ${formatCost(total)}`, {
+      x: margin * MM,
+      y: cursorY - 9,
+      size: 11,
+      font: ctx.fontBold,
+      color: rgb(0.1, 0.1, 0.1),
+    });
   }
 }
 
@@ -96,6 +119,27 @@ function offcutText(group: SheetShoppingListGroup): string | null {
   return `Offcuts used: ${group.offcutsUsed}/${group.offcutsAvailable}`;
 }
 
+/**
+ * Pure: the ordered detail lines drawn under a group's material header —
+ * offcut usage (if any), buy list, yield %, and cost (omitted for unpriced
+ * groups, FR-COST-2/3). Extracted so the line content is testable without a
+ * pdf-lib page.
+ */
+export function sheetShoppingGroupLines(
+  group: SheetShoppingListGroup,
+  formatSize: (um: Micrometres) => string | undefined,
+): string[] {
+  const lines: string[] = [];
+  const offcut = offcutText(group);
+  if (offcut) lines.push(offcut);
+  lines.push(buyText(group, formatSize));
+  lines.push(`Yield: ${Math.round(group.yieldRatio * 100)}%`);
+  if (group.materialCost !== undefined) {
+    lines.push(`Cost: ${formatCost(group.materialCost)}`);
+  }
+  return lines;
+}
+
 function drawGroup(
   ctx: Ctx,
   page: PDFPage,
@@ -114,9 +158,8 @@ function drawGroup(
   });
 
   let lineY = topYpt - 22;
-  const offcut = offcutText(group);
-  if (offcut) {
-    page.drawText(offcut, {
+  for (const text of sheetShoppingGroupLines(group, formatSize)) {
+    page.drawText(text, {
       x,
       y: lineY,
       size: 9,
@@ -125,11 +168,4 @@ function drawGroup(
     });
     lineY -= 12;
   }
-  page.drawText(buyText(group, formatSize), {
-    x,
-    y: lineY,
-    size: 9,
-    font: ctx.font,
-    color: rgb(0.3, 0.3, 0.3),
-  });
 }

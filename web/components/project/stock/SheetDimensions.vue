@@ -29,6 +29,8 @@ function emitSizes(sizes: SheetStockMatrix['sizes']) {
   // can't end up displayed against the wrong row after a remove.
   drafts.reset();
   newThickness.value = {};
+  costDrafts.value = {};
+  costErrors.value = {};
   emit('update:modelValue', { ...props.modelValue, sizes });
 }
 
@@ -129,6 +131,58 @@ function commitSizeQty(idx: number, raw: number | string) {
     props.modelValue.sizes.map((s, i) => (i === idx ? { ...s, quantity } : s)),
   );
 }
+
+// ─── Per-size cost ──────────────────────────────────────────────────────────
+// Currency-agnostic positive number. Empty clears the cost; a negative or
+// non-finite value is rejected (prior value retained) with a validation
+// message (FR-COST-4). Draft state keeps the field editable while typing.
+const costDrafts = ref<Record<number, string>>({});
+const costErrors = ref<Record<number, boolean>>({});
+
+function costDisplay(
+  idx: number,
+  size: SheetStockMatrix['sizes'][number],
+): string {
+  return costDrafts.value[idx] ?? (size.cost != null ? String(size.cost) : '');
+}
+
+function onCostInput(idx: number, value: string) {
+  costDrafts.value[idx] = value;
+  costErrors.value[idx] = false;
+}
+
+function commitSizeCost(idx: number) {
+  const draft = costDrafts.value[idx];
+  if (draft === undefined) return;
+  const trimmed = draft.trim();
+  if (trimmed === '') {
+    // Empty clears the cost (unprice the size).
+    delete costDrafts.value[idx];
+    costErrors.value[idx] = false;
+    if (props.modelValue.sizes[idx]?.cost !== undefined) {
+      emitSizes(
+        props.modelValue.sizes.map((s, i) => {
+          if (i !== idx) return s;
+          const { cost: _drop, ...rest } = s;
+          return rest;
+        }),
+      );
+    }
+    return;
+  }
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n <= 0) {
+    // Reject: retain prior value, surface the reason, snap the field back.
+    costErrors.value[idx] = true;
+    delete costDrafts.value[idx];
+    return;
+  }
+  delete costDrafts.value[idx];
+  costErrors.value[idx] = false;
+  emitSizes(
+    props.modelValue.sizes.map((s, i) => (i === idx ? { ...s, cost: n } : s)),
+  );
+}
 </script>
 
 <template>
@@ -219,6 +273,31 @@ function commitSizeQty(idx: number, raw: number | string) {
             @click="removeSize(sizeIndex)"
           />
         </div>
+      </div>
+
+      <div class="flex flex-col gap-0.5">
+        <div class="flex items-center gap-2">
+          <span
+            class="text-[11px] uppercase tracking-wider text-dim font-medium shrink-0"
+            >Cost</span
+          >
+          <UInput
+            :model-value="costDisplay(sizeIndex, size)"
+            class="w-24 font-mono"
+            placeholder="per board"
+            :data-testid="`sheet-size-cost-${sizeIndex}`"
+            @update:model-value="(v: string) => onCostInput(sizeIndex, v)"
+            @blur="commitSizeCost(sizeIndex)"
+            @keydown.enter="commitSizeCost(sizeIndex)"
+          />
+        </div>
+        <p
+          v-if="costErrors[sizeIndex]"
+          class="text-[11px] text-error"
+          :data-testid="`sheet-size-cost-error-${sizeIndex}`"
+        >
+          Cost must be a positive number.
+        </p>
       </div>
 
       <div class="flex flex-col gap-1">
