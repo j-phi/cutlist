@@ -22,6 +22,7 @@ import {
   migrateProjectStockToArray,
   migrateProjectStockRoles,
   migrateProjectStockNames,
+  migrateProjectStockCost,
 } from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
@@ -169,6 +170,22 @@ export class CutlistDB extends Dexie {
           .toCollection()
           .modify((p: Record<string, unknown>) => {
             Object.assign(p, migrateProjectStockNames(p));
+          });
+      });
+
+    // v9 — stock sizes gain an optional `cost?: number` (material-cost
+    // reporting, F2). Purely additive: a v8 record is already shape-valid at
+    // v9, so the transform is a no-op. Declared to keep the Dexie version line
+    // in lockstep with `SCHEMA_VERSION` and the export migration registry
+    // (`migrateProjectStockCost`).
+    this.version(9)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateProjectStockCost(p));
           });
       });
   }

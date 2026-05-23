@@ -299,7 +299,7 @@ The per-version transform must not throw — a thrown error inside Dexie's `.upg
 
 **Read-path safety net**: `applyDefaults` helpers in [web/composables/useIdb/defaults.ts](web/composables/useIdb/defaults.ts) fill missing fields on every record read, so partial records from older writes still hydrate cleanly.
 
-Current schema: **v5**. v2 normalised `optimize` → `defaultAlgorithm`; v3 canonicalised distance storage to millimetres; v4 dropped `archivedAt`; v5 switched internal dimensions from float meters/mm to integer micrometres — project `bladeWidth`/`margin` and every `Part.size.*` are now branded `Micrometres` (see `migrations/v5.ts`).
+Current schema: **v9**. v2 normalised `optimize` → `defaultAlgorithm`; v3 canonicalised distance storage to millimetres; v4 dropped `archivedAt`; v5 switched internal dimensions from float meters/mm to integer micrometres — project `bladeWidth`/`margin` and every `Part.size.*` are now branded `Micrometres` (see `migrations/v5.ts`); v6 moved stock from a YAML string to a structured `stocks: StockMatrix[]`; v7 added stock `role` tiers + offcut `quantity`; v8 split stock `name` from `material` (category); v9 added an optional, currency-agnostic `cost?: number` on each stock size for material-yield + cost reporting (purely additive — the v9 transform is a no-op).
 
 ### When adding a new schema version
 

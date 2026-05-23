@@ -61,6 +61,25 @@
 
     <section class="space-y-1.5">
       <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
+        Cost
+        <span class="normal-case font-normal text-dim">(optional)</span>
+      </h3>
+      <p>
+        An optional price per board for each sheet size, in whatever currency
+        you like (the number is shown as-is). When set, the cut plan's shopping
+        list reports the material cost per material and a project total —
+        counting only the general boards you have to buy, not offcuts you
+        already own. Sizes left blank are simply omitted from the cost.
+      </p>
+      <p>
+        The shopping list also shows <span class="text-body">yield</span> — the
+        share of each purchased board's area actually used by your parts,
+        measured against whole boards consumed.
+      </p>
+    </section>
+
+    <section class="space-y-1.5">
+      <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
         Blade kerf
       </h3>
       <p>

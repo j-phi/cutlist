@@ -219,6 +219,7 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
         color: item.color,
         oversize,
         role,
+        cost: item.size.cost,
       }));
     }
     return item.sizes.flatMap<Stock>((size) =>
@@ -236,6 +237,7 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
         // Offcuts: a missing count means one physical sheet. General stock is
         // infinite, so quantity stays undefined regardless of any stray value.
         quantity: role === 'offcut' ? (size.quantity ?? 1) : undefined,
+        cost: size.cost,
       })),
     );
   });
@@ -746,6 +748,7 @@ function serializeSheetLayout(
       lengthUm: stock.length,
       color: stock.color,
       role: stock.role,
+      cost: stock.cost,
     },
     marginUm,
     algorithm: layout.algorithm,
@@ -788,6 +791,7 @@ function serializeLinearLayout(
       lengthUm: stock.length,
       color: stock.color,
       role: stock.role,
+      cost: stock.cost,
     },
     placements,
     wasteEndUm: Math.max(0, trailing) as Micrometres,

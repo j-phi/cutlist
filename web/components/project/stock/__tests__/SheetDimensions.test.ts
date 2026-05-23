@@ -153,6 +153,47 @@ describe('SheetDimensions', () => {
     });
   });
 
+  describe('Per-size cost', () => {
+    it('commits a valid positive cost on blur', async () => {
+      const wrapper = mountInput(makePlywood(), 'mm');
+      const input = wrapper.find('[data-testid="sheet-size-cost-0"]');
+      await input.setValue('60');
+      await input.trigger('blur');
+      expect(emittedLatest(wrapper)?.sizes[0].cost).toBe(60);
+    });
+
+    it('clears cost when the field is emptied', async () => {
+      const priced = makePlywood();
+      priced.sizes[0].cost = 60;
+      const wrapper = mountInput(priced, 'mm');
+      const input = wrapper.find('[data-testid="sheet-size-cost-0"]');
+      await input.setValue('');
+      await input.trigger('blur');
+      expect(emittedLatest(wrapper)?.sizes[0]).not.toHaveProperty('cost');
+    });
+
+    it.each(['-5', 'abc', 'Infinity'])(
+      'rejects invalid cost %s, retaining the prior value and showing a message',
+      async (bad) => {
+        const priced = makePlywood();
+        priced.sizes[0].cost = 42;
+        const wrapper = mountInput(priced, 'mm');
+        const input = wrapper.find('[data-testid="sheet-size-cost-0"]');
+        await input.setValue(bad);
+        await input.trigger('blur');
+        // No mutation emitted — stored value retained.
+        expect(wrapper.emitted('update:modelValue')).toBeFalsy();
+        // Validation message surfaced.
+        expect(wrapper.text()).toContain('Cost must be a positive number');
+        // Field snaps back to the retained value.
+        const el = wrapper.find<HTMLInputElement>(
+          '[data-testid="sheet-size-cost-0"]',
+        ).element;
+        expect(el.value).toBe('42');
+      },
+    );
+  });
+
   describe('Per-board quantity (offcut mode)', () => {
     function makeOffcut(): SheetStockMatrix {
       return {
