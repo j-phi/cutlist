@@ -115,7 +115,7 @@ describe('useStockCsvImport', () => {
     expect(matrices).toHaveLength(1);
     expect(matrices[0]).toMatchObject({
       kind: 'sheet',
-      name: 'Uncategorized',
+      name: 'Offcuts', // sequential label; material holds 'Uncategorized'
       material: 'Uncategorized',
       role: 'offcut',
       color: FALLBACK_PALETTE[0],
@@ -155,7 +155,7 @@ describe('useStockCsvImport', () => {
     expect(birch).toMatchObject({
       kind: 'sheet',
       role: 'offcut',
-      name: 'Birch Ply',
+      name: 'Offcuts', // sequential label, not material name
       sizes: [
         {
           name: 'Big Birch',
@@ -176,8 +176,8 @@ describe('useStockCsvImport', () => {
 
     const mdf = matrices.find((m) => m.material === 'MDF')!;
     expect(mdf).toMatchObject({
-      // Matrix name is the material; per-size name carries the individual board label.
-      name: 'MDF',
+      // Sequential offcut label; material field still holds the original material.
+      name: 'Offcuts 2',
       sizes: [
         {
           name: 'MDF Scrap',
@@ -253,8 +253,8 @@ describe('useStockCsvImport', () => {
     expect(rec.calls).toHaveLength(1);
     const matrices = rec.calls[0]!;
     expect(matrices).toHaveLength(1);
-    // Matrix name is the material; the individual board name is on the size.
-    expect(matrices[0]!.name).toBe('Uncategorized');
+    // Sequential offcut label; material field still holds 'Uncategorized'.
+    expect(matrices[0]!.name).toBe('Offcuts');
     expect(matrices[0]!.material).toBe('Uncategorized');
     const m = matrices[0] as { sizes: Array<{ name?: string }> };
     expect(m.sizes[0]?.name).toBe('Good Sheet');

@@ -22,6 +22,18 @@ cd web && vitest run lib/__tests__/generateBoardLayouts.edge.test.ts
 
 Formatting runs automatically via lint-staged on commit (Prettier).
 
+## Code Change Workflow
+
+**Every code change must follow this checklist before reporting done:**
+
+1. **Tests first (RGR)** — Write or update tests that validate the change _before_ or _alongside_ the implementation. Run `bun run test` and confirm all tests pass. Do not report a task complete if tests are failing.
+
+2. **Test coverage** — Any new behavior, composable method, utility, or component interaction must ship with tests. Updating existing behavior means updating the tests to match. See the Testing section for what layers to cover and what to avoid.
+
+3. **Help panel review** — Check whether any of the three help panels (BOM, Stock, Layout) describe something you changed. If so, update the content component. See the Documentation & Help Panels section for locations.
+
+4. **CLAUDE.md review** — If the change affects commands, architecture, data model, units, theming rules, or any other section here, update this file before closing the task.
+
 ## Architecture
 
 **Cutlist** is a browser-only SPA (Nuxt 3, SSR disabled) for generating optimized wood cutting plans. Users import 3D model assemblies (`.gltf`, `.glb`, `.dae`, `.fbx`) or enter parts manually, assign stock materials, and the app produces board layouts with a PDF export.

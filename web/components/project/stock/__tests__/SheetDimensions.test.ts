@@ -123,17 +123,23 @@ describe('SheetDimensions', () => {
   describe('Thickness editing', () => {
     it('appends a typed thickness to the size on commit', async () => {
       const wrapper = mountInput(makePlywood(), 'mm');
-      const adds = wrapper.findAll('[data-testid="sheet-thickness-add"]');
-      await adds[0].setValue('12');
-      await adds[0].trigger('blur');
+      // Click the + button to reveal the hidden input, then type and blur.
+      const btns = wrapper.findAll('[data-testid="sheet-thickness-add-btn"]');
+      await btns[0].trigger('click');
+      const input = wrapper.findAll('[data-testid="sheet-thickness-add"]')[0];
+      await input.setValue('12');
+      await input.trigger('blur');
       expect(emittedLatest(wrapper)?.sizes[0].thickness).toEqual([18, 12]);
     });
 
     it('converts inch thickness to mm on commit', async () => {
       const wrapper = mountInput(makePlywood(), 'in');
-      const adds = wrapper.findAll('[data-testid="sheet-thickness-add"]');
-      await adds[0].setValue('1/2');
-      await adds[0].trigger('blur');
+      // Click the + button to reveal the hidden input, then type and blur.
+      const btns = wrapper.findAll('[data-testid="sheet-thickness-add-btn"]');
+      await btns[0].trigger('click');
+      const input = wrapper.findAll('[data-testid="sheet-thickness-add"]')[0];
+      await input.setValue('1/2');
+      await input.trigger('blur');
       const last = emittedLatest(wrapper)?.sizes[0].thickness;
       expect(last?.at(-1)).toBeCloseTo(12.7, 5);
     });
