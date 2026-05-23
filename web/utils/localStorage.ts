@@ -32,6 +32,10 @@ export const STORAGE_KEYS = {
     projectLayoutHelpCollapsed(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/layout-help-collapsed/v1`;
     },
+    // Last-visited workspace tab for a project (ProjectTabId string).
+    projectActiveTab(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/active-tab/v1`;
+    },
   },
 } as const;
 

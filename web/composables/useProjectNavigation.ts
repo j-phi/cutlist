@@ -1,4 +1,22 @@
-import { projectPath } from '~/utils/projectTabs';
+import {
+  projectPath,
+  isProjectTabId,
+  type ProjectTabId,
+} from '~/utils/projectTabs';
+import { STORAGE_KEYS } from '~/utils/localStorage';
+
+/** Read the last-visited tab for a project from localStorage. */
+export function readSavedTab(projectId: string): ProjectTabId | null {
+  if (!import.meta.client) return null;
+  try {
+    const stored = localStorage.getItem(
+      STORAGE_KEYS.ui.projectActiveTab(projectId),
+    );
+    return isProjectTabId(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Wraps project navigation so callers don't have to know the URL shape.
@@ -10,7 +28,11 @@ export default function useProjectNavigation() {
 
   function setActiveProject(id: string | null) {
     if (id === activeId.value) return;
-    navigateTo(id ? projectPath(id, null) : '/');
+    if (!id) {
+      navigateTo('/');
+      return;
+    }
+    navigateTo(projectPath(id, readSavedTab(id)));
   }
 
   return { setActiveProject };

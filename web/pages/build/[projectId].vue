@@ -1,7 +1,27 @@
 <script lang="ts" setup>
+import { tabFromUrlSegment } from '~/utils/projectTabs';
+import { STORAGE_KEYS } from '~/utils/localStorage';
+
 const { activeProject } = useProjects();
 const { showConfirm, pendingGrainLock, confirmChange, cancelChange } =
   useGrainLockConfirm();
+
+const route = useRoute();
+
+watch(
+  () => route.path,
+  (path) => {
+    const projectId = route.params.projectId as string;
+    if (!projectId) return;
+    const prefix = `/build/${projectId}/`;
+    const segment = path.startsWith(prefix) ? path.slice(prefix.length) : '';
+    const tab = tabFromUrlSegment(segment);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ui.projectActiveTab(projectId), tab);
+    } catch {}
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
