@@ -224,7 +224,7 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
     return item.sizes.flatMap<Stock>((size) =>
       size.thickness.map<SheetStock>((thickness) => ({
         kind: 'sheet',
-        name: item.name || item.material,
+        name: size.name || item.name || item.material,
         material: item.material,
         thickness: mmToUm(thickness),
         width: mmToUm(size.width),

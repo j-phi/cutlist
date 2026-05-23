@@ -36,9 +36,9 @@ function groupRowsToMatrices(
 
   return order.map((material, i) => {
     const group = byMaterial.get(material)!;
-    const names = [...new Set(group.map((r) => r.name).filter(Boolean))];
     const sizes = mergeSheetSizes(
       group.map((r) => ({
+        name: r.name || undefined,
         width: r.widthMm,
         length: r.lengthMm,
         thickness: [r.thicknessMm],
@@ -48,7 +48,7 @@ function groupRowsToMatrices(
     );
     return {
       kind: 'sheet',
-      name: names.length === 1 ? names[0] : material,
+      name: material,
       material,
       role: 'offcut',
       color: FALLBACK_PALETTE[(baseCount + i) % FALLBACK_PALETTE.length],

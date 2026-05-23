@@ -142,6 +142,13 @@ const SheetStockMatrixSchema = z.object({
   material: z.string(),
   sizes: z.array(
     z.object({
+      /**
+       * Per-board display label (e.g. "Board 1", "Garage offcut"). Shown on
+       * the Layout page so each physical board can be identified. Absent ≡ a
+       * generated "Board N" label in the UI; `reduceStockMatrix` falls back to
+       * the matrix-level `name` (then `material`) when absent.
+       */
+      name: z.string().optional(),
       width: PositiveDimension,
       length: PositiveDimension,
       thickness: z.array(PositiveDimension),

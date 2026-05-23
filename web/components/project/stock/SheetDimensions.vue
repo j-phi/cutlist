@@ -6,6 +6,11 @@ const props = defineProps<{
   modelValue: SheetStockMatrix;
   distanceUnit: 'in' | 'mm';
   precision: Precision;
+  /**
+   * Offcut mode: changes the section header to "Board Offcut List" and adds
+   * an editable name field to each board row.
+   */
+  isOffcut?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -33,6 +38,15 @@ function commitSizeDim(idx: number, field: 'width' | 'length'): void {
   emitSizes(
     props.modelValue.sizes.map((s, i) =>
       i === idx ? { ...s, [field]: mm } : s,
+    ),
+  );
+}
+
+function commitSizeName(idx: number, name: string): void {
+  const trimmed = name.trim();
+  emitSizes(
+    props.modelValue.sizes.map((s, i) =>
+      i === idx ? { ...s, name: trimmed || undefined } : s,
     ),
   );
 }
@@ -78,12 +92,34 @@ function addSize() {
 function removeSize(sizeIndex: number) {
   emitSizes(props.modelValue.sizes.filter((_, i) => i !== sizeIndex));
 }
+
+// Local draft names so the input isn't reformatted while the user is typing.
+const nameDrafts = ref<Record<number, string>>({});
+
+function nameDisplay(
+  idx: number,
+  size: SheetStockMatrix['sizes'][number],
+): string {
+  return nameDrafts.value[idx] ?? size.name ?? '';
+}
+
+function onNameInput(idx: number, value: string) {
+  nameDrafts.value[idx] = value;
+}
+
+function onNameBlur(idx: number) {
+  const draft = nameDrafts.value[idx];
+  if (draft !== undefined) {
+    commitSizeName(idx, draft);
+    delete nameDrafts.value[idx];
+  }
+}
 </script>
 
 <template>
   <div class="flex flex-col gap-2" data-testid="sheet-dimensions">
     <label class="text-xs font-medium text-muted uppercase tracking-wider">
-      Board sizes ({{ unit }})
+      {{ isOffcut ? 'Board Offcut List' : `Board sizes (${unit})` }}
     </label>
 
     <div
@@ -92,40 +128,55 @@ function removeSize(sizeIndex: number) {
       class="rounded border border-subtle bg-elevated px-3 py-2.5 flex flex-col gap-2"
       data-testid="sheet-size-row"
     >
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <UInput
-          :model-value="drafts.display(sizeKey(sizeIndex, 'width'), size.width)"
-          class="flex-1 font-mono"
-          placeholder="width"
-          :data-testid="`sheet-size-width-${sizeIndex}`"
-          @update:model-value="
-            (v: string) => drafts.set(sizeKey(sizeIndex, 'width'), v)
-          "
-          @blur="commitSizeDim(sizeIndex, 'width')"
-          @keydown.enter="commitSizeDim(sizeIndex, 'width')"
+          v-if="isOffcut"
+          :model-value="nameDisplay(sizeIndex, size)"
+          class="min-w-32 flex-none"
+          :placeholder="`Board ${sizeIndex + 1}`"
+          :data-testid="`sheet-size-name-${sizeIndex}`"
+          @update:model-value="(v: string) => onNameInput(sizeIndex, v)"
+          @blur="onNameBlur(sizeIndex)"
+          @keydown.enter="onNameBlur(sizeIndex)"
         />
-        <span class="text-dim text-sm">&times;</span>
-        <UInput
-          :model-value="
-            drafts.display(sizeKey(sizeIndex, 'length'), size.length)
-          "
-          class="flex-1 font-mono"
-          placeholder="length"
-          :data-testid="`sheet-size-length-${sizeIndex}`"
-          @update:model-value="
-            (v: string) => drafts.set(sizeKey(sizeIndex, 'length'), v)
-          "
-          @blur="commitSizeDim(sizeIndex, 'length')"
-          @keydown.enter="commitSizeDim(sizeIndex, 'length')"
-        />
-        <UButton
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-trash-2"
-          size="xs"
-          data-testid="sheet-size-remove"
-          @click="removeSize(sizeIndex)"
-        />
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <UInput
+            :model-value="
+              drafts.display(sizeKey(sizeIndex, 'width'), size.width)
+            "
+            class="flex-1 font-mono min-w-0"
+            placeholder="width"
+            :data-testid="`sheet-size-width-${sizeIndex}`"
+            @update:model-value="
+              (v: string) => drafts.set(sizeKey(sizeIndex, 'width'), v)
+            "
+            @blur="commitSizeDim(sizeIndex, 'width')"
+            @keydown.enter="commitSizeDim(sizeIndex, 'width')"
+          />
+          <span class="text-dim text-sm shrink-0">&times;</span>
+          <UInput
+            :model-value="
+              drafts.display(sizeKey(sizeIndex, 'length'), size.length)
+            "
+            class="flex-1 font-mono min-w-0"
+            placeholder="length"
+            :data-testid="`sheet-size-length-${sizeIndex}`"
+            @update:model-value="
+              (v: string) => drafts.set(sizeKey(sizeIndex, 'length'), v)
+            "
+            @blur="commitSizeDim(sizeIndex, 'length')"
+            @keydown.enter="commitSizeDim(sizeIndex, 'length')"
+          />
+          <UButton
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-trash-2"
+            size="xs"
+            class="shrink-0"
+            data-testid="sheet-size-remove"
+            @click="removeSize(sizeIndex)"
+          />
+        </div>
       </div>
 
       <div class="flex flex-col gap-1">

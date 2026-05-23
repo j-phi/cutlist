@@ -115,14 +115,26 @@ describe('useStockCsvImport', () => {
     expect(matrices).toHaveLength(1);
     expect(matrices[0]).toMatchObject({
       kind: 'sheet',
-      // Differing row names → fall back to the material as the panel label.
       name: 'Uncategorized',
       material: 'Uncategorized',
       role: 'offcut',
       color: FALLBACK_PALETTE[0],
+      // Per-row names are now stored on the individual sizes.
       sizes: [
-        { width: 1220, length: 2440, thickness: [18], quantity: 1 },
-        { width: 140, length: 3000, thickness: [19], quantity: 1 },
+        {
+          name: 'Birch Ply',
+          width: 1220,
+          length: 2440,
+          thickness: [18],
+          quantity: 1,
+        },
+        {
+          name: 'Pine',
+          width: 140,
+          length: 3000,
+          thickness: [19],
+          quantity: 1,
+        },
       ],
     });
 
@@ -143,19 +155,38 @@ describe('useStockCsvImport', () => {
     expect(birch).toMatchObject({
       kind: 'sheet',
       role: 'offcut',
-      // Two differing names under one material → label is the material.
       name: 'Birch Ply',
       sizes: [
-        { width: 1220, length: 2440, thickness: [18], quantity: 2 },
-        { width: 600, length: 600, thickness: [18], quantity: 3 },
+        {
+          name: 'Big Birch',
+          width: 1220,
+          length: 2440,
+          thickness: [18],
+          quantity: 2,
+        },
+        {
+          name: 'Small Birch',
+          width: 600,
+          length: 600,
+          thickness: [18],
+          quantity: 3,
+        },
       ],
     });
 
     const mdf = matrices.find((m) => m.material === 'MDF')!;
     expect(mdf).toMatchObject({
-      // Single row under this material → keep its name.
-      name: 'MDF Scrap',
-      sizes: [{ width: 800, length: 400, thickness: [12], quantity: 1 }],
+      // Matrix name is the material; per-size name carries the individual board label.
+      name: 'MDF',
+      sizes: [
+        {
+          name: 'MDF Scrap',
+          width: 800,
+          length: 400,
+          thickness: [12],
+          quantity: 1,
+        },
+      ],
     });
 
     expect(api.result.value).toEqual({ imported: 3, errors: [] });
@@ -222,8 +253,11 @@ describe('useStockCsvImport', () => {
     expect(rec.calls).toHaveLength(1);
     const matrices = rec.calls[0]!;
     expect(matrices).toHaveLength(1);
-    expect(matrices[0]!.name).toBe('Good Sheet');
+    // Matrix name is the material; the individual board name is on the size.
+    expect(matrices[0]!.name).toBe('Uncategorized');
     expect(matrices[0]!.material).toBe('Uncategorized');
+    const m = matrices[0] as { sizes: Array<{ name?: string }> };
+    expect(m.sizes[0]?.name).toBe('Good Sheet');
 
     expect(api.result.value!.imported).toBe(1);
     expect(api.result.value!.errors).toHaveLength(1);

@@ -178,6 +178,7 @@ function onQuantity(raw: number | string) {
       :model-value="modelValue"
       :distance-unit="distanceUnit"
       :precision="precision"
+      :is-offcut="showQuantity"
       @update:model-value="(next) => emit('update:modelValue', next)"
     />
   </div>
