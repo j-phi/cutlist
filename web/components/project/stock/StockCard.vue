@@ -13,9 +13,8 @@ const props = defineProps<{
   /** Distinct material categories across all stock, offered as suggestions. */
   materialOptions?: string[];
   /**
-   * Render an offcut quantity input (how many physical sheets of this size the
-   * user owns). Offcut rows only — general stock is infinite, so quantity is
-   * meaningless there. Edits the `quantity` on `sizes[0]`.
+   * Enable offcut mode: passes `isOffcut` to SheetDimensions so each board
+   * row shows a name field and a per-board quantity input.
    */
   showQuantity?: boolean;
 }>();
@@ -60,24 +59,6 @@ function commitMaterial() {
 function onColor(color: string | undefined) {
   emit('update:modelValue', { ...props.modelValue, color });
 }
-
-// Offcut quantity lives on sizes[0]. Clamp to an integer ≥ 1: an offcut you
-// own is at least one sheet, and fractional sheets are nonsense.
-const quantity = computed<number>(() => {
-  const sheet = props.modelValue.kind === 'sheet' ? props.modelValue : null;
-  return sheet?.sizes[0]?.quantity ?? 1;
-});
-
-function onQuantity(raw: number | string) {
-  if (props.modelValue.kind !== 'sheet') return;
-  const sheet = props.modelValue;
-  const n = Math.floor(Number(raw));
-  const next = Number.isFinite(n) && n >= 1 ? n : 1;
-  const sizes = sheet.sizes.length
-    ? sheet.sizes.map((s, i) => (i === 0 ? { ...s, quantity: next } : s))
-    : [{ width: 0, length: 0, thickness: [], quantity: next }];
-  emit('update:modelValue', { ...sheet, sizes });
-}
 </script>
 
 <template>
@@ -105,26 +86,6 @@ function onQuantity(raw: number | string) {
       >
         {{ typeLabel }}
       </span>
-      <div
-        v-if="showQuantity"
-        class="flex items-center gap-1.5 shrink-0"
-        data-testid="stock-quantity"
-      >
-        <label
-          class="text-[11px] uppercase tracking-wider text-dim font-medium"
-        >
-          Qty
-        </label>
-        <UInput
-          :model-value="quantity"
-          type="number"
-          :min="1"
-          step="1"
-          class="w-16"
-          data-testid="stock-quantity-input"
-          @update:model-value="onQuantity"
-        />
-      </div>
       <UButton
         color="neutral"
         variant="ghost"

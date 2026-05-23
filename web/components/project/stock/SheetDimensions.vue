@@ -114,6 +114,14 @@ function onNameBlur(idx: number) {
     delete nameDrafts.value[idx];
   }
 }
+
+function commitSizeQty(idx: number, raw: number | string) {
+  const n = Math.floor(Number(raw));
+  const quantity = Number.isFinite(n) && n >= 1 ? n : 1;
+  emitSizes(
+    props.modelValue.sizes.map((s, i) => (i === idx ? { ...s, quantity } : s)),
+  );
+}
 </script>
 
 <template>
@@ -167,6 +175,23 @@ function onNameBlur(idx: number) {
             @blur="commitSizeDim(sizeIndex, 'length')"
             @keydown.enter="commitSizeDim(sizeIndex, 'length')"
           />
+          <template v-if="isOffcut">
+            <span
+              class="text-[11px] uppercase tracking-wider text-dim font-medium shrink-0"
+              >qty</span
+            >
+            <UInput
+              :model-value="String(size.quantity ?? 1)"
+              type="number"
+              :min="1"
+              step="1"
+              class="w-14 font-mono shrink-0"
+              :data-testid="`sheet-size-qty-${sizeIndex}`"
+              @update:model-value="
+                (v: number | string) => commitSizeQty(sizeIndex, v)
+              "
+            />
+          </template>
           <UButton
             color="neutral"
             variant="ghost"

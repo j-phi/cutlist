@@ -86,6 +86,46 @@ describe('mergeSheetSizes', () => {
     expect(out).toEqual([{ width: 1220, length: 2440, thickness: [12, 18] }]);
   });
 
+  it('keeps named offcut boards separate even when dimensions match', () => {
+    // Two physical remnants that happen to be the same size but are distinct
+    // pieces (different names) must not have their quantities merged.
+    const out = mergeSheetSizes(
+      [
+        {
+          name: 'Board 1',
+          width: 584,
+          length: 813,
+          thickness: [19],
+          quantity: 1,
+        },
+        {
+          name: 'Board 2',
+          width: 584,
+          length: 813,
+          thickness: [19],
+          quantity: 1,
+        },
+      ],
+      'offcut',
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ name: 'Board 1', quantity: 1 });
+    expect(out[1]).toMatchObject({ name: 'Board 2', quantity: 1 });
+  });
+
+  it('still merges unnamed offcut boards of the same dimensions', () => {
+    const out = mergeSheetSizes(
+      [
+        { width: 584, length: 813, thickness: [19], quantity: 1 },
+        { width: 584, length: 813, thickness: [19], quantity: 1 },
+      ],
+      'offcut',
+    );
+    expect(out).toEqual([
+      { width: 584, length: 813, thickness: [19], quantity: 2 },
+    ]);
+  });
+
   it('preserves a thickness-less size instead of dropping it', () => {
     const out = mergeSheetSizes(
       [

@@ -22,11 +22,15 @@ function makePlywood(): SheetStockMatrix {
   };
 }
 
-function mountInput(modelValue: SheetStockMatrix, unit: 'mm' | 'in' = 'mm') {
+function mountInput(
+  modelValue: SheetStockMatrix,
+  unit: 'mm' | 'in' = 'mm',
+  isOffcut = false,
+) {
   const precision =
     unit === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION;
   return mount(SheetDimensions, {
-    props: { modelValue, distanceUnit: unit, precision },
+    props: { modelValue, distanceUnit: unit, precision, isOffcut },
     global: {
       stubs: {
         UInput: UInputStub,
@@ -140,6 +144,68 @@ describe('SheetDimensions', () => {
       const removes = rows[1].findAll('[data-testid="sheet-thickness-remove"]');
       await removes[0].trigger('click');
       expect(emittedLatest(wrapper)?.sizes[1].thickness).toEqual([18]);
+    });
+  });
+
+  describe('Per-board quantity (offcut mode)', () => {
+    function makeOffcut(): SheetStockMatrix {
+      return {
+        kind: 'sheet',
+        material: '3/4 Ply',
+        role: 'offcut',
+        sizes: [
+          {
+            name: 'Board 1',
+            width: 584,
+            length: 813,
+            thickness: [19],
+            quantity: 3,
+          },
+          { name: 'Board 2', width: 584, length: 813, thickness: [19] },
+        ],
+      };
+    }
+
+    it('hides qty inputs when isOffcut is false', () => {
+      const wrapper = mountInput(makeOffcut(), 'mm', false);
+      expect(wrapper.find('[data-testid="sheet-size-qty-0"]').exists()).toBe(
+        false,
+      );
+    });
+
+    it('shows the stored quantity per board, defaulting missing qty to 1', () => {
+      const wrapper = mountInput(makeOffcut(), 'mm', true);
+      const qty0 = wrapper.find<HTMLInputElement>(
+        '[data-testid="sheet-size-qty-0"]',
+      ).element.value;
+      const qty1 = wrapper.find<HTMLInputElement>(
+        '[data-testid="sheet-size-qty-1"]',
+      ).element.value;
+      expect(qty0).toBe('3');
+      expect(qty1).toBe('1');
+    });
+
+    it('emits updated quantity on the correct board row', async () => {
+      const wrapper = mountInput(makeOffcut(), 'mm', true);
+      const input = wrapper.find('[data-testid="sheet-size-qty-1"]');
+      (input.element as HTMLInputElement).value = '5';
+      await input.trigger('input');
+      const sizes = emittedLatest(wrapper)?.sizes;
+      expect(sizes?.[0].quantity).toBe(3);
+      expect(sizes?.[1].quantity).toBe(5);
+    });
+
+    it('clamps invalid qty to 1', async () => {
+      const wrapper = mountInput(makeOffcut(), 'mm', true);
+      const input = wrapper.find('[data-testid="sheet-size-qty-0"]');
+      for (const bad of ['0', '-2', 'abc']) {
+        (input.element as HTMLInputElement).value = bad;
+        await input.trigger('input');
+      }
+      const emitted = wrapper.emitted('update:modelValue')!;
+      for (const [next] of emitted) {
+        expect((next as SheetStockMatrix).sizes[0].quantity).toBe(1);
+      }
     });
   });
 });
