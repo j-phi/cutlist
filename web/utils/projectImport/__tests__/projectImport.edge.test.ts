@@ -10,6 +10,7 @@ import {
   importProjectFromFile,
   parseProjectExport,
 } from '..';
+import { getDb } from '~/composables/useIdb/db';
 import { makePayload, makeIdbMock, FIXTURE_NEW_PROJECT_ID } from './_helpers';
 
 describe('parseProjectExport edge cases', () => {
@@ -138,10 +139,11 @@ describe('importProjectFromFile corrupt data', () => {
     const payload = makePayload();
     const gz = gzipSync(JSON.stringify(payload));
     const file = new File([new Uint8Array(gz)], 'valid.cutlist');
-    const { db, calls } = makeIdbMock();
-    await importProjectFromFile(file, db as never);
-    expect(calls.createProject).toHaveLength(1);
-    expect(calls.createModel).toHaveLength(1);
+    // Atomic import writes to the singleton DB (FR-DUR-4/-5), not the mock.
+    await importProjectFromFile(file);
+    const db = await getDb();
+    expect(await db.projects.count()).toBe(1);
+    expect(await db.models.count()).toBe(1);
   });
 });
 

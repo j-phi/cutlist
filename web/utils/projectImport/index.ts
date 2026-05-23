@@ -11,17 +11,22 @@
  * - `importProjectFromFile` handles gzip decompression + JSON parsing.
  */
 
-import type { ProjectExport } from '~/composables/useExportProject';
+import type {
+  MultiProjectExport,
+  ProjectExport,
+} from '~/composables/useExportProject';
 import type {
   IdbAnnotation,
   IdbAsset,
   IdbBuildDoc,
   IdbModel,
+  IdbProject,
   IdbScene,
 } from '~/composables/useIdb';
+import { getDb } from '~/composables/useIdb/db';
 import { gzipDecompress } from '~/utils/compress';
 import { migrateExport } from './migrations';
-import { DEFAULT_SETTINGS } from '~/utils/settings';
+import { DEFAULT_SETTINGS, defaultPrecisionForUnit } from '~/utils/settings';
 import {
   MicrometresSchema,
   StockMatrix,
@@ -417,14 +422,176 @@ export async function importProjectData(
   return newProject.id;
 }
 
+// ─── Atomic (transactional) import ────────────────────────────────────────────
+
 /**
- * Import a .cutlist file. Handles both gzipped and plain JSON input.
- * Returns the new project ID on success.
+ * Optional fault hooks for the atomic-import path. Used by tests to simulate a
+ * mid-import write failure (e.g. a quota error on the 2nd model write) and
+ * verify the whole transaction rolls back. Production callers pass nothing.
+ */
+export interface AtomicImportHooks {
+  onCreateModel?: () => void;
+}
+
+const PROJECT_TABLES = [
+  'projects',
+  'models',
+  'buildDocs',
+  'scenes',
+  'annotations',
+  'assets',
+] as const;
+
+/**
+ * Build a `ProjectImportDb` whose writes target an open Dexie transaction.
+ * Because every write runs inside one `rw` transaction, a throw from any of
+ * them (including a quota error) rolls back the *entire* import — satisfying
+ * FR-DUR-4 (single transaction) and FR-DUR-5 (zero orphaned records).
+ *
+ * `createProject` builds a full `IdbProject` here (rather than delegating to
+ * the CRUD helper) so the write stays inside the transaction; the field
+ * defaults mirror `useIdb/projects.ts:createProject`.
+ */
+function transactionalImportDb(
+  db: Awaited<ReturnType<typeof getDb>>,
+  hooks: AtomicImportHooks,
+): ProjectImportDb {
+  return {
+    async createProject(name, opts) {
+      const now = new Date().toISOString();
+      const unit = opts?.distanceUnit ?? DEFAULT_SETTINGS.distanceUnit;
+      const project: IdbProject = {
+        id: crypto.randomUUID(),
+        name,
+        colorMap: {},
+        excludedColors: [],
+        stocks: opts?.stocks ?? [],
+        distanceUnit: unit,
+        precision: opts?.precision ?? defaultPrecisionForUnit(unit),
+        bladeWidth: opts?.bladeWidth ?? DEFAULT_SETTINGS.bladeWidth,
+        margin: opts?.margin ?? DEFAULT_SETTINGS.margin,
+        defaultAlgorithm:
+          opts?.defaultAlgorithm ?? DEFAULT_SETTINGS.defaultAlgorithm,
+        showPartNumbers:
+          opts?.showPartNumbers ?? DEFAULT_SETTINGS.showPartNumbers,
+        showBomName: opts?.showBomName ?? DEFAULT_SETTINGS.showBomName,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.projects.put(project);
+      return { id: project.id };
+    },
+    async updateProject(id, patch) {
+      const existing = await db.projects.get(id);
+      if (!existing) throw new Error(`Project ${id} not found`);
+      await db.projects.put({
+        ...existing,
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    async createModel(model) {
+      hooks.onCreateModel?.();
+      await db.models.put(model);
+    },
+    async putBuildDoc(doc) {
+      await db.buildDocs.put(doc);
+    },
+    async createScene(scene) {
+      await db.scenes.put(scene);
+    },
+    async createAnnotation(annotation) {
+      await db.annotations.put(annotation);
+    },
+    async putAsset(asset) {
+      await db.assets.put(asset);
+    },
+  };
+}
+
+/**
+ * Import a single validated `ProjectExport` atomically: every record write
+ * (project, models, assets, scenes, annotations, build doc) runs inside one
+ * Dexie `rw` transaction so a partial failure leaves zero orphaned records.
+ * Returns the new project id.
+ */
+export async function importProjectDataAtomic(
+  data: ProjectExport,
+  hooks: AtomicImportHooks = {},
+): Promise<string> {
+  const db = await getDb();
+  let newProjectId = '';
+  await db.transaction('rw', PROJECT_TABLES, async () => {
+    newProjectId = await importProjectData(
+      data,
+      transactionalImportDb(db, hooks),
+    );
+  });
+  return newProjectId;
+}
+
+/**
+ * Import a multi-project "Export all" archive. Each project is imported in its
+ * own atomic transaction (so a per-project failure cannot orphan its records),
+ * processed sequentially. Returns the list of new project ids.
+ */
+export async function importArchiveData(
+  archive: MultiProjectExport,
+): Promise<string[]> {
+  const ids: string[] = [];
+  for (const project of archive.projects) {
+    ids.push(await importProjectDataAtomic(project));
+  }
+  return ids;
+}
+
+/**
+ * Type guard distinguishing a multi-project "Export all" archive from a
+ * single-project export. The archive carries a `projects` array; a single
+ * export carries a `project` object.
+ */
+function isMultiProjectArchive(raw: unknown): raw is { projects: unknown[] } {
+  return (
+    typeof raw === 'object' &&
+    raw !== null &&
+    Array.isArray((raw as { projects?: unknown }).projects)
+  );
+}
+
+/**
+ * Validate and migrate a raw "Export all" archive. Each contained project is
+ * run through `parseProjectExport` so the same strict Zod + migration gate
+ * applies per project.
+ */
+export function parseProjectArchive(raw: unknown): MultiProjectExport {
+  if (!isMultiProjectArchive(raw)) {
+    throw new Error('Invalid archive: expected a `projects` array.');
+  }
+  const record = raw as Record<string, unknown>;
+  const version = typeof record.version === 'number' ? record.version : 0;
+  const exportedAt =
+    typeof record.exportedAt === 'string'
+      ? record.exportedAt
+      : new Date().toISOString();
+  return {
+    version,
+    exportedAt,
+    projects: (record.projects as unknown[]).map((p) => parseProjectExport(p)),
+  };
+}
+
+/**
+ * Import a .cutlist file. Handles both gzipped and plain JSON input, and both
+ * single-project exports and multi-project "Export all" archives. Returns the
+ * new project id (the first one, for multi-project archives). All writes run
+ * through the atomic transaction path (FR-DUR-4/-5).
  * Throws with a user-readable message on any failure.
  */
 export async function importProjectFromFile(
   file: File,
-  idb: ProjectImportDb,
+  // `idb` is retained for API compatibility with existing callers; the atomic
+  // path opens its own transaction against the singleton DB.
+  _idb?: ProjectImportDb,
 ): Promise<string> {
   let text: string;
   try {
@@ -444,6 +611,15 @@ export async function importProjectFromFile(
     );
   }
 
+  if (isMultiProjectArchive(raw)) {
+    const archive = parseProjectArchive(raw);
+    const ids = await importArchiveData(archive);
+    if (ids.length === 0) {
+      throw new Error('Archive contained no projects.');
+    }
+    return ids[0];
+  }
+
   const data = parseProjectExport(raw);
-  return importProjectData(data, idb);
+  return importProjectDataAtomic(data);
 }

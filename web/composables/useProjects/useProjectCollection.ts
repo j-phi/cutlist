@@ -21,6 +21,7 @@ import {
   reorderOpenTabs,
 } from '~/composables/useOpenTabs';
 import { projectPath } from '~/utils/projectTabs';
+import useStorageDurability from '~/composables/useStorageDurability';
 import { activeId, activeProjectData, projectList } from './state';
 
 type TabEntry = { id: string; name: string };
@@ -66,11 +67,18 @@ export default function useProjectCollection() {
     unit: 'mm' | 'in',
     precision?: Precision,
   ) {
+    // FR-DUR-1: on first project creation, (re)request persistent storage so
+    // the user's first real data is protected against eviction. Fire-and-forget
+    // so it never blocks the create flow.
+    const isFirstProject = projectList.value.length === 0;
     const project = await idb.createProject(name, {
       distanceUnit: unit,
       precision,
       stocks: getDefaultStocks(unit),
     });
+    if (isFirstProject && import.meta.client) {
+      void useStorageDurability().requestPersist();
+    }
     projectList.value = [
       { id: project.id, name: project.name, updatedAt: project.updatedAt },
       ...projectList.value,

@@ -46,6 +46,9 @@ export const STORAGE_KEYS = {
     },
     // How Layout-tab board panels are ordered within a group ('board' | 'fullest'). Global.
     layoutPanelOrder: '@cutlist/ui/layout-panel-order/v1',
+    // Whether the "back up your work" durability banner has been dismissed. Global.
+    storageBackupBannerDismissed:
+      '@cutlist/ui/storage-backup-banner-dismissed/v1',
   },
 } as const;
 

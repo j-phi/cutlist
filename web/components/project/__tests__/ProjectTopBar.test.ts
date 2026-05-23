@@ -41,6 +41,7 @@ mockNuxtImport('useProjectNavigation', () => () => ({
 
 mockNuxtImport('useExportProject', () => () => ({
   exportProject: async () => {},
+  exportAllProjects: async () => {},
 }));
 
 mockNuxtImport('useImportProject', () => () => ({

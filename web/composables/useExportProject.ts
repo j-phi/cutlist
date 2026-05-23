@@ -51,11 +51,23 @@ export interface ProjectExport {
 }
 
 /**
+ * A single archive bundling every project, produced by "Export all" and
+ * consumed by `importArchiveData`. Each entry is a normal `ProjectExport`, so
+ * the per-project Zod + migration gate applies unchanged on import.
+ */
+export interface MultiProjectExport {
+  version: number;
+  exportedAt: string;
+  projects: ProjectExport[];
+}
+
+/**
  * Minimal database surface needed to build a `ProjectExport`. Decouples the
  * data-building logic from the concrete IDB composable so it can be exercised
  * directly in tests without a Nuxt runtime.
  */
 export interface ProjectExportDb {
+  getAllProjectsByRecency: ReturnType<typeof useIdb>['getAllProjectsByRecency'];
   getProjectWithModels: ReturnType<typeof useIdb>['getProjectWithModels'];
   getModelRawSource: ReturnType<typeof useIdb>['getModelRawSource'];
   getBuildDoc: ReturnType<typeof useIdb>['getBuildDoc'];
@@ -141,6 +153,24 @@ export async function buildExportData(
   };
 }
 
+/**
+ * Build an "Export all" archive containing every project in the library
+ * (FR-DUR-6). Projects with no data (deleted between listing and read) are
+ * skipped. The archive is importable back into an equivalent set of projects.
+ */
+export async function buildExportAllData(
+  idb: ProjectExportDb,
+): Promise<MultiProjectExport> {
+  const list = await idb.getAllProjectsByRecency();
+  const built = await Promise.all(list.map((p) => buildExportData(idb, p.id)));
+  const projects = built.filter((p): p is ProjectExport => p !== null);
+  return {
+    version: SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    projects,
+  };
+}
+
 /** Normalize a project name into the on-disk filename (sans extension). */
 export function exportFilename(projectName: string): string {
   return `${projectName.replace(/\s+/g, '-')}.cutlist`;
@@ -171,5 +201,24 @@ export default function useExportProject() {
     });
   }
 
-  return { exportProject };
+  async function exportAllProjects() {
+    const data = await buildExportAllData(idb);
+    if (data.projects.length === 0) return;
+
+    const blob = await gzipCompress(JSON.stringify(data));
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cutlist-all-projects.cutlist`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    trackEvent('project-exported', {
+      hasModels: data.projects.some((p) => p.models.length > 0),
+      sizeBytes: blob.size,
+    });
+  }
+
+  return { exportProject, exportAllProjects };
 }

@@ -6,6 +6,7 @@ import {
   importProjectFromFile,
   parseProjectExport,
 } from '..';
+import { getDb } from '~/composables/useIdb/db';
 import {
   makePayload,
   makeIdbMock,
@@ -158,15 +159,19 @@ describe('importProjectData', () => {
 // ─── File import (gzip + fallback) ─────────────────────────────────────────
 
 describe('importProjectFromFile', () => {
+  // `importProjectFromFile` now writes atomically to the singleton DB (its own
+  // Dexie transaction, per FR-DUR-4/-5), so it no longer routes through the
+  // passed mock. Assert on the real fake-indexeddb post-import state.
   it('supports gzipped input', async () => {
     const payload = makePayload();
     const gz = gzipSync(JSON.stringify(payload));
     const file = new File([new Uint8Array(gz)], 'demo.cutlist', {
       type: 'application/gzip',
     });
-    const { db, calls } = makeIdbMock();
-    await importProjectFromFile(file, db as never);
-    expect(calls.createProject).toHaveLength(1);
+    await importProjectFromFile(file);
+    const db = await getDb();
+    expect(await db.projects.count()).toBe(1);
+    expect((await db.projects.toArray())[0].name).toBe('Test Project');
   });
 
   it('falls back to plain JSON when gzip decode fails', async () => {
@@ -174,9 +179,9 @@ describe('importProjectFromFile', () => {
     const file = new File([JSON.stringify(payload)], 'demo.cutlist', {
       type: 'application/json',
     });
-    const { db, calls } = makeIdbMock();
-    await importProjectFromFile(file, db as never);
-    expect(calls.createProject).toHaveLength(1);
+    await importProjectFromFile(file);
+    const db = await getDb();
+    expect(await db.projects.count()).toBe(1);
   });
 
   it('rejects non-JSON content with readable error', async () => {

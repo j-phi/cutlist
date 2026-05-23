@@ -212,6 +212,9 @@ describe('buildExportData', () => {
   }): ProjectExportDb {
     const now = new Date().toISOString();
     return {
+      getAllProjectsByRecency: async () => [
+        { id: opts.projectId, name: 'Fake', updatedAt: now },
+      ],
       getProjectWithModels: async () => ({
         id: opts.projectId,
         name: 'Fake',

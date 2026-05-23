@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/nuxt';
 const { projects, activeId, closeProject, renameProject, reorderProjects } =
   useProjects();
 const { setActiveProject } = useProjectNavigation();
-const { exportProject } = useExportProject();
+const { exportProject, exportAllProjects } = useExportProject();
 const { pickAndImport } = useImportProject();
 
 const showModal = ref(false);
@@ -264,6 +264,16 @@ function openNewProject() {
     >
       <UIcon name="i-lucide-download" class="block shrink-0 w-4 h-4" />
       <span class="text-xs">Export</span>
+    </button>
+
+    <button
+      class="hidden sm:flex shrink-0 px-3 items-center gap-1.5 border-l border-subtle text-muted hover:text-teal-400 transition-colors"
+      title="Export all projects as a single backup archive"
+      aria-label="Export all projects"
+      @click="exportAllProjects"
+    >
+      <UIcon name="i-lucide-archive" class="block shrink-0 w-4 h-4" />
+      <span class="text-xs">Export all</span>
     </button>
 
     <button
