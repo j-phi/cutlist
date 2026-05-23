@@ -21,6 +21,9 @@ const defaultAlgorithm = ref<Algorithm | undefined>('auto');
 const showPartNumbers = ref<boolean | undefined>(true);
 const showBomName = ref<boolean | undefined>(true);
 const isLoading = ref(false);
+const stocks = ref<Array<{ kind: 'sheet' | 'linear' }>>([{ kind: 'sheet' }]);
+const layoutAlignH = ref<'left' | 'right' | undefined>('left');
+const layoutAlignV = ref<'top' | 'bottom' | undefined>('bottom');
 const precision = computed(() =>
   distanceUnit.value === 'in' ? DEFAULT_INCH_PRECISION : DEFAULT_MM_PRECISION,
 );
@@ -34,6 +37,9 @@ mockNuxtImport('useProjectSettings', () => () => ({
   showBomName,
   isLoading,
   precision,
+  stocks,
+  layoutAlignH,
+  layoutAlignV,
 }));
 
 // ── useBoardLayoutsQuery mock ────────────────────────────────────────────────
@@ -168,6 +174,9 @@ describe('PreviewToolbar', () => {
     isComputing.value = false;
     manualMode.value = false;
     snapping.value = true;
+    stocks.value = [{ kind: 'sheet' }];
+    layoutAlignH.value = 'left';
+    layoutAlignV.value = 'bottom';
     captureAndRecompute.mockClear();
     pushOptimizeEntry.mockClear();
   });
@@ -306,6 +315,38 @@ describe('PreviewToolbar', () => {
       expect(
         wrapper.findComponent({ name: 'OptimizationSettingsPopover' }).exists(),
       ).toBe(false);
+    });
+  });
+
+  describe('Alignment controls', () => {
+    it('hides both alignment controls when the only stock is linear (FR-ALN-7)', () => {
+      stocks.value = [{ kind: 'linear' }];
+      const wrapper = getComponent();
+      expect(wrapper.find('[data-testid="align-controls"]').exists()).toBe(
+        false,
+      );
+    });
+
+    it('shows alignment controls when at least one stock is a sheet', () => {
+      stocks.value = [{ kind: 'linear' }, { kind: 'sheet' }];
+      const wrapper = getComponent();
+      expect(wrapper.find('[data-testid="align-controls"]').exists()).toBe(
+        true,
+      );
+    });
+
+    it('drives layoutAlignH to "right" when the right control is clicked', async () => {
+      layoutAlignH.value = 'left';
+      const wrapper = getComponent();
+      await wrapper.find('[data-testid="align-right"]').trigger('click');
+      expect(layoutAlignH.value).toBe('right');
+    });
+
+    it('drives layoutAlignV to "top" when the top control is clicked', async () => {
+      layoutAlignV.value = 'bottom';
+      const wrapper = getComponent();
+      await wrapper.find('[data-testid="align-top"]').trigger('click');
+      expect(layoutAlignV.value).toBe('top');
     });
   });
 

@@ -13,7 +13,18 @@ const {
   showPartNumbers,
   showBomName,
   isLoading,
+  stocks,
+  layoutAlignH,
+  layoutAlignV,
 } = useProjectSettings();
+
+// Alignment is a sheet-only concept: linear (1D) stock has no 2D corner to
+// align to. Hide both alignment controls when every stock entry is linear
+// (FR-ALN-7). An empty stock list keeps them hidden too — nothing to lay out.
+const showAlignControls = computed(() => {
+  const list = stocks.value ?? [];
+  return list.some((s) => s.kind === 'sheet');
+});
 
 const { manualMode, snapping, pushOptimizeEntry } = useManualLayout();
 const { isComputing, captureAndRecompute } = useBoardLayoutsQuery();
@@ -143,6 +154,56 @@ const settingsOpen = ref(false);
         data-testid="toggle-show-unused"
         @update:model-value="emit('update:showUnused', $event)"
       />
+
+      <template v-if="showAlignControls">
+        <div class="w-px h-4 bg-subtle shrink-0" />
+
+        <div
+          class="flex items-center gap-1.5"
+          data-testid="align-controls"
+          aria-label="Layout alignment"
+        >
+          <span class="text-xs text-muted whitespace-nowrap">Align</span>
+
+          <UButton
+            size="xs"
+            color="neutral"
+            :variant="layoutAlignH === 'left' ? 'soft' : 'ghost'"
+            icon="i-lucide-align-horizontal-justify-start"
+            title="Align parts to the left edge"
+            data-testid="align-left"
+            @click="layoutAlignH = 'left'"
+          />
+          <UButton
+            size="xs"
+            color="neutral"
+            :variant="layoutAlignH === 'right' ? 'soft' : 'ghost'"
+            icon="i-lucide-align-horizontal-justify-end"
+            title="Align parts to the right edge"
+            data-testid="align-right"
+            @click="layoutAlignH = 'right'"
+          />
+
+          <UButton
+            size="xs"
+            color="neutral"
+            :variant="layoutAlignV === 'top' ? 'soft' : 'ghost'"
+            icon="i-lucide-align-vertical-justify-start"
+            title="Align parts to the top edge"
+            data-testid="align-top"
+            @click="layoutAlignV = 'top'"
+          />
+          <UButton
+            size="xs"
+            color="neutral"
+            :variant="layoutAlignV === 'bottom' ? 'soft' : 'ghost'"
+            icon="i-lucide-align-vertical-justify-end"
+            title="Align parts to the bottom edge"
+            data-testid="align-bottom"
+            @click="layoutAlignV = 'bottom'"
+          />
+        </div>
+      </template>
     </div>
   </div>
 </template>

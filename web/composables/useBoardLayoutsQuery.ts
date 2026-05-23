@@ -1,4 +1,5 @@
 import {
+  alignPlacements,
   isLinearBoardLayout,
   type BoardLayoutLeftover,
   type ConfigInput,
@@ -33,6 +34,31 @@ const EMPTY_RESULT: LayoutResult = {
 };
 
 /**
+ * Rigidly translate each sheet board's placed cluster to the chosen corner of
+ * its usable area (F13). Returns the input array unchanged when alignment is
+ * unset (no active project) so callers never pay for an allocation they don't
+ * need. The transform is purely presentational — see `alignPlacements`.
+ */
+function applyAlignment(
+  layouts: SheetBoardLayout[],
+  alignH: 'left' | 'right' | undefined,
+  alignV: 'top' | 'bottom' | undefined,
+): SheetBoardLayout[] {
+  if (alignH == null || alignV == null) return layouts;
+  return layouts.map((board) => ({
+    ...board,
+    placements: alignPlacements(
+      board.placements,
+      board.stock.widthUm,
+      board.stock.lengthUm,
+      board.marginUm,
+      alignH,
+      alignV,
+    ),
+  }));
+}
+
+/**
  * Reactive derivation of cut-layout results for the active project.
  *
  * The worker is fire-and-forget: results land in `layoutCache` keyed by
@@ -53,6 +79,8 @@ export default createSharedComposable(() => {
     optimizationObjective,
     bandingThicknessUm,
     subtractBandingThickness,
+    layoutAlignH,
+    layoutAlignV,
   } = useProjectSettings();
 
   const parts = computed<PartToCut[] | undefined>(() => {
@@ -145,7 +173,15 @@ export default createSharedComposable(() => {
     const cached = layoutCache.get(pid);
     if (cached) {
       return {
-        layouts: cached.layouts,
+        // Alignment (F13) is a PRESENTATIONAL post-process applied here, at the
+        // query boundary — never in the worker — so toggling it is instant and
+        // the layout cache (which stores the raw, packer-produced layouts) is
+        // untouched. Only sheet boards have a 2D footprint to align.
+        layouts: applyAlignment(
+          cached.layouts,
+          layoutAlignH.value,
+          layoutAlignV.value,
+        ),
         linearLayouts: cached.linearLayouts,
         leftovers: cached.leftovers,
       };

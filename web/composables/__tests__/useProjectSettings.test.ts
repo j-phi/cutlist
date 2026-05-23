@@ -116,4 +116,17 @@ describe('useProjectSettings', () => {
     expect(updateCalls).toHaveLength(1);
     expect(updateCalls[0].patch.optimizationObjective).toBe('cost');
   });
+
+  it('defaults layout alignment to bottom-left and round-trips a write to "right"', async () => {
+    const { layoutAlignH, layoutAlignV } = useProjectSettings();
+    expect(layoutAlignH.value).toBe('left');
+    expect(layoutAlignV.value).toBe('bottom');
+
+    layoutAlignH.value = 'right';
+    expect(layoutAlignH.value).toBe('right');
+
+    await vi.advanceTimersByTimeAsync(400);
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0].patch.layoutAlignH).toBe('right');
+  });
 });
