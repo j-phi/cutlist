@@ -63,6 +63,20 @@
 
     <section class="space-y-1.5">
       <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
+        Align
+        <span class="normal-case font-normal text-dim">(sheets only)</span>
+      </h3>
+      <p>
+        Shifts the packed parts as one block to a corner of each board — left or
+        right, top or bottom. This is purely presentational: it slides where the
+        cluster rests on the sheet but does not change the packing, the number
+        of boards, the cuts, or how much material you use. Handy for keeping
+        offcut left over in one predictable corner.
+      </p>
+    </section>
+
+    <section class="space-y-1.5">
+      <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
         Panel order
       </h3>
       <p>

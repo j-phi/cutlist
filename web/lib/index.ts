@@ -45,6 +45,7 @@ export * from './types';
 export * from './utils/units';
 export * from './utils/shoppingList';
 export * from './utils/sheetShoppingList';
+export * from './utils/alignPlacements';
 
 type PackerKind = 'tidy' | 'compact' | 'tight';
 type PartSortMode =
