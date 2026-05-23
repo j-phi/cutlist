@@ -7,6 +7,7 @@
 
 import type { BoardLayoutLeftover, Micrometres } from 'cutlist';
 import { groupPartsByNumber } from '~/lib/utils/bom-utils';
+import { suggestStockMatch } from '~/lib/utils/stock-utils';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import type { Model } from '~/composables/useProjects';
 
@@ -23,6 +24,11 @@ export interface BomRow {
   grainLock?: 'length' | 'width';
   leftoverCount: number;
   isManual: boolean;
+  /**
+   * A close stock name when this row's material has no exact stock match
+   * (FR-MAT-1). `null` when the material matches or nothing is close enough.
+   */
+  materialSuggestion: string | null;
 }
 
 function modelDisplayName(model: {
@@ -37,6 +43,20 @@ function modelDisplayName(model: {
 export default function useBomRows() {
   const { data, isComputing } = useBoardLayoutsQuery();
   const { activeProject, enabledModels } = useProjects();
+  const { stocks } = useProjectSettings();
+
+  const stockNames = computed(() => [
+    ...new Set(stocks.value.map((s) => s.material).filter(Boolean)),
+  ]);
+
+  /**
+   * Suggest a near-miss stock name for an unplaced material (FR-MAT-1).
+   * Only computed for rows with leftovers — a fully-placed row needs no fix.
+   */
+  function suggestFor(material: string, leftoverCount: number): string | null {
+    if (leftoverCount === 0) return null;
+    return suggestStockMatch(material, stockNames.value);
+  }
 
   const manualPartNumbers = computed(() => {
     const models = enabledModels.value;
@@ -93,6 +113,7 @@ export default function useBomRows() {
         (instanceList) => {
           const part = instanceList[0];
           const model = modelByPartNumber.value.get(part.partNumber);
+          const leftoverCount = leftoverCounts.get(part.partNumber) ?? 0;
           return {
             number: part.partNumber,
             name: part.name,
@@ -104,8 +125,9 @@ export default function useBomRows() {
             widthUm: part.widthUm,
             lengthUm: part.lengthUm,
             grainLock: part.grainLock,
-            leftoverCount: leftoverCounts.get(part.partNumber) ?? 0,
+            leftoverCount,
             isManual: manualPartNumbers.value.has(part.partNumber),
+            materialSuggestion: suggestFor(part.material, leftoverCount),
           };
         },
       );
@@ -144,6 +166,7 @@ export default function useBomRows() {
           grainLock: parts[0].grainLock,
           leftoverCount: 0,
           isManual,
+          materialSuggestion: null,
         });
       }
     }

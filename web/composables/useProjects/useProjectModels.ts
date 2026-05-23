@@ -78,6 +78,37 @@ export default function useProjectModels() {
     await idb.updateProject(id, { colorMap: newColorMap });
   }
 
+  /**
+   * Remap every part currently assigned to `fromMaterial` onto `toMaterial`
+   * by rewriting the matching `colorMap` values (FR-MAT-2). This is the
+   * schema-free recovery for a near-miss material name: the part's material
+   * assignment now points at an existing stock name, so the reactive layout
+   * query re-matches and packs it. No alias table, no migration — we mutate
+   * the existing assignment the user already made.
+   */
+  async function remapMaterial(
+    id: string,
+    fromMaterial: string,
+    toMaterial: string,
+  ) {
+    const project = activeProjectData.value;
+    if (!project || project.id !== id) return;
+    if (fromMaterial === toMaterial) return;
+    let changed = false;
+    const newColorMap = Object.fromEntries(
+      Object.entries(project.colorMap).map(([k, v]) => {
+        if (v === fromMaterial) {
+          changed = true;
+          return [k, toMaterial] as const;
+        }
+        return [k, v] as const;
+      }),
+    );
+    if (!changed) return;
+    activeProjectData.value = { ...project, colorMap: newColorMap };
+    await idb.updateProject(id, { colorMap: newColorMap });
+  }
+
   async function toggleColorExcluded(id: string, colorKey: string) {
     const project = activeProjectData.value;
     if (!project || project.id !== id) return;
@@ -516,6 +547,7 @@ export default function useProjectModels() {
     removeModel,
     toggleModel,
     updateColorMap,
+    remapMaterial,
     toggleColorExcluded,
     addManualPart,
     addManualParts,
