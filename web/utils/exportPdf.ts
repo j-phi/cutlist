@@ -9,6 +9,7 @@ import type { RulerMeasurement } from '~/composables/useRulerStore';
 import { drawBomPages, type BomRow } from './pdf/bom';
 import { drawBoardTiles } from './pdf/board';
 import type { Ctx } from './pdf/context';
+import { OccupancySet } from './pdf/occupancy';
 import { drawLinearPages } from './pdf/linear';
 import { drawSheetShoppingPages } from './pdf/sheets';
 
@@ -57,6 +58,7 @@ export async function exportCutlistPdf(
     opts,
     totalPagesPlaceholder: [],
     pageCount: { value: 0 },
+    occupancy: new OccupancySet(),
   };
 
   // Page 1+: BOM

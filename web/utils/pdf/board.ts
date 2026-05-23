@@ -12,8 +12,20 @@ import {
   MM,
 } from './constants';
 import { addPage, type Ctx } from './context';
-import { drawClippedHatch, drawClippedRect, drawTileBorder } from './geometry';
+import {
+  drawArrowH,
+  drawArrowV,
+  drawClippedHatch,
+  drawClippedLine,
+  drawClippedRect,
+  drawTileBorder,
+} from './geometry';
 import { drawMeasurement } from './measurements';
+import {
+  drawPartDimensions,
+  type DimensionEmit,
+  type DimensionGeom,
+} from './dimensions';
 
 /**
  * Find the smallest integer scale ≥ 1 that fits the board on a single page.
@@ -304,17 +316,60 @@ function drawBoardTilePage(
       }
     }
 
-    // Part labels: name and/or dimensions, non-overlapping.
+    // Claim the part rectangle so label/dimension text never sits on top of
+    // another piece (FR-DIM-5). The visible (clipped) portion is what matters.
+    const visX1 = Math.max(px, tileXpt);
+    const visY1 = Math.max(py, tileYpt);
+    const visX2 = Math.min(px + pw, tileXpt + tileWpt);
+    const visY2 = Math.min(py + ph, tileYpt + tileHpt);
+    if (visX2 > visX1 && visY2 > visY1) {
+      ctx.occupancy.add({
+        x: visX1,
+        y: visY1,
+        w: visX2 - visX1,
+        h: visY2 - visY1,
+      });
+    }
+
+    // Engineering dimension lines (F14): per-axis broken dimension line with
+    // extension lines, arrowheads, and centered value text via formatSize.
+    if (ctx.opts.showDimensions) {
+      const emit = makePartDimensionEmit(
+        ctx,
+        page,
+        tileXpt,
+        tileYpt,
+        tileWpt,
+        tileHpt,
+      );
+      const geom: DimensionGeom = {
+        px,
+        py,
+        pw,
+        ph,
+        formatSize,
+        widthOf: (text, size) => ctx.font.widthOfTextAtSize(text, size),
+        occupancy: ctx.occupancy,
+      };
+      drawPartDimensions(
+        emit,
+        {
+          leftUm: placement.leftUm,
+          rightUm: placement.rightUm,
+          bottomUm: placement.bottomUm,
+          topUm: placement.topUm,
+        },
+        geom,
+      );
+    }
+
+    // Part name label (dimensions handled above by drawPartDimensions).
     const nameToDraw = showBomName ? (placement.name ?? null) : null;
-    const dimLabel = ctx.opts.showDimensions
-      ? `${formatSize((placement.rightUm - placement.leftUm) as Micrometres) ?? `${Math.round(placedWidthMm)}mm`} × ${formatSize((placement.topUm - placement.bottomUm) as Micrometres) ?? `${Math.round(placedLengthMm)}mm`}`
-      : null;
-    if (nameToDraw || dimLabel) {
+    if (nameToDraw) {
       drawPartLabels(
         ctx,
         page,
         nameToDraw,
-        dimLabel,
         px,
         py,
         pw,
@@ -348,22 +403,20 @@ function drawBoardTilePage(
 }
 
 /**
- * Draw the part name and/or dimension label (W × H) inside the placed rectangle.
+ * Draw the part name inside the placed rectangle.
  *
- * Landscape pieces: name above, dims below, stacked vertically and centered.
- * Portrait pieces (90° CCW): name and dims side-by-side in the reading direction
- *   (name first, dims to the right), the pair centered on the narrow axis —
- *   exactly the landscape block layout rotated 90° CCW.
+ * Landscape pieces: name centered. Portrait pieces: name rotated 90° CCW,
+ * centered on the narrow axis. Dimensions are NOT drawn here — engineering
+ * dimension lines are emitted separately by {@link drawPartDimensions}.
  *
- * Text is centered on the *visible* portion of the piece within the tile so that
- * pieces near tile edges always receive a label. Font sizes scale down to a
- * minimum before a label is dropped.
+ * Text is centered on the *visible* portion of the piece within the tile so
+ * that pieces near tile edges still receive a label. Font sizes scale down to
+ * a minimum before the label is dropped.
  */
 function drawPartLabels(
   ctx: Ctx,
   page: ReturnType<Ctx['doc']['addPage']>,
-  name: string | null,
-  dimLabel: string | null,
+  name: string,
   px: number,
   py: number,
   pw: number,
@@ -387,151 +440,146 @@ function drawPartLabels(
   const shortMm = Math.min(placedWidthMm, placedLengthMm);
   const visLongPt = isPortrait ? visY2 - visY1 : visX2 - visX1;
   const ONE_INCH_MM = 25.4;
-  const GAP = 2; // pt between name and dim label
   const MIN_NAME_PT = 4;
-  const MIN_DIM_PT = 3;
 
   // Compute font size + rendered width, scaling down proportionally before
-  // dropping a label so small pieces still receive readable (if tiny) text.
-  const fitLabel = (
-    text: string,
-    maxPt: number,
-    minPt: number,
-    capMm: number,
-  ): { pt: number; w: number } | null => {
-    let pt = Math.min(maxPt, Math.max(minPt, (capMm / scale) * MM));
-    let w = ctx.font.widthOfTextAtSize(text, pt);
-    if (w > visLongPt * 0.85) {
-      pt = Math.max(minPt, (pt * visLongPt * 0.85) / w);
-      w = ctx.font.widthOfTextAtSize(text, pt);
-      if (w > visLongPt) return null; // even min size won't fit
-    }
-    return { pt, w };
-  };
-
-  const nameFit = name
-    ? fitLabel(name, 14, MIN_NAME_PT, Math.min(shortMm / 3, ONE_INCH_MM))
-    : null;
-  const dimFit = dimLabel
-    ? fitLabel(dimLabel, 10, MIN_DIM_PT, Math.min(shortMm / 4, ONE_INCH_MM))
-    : null;
-
-  if (!nameFit && !dimFit) return;
+  // dropping the label so small pieces still receive readable (if tiny) text.
+  const capMm = Math.min(shortMm / 3, ONE_INCH_MM);
+  let pt = Math.min(14, Math.max(MIN_NAME_PT, (capMm / scale) * MM));
+  let w = ctx.font.widthOfTextAtSize(name, pt);
+  if (w > visLongPt * 0.85) {
+    pt = Math.max(MIN_NAME_PT, (pt * visLongPt * 0.85) / w);
+    w = ctx.font.widthOfTextAtSize(name, pt);
+    if (w > visLongPt) return; // even min size won't fit
+  }
 
   const visCx = (visX1 + visX2) / 2;
   const visCy = (visY1 + visY2) / 2;
 
   if (isPortrait) {
-    // Portrait: both labels rotated 90° CCW, each running along the long (y) axis.
-    // Two-column layout — name in the left column (lower x), dims in the right
-    // column (higher x) — mirroring how landscape stacks name above dims but
-    // rotated 90° CCW. Each label is independently y-centered at visCy; the
-    // combined [name | gap | dims] block is x-centered at visCx.
-    //
-    // For 90° CCW text the baseline is the RIGHT edge of the glyph body, so:
-    //   nameOriginX = visCx + (namePt − GAP − dimPt) / 2
-    //   dimOriginX  = visCx + (namePt + GAP + dimPt) / 2
-    if (nameFit && dimFit) {
-      const blockXWidth = nameFit.pt + GAP + dimFit.pt;
-      const visNarrowPt = visX2 - visX1;
-      if (blockXWidth <= visNarrowPt * 0.9) {
-        page.drawText(name!, {
-          x: visCx + (nameFit.pt - GAP - dimFit.pt) / 2,
-          y: visCy - nameFit.w / 2,
-          size: nameFit.pt,
-          font: ctx.font,
-          color: rgb(0.2, 0.2, 0.2),
-          rotate: degrees(90),
-        });
-        page.drawText(dimLabel!, {
-          x: visCx + (nameFit.pt + GAP + dimFit.pt) / 2,
-          y: visCy - dimFit.w / 2,
-          size: dimFit.pt,
-          font: ctx.font,
-          color: rgb(0.35, 0.35, 0.35),
-          rotate: degrees(90),
-        });
-        return;
-      }
-      // Not enough narrow width for two columns — fall through to name only.
-    }
-    if (nameFit) {
-      page.drawText(name!, {
-        x: visCx + nameFit.pt / 2,
-        y: visCy - nameFit.w / 2,
-        size: nameFit.pt,
+    // Rotated 90° CCW, centered on both axes.
+    page.drawText(name, {
+      x: visCx + pt / 2,
+      y: visCy - w / 2,
+      size: pt,
+      font: ctx.font,
+      color: rgb(0.2, 0.2, 0.2),
+      rotate: degrees(90),
+    });
+  } else {
+    const lx = visCx - w / 2;
+    const ly = visCy - pt / 2;
+    if (
+      lx >= tileXpt &&
+      lx + w <= tileXpt + tileWpt &&
+      ly >= tileYpt &&
+      ly + pt <= tileYpt + tileHpt
+    ) {
+      page.drawText(name, {
+        x: lx,
+        y: ly,
+        size: pt,
         font: ctx.font,
         color: rgb(0.2, 0.2, 0.2),
-        rotate: degrees(90),
       });
-    } else if (dimFit) {
-      page.drawText(dimLabel!, {
-        x: visCx + dimFit.pt / 2,
-        y: visCy - dimFit.w / 2,
-        size: dimFit.pt,
-        font: ctx.font,
-        color: rgb(0.35, 0.35, 0.35),
-        rotate: degrees(90),
-      });
-    }
-  } else {
-    // Landscape: name above (higher y), dims below, centered at visCx/visCy.
-    const drawText = (
-      text: string,
-      pt: number,
-      w: number,
-      lx: number,
-      ly: number,
-      color: ReturnType<typeof rgb>,
-    ) => {
-      if (
-        lx >= tileXpt &&
-        lx + w <= tileXpt + tileWpt &&
-        ly >= tileYpt &&
-        ly + pt <= tileYpt + tileHpt
-      ) {
-        page.drawText(text, { x: lx, y: ly, size: pt, font: ctx.font, color });
-      }
-    };
-
-    if (nameFit && dimFit) {
-      const blockH = nameFit.pt + GAP + dimFit.pt;
-      drawText(
-        name!,
-        nameFit.pt,
-        nameFit.w,
-        visCx - nameFit.w / 2,
-        visCy - blockH / 2 + dimFit.pt + GAP,
-        rgb(0.2, 0.2, 0.2),
-      );
-      drawText(
-        dimLabel!,
-        dimFit.pt,
-        dimFit.w,
-        visCx - dimFit.w / 2,
-        visCy - blockH / 2,
-        rgb(0.35, 0.35, 0.35),
-      );
-    } else if (nameFit) {
-      drawText(
-        name!,
-        nameFit.pt,
-        nameFit.w,
-        visCx - nameFit.w / 2,
-        visCy - nameFit.pt / 2,
-        rgb(0.2, 0.2, 0.2),
-      );
-    } else if (dimFit) {
-      drawText(
-        dimLabel!,
-        dimFit.pt,
-        dimFit.w,
-        visCx - dimFit.w / 2,
-        visCy - dimFit.pt / 2,
-        rgb(0.35, 0.35, 0.35),
-      );
     }
   }
+}
+
+/**
+ * Real PDF render sink for {@link drawPartDimensions}. Translates the pure
+ * primitive records into pdf-lib draws, clipped to the tile rectangle. Text is
+ * dropped if its origin falls outside the tile (matches the existing
+ * label-clipping behaviour).
+ */
+function makePartDimensionEmit(
+  ctx: Ctx,
+  page: PDFPage,
+  cx: number,
+  cy: number,
+  cw: number,
+  ch: number,
+): DimensionEmit {
+  return {
+    line(p) {
+      drawClippedLine(
+        page,
+        p.x1,
+        p.y1,
+        p.x2,
+        p.y2,
+        cx,
+        cy,
+        cw,
+        ch,
+        p.thickness,
+        p.color,
+      );
+    },
+    arrow(p) {
+      if (p.axis === 'h') {
+        drawArrowH(
+          page,
+          p.tipX,
+          p.tipY,
+          p.dir,
+          p.size,
+          cx,
+          cy,
+          cw,
+          ch,
+          p.color,
+        );
+      } else {
+        drawArrowV(
+          page,
+          p.tipX,
+          p.tipY,
+          p.dir,
+          p.size,
+          cx,
+          cy,
+          cw,
+          ch,
+          p.color,
+        );
+      }
+    },
+    leader(p) {
+      drawClippedLine(
+        page,
+        p.x1,
+        p.y1,
+        p.x2,
+        p.y2,
+        cx,
+        cy,
+        cw,
+        ch,
+        p.thickness,
+        p.color,
+      );
+    },
+    text(p) {
+      // Drop text whose bbox does not lie within the tile.
+      if (
+        p.bbox.x < cx ||
+        p.bbox.x + p.bbox.w > cx + cw ||
+        p.bbox.y < cy ||
+        p.bbox.y + p.bbox.h > cy + ch
+      ) {
+        return;
+      }
+      page.drawText(p.text, {
+        x: p.x,
+        y: p.y,
+        size: p.size,
+        font: ctx.font,
+        color: p.color,
+        rotate: degrees(p.rotate),
+      });
+    },
+  };
 }
 
 function drawScaleLegend(
