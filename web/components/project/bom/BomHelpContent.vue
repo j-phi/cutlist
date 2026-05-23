@@ -57,6 +57,13 @@
         <span class="text-body">Stock</span> tab and add a stock entry with a
         matching material name and dimensions.
       </p>
+      <p>
+        If the only difference is spelling or capitalisation (for example
+        <span class="text-body">Walnut</span> vs
+        <span class="text-body">walnut</span>), the BOM suggests the closest
+        stock name inline — click it to reassign the affected parts in one step,
+        no retyping.
+      </p>
     </section>
 
     <section class="space-y-1.5">

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { areStocksEquivalent, canPartFitStock } from '../stock-utils';
+import {
+  areStocksEquivalent,
+  canPartFitStock,
+  suggestStockMatch,
+} from '../stock-utils';
 import { mmToUm, STOCK_MATCH_TOLERANCE_UM, type Micrometres } from '../units';
 import type { LinearStock, Stock, PartToCut } from '../../types';
 
@@ -109,6 +113,32 @@ describe('canPartFitStock — linear with oversize', () => {
   it('treats absent oversize as zero allowance', () => {
     expect(canPartFitStock(stock(), part(70, 45, 1500))).toBe(true);
     expect(canPartFitStock(stock(), part(66, 45, 1500))).toBe(false);
+  });
+});
+
+describe('suggestStockMatch', () => {
+  it('suggests the trimmed name for a trailing-whitespace mismatch', () => {
+    // "Walnut " (trailing space) vs stock "Walnut" — the verbatim part
+    // material would silently fail to pack; the suggestion recovers it.
+    expect(suggestStockMatch('Walnut ', ['Walnut', 'Oak'])).toBe('Walnut');
+  });
+
+  it('suggests the differently-cased stock name', () => {
+    expect(suggestStockMatch('WALNUT', ['walnut', 'pine'])).toBe('walnut');
+  });
+
+  it('offers no suggestion when nothing is close (guards noise)', () => {
+    // "Oak" vs only "Plywood"/"MDF" — every candidate is too far; a
+    // suggestion here would be noise, so we stay silent.
+    expect(suggestStockMatch('Oak', ['Plywood', 'MDF'])).toBeNull();
+  });
+
+  it('returns null when the material already matches exactly', () => {
+    expect(suggestStockMatch('Walnut', ['Walnut', 'Oak'])).toBeNull();
+  });
+
+  it('catches a one-edit typo within threshold', () => {
+    expect(suggestStockMatch('Birtch', ['Birch', 'Maple'])).toBe('Birch');
   });
 });
 

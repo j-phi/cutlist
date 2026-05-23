@@ -85,6 +85,7 @@ const addManualPartsCalls: Array<{
   projectId: string;
   inputs: ManualPartInput[];
 }> = [];
+const remapCalls: Array<{ projectId: string; from: string; to: string }> = [];
 
 mockNuxtImport('useProjects', () => () => ({
   activeProject,
@@ -110,6 +111,9 @@ mockNuxtImport('useProjects', () => () => ({
     renameCalls.push({ projectId, partNumber, name });
   },
   updatePartGrainLock: async () => {},
+  remapMaterial: async (projectId: string, from: string, to: string) => {
+    remapCalls.push({ projectId, from, to });
+  },
 }));
 
 mockNuxtImport('useGrainLockConfirm', () => () => ({
@@ -259,6 +263,7 @@ beforeEach(() => {
   addModelCalls.length = 0;
   renameCalls.length = 0;
   addManualPartsCalls.length = 0;
+  remapCalls.length = 0;
   toastCalls.length = 0;
   activeId.value = 'project-1';
   projectModels.value = [];
@@ -489,6 +494,67 @@ describe('BomTab — paste bulk import', () => {
 
     expect(addManualPartsCalls).toEqual([]);
     expect((textarea.element as HTMLTextAreaElement).value).not.toBe('');
+  });
+});
+
+describe('BomTab — material-match recovery (F4)', () => {
+  /** Seed one unplaced row carrying a near-miss material suggestion. */
+  function seedSuggestionRow() {
+    const row = {
+      number: 1,
+      name: 'Side Panel',
+      modelId: 'm1',
+      modelName: 'Model',
+      qty: 2,
+      material: 'Walnut ',
+      thicknessUm: 0.018,
+      widthUm: 0.3,
+      lengthUm: 0.6,
+      leftoverCount: 2,
+      isManual: false,
+      materialSuggestion: 'Walnut',
+    };
+    projectModels.value = [
+      {
+        id: 'm1',
+        source: 'gltf',
+        enabled: true,
+        filename: 'm.gltf',
+        parts: [],
+      },
+    ];
+    allRows.value = [row];
+    filteredGroups.value = [
+      { material: 'Walnut ', totalParts: 2, rows: [row] },
+    ];
+  }
+
+  it('renders the suggestion prompt with both names and an accept control', () => {
+    seedSuggestionRow();
+    const component = getComponent();
+
+    // The unmatched material is shown verbatim, alongside the suggestion.
+    expect(component.text()).toContain('No stock named "Walnut "');
+    expect(component.text()).toContain('Did you mean');
+
+    const accept = component
+      .findAll('button')
+      .find((b) => b.attributes('title') === "Reassign to 'Walnut'");
+    expect(accept).toBeDefined();
+  });
+
+  it('remaps the part material to the suggested stock name when accepted', async () => {
+    seedSuggestionRow();
+    const component = getComponent();
+
+    const accept = component
+      .findAll('button')
+      .find((b) => b.attributes('title') === "Reassign to 'Walnut'");
+    await accept!.trigger('click');
+
+    expect(remapCalls).toEqual([
+      { projectId: 'project-1', from: 'Walnut ', to: 'Walnut' },
+    ]);
   });
 });
 

@@ -24,6 +24,7 @@ const {
   removeManualPart,
   updatePartNameOverride,
   updatePartGrainLock,
+  remapMaterial,
 } = useProjects();
 
 const { requestGrainLockChange } = useGrainLockConfirm();
@@ -409,6 +410,13 @@ async function handleRemovePart(adjustedPn: number) {
   await removeManualPart(activeId.value, adjustedPn - manualPartOffset.value);
   if (editingPartNumber.value === adjustedPn) editingPartNumber.value = null;
   if (renamingPartNumber.value === adjustedPn) cancelRenamePart();
+}
+
+// ── Material-match recovery (FR-MAT-2) ───────────────────────────────────────
+
+async function acceptMaterialSuggestion(row: BomRow) {
+  if (!activeId.value || !row.materialSuggestion) return;
+  await remapMaterial(activeId.value, row.material, row.materialSuggestion);
 }
 
 // ── Help panel ───────────────────────────────────────────────────────────────
@@ -895,6 +903,23 @@ onUnmounted(() => {
                                     : `${row.leftoverCount} of ${row.qty} could not be placed on any board`
                                 "
                               />
+                              <span
+                                v-if="row.materialSuggestion"
+                                class="inline-flex items-center gap-1 text-xs text-amber-500/90"
+                                @click.stop
+                              >
+                                No stock named "{{ row.material }}". Did you
+                                mean
+                                <button
+                                  type="button"
+                                  class="font-medium text-teal-400 hover:text-teal-300 underline decoration-dotted underline-offset-2 transition-colors"
+                                  :aria-label="`Use stock '${row.materialSuggestion}' for ${row.name}`"
+                                  :title="`Reassign to '${row.materialSuggestion}'`"
+                                  @click="acceptMaterialSuggestion(row)"
+                                >
+                                  "{{ row.materialSuggestion }}"</button
+                                >?
+                              </span>
                               <button
                                 v-if="!row.isManual"
                                 type="button"
