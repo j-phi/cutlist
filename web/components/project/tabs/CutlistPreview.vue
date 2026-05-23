@@ -880,6 +880,7 @@ const unusedOffcutLayouts = computed<SheetBoardLayout[]>(() => {
 <style scoped>
 .canvas-plane {
   position: relative;
+  user-select: none;
 }
 
 .canvas-grid {
