@@ -7,6 +7,7 @@ const { isComputing } = useBoardLayoutsQuery();
 const isOpen = ref(false);
 const scale = ref<PdfScale>('auto');
 const showDimensions = ref(false);
+const colorParts = ref(false);
 
 const scaleOptions: { label: string; value: PdfScale }[] = [
   { label: 'Auto (fit each board to page)', value: 'auto' },
@@ -18,7 +19,7 @@ const scaleOptions: { label: string; value: PdfScale }[] = [
 ];
 
 async function onDownload() {
-  await download(scale.value, showDimensions.value);
+  await download(scale.value, showDimensions.value, colorParts.value);
   if (!error.value) isOpen.value = false;
 }
 </script>
@@ -81,6 +82,13 @@ async function onDownload() {
           <label class="flex items-center gap-2 cursor-pointer select-none">
             <UCheckbox v-model="showDimensions" />
             <span class="text-sm text-body">Show dimensions on pieces</span>
+          </label>
+
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <UCheckbox v-model="colorParts" />
+            <span class="text-sm text-body"
+              >Color pieces by part (matches the on-screen layout)</span
+            >
           </label>
 
           <div

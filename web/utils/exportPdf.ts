@@ -35,6 +35,19 @@ export interface ExportPdfOptions {
   showPartNumbers: boolean;
   showBomName: boolean;
   showDimensions: boolean;
+  /**
+   * Blade kerf width in µm (project blade width). Used by the board renderer to
+   * draw the kerf gap between adjacent parts as a distinct strip (F6 /
+   * FR-VIZ-1). 0 / undefined ⇒ no kerf strips drawn.
+   */
+  bladeWidthUm?: number;
+  /**
+   * F6 / FR-VIZ-3 (optional, presentational only — NOT a persisted schema
+   * field). When true, each part rectangle is filled with its stable per-part
+   * hue ({@link partColorRgb}) so it matches the on-screen layout diagram and
+   * the 3D viewer key. Defaults to grayscale (`false`).
+   */
+  colorParts?: boolean;
   measurements?: RulerMeasurement[];
 }
 

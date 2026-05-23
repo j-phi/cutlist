@@ -26,6 +26,14 @@ import {
   type DimensionEmit,
   type DimensionGeom,
 } from './dimensions';
+import {
+  drawBoardRegions,
+  REGION_STYLE,
+  type RegionEmit,
+  type RegionGeom,
+  type UmRect,
+} from './regions';
+import { partColorRgb } from 'cutlist';
 
 /**
  * Find the smallest integer scale ≥ 1 that fits the board on a single page.
@@ -247,10 +255,17 @@ function drawBoardTilePage(
     const py = boardY + (umToMm(placement.bottomUm) / scale) * MM;
     const pw = (placedWidthMm / scale) * MM;
     const ph = (placedLengthMm / scale) * MM;
+    // FR-VIZ-3: per-part hue fill when enabled, else white (grayscale default).
+    const partFill = ctx.opts.colorParts
+      ? (() => {
+          const c = partColorRgb(placement.partNumber);
+          return rgb(c.r, c.g, c.b);
+        })()
+      : rgb(1, 1, 1);
     drawClippedRect(page, px, py, pw, ph, tileXpt, tileYpt, tileWpt, tileHpt, {
       borderColor: rgb(0.1, 0.1, 0.1),
       borderWidth: 0.5,
-      color: rgb(1, 1, 1),
+      color: partFill,
     });
 
     // Indigo allowance hatch on the +X / +Y edges; the two strips overlap
@@ -383,6 +398,43 @@ function drawBoardTilePage(
         tileHpt,
       );
     }
+  }
+
+  // Kerf strips + leftover-region labels (F6). Derived purely from the placed
+  // (already-aligned, F13) rectangles within the usable area. Drawn after parts
+  // so leftover labels avoid the part/dimension bboxes already in `occupancy`.
+  {
+    const toPageX = (um: number) =>
+      boardX + (umToMm(um as Micrometres) / scale) * MM;
+    const toPageY = (um: number) =>
+      boardY + (umToMm(um as Micrometres) / scale) * MM;
+    const m = layout.marginUm ?? 0;
+    const usable: UmRect = {
+      leftUm: m,
+      rightUm: stock.widthUm - m,
+      bottomUm: m,
+      topUm: stock.lengthUm - m,
+    };
+    const placementRects: UmRect[] = layout.placements.map((p) => ({
+      leftUm: p.leftUm,
+      rightUm: p.rightUm,
+      bottomUm: p.bottomUm,
+      topUm: p.topUm,
+    }));
+    const regionGeom: RegionGeom = {
+      usable,
+      toPageX,
+      toPageY,
+      formatSize,
+      widthOf: (text, size) => ctx.font.widthOfTextAtSize(text, size),
+      occupancy: ctx.occupancy,
+    };
+    drawBoardRegions(
+      makeRegionEmit(ctx, page, tileXpt, tileYpt, tileWpt, tileHpt),
+      placementRects,
+      regionGeom,
+      ctx.opts.bladeWidthUm ?? 0,
+    );
   }
 
   // Ruler measurements
@@ -577,6 +629,59 @@ function makePartDimensionEmit(
         font: ctx.font,
         color: p.color,
         rotate: degrees(p.rotate),
+      });
+    },
+  };
+}
+
+/**
+ * Real PDF render sink for {@link drawBoardRegions}. Kerf strips render as a
+ * solid fill (the saw ate this); leftover regions render as a hatched fill with
+ * a faint border (reusable offcut) — two visually distinct styles (FR-VIZ-1).
+ * Region labels render as plain clipped text (FR-VIZ-2).
+ */
+function makeRegionEmit(
+  ctx: Ctx,
+  page: PDFPage,
+  cx: number,
+  cy: number,
+  cw: number,
+  ch: number,
+): RegionEmit {
+  return {
+    region(p) {
+      const style = REGION_STYLE[p.kind];
+      if (style.pattern === 'solid') {
+        drawClippedRect(page, p.x, p.y, p.w, p.h, cx, cy, cw, ch, {
+          color: style.color,
+        });
+      } else {
+        drawClippedHatch(page, p.x, p.y, p.w, p.h, cx, cy, cw, ch, {
+          color: style.color,
+          spacing: 4,
+          thickness: 0.4,
+        });
+        drawClippedRect(page, p.x, p.y, p.w, p.h, cx, cy, cw, ch, {
+          borderColor: style.color,
+          borderWidth: 0.4,
+        });
+      }
+    },
+    label(p) {
+      if (
+        p.bbox.x < cx ||
+        p.bbox.x + p.bbox.w > cx + cw ||
+        p.bbox.y < cy ||
+        p.bbox.y + p.bbox.h > cy + ch
+      ) {
+        return;
+      }
+      page.drawText(p.text, {
+        x: p.x,
+        y: p.y,
+        size: p.size,
+        font: ctx.font,
+        color: p.color,
       });
     },
   };
