@@ -51,14 +51,21 @@ function commitSizeName(idx: number, name: string): void {
   );
 }
 
-// Thickness-add is a plain text input (chip pattern — the input is empty
-// until the user types, so there's no canonical value to fall back to).
-// One-shot parse via the composable's `parse` helper.
+// Thickness-add: toggled via a Plus button. When open, a text input is
+// shown and auto-focused; on blur/Enter the value is committed and the
+// input closes. One-shot parse via the composable's `parse` helper.
 const newThickness = ref<Record<number, string>>({});
+const showThicknessInput = ref<Record<number, boolean>>({});
+const showThicknessHelp = ref(false);
+
+const thicknessPlaceholder = computed(() =>
+  unit.value === 'mm' ? 'e.g. 18 or 18.5' : 'e.g. 3/4 or 1 1/4',
+);
 
 function addThickness(sizeIndex: number) {
   const mm = drafts.parse(newThickness.value[sizeIndex]);
   newThickness.value[sizeIndex] = '';
+  showThicknessInput.value[sizeIndex] = false;
   if (mm == null) return;
   emitSizes(
     props.modelValue.sizes.map((s, i) =>
@@ -137,17 +144,27 @@ function commitSizeQty(idx: number, raw: number | string) {
       data-testid="sheet-size-row"
     >
       <div class="flex flex-wrap items-center gap-2">
-        <UInput
-          v-if="isOffcut"
-          :model-value="nameDisplay(sizeIndex, size)"
-          class="min-w-32 flex-none"
-          :placeholder="`Board ${sizeIndex + 1}`"
-          :data-testid="`sheet-size-name-${sizeIndex}`"
-          @update:model-value="(v: string) => onNameInput(sizeIndex, v)"
-          @blur="onNameBlur(sizeIndex)"
-          @keydown.enter="onNameBlur(sizeIndex)"
-        />
+        <template v-if="isOffcut">
+          <span
+            class="text-[11px] uppercase tracking-wider text-dim font-medium shrink-0"
+            >Name</span
+          >
+          <UInput
+            :model-value="nameDisplay(sizeIndex, size)"
+            class="min-w-32 flex-none"
+            :placeholder="`Board ${sizeIndex + 1}`"
+            :data-testid="`sheet-size-name-${sizeIndex}`"
+            @update:model-value="(v: string) => onNameInput(sizeIndex, v)"
+            @blur="onNameBlur(sizeIndex)"
+            @keydown.enter="onNameBlur(sizeIndex)"
+          />
+        </template>
         <div class="flex items-center gap-2 flex-1 min-w-0">
+          <span
+            v-if="isOffcut"
+            class="text-[11px] uppercase tracking-wider text-dim font-medium shrink-0"
+            >Dimensions</span
+          >
           <UInput
             :model-value="
               drafts.display(sizeKey(sizeIndex, 'width'), size.width)
@@ -178,7 +195,7 @@ function commitSizeQty(idx: number, raw: number | string) {
           <template v-if="isOffcut">
             <span
               class="text-[11px] uppercase tracking-wider text-dim font-medium shrink-0"
-              >qty</span
+              >Qty</span
             >
             <UInput
               :model-value="String(size.quantity ?? 1)"
@@ -205,11 +222,21 @@ function commitSizeQty(idx: number, raw: number | string) {
       </div>
 
       <div class="flex flex-col gap-1">
-        <label
-          class="text-[11px] font-medium text-muted uppercase tracking-wider"
-        >
-          Thicknesses
-        </label>
+        <div class="flex items-center gap-1">
+          <label
+            class="text-[11px] font-medium text-muted uppercase tracking-wider"
+          >
+            Thicknesses
+          </label>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-info"
+            size="xs"
+            class="opacity-40 hover:opacity-100 transition-opacity -my-1"
+            @click="showThicknessHelp = true"
+          />
+        </div>
         <div class="flex flex-wrap items-center gap-1.5">
           <span
             v-for="(dim, i) in size.thickness"
@@ -227,13 +254,29 @@ function commitSizeQty(idx: number, raw: number | string) {
             </button>
           </span>
           <input
+            v-if="showThicknessInput[sizeIndex]"
+            :ref="
+              (el) => {
+                if (el) (el as HTMLInputElement).focus();
+              }
+            "
             v-model="newThickness[sizeIndex]"
             type="text"
-            class="bg-default rounded px-2 py-0.5 text-[12px] text-teal-300/70 font-mono w-16 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
-            placeholder="+ thick"
+            class="bg-default rounded px-2 py-0.5 text-[12px] text-teal-300/70 font-mono w-40 outline-none border border-subtle focus:border-teal-600 placeholder:text-dim transition-colors"
+            :placeholder="thicknessPlaceholder"
             data-testid="sheet-thickness-add"
             @keydown.enter.prevent="addThickness(sizeIndex)"
+            @keydown.escape="showThicknessInput[sizeIndex] = false"
             @blur="addThickness(sizeIndex)"
+          />
+          <UButton
+            v-else
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-plus"
+            size="xs"
+            data-testid="sheet-thickness-add-btn"
+            @click="showThicknessInput[sizeIndex] = true"
           />
         </div>
       </div>
@@ -251,4 +294,107 @@ function commitSizeQty(idx: number, raw: number | string) {
       Add size
     </UButton>
   </div>
+
+  <UModal v-model:open="showThicknessHelp" :ui="{ content: 'sm:max-w-xl' }">
+    <template #content>
+      <div
+        class="p-6 flex flex-col gap-4 bg-elevated border border-default rounded-lg"
+      >
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-semibold text-hi">Thickness values</h2>
+          <UButton
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-x"
+            class="rounded-full"
+            @click="showThicknessHelp = false"
+          />
+        </div>
+
+        <template v-if="unit === 'mm'">
+          <p class="text-sm text-muted">
+            Enter a number in millimetres. The
+            <code class="text-teal-300/80">mm</code> suffix is optional and
+            case-insensitive; a space before it is fine.
+          </p>
+          <table class="text-sm w-full border-collapse">
+            <thead>
+              <tr class="text-left text-dim text-xs uppercase tracking-wider">
+                <th class="pb-1 font-medium w-1/3">You type</th>
+                <th class="pb-1 font-medium">Interpreted as</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-subtle">
+              <tr
+                v-for="row in [
+                  ['18', '18 mm'],
+                  ['18.5', '18.5 mm'],
+                  ['18mm', '18 mm'],
+                  ['18 mm', '18 mm'],
+                  ['18MM', '18 mm — case insensitive'],
+                  ['18Mm', '18 mm — any capitalisation'],
+                ]"
+                :key="row[0]"
+                class="text-body"
+              >
+                <td class="py-1.5 font-mono text-teal-300/80">{{ row[0] }}</td>
+                <td class="py-1.5 text-muted">{{ row[1] }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="text-xs text-dim">
+            Fractions and feet are not accepted — use decimals (e.g.
+            <code class="text-teal-300/80">12.7</code> not
+            <code class="text-teal-300/80">1/2"</code>).
+          </p>
+        </template>
+
+        <template v-else>
+          <p class="text-sm text-muted">
+            Enter a measurement in inches. Decimals, fractions, mixed numbers,
+            and feet+inches all work.
+          </p>
+          <table class="text-sm w-full border-collapse">
+            <thead>
+              <tr class="text-left text-dim text-xs uppercase tracking-wider">
+                <th class="pb-1 font-medium w-1/3">You type</th>
+                <th class="pb-1 font-medium">Interpreted as</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-subtle">
+              <tr
+                v-for="row in [
+                  ['3/4', '¾ inch'],
+                  ['1 1/4', '1¼ inches'],
+                  ['1-3/4', '1¾ inches — dash or space ok'],
+                  ['0.75', '¾ inch'],
+                  ['1.5', '1½ inches'],
+                  ['3/4&quot;', '¾ inch — straight double-quote glyph'],
+                  ['3/4 &#8243;', '¾ inch — double-prime glyph (&#8243;)'],
+                  ['3/4 in', '¾ inch — in suffix, <em>any case</em>'],
+                  ['3/4 in.', '¾ inch — trailing period ok'],
+                  ['1ft 6in', '18 inches — feet + in suffix'],
+                  ['1\' 6&quot;', '18 inches — feet + glyph'],
+                ]"
+                :key="row[0]"
+                class="text-body"
+              >
+                <td class="py-1.5 font-mono text-teal-300/80" v-html="row[0]" />
+                <td class="py-1.5 text-muted" v-html="row[1]" />
+              </tr>
+            </tbody>
+          </table>
+          <p class="text-xs text-dim">
+            <span class="text-warning-400 font-medium">Not accepted:</span>
+            <code class="text-teal-300/80">inch</code> or
+            <code class="text-teal-300/80">inches</code> (the full word) — use
+            <code class="text-teal-300/80">in</code>, a
+            <code class="text-teal-300/80">"</code> glyph, or no suffix at all.
+            Curly/smart quotes are also not recognised.
+          </p>
+        </template>
+      </div>
+    </template>
+  </UModal>
 </template>

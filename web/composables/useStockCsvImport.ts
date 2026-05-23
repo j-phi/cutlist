@@ -8,6 +8,10 @@ import { FALLBACK_PALETTE } from '~/utils/materialColors';
 /** Blank-material rows collapse into this single fallback offcut category. */
 const FALLBACK_MATERIAL = 'Uncategorized';
 
+function offcutLabel(index: number): string {
+  return index === 0 ? 'Offcuts' : `Offcuts ${index + 1}`;
+}
+
 /**
  * Group parsed offcut rows by material into one SheetStockMatrix per category,
  * folding rows that share a material into a single panel with multiple board
@@ -15,12 +19,13 @@ const FALLBACK_MATERIAL = 'Uncategorized';
  *
  * Group order follows first appearance; palette colors are offset by the
  * existing stock count so imported panels don't clash with what's already
- * there. The panel name is the shared row name when every row in the group
- * agrees, otherwise the material category.
+ * there. Each group is named "Offcuts", "Offcuts 2", "Offcuts 3", … based on
+ * how many offcut entries already exist.
  */
 function groupRowsToMatrices(
   rows: StockImportRow[],
   baseCount: number,
+  offcutBaseCount: number,
 ): SheetStockMatrix[] {
   const order: string[] = [];
   const byMaterial = new Map<string, StockImportRow[]>();
@@ -48,7 +53,7 @@ function groupRowsToMatrices(
     );
     return {
       kind: 'sheet',
-      name: material,
+      name: offcutLabel(offcutBaseCount + i),
       material,
       role: 'offcut',
       color: FALLBACK_PALETTE[(baseCount + i) % FALLBACK_PALETTE.length],
@@ -97,7 +102,10 @@ export function useStockCsvImport(opts: UseStockCsvImportOptions) {
     });
 
     if (rows.length > 0) {
-      addStock(groupRowsToMatrices(rows, stocks.value.length));
+      const offcutCount = stocks.value.filter(
+        (s) => s.role === 'offcut',
+      ).length;
+      addStock(groupRowsToMatrices(rows, stocks.value.length, offcutCount));
     }
 
     result.value = { imported: rows.length, errors };
