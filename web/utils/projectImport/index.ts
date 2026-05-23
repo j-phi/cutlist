@@ -224,6 +224,7 @@ const ProjectExportSchema = z.object({
       .enum(['auto', 'tidy', 'compact', 'cnc'])
       .default(DEFAULT_SETTINGS.defaultAlgorithm),
     showPartNumbers: z.boolean().default(DEFAULT_SETTINGS.showPartNumbers),
+    showBomName: z.boolean().default(DEFAULT_SETTINGS.showBomName),
     createdAt: z.string(),
     updatedAt: z.string(),
   }),
@@ -251,6 +252,7 @@ export interface ProjectImportDb {
       margin?: Micrometres;
       defaultAlgorithm?: 'auto' | 'tidy' | 'compact' | 'cnc';
       showPartNumbers?: boolean;
+      showBomName?: boolean;
     },
   ) => Promise<{ id: string }>;
   updateProject: (
@@ -316,6 +318,7 @@ export async function importProjectData(
     margin: data.project.margin,
     defaultAlgorithm: data.project.defaultAlgorithm,
     showPartNumbers: data.project.showPartNumbers,
+    showBomName: data.project.showBomName,
   });
   await idb.updateProject(newProject.id, {
     colorMap: data.project.colorMap,

@@ -32,6 +32,7 @@ function makeProject(id: string, models: Project['models'] = []): Project {
     margin: DEFAULT_SETTINGS.margin,
     defaultAlgorithm: DEFAULT_SETTINGS.defaultAlgorithm,
     showPartNumbers: DEFAULT_SETTINGS.showPartNumbers,
+    showBomName: DEFAULT_SETTINGS.showBomName,
   };
 }
 

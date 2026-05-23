@@ -25,7 +25,7 @@ const { distanceUnit, precision } = useProjectSettings();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 const unitLabel = computed(() => (unit.value === 'in' ? 'in' : 'mm'));
 
-const material = ref<string | null>(null);
+const material = ref<string | undefined>(undefined);
 const lengthUm = ref<Micrometres | null>(null);
 const widthUm = ref<Micrometres | null>(null);
 const thicknessUm = ref<Micrometres | null>(null);
@@ -48,14 +48,14 @@ const { input: thicknessInput, commit: commitThickness } = useDimensionInput(
 
 const isValid = computed(
   () =>
-    material.value !== null ||
+    material.value !== undefined ||
     lengthUm.value != null ||
     widthUm.value != null ||
     thicknessUm.value != null,
 );
 
 function reset() {
-  material.value = null;
+  material.value = undefined;
   lengthUm.value = null;
   widthUm.value = null;
   thicknessUm.value = null;
@@ -68,7 +68,7 @@ function onApply() {
     widthUm?: Micrometres;
     thicknessUm?: Micrometres;
   } = {};
-  if (material.value !== null) patch.material = material.value;
+  if (material.value !== undefined) patch.material = material.value;
   if (lengthUm.value != null) patch.lengthUm = lengthUm.value;
   if (widthUm.value != null) patch.widthUm = widthUm.value;
   if (thicknessUm.value != null) patch.thicknessUm = thicknessUm.value;

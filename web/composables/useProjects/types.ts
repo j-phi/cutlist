@@ -43,6 +43,8 @@ export interface Project {
   defaultAlgorithm: Algorithm;
   /** Whether to render part numbers in visualizations. */
   showPartNumbers: boolean;
+  /** Whether to render BOM part names in visualizations. */
+  showBomName: boolean;
 }
 
 export interface ProjectListItem {

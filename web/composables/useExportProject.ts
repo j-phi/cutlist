@@ -39,6 +39,7 @@ export interface ProjectExport {
     margin: Micrometres;
     defaultAlgorithm: Algorithm;
     showPartNumbers: boolean;
+    showBomName: boolean;
     createdAt: string;
     updatedAt: string;
   };
@@ -128,6 +129,7 @@ export async function buildExportData(
       margin: idbProject.margin,
       defaultAlgorithm: idbProject.defaultAlgorithm,
       showPartNumbers: idbProject.showPartNumbers,
+      showBomName: idbProject.showBomName,
       createdAt: idbProject.createdAt,
       updatedAt: idbProject.updatedAt,
     },

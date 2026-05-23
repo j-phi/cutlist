@@ -78,6 +78,7 @@ export async function createProject(
     margin?: Micrometres;
     defaultAlgorithm?: Algorithm;
     showPartNumbers?: boolean;
+    showBomName?: boolean;
   },
 ): Promise<IdbProject> {
   const db = await getDb();
@@ -96,6 +97,7 @@ export async function createProject(
     defaultAlgorithm:
       opts?.defaultAlgorithm ?? DEFAULT_SETTINGS.defaultAlgorithm,
     showPartNumbers: opts?.showPartNumbers ?? DEFAULT_SETTINGS.showPartNumbers,
+    showBomName: opts?.showBomName ?? DEFAULT_SETTINGS.showBomName,
     createdAt: now,
     updatedAt: now,
   };

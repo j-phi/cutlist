@@ -224,6 +224,7 @@ describe('buildExportData', () => {
         margin: 0 as Micrometres,
         defaultAlgorithm: 'auto' as const,
         showPartNumbers: true,
+        showBomName: true,
         createdAt: now,
         updatedAt: now,
         models: [],

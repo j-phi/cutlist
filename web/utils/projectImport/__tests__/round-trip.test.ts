@@ -28,6 +28,7 @@ function makePayload(): ProjectExport {
       margin: um(0),
       defaultAlgorithm: 'auto',
       showPartNumbers: true,
+      showBomName: true,
       createdAt: now,
       updatedAt: now,
     },
