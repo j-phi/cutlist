@@ -2,6 +2,7 @@ import { rgb } from 'pdf-lib';
 import type { PDFDocument, PDFFont, PDFPage } from 'pdf-lib';
 import type { ExportPdfOptions } from '../exportPdf';
 import { HEADER_BAND_MM, MM } from './constants';
+import { OccupancySet } from './occupancy';
 import { drawTextRight } from './text';
 
 export interface Ctx {
@@ -17,6 +18,13 @@ export interface Ctx {
     size: number;
   }[];
   pageCount: { value: number };
+  /**
+   * Per-page label occupancy. Reset on every `addPage` so each board tile gets
+   * a fresh space-claim set. Seeded with part rects and consumed by
+   * dimension/label text placement to avoid drawing over other content.
+   * Shared design: F6 (leftover labels) and F20 (unified labels) reuse it.
+   */
+  occupancy: OccupancySet;
 }
 
 export function addPage(
@@ -26,6 +34,7 @@ export function addPage(
 ): PDFPage {
   ctx.pageCount.value++;
   const page = ctx.doc.addPage([size.wMm * MM, size.hMm * MM]);
+  ctx.occupancy = new OccupancySet();
   drawHeader(ctx, page, ctx.pageCount.value, subtitle);
   return page;
 }
