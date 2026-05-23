@@ -36,6 +36,7 @@ export default defineNuxtConfig({
     client: 'hidden',
   },
   app: {
+    baseURL: '/cutlist/',
     head: {
       title: 'Cutlist Generator',
       htmlAttrs: {
