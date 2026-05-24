@@ -17,10 +17,10 @@ bun run check        # Vue + TypeScript type check (vue-tsc --noEmit)
 Run a single test file:
 
 ```bash
-export PATH="$HOME/.bun/bin:$PATH" && cd web && bunx vitest run lib/__tests__/generateBoardLayouts.edge.test.ts
+export PATH="$HOME/.bun/bin:$PATH" && (cd web && bunx vitest run lib/__tests__/generateBoardLayouts.edge.test.ts)
 ```
 
-Use `bunx vitest` (not bare `vitest`) — vitest is not globally installed, only bun has it.
+Use `bunx vitest` (not bare `vitest`) — vitest is not globally installed, only bun has it. The subshell `(cd web && ...)` keeps the working directory at the repo root after the command finishes; a bare `cd web` persists and breaks subsequent `git add web/...` calls.
 
 Formatting runs automatically via lint-staged on commit (Prettier).
 
