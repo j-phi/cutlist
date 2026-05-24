@@ -134,11 +134,12 @@ export const LABEL_PRESETS: Record<string, LabelPreset> = {
 export type LabelPresetId = keyof typeof LABEL_PRESETS;
 
 /**
- * Derive one label cell per placed part instance (FR-LBL-2). Each sheet layout
- * is a board with an identifier ("Sheet N" by index); each placement on it is
- * one physical instance and carries that board id (FR-LBL-3). Linear layouts
- * are boards too ("Stick N"). Parts that never got placed (leftovers) still get
- * a cell each, with the {@link UNPLACED_BOARD_ID} fallback (FR-LBL-3).
+ * Derive one label cell per placed part instance (FR-LBL-2). The board id names
+ * the originating stock: offcut boards read `Offcut: <stock name>`; every other
+ * board reads `<stock name> <N>`, where N counts boards of that same stock
+ * (so two identical general sheets are distinguishable). Each placement on a
+ * board carries that id (FR-LBL-3). Parts that never got placed (leftovers)
+ * still get a cell each, with the {@link UNPLACED_BOARD_ID} fallback.
  *
  * Dimension text is formatted here via `formatSize` so the cell carries the
  * same unit/precision as the BOM and layout (FR-LBL-7).
@@ -151,12 +152,18 @@ export function buildLabelCells(
   const cells: LabelCell[] = [];
   const fmt = (um: Micrometres) => formatSize(um) ?? '';
 
-  let sheetIndex = 0;
-  let stickIndex = 0;
+  // Per-stock board counter so identical general boards get sequential ids.
+  const boardCounts = new Map<string, number>();
   for (const layout of layouts) {
-    const boardId = isSheetBoardLayout(layout)
-      ? `Sheet ${++sheetIndex}`
-      : `Stick ${++stickIndex}`;
+    const stock = layout.stock;
+    let boardId: string;
+    if (stock.role === 'offcut') {
+      boardId = `Offcut: ${stock.name}`;
+    } else {
+      const n = (boardCounts.get(stock.name) ?? 0) + 1;
+      boardCounts.set(stock.name, n);
+      boardId = `${stock.name} ${n}`;
+    }
 
     // Sort placements in reading order: top-to-bottom then left-to-right.
     const sorted = isSheetBoardLayout(layout)

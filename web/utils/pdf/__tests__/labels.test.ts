@@ -31,6 +31,7 @@ function sheetLayout(
     thicknessUm: Micrometres;
     grainLock?: 'length' | 'width';
   }>,
+  role: 'general' | 'offcut' = 'general',
 ): SheetBoardLayout {
   return {
     kind: 'sheet',
@@ -40,7 +41,7 @@ function sheetLayout(
       widthUm: um(1220),
       lengthUm: um(2440),
       thicknessUm: um(18),
-      role: 'general',
+      role,
     },
     marginUm: um(0) as Micrometres,
     algorithm: 'tidy',
@@ -136,6 +137,56 @@ describe('buildLabelCells — instance expansion (FR-LBL-2)', () => {
     );
     expect(cells).toHaveLength(2);
     expect(cells[0].boardId).toBe('—');
+  });
+});
+
+describe('buildLabelCells — board id names the originating stock', () => {
+  const part = (partNumber: number) => ({
+    partNumber,
+    instanceNumber: 0,
+    name: 'Side',
+    material: 'Plywood',
+    widthUm: um(300),
+    lengthUm: um(600),
+    thicknessUm: um(18),
+  });
+
+  it('numbers general boards per stock so identical sheets are distinguishable', () => {
+    const cells = buildLabelCells(
+      [
+        sheetLayout('Maple Ply', [part(1)]),
+        sheetLayout('Maple Ply', [part(2)]),
+      ],
+      [],
+      mmFormat,
+    );
+    expect(cells.map((c) => c.boardId)).toEqual(['Maple Ply 1', 'Maple Ply 2']);
+  });
+
+  it('labels offcut boards by name without a counter', () => {
+    const [cell] = buildLabelCells(
+      [sheetLayout('Garage scrap', [part(1)], 'offcut')],
+      [],
+      mmFormat,
+    );
+    expect(cell.boardId).toBe('Offcut: Garage scrap');
+  });
+
+  it('counts each stock independently', () => {
+    const cells = buildLabelCells(
+      [
+        sheetLayout('Maple Ply', [part(1)]),
+        sheetLayout('Oak Ply', [part(2)]),
+        sheetLayout('Maple Ply', [part(3)]),
+      ],
+      [],
+      mmFormat,
+    );
+    expect(cells.map((c) => c.boardId)).toEqual([
+      'Maple Ply 1',
+      'Oak Ply 1',
+      'Maple Ply 2',
+    ]);
   });
 });
 
