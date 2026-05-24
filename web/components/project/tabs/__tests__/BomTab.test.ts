@@ -111,6 +111,7 @@ mockNuxtImport('useProjects', () => () => ({
     renameCalls.push({ projectId, partNumber, name });
   },
   updatePartGrainLock: async () => {},
+  updatePartBanding: async () => {},
   remapMaterial: async (projectId: string, from: string, to: string) => {
     remapCalls.push({ projectId, from, to });
   },
@@ -123,10 +124,14 @@ mockNuxtImport('useGrainLockConfirm', () => () => ({
 const distanceUnit = ref<'mm' | 'in'>('mm');
 const stocks = ref<StockMatrix[]>([]);
 const linearMaterials = computed(() => new Set<string>());
+const bandingThicknessUm = ref<number | undefined>(undefined);
+const subtractBandingThickness = ref<boolean | undefined>(false);
 mockNuxtImport('useProjectSettings', () => () => ({
   distanceUnit,
   stocks,
   linearMaterials,
+  bandingThicknessUm,
+  subtractBandingThickness,
 }));
 
 mockNuxtImport(

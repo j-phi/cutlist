@@ -22,6 +22,15 @@ mockNuxtImport('useProjectSettings', () => () => ({
   showBomName: ref(true),
   isLoading: ref(false),
   precision: ref({ kind: 'decimal', step: 0.1 }),
+  bandingThicknessUm: ref(undefined),
+  subtractBandingThickness: ref(false),
+}));
+
+mockNuxtImport('useBandingSummary', () => () => ({
+  ratePerUnitLength: ref<number | null>(null),
+  setRate: () => {},
+  totalLengthUm: ref(0),
+  cost: ref(undefined),
 }));
 
 // ── useOptimizationSettings mock ─────────────────────────────────────────────

@@ -16,6 +16,8 @@ import { computeAlignmentSnap } from '~/composables/useManualLayout';
 const { data, isComputing, error, partCountWarning } = useBoardLayoutsQuery();
 const { activeId } = useProjects();
 const { stocks, bladeWidth, margin } = useProjectSettings();
+const { totalLengthUm: bandingLengthUm, cost: bandingCost } =
+  useBandingSummary();
 const {
   manualMode,
   isDragging,
@@ -786,7 +788,12 @@ const unusedOffcutLayouts = computed<SheetBoardLayout[]>(() => {
         "
         class="absolute top-16 right-3 z-10 max-w-xs bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
       >
-        <SheetShoppingList :layouts="filteredSheetLayouts" :stocks="stocks" />
+        <SheetShoppingList
+          :layouts="filteredSheetLayouts"
+          :stocks="stocks"
+          :banding-length-um="bandingLengthUm"
+          :banding-cost="bandingCost"
+        />
       </div>
 
       <!-- Drag ghost (follows cursor while a part is being dragged) -->

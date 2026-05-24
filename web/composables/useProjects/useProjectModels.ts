@@ -6,8 +6,13 @@
  * function returns early when the requested `projectId` is not the active
  * project so calls remain safe across project switches.
  */
+import type { Micrometres } from 'cutlist';
 import type { Part } from '~/utils/modelTypes';
-import { useIdb, type PartOverride } from '~/composables/useIdb';
+import {
+  useIdb,
+  type BandedEdges,
+  type PartOverride,
+} from '~/composables/useIdb';
 import { applyOverrides } from '~/utils/modelHydration';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
 import { activeProjectData } from './state';
@@ -170,6 +175,24 @@ export default function useProjectModels() {
     grainLock: 'length' | 'width' | undefined,
   ) {
     await applyPartOverride(projectId, adjustedPartNumber, { grainLock });
+  }
+
+  /**
+   * Set a part's edge-banding overrides (F7). `bandedEdges` selects which of
+   * the four edges are banded; `bandingThicknessUm` is an optional per-part
+   * thickness override (omit / `undefined` to fall back to the project
+   * default). Persists via `applyPartOverride`, which prunes `undefined` keys
+   * so clearing an override removes it from storage.
+   */
+  async function updatePartBanding(
+    projectId: string,
+    adjustedPartNumber: number,
+    banding: {
+      bandedEdges?: BandedEdges;
+      bandingThicknessUm?: Micrometres;
+    },
+  ) {
+    await applyPartOverride(projectId, adjustedPartNumber, banding);
   }
 
   async function updatePartNameOverride(
@@ -554,6 +577,7 @@ export default function useProjectModels() {
     updateManualPart,
     removeManualPart,
     updatePartGrainLock,
+    updatePartBanding,
     updatePartNameOverride,
     batchRenameByColor,
   };

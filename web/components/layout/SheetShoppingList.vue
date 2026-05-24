@@ -3,6 +3,7 @@ import {
   aggregateSheetShoppingList,
   reduceStockMatrix,
   sheetShoppingProjectCost,
+  type Micrometres,
   type SheetBoardLayout,
   type StockMatrix,
 } from 'cutlist';
@@ -11,6 +12,10 @@ const props = defineProps<{
   layouts: SheetBoardLayout[];
   /** Project stock matrix — used to report total offcuts available. */
   stocks?: StockMatrix[];
+  /** Total edge-banding length, integer µm (F7 FR-BND-2). `0` when none. */
+  bandingLengthUm?: Micrometres;
+  /** Edge-banding cost (F7 FR-BND-3); folded into the project total. */
+  bandingCost?: number;
 }>();
 
 const formatDistance = useFormatDistance();
@@ -65,17 +70,35 @@ const groups = computed<DisplayGroup[]>(() =>
   }),
 );
 
-/** Project material total — omitted when no group is priced (FR-COST-2). */
+/**
+ * Edge-banding summary line (F7 FR-BND-2). Present only when something is
+ * banded.
+ */
+const bandingSummary = computed(() => {
+  const len = props.bandingLengthUm;
+  if (len == null || len <= 0) return null;
+  const parts = [`Edge banding: ${formatDistance(len) ?? ''}`];
+  if (props.bandingCost !== undefined) {
+    parts.push(`Cost: ${formatCost(props.bandingCost)}`);
+  }
+  return parts.join(' · ');
+});
+
+/**
+ * Project material total — omitted when nothing is priced (FR-COST-2). Folds
+ * in the banding cost when present (FR-BND-3).
+ */
 const projectCost = computed(() => {
-  const total = sheetShoppingProjectCost(aggregated.value);
-  return total === undefined
-    ? null
-    : `Total material cost: ${formatCost(total)}`;
+  const sheetTotal = sheetShoppingProjectCost(aggregated.value);
+  const band = props.bandingCost;
+  if (sheetTotal === undefined && band === undefined) return null;
+  const total = (sheetTotal ?? 0) + (band ?? 0);
+  return `Total material cost: ${formatCost(total)}`;
 });
 </script>
 
 <template>
-  <div v-if="groups.length > 0" class="flex flex-col gap-3">
+  <div v-if="groups.length > 0 || bandingSummary" class="flex flex-col gap-3">
     <section
       v-for="group in groups"
       :key="group.material"
@@ -91,6 +114,9 @@ const projectCost = computed(() => {
         {{ group.costSummary }}
       </p>
     </section>
+    <p v-if="bandingSummary" class="text-xs text-muted mt-1">
+      {{ bandingSummary }}
+    </p>
     <p v-if="projectCost" class="text-xs font-medium text-body mt-1">
       {{ projectCost }}
     </p>

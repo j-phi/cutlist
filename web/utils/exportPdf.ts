@@ -49,6 +49,16 @@ export interface ExportPdfOptions {
    */
   colorParts?: boolean;
   measurements?: RulerMeasurement[];
+  /**
+   * Total edge-banding length in µm (F7 FR-BND-2). Printed in the sheet
+   * shopping list. 0 / undefined ⇒ no banding line.
+   */
+  bandingLengthUm?: Micrometres;
+  /**
+   * Edge-banding cost (F7 FR-BND-3), folded into the project material total.
+   * undefined ⇒ no banding cost (unpriced).
+   */
+  bandingCost?: number;
 }
 
 export async function exportCutlistPdf(
@@ -80,7 +90,10 @@ export async function exportCutlistPdf(
   // Sheet shopping list — how many sheets to buy, per material+thickness.
   // Project stock isn't plumbed into export options, so this reports offcuts
   // used (not total available); the aggregator falls back gracefully.
-  drawSheetShoppingPages(ctx, opts.layouts);
+  drawSheetShoppingPages(ctx, opts.layouts, undefined, {
+    bandingLengthUm: opts.bandingLengthUm,
+    bandingCost: opts.bandingCost,
+  });
 
   // Pages: each board, possibly tiled
   const measurements = opts.measurements ?? [];

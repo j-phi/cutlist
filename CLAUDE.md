@@ -117,6 +117,7 @@ State is composable-based (no Pinia). Key composables:
 - `useProjectSettings` — per-project settings (blade width, optimization mode)
 - `useProjectTabMap` — tab state per project
 - `useBoardLayoutsQuery` — runs packing engine reactively
+- `useBandingSummary` — edge-banding totals (F7): total banded length (Σ banded-edge lengths × qty over enabled parts) + cost from a localStorage-backed cost-per-length rate. Feeds the shopping-list/PDF banding line
 - `useBuildDoc` — single Tiptap-based "Build" page per project (title + JSON doc). Holds module-scoped reactive state, debounces IDB writes, flushes on project switch / blur / unmount
 - `useDocAssets` — image upload + reactive blob-URL resolution for image blocks in the build doc
 - `useThreeViewer(container)` — thin Vue adapter over `ViewerCore`. Owns lifecycle (mount, dispose, canvas remount) and bridges the bus to `useModelViewerStore`
@@ -441,6 +442,7 @@ Each major tab has a collapsible "how it works" side panel backed by a dedicated
 - **Material allowance** (length and cross-section) is for **timber (linear stock) only**. It is per-part and configured in the Stock tab per linear stock entry.
 - **Margin** is for **sheets only**. It is a global edge inset on each board (not per-part) and is configured in the Layout tab toolbar.
 - Cut mode (Auto/Tidy/Compact/CNC) is a Layout tab setting.
+- **Edge banding** (F7) is marked per-part from the BOM tab (the dashed-edge popover on each row). The project-level "subtract banding thickness" toggle, default thickness, and cost-per-length live in the Layout tab's Optimization settings popover. Banding length + cost appear in the sheet shopping list and PDF. The math is a pure helper (`web/lib/utils/edgeBanding.ts`); cut-size subtraction is applied at the Part→PartToCut boundary in `useBoardLayoutsQuery.ts`. The cost-per-length rate is a display-only localStorage UI setting (`STORAGE_KEYS.ui.projectBandingCostPerLength`), not an IDB field — it doesn't affect packing, so no schema bump.
 
 **Side panel pattern:** Each tab's panel uses `ViewerSidePanel` with a `helpCollapsed` ref backed by `localStorage` (keyed per-project). See `web/components/project/tabs/StockTab.vue` for the canonical implementation. The collapse state is persisted via `STORAGE_KEYS.ui` in `web/utils/localStorage.ts`.
 

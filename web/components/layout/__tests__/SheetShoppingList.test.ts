@@ -128,4 +128,37 @@ describe('SheetShoppingList', () => {
     expect(text).not.toContain('Cost:');
     expect(text).not.toContain('Total material cost');
   });
+
+  it('shows an edge-banding line and folds its cost into the total (F7)', () => {
+    const wrapper = shallowMount(SheetShoppingList, {
+      props: {
+        layouts: [
+          makeSheet('Plywood', 1000, 1000, 'general', {
+            cost: 60,
+            fillRatio: 0.5,
+          }),
+        ],
+        bandingLengthUm: 1_800_000 as Micrometres,
+        bandingCost: 18,
+      },
+    });
+    const text = wrapper.text();
+    expect(text).toContain('Edge banding:');
+    expect(text).toContain('Cost: 18');
+    // 60 (sheet) + 18 (banding) folded into the project total (FR-BND-3).
+    expect(text).toContain('Total material cost: 78');
+  });
+
+  it('renders a banding line even with no sheet groups', () => {
+    const wrapper = shallowMount(SheetShoppingList, {
+      props: {
+        layouts: [],
+        bandingLengthUm: 900_000 as Micrometres,
+        bandingCost: undefined,
+      },
+    });
+    expect(wrapper.text()).toContain('Edge banding:');
+    // Unpriced banding → no total line.
+    expect(wrapper.text()).not.toContain('Total material cost');
+  });
 });

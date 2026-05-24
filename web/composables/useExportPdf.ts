@@ -10,6 +10,8 @@ export default function () {
   const formatDistance = useFormatDistance();
   const { showPartNumbers, showBomName, bladeWidth } = useProjectSettings();
   const { measurements } = useRulerStore();
+  const { totalLengthUm: bandingLengthUm, cost: bandingCost } =
+    useBandingSummary();
 
   const isExporting = ref(false);
   const error = ref<string | undefined>();
@@ -49,6 +51,8 @@ export default function () {
         colorParts,
         bladeWidthUm: bladeWidth.value,
         measurements: measurements.value,
+        bandingLengthUm: bandingLengthUm.value,
+        bandingCost: bandingCost.value,
       });
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);

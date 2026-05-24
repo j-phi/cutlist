@@ -66,6 +66,32 @@
 
     <section class="space-y-1.5">
       <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
+        Edge banding
+      </h3>
+      <p>
+        Mark which of a part's four edges are banded from the BOM tab (the
+        dashed-edge icon on each row). The total banding length — and its cost
+        when you set a cost-per-length in Optimization settings — appears in the
+        shopping list and PDF.
+      </p>
+      <ul class="list-disc pl-4 marker:text-dim space-y-1">
+        <li>
+          <span class="text-body">Subtract banding thickness OFF</span> (the
+          default) treats banding as a finish overlay: the part's nominal
+          finished size is packed unchanged.
+        </li>
+        <li>
+          <span class="text-body">Subtract banding thickness ON</span> reduces
+          the cut size by the banding thickness on each banded edge — banded
+          length-edges trim the width, banded width-edges trim the length — so
+          the finished part lands on size once banded. The BOM then shows both
+          the cut and the finished size.
+        </li>
+      </ul>
+    </section>
+
+    <section class="space-y-1.5">
+      <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
         Blade kerf
       </h3>
       <p>

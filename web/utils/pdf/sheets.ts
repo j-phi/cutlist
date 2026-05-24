@@ -36,10 +36,14 @@ export function drawSheetShoppingPages(
   ctx: Ctx,
   layouts: SheetBoardLayout[],
   stock?: Stock[],
+  banding?: { bandingLengthUm?: Micrometres; bandingCost?: number },
 ): void {
-  if (layouts.length === 0) return;
   const groups = aggregateSheetShoppingList(layouts, stock);
-  if (groups.length === 0) return;
+  const bandingLengthUm = banding?.bandingLengthUm;
+  const bandingCost = banding?.bandingCost;
+  const hasBanding = bandingLengthUm != null && bandingLengthUm > 0;
+  // Nothing to print at all → bail (keeps the PDF free of an empty section).
+  if (groups.length === 0 && !hasBanding) return;
 
   const margin = ctx.opts.margin;
   const pageWmm = LETTER_W_MM;
@@ -59,14 +63,37 @@ export function drawSheetShoppingPages(
     cursorY -= GROUP_BLOCK_HEIGHT_MM * MM;
   }
 
-  // Project material total (omitted when no group is priced — FR-COST-2).
-  const total = sheetShoppingProjectCost(groups);
-  if (total !== undefined) {
+  // Edge-banding summary line (F7 FR-BND-2). Printed before the grand total.
+  const bandingText = hasBanding
+    ? bandingSummaryLine(bandingLengthUm, bandingCost, ctx.opts.formatSize)
+    : null;
+  if (bandingText) {
     if (cursorY - 14 < bottomY(page, margin)) {
       page = addPage(ctx, { wMm: pageWmm, hMm: pageHmm }, 'Sheet Goods');
       cursorY = topY(page, margin) - TITLE_AREA_MM * MM;
     }
-    page.drawText(`Total material cost: ${formatCost(total)}`, {
+    page.drawText(bandingText, {
+      x: margin * MM,
+      y: cursorY - 9,
+      size: 9,
+      font: ctx.font,
+      color: rgb(0.3, 0.3, 0.3),
+    });
+    cursorY -= 14;
+  }
+
+  // Project material total (omitted when nothing is priced — FR-COST-2).
+  // Folds in the banding cost when present (FR-BND-3).
+  const totalText = projectTotalLine(
+    sheetShoppingProjectCost(groups),
+    bandingCost,
+  );
+  if (totalText) {
+    if (cursorY - 14 < bottomY(page, margin)) {
+      page = addPage(ctx, { wMm: pageWmm, hMm: pageHmm }, 'Sheet Goods');
+      cursorY = topY(page, margin) - TITLE_AREA_MM * MM;
+    }
+    page.drawText(totalText, {
       x: margin * MM,
       y: cursorY - 9,
       size: 11,
@@ -98,6 +125,34 @@ function drawSectionTitle(
     font: ctx.fontBold,
     color: rgb(0.1, 0.1, 0.1),
   });
+}
+
+/**
+ * Pure: the edge-banding summary line (F7 FR-BND-2/-3), or `null` when nothing
+ * is banded. Extracted so the content is testable without a pdf-lib page.
+ */
+export function bandingSummaryLine(
+  bandingLengthUm: Micrometres | undefined,
+  bandingCost: number | undefined,
+  formatSize: (um: Micrometres) => string | undefined,
+): string | null {
+  if (bandingLengthUm == null || bandingLengthUm <= 0) return null;
+  let text = `Edge banding: ${formatSize(bandingLengthUm) ?? ''}`;
+  if (bandingCost !== undefined) text += ` · Cost: ${formatCost(bandingCost)}`;
+  return text;
+}
+
+/**
+ * Pure: the project material total line (FR-COST-1/2 + FR-BND-3), or `null`
+ * when nothing is priced. Folds the banding cost into the sheet cost.
+ */
+export function projectTotalLine(
+  sheetCost: number | undefined,
+  bandingCost: number | undefined,
+): string | null {
+  if (sheetCost === undefined && bandingCost === undefined) return null;
+  const total = (sheetCost ?? 0) + (bandingCost ?? 0);
+  return `Total material cost: ${formatCost(total)}`;
 }
 
 function buyText(

@@ -24,11 +24,18 @@ const {
   removeManualPart,
   updatePartNameOverride,
   updatePartGrainLock,
+  updatePartBanding,
   remapMaterial,
 } = useProjects();
 
 const { requestGrainLockChange } = useGrainLockConfirm();
-const { distanceUnit, stocks, linearMaterials } = useProjectSettings();
+const {
+  distanceUnit,
+  stocks,
+  linearMaterials,
+  bandingThicknessUm,
+  subtractBandingThickness,
+} = useProjectSettings();
 const formatDistance = useFormatDistance();
 const toast = useToast();
 const modelViewer = useModelViewerStore();
@@ -232,6 +239,20 @@ function formatDim(um: Micrometres | undefined | null): string {
   if (!s) return '';
   if (distanceUnit.value === 'mm') return s.replace(/\s*mm$/, '');
   return s.replace(/\s*"$/, '');
+}
+
+/**
+ * F7 FR-BND-8 dual display: when the subtract toggle is ON and a row's
+ * displayed (cut) dimension differs from the finished dimension, the BOM
+ * shows the finished value as a sub-note. `axis` picks which extent.
+ */
+function finishedNote(row: BomRow, axis: 'length' | 'width'): string | null {
+  if (!subtractBandingThickness.value) return null;
+  const cut = axis === 'length' ? row.lengthUm : row.widthUm;
+  const finished =
+    axis === 'length' ? row.finishedLengthUm : row.finishedWidthUm;
+  if (finished === cut) return null;
+  return formatDim(finished);
 }
 
 const tableColspan = computed(() => (showModelColumn.value ? 9 : 8));
@@ -974,11 +995,25 @@ onUnmounted(() => {
                             class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
                           >
                             {{ formatDim(row.lengthUm) }}
+                            <span
+                              v-if="finishedNote(row, 'length')"
+                              class="block text-xs text-dim"
+                              :title="'Finished size (before edge banding)'"
+                            >
+                              fin {{ finishedNote(row, 'length') }}
+                            </span>
                           </td>
                           <td
                             class="px-2 md:px-4 py-2 md:py-2.5 text-right text-body tabular-nums"
                           >
                             {{ formatDim(row.widthUm) }}
+                            <span
+                              v-if="finishedNote(row, 'width')"
+                              class="block text-xs text-dim"
+                              :title="'Finished size (before edge banding)'"
+                            >
+                              fin {{ finishedNote(row, 'width') }}
+                            </span>
                           </td>
                           <td
                             class="px-2 md:px-4 py-2 md:py-2.5 text-right text-muted tabular-nums"
@@ -992,6 +1027,22 @@ onUnmounted(() => {
                               "
                               class="flex items-center gap-1"
                             >
+                              <!-- Edge banding (F7) -->
+                              <BandingPopover
+                                :banded-edges="row.bandedEdges"
+                                :banding-thickness-um="row.bandingThicknessUm"
+                                :project-default-um="
+                                  bandingThicknessUm ?? (0 as Micrometres)
+                                "
+                                :subtract="subtractBandingThickness ?? false"
+                                :finished-width-um="row.finishedWidthUm"
+                                :finished-length-um="row.finishedLengthUm"
+                                :thickness-um="row.thicknessUm"
+                                @update="
+                                  (v) =>
+                                    updatePartBanding(activeId!, row.number, v)
+                                "
+                              />
                               <!-- Unlocked state: plain icon button -->
                               <button
                                 v-if="!row.grainLock"

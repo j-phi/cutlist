@@ -62,6 +62,11 @@ mockNuxtImport('useProjectSettings', () => () => ({
   margin,
 }));
 
+mockNuxtImport('useBandingSummary', () => () => ({
+  totalLengthUm: ref(0),
+  cost: ref(undefined),
+}));
+
 const scale = ref<number | undefined>(1);
 const resetZoom = vi.fn();
 const zoomIn = vi.fn();

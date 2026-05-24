@@ -194,3 +194,43 @@ export const UFormFieldStub = defineComponent({
     return () => h('div', slots.default?.());
   },
 });
+
+/**
+ * UCheckbox — renders a real `<input type="checkbox">` with its label so tests
+ * can click it and assert `update:modelValue` (the boolean toggle). Nuxt UI's
+ * checkbox emits the next boolean on change.
+ */
+export const UCheckboxStub = defineComponent({
+  name: 'UCheckboxStub',
+  props: {
+    modelValue: { type: Boolean, default: false },
+    label: { type: String, default: undefined },
+    disabled: { type: Boolean, default: false },
+  },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    return () =>
+      h('label', {}, [
+        h('input', {
+          type: 'checkbox',
+          checked: props.modelValue,
+          disabled: props.disabled || undefined,
+          onChange: () => emit('update:modelValue', !props.modelValue),
+        }),
+        props.label,
+      ]);
+  },
+});
+
+/**
+ * UPopover — renders both the trigger (default slot) and the panel (content
+ * slot) inline so tests can interact with panel controls without driving the
+ * floating-UI open/close lifecycle.
+ */
+export const UPopoverStub = defineComponent({
+  name: 'UPopoverStub',
+  setup(_props, { slots }) {
+    return () =>
+      h('div', [slots.default?.(), h('div', slots.content?.() ?? [])]);
+  },
+});

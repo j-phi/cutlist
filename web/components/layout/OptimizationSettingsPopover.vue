@@ -1,10 +1,58 @@
 <script lang="ts" setup>
-import type { StockMatrix } from 'cutlist';
+import type { Micrometres, StockMatrix } from 'cutlist';
+import { useDimensionInput } from '~/composables/useDimensionInput';
 
 const emit = defineEmits<{ close: [] }>();
 
-const { defaultAlgorithm, optimizationObjective, stocks } =
-  useProjectSettings();
+const {
+  defaultAlgorithm,
+  optimizationObjective,
+  stocks,
+  distanceUnit,
+  precision,
+  bandingThicknessUm,
+  subtractBandingThickness,
+} = useProjectSettings();
+
+// ── F7: edge banding ────────────────────────────────────────────────────────
+const bandingUnit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
+
+const subtractModel = computed<boolean>({
+  get: () => subtractBandingThickness.value ?? false,
+  set: (v) => {
+    subtractBandingThickness.value = v;
+  },
+});
+
+// Project default banding thickness, wired through the µm input round-trip.
+const bandingThicknessDraft = ref<Micrometres | null>(
+  bandingThicknessUm.value ?? null,
+);
+watch(bandingThicknessUm, (next) => {
+  bandingThicknessDraft.value = next ?? null;
+});
+watch(bandingThicknessDraft, (next) => {
+  bandingThicknessUm.value = next ?? (0 as Micrometres);
+});
+const { input: bandingThicknessInput, commit: commitBandingThickness } =
+  useDimensionInput(bandingThicknessDraft, bandingUnit, precision);
+
+// Cost-per-length is a display-only, localStorage-backed UI setting (F7
+// FR-BND-3) — not an IDB field, so adding it doesn't bump the schema (v10).
+const { ratePerUnitLength, setRate } = useBandingSummary();
+const bandingRateInput = computed<string>({
+  get: () =>
+    ratePerUnitLength.value == null ? '' : String(ratePerUnitLength.value),
+  set: (raw) => {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      setRate(null);
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed) && parsed >= 0) setRate(parsed);
+  },
+});
 
 const {
   passOrder,
@@ -138,6 +186,42 @@ function onDragEnd() {
       >
         {{ COST_DISABLED_REASON }}
       </p>
+    </div>
+
+    <!-- Edge banding (F7) -->
+    <div class="flex flex-col gap-2 border-t border-subtle pt-3">
+      <span class="text-xs text-muted font-medium">Edge banding</span>
+      <UCheckbox
+        v-model="subtractModel"
+        label="Subtract banding thickness from cut size"
+        size="xs"
+      />
+      <div class="flex items-center gap-2">
+        <label class="text-xs text-muted whitespace-nowrap"
+          >Default thickness ({{ bandingUnit }})</label
+        >
+        <UInput
+          v-model="bandingThicknessInput"
+          size="xs"
+          type="text"
+          inputmode="decimal"
+          class="flex-1"
+          @blur="commitBandingThickness"
+        />
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-xs text-muted whitespace-nowrap"
+          >Cost per {{ bandingUnit }}</label
+        >
+        <UInput
+          v-model="bandingRateInput"
+          size="xs"
+          type="text"
+          inputmode="decimal"
+          placeholder="unpriced"
+          class="flex-1"
+        />
+      </div>
     </div>
 
     <!-- Panel order -->

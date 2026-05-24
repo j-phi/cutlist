@@ -6,14 +6,23 @@
  * and the packing engine pipeline.
  */
 
-import type { PartToCut } from 'cutlist';
+import type { BandedEdges, Micrometres, PartToCut } from 'cutlist';
 
 /**
  * One unmaterialized part. The `colorKey` references a `ColorInfo.key`; the
  * board layout pipeline turns it into a real `material` via the user's color
  * mapping.
+ *
+ * `bandedEdges` / `bandingThicknessUm` are F7 per-part overrides merged onto
+ * the part by `applyOverrides` (`utils/modelHydration.ts`); they're absent on
+ * parts with no banding and drive the cut-size subtraction at the
+ * Part→PartToCut boundary in `useBoardLayoutsQuery.ts`.
  */
-export type Part = Omit<PartToCut, 'material'> & { colorKey: string };
+export type Part = Omit<PartToCut, 'material'> & {
+  colorKey: string;
+  bandedEdges?: BandedEdges;
+  bandingThicknessUm?: Micrometres;
+};
 
 export interface ColorInfo {
   /** Material/color group key (material name, hex string, etc.). */

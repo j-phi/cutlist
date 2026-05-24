@@ -40,6 +40,14 @@ export const STORAGE_KEYS = {
     projectLayoutShowUnused(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/layout-show-unused/v1`;
     },
+    // Edge-banding cost per unit length (F7 FR-BND-3), scoped per project.
+    // Display-only — does NOT affect packing, so it's a localStorage UI
+    // setting rather than an IDB field (avoids a schema bump after v10).
+    // Stored as a string so fractional rates (e.g. 0.012) survive intact —
+    // unlike `setLocalStorageNumber`, which rounds to an integer.
+    projectBandingCostPerLength(projectId: string) {
+      return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/banding-cost-per-length/v1`;
+    },
     // Last-visited workspace tab for a project (ProjectTabId string).
     projectActiveTab(projectId: string) {
       return `@cutlist/ui/project/${encodeStorageSegment(projectId)}/active-tab/v1`;

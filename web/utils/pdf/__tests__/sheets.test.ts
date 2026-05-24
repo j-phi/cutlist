@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Micrometres, SheetShoppingListGroup } from 'cutlist';
-import { sheetShoppingGroupLines } from '../sheets';
+import { mmToUm } from 'cutlist';
+import {
+  bandingSummaryLine,
+  projectTotalLine,
+  sheetShoppingGroupLines,
+} from '../sheets';
 
 const fmt = (um: Micrometres) => `${um}`;
 
@@ -39,5 +44,40 @@ describe('sheetShoppingGroupLines (PDF shopping summary)', () => {
     );
     expect(lines).toContain('Yield: 100%');
     expect(lines.some((l) => l.startsWith('Cost:'))).toBe(false);
+  });
+});
+
+describe('bandingSummaryLine (F7 FR-BND-2/-3)', () => {
+  it('renders length + cost when both present', () => {
+    const line = bandingSummaryLine(mmToUm(1800), 18, fmt);
+    expect(line).toBe(`Edge banding: ${mmToUm(1800)} · Cost: 18`);
+  });
+
+  it('omits cost when unpriced', () => {
+    const line = bandingSummaryLine(mmToUm(1800), undefined, fmt);
+    expect(line).toBe(`Edge banding: ${mmToUm(1800)}`);
+  });
+
+  it('is null when nothing is banded', () => {
+    expect(bandingSummaryLine(0 as Micrometres, 5, fmt)).toBeNull();
+    expect(bandingSummaryLine(undefined, 5, fmt)).toBeNull();
+  });
+});
+
+describe('projectTotalLine (FR-BND-3 folds banding into total)', () => {
+  it('adds banding cost to the sheet total', () => {
+    expect(projectTotalLine(180, 18)).toBe('Total material cost: 198');
+  });
+
+  it('shows the banding cost alone when no sheets are priced', () => {
+    expect(projectTotalLine(undefined, 18)).toBe('Total material cost: 18');
+  });
+
+  it('shows the sheet total alone when banding is unpriced', () => {
+    expect(projectTotalLine(180, undefined)).toBe('Total material cost: 180');
+  });
+
+  it('is null when nothing is priced', () => {
+    expect(projectTotalLine(undefined, undefined)).toBeNull();
   });
 });

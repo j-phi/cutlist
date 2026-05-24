@@ -453,3 +453,86 @@ describe('updateManualPart', () => {
     expect(activeProjectData.value!.models[0].source).toBe('gltf');
   });
 });
+
+describe('updatePartBanding (F7 FR-BND-1)', () => {
+  let projectId: string;
+  let modelId: string;
+
+  beforeEach(async () => {
+    activeProjectData.value = null;
+    const project = await idb.createProject('BandingTest');
+    projectId = project.id;
+    modelId = crypto.randomUUID();
+    const parts = [makePart(1, { name: 'Door' })];
+    activeProjectData.value = makeProject(projectId, [
+      makeManualModel(modelId, parts),
+    ]);
+    await idb.createModel({
+      id: modelId,
+      projectId,
+      filename: 'Manual Parts',
+      source: 'manual',
+      parts,
+      colors: [],
+      nodePartMap: [],
+      enabled: true,
+      rawSource: null,
+      partOverrides: {},
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  it('persists a banded-edge selection onto the partOverride', async () => {
+    const { updatePartBanding } = useProjectModels();
+    const bandedEdges = {
+      length1: true,
+      length2: false,
+      width1: true,
+      width2: false,
+    };
+    await updatePartBanding(projectId, 1, {
+      bandedEdges,
+      bandingThicknessUm: mmToUm(2),
+    });
+
+    // In-memory part carries the selection so the BOM/query see it.
+    expect(activeProjectData.value!.models[0].parts[0].bandedEdges).toEqual(
+      bandedEdges,
+    );
+
+    // And it round-trips through IDB (partOverride writes are debounced).
+    await idb.flushPendingModelWrites();
+    const full = await idb.getProjectWithModels(projectId);
+    expect(full!.models[0].partOverrides[1]).toEqual({
+      bandedEdges,
+      bandingThicknessUm: mmToUm(2),
+    });
+  });
+
+  it('coexists with an existing grainLock override (merge, not replace)', async () => {
+    const { updatePartGrainLock, updatePartBanding } = useProjectModels();
+    await updatePartGrainLock(projectId, 1, 'length');
+    // applyPartOverride merges against the persisted override base, so flush
+    // the debounced grainLock write before the second (banding) edit.
+    await idb.flushPendingModelWrites();
+    await updatePartBanding(projectId, 1, {
+      bandedEdges: {
+        length1: true,
+        length2: true,
+        width1: false,
+        width2: false,
+      },
+    });
+
+    await idb.flushPendingModelWrites();
+    const full = await idb.getProjectWithModels(projectId);
+    const override = full!.models[0].partOverrides[1];
+    expect(override.grainLock).toBe('length');
+    expect(override.bandedEdges).toEqual({
+      length1: true,
+      length2: true,
+      width1: false,
+      width2: false,
+    });
+  });
+});

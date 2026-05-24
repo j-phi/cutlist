@@ -1,9 +1,11 @@
 import {
   alignPlacements,
   isLinearBoardLayout,
+  resolvePartCutSize,
   type BoardLayoutLeftover,
   type ConfigInput,
   type LinearBoardLayout,
+  type Micrometres,
   type PartToCut,
   type SheetBoardLayout,
 } from 'cutlist';
@@ -88,6 +90,14 @@ export default createSharedComposable(() => {
     const models = enabledModels.value;
     if (!project || models.length === 0) return;
 
+    // F7: when "subtract banding thickness" is ON, feed the CUT size (banding
+    // subtracted) to the packer; when OFF (default), banded edges are a finish
+    // overlay and the nominal size is fed unchanged. The subtraction happens
+    // here, at the Part→PartToCut boundary, so banding affects packing OUTPUT
+    // (and therefore the layout-cache fingerprint, computed below).
+    const subtract = subtractBandingThickness.value ?? false;
+    const projectDefaultUm: Micrometres | undefined = bandingThicknessUm.value;
+
     const merged: PartToCut[] = [];
     const offsets = computePartNumberOffsets(models);
     const excluded = new Set(project.excludedColors ?? []);
@@ -99,7 +109,7 @@ export default createSharedComposable(() => {
           partNumber: part.partNumber + offsets[i],
           instanceNumber: part.instanceNumber,
           name: part.name,
-          size: part.size,
+          size: resolvePartCutSize(part, subtract, projectDefaultUm),
           material: project.colorMap[part.colorKey] ?? 'Unknown',
           grainLock: part.grainLock,
         });

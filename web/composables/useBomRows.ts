@@ -5,7 +5,7 @@
  * (fallback) to produce a flat list of BomRow objects for display.
  */
 
-import type { BoardLayoutLeftover, Micrometres } from 'cutlist';
+import type { BandedEdges, BoardLayoutLeftover, Micrometres } from 'cutlist';
 import { groupPartsByNumber } from '~/lib/utils/bom-utils';
 import { suggestStockMatch } from '~/lib/utils/stock-utils';
 import { computePartNumberOffsets } from '~/utils/partNumberOffsets';
@@ -22,6 +22,21 @@ export interface BomRow {
   widthUm: Micrometres;
   lengthUm: Micrometres;
   grainLock?: 'length' | 'width';
+  /**
+   * Which of the part's four edges are banded (F7). Absent ≡ no edges banded.
+   * Sourced from the model's `partOverrides`, not the packing result (the
+   * Part→PartToCut boundary drops the field).
+   */
+  bandedEdges?: BandedEdges;
+  /** Per-part banding thickness override (F7), integer µm; absent ≡ default. */
+  bandingThicknessUm?: Micrometres;
+  /**
+   * Nominal (finished) extents (F7 FR-BND-8). When the subtract toggle is ON,
+   * `widthUm`/`lengthUm` reflect the CUT size from the packing result while
+   * these stay the finished size for dual display.
+   */
+  finishedWidthUm: Micrometres;
+  finishedLengthUm: Micrometres;
   leftoverCount: number;
   isManual: boolean;
   /**
@@ -76,6 +91,40 @@ export default function useBomRows() {
     return set;
   });
 
+  /**
+   * Banding override per adjusted part number (F7). Read from the hydrated
+   * model parts, which carry `bandedEdges`/`bandingThicknessUm` merged from
+   * `partOverrides` — the packing result drops them at the PartToCut boundary.
+   */
+  const bandingByPartNumber = computed(() => {
+    const models = enabledModels.value;
+    const offsets = computePartNumberOffsets(models);
+    const map = new Map<
+      number,
+      {
+        bandedEdges?: BandedEdges;
+        bandingThicknessUm?: Micrometres;
+        /** Nominal (finished) extents — the packing result may show cut size. */
+        finishedWidthUm: Micrometres;
+        finishedLengthUm: Micrometres;
+      }
+    >();
+    for (let i = 0; i < models.length; i++) {
+      const seen = new Set<number>();
+      for (const part of models[i].parts) {
+        if (seen.has(part.partNumber)) continue;
+        seen.add(part.partNumber);
+        map.set(part.partNumber + offsets[i], {
+          bandedEdges: part.bandedEdges,
+          bandingThicknessUm: part.bandingThicknessUm,
+          finishedWidthUm: part.size.width,
+          finishedLengthUm: part.size.length,
+        });
+      }
+    }
+    return map;
+  });
+
   const modelByPartNumber = computed(() => {
     const models = enabledModels.value;
     const offsets = computePartNumberOffsets(models);
@@ -114,6 +163,7 @@ export default function useBomRows() {
           const part = instanceList[0];
           const model = modelByPartNumber.value.get(part.partNumber);
           const leftoverCount = leftoverCounts.get(part.partNumber) ?? 0;
+          const banding = bandingByPartNumber.value.get(part.partNumber);
           return {
             number: part.partNumber,
             name: part.name,
@@ -125,6 +175,10 @@ export default function useBomRows() {
             widthUm: part.widthUm,
             lengthUm: part.lengthUm,
             grainLock: part.grainLock,
+            bandedEdges: banding?.bandedEdges,
+            bandingThicknessUm: banding?.bandingThicknessUm,
+            finishedWidthUm: banding?.finishedWidthUm ?? part.widthUm,
+            finishedLengthUm: banding?.finishedLengthUm ?? part.lengthUm,
             leftoverCount,
             isManual: manualPartNumbers.value.has(part.partNumber),
             materialSuggestion: suggestFor(part.material, leftoverCount),
@@ -164,6 +218,10 @@ export default function useBomRows() {
           widthUm: parts[0].size.width,
           lengthUm: parts[0].size.length,
           grainLock: parts[0].grainLock,
+          bandedEdges: parts[0].bandedEdges,
+          bandingThicknessUm: parts[0].bandingThicknessUm,
+          finishedWidthUm: parts[0].size.width,
+          finishedLengthUm: parts[0].size.length,
           leftoverCount: 0,
           isManual,
           materialSuggestion: null,
