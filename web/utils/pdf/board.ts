@@ -403,22 +403,9 @@ function drawBoardTilePage(
           font: ctx.font,
           color: rgb(0.2, 0.2, 0.2),
         });
+        // Claim the number so the name label / dimensions avoid it.
+        ctx.occupancy.add({ x: lx, y: ly, w: textW, h: usePt });
       }
-    }
-
-    // Claim the part rectangle so label/dimension text never sits on top of
-    // another piece (FR-DIM-5). The visible (clipped) portion is what matters.
-    const visX1 = Math.max(px, tileXpt);
-    const visY1 = Math.max(py, tileYpt);
-    const visX2 = Math.min(px + pw, tileXpt + tileWpt);
-    const visY2 = Math.min(py + ph, tileYpt + tileHpt);
-    if (visX2 > visX1 && visY2 > visY1) {
-      ctx.occupancy.add({
-        x: visX1,
-        y: visY1,
-        w: visX2 - visX1,
-        h: visY2 - visY1,
-      });
     }
 
     // Measurements (F14 + F20 Part B). `measurementMode` selects HOW the
@@ -524,6 +511,24 @@ function drawBoardTilePage(
             : (ctx.opts.labelPlacement ?? 'center'),
         dimensionsEnabled:
           partPlan.kind === 'edge' || partPlan.kind === 'inside-dims',
+      });
+    }
+
+    // Claim the part rectangle so LATER parts' labels / dimension text and the
+    // leftover-region labels never sit on top of this piece (FR-DIM-5). Added
+    // AFTER this part's own name + measurements so they aren't blocked by the
+    // piece they legitimately live inside; the visible (clipped) portion is
+    // what matters.
+    const visX1 = Math.max(px, tileXpt);
+    const visY1 = Math.max(py, tileYpt);
+    const visX2 = Math.min(px + pw, tileXpt + tileWpt);
+    const visY2 = Math.min(py + ph, tileYpt + tileHpt);
+    if (visX2 > visX1 && visY2 > visY1) {
+      ctx.occupancy.add({
+        x: visX1,
+        y: visY1,
+        w: visX2 - visX1,
+        h: visY2 - visY1,
       });
     }
   }
