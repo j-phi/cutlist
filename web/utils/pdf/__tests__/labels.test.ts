@@ -214,6 +214,25 @@ describe('buildLabelCells — sticker ordering', () => {
     );
   });
 
+  it('prints all offcut boards first, then other boards, each by name', () => {
+    const cells = buildLabelCells(
+      [
+        sheetLayout('Oak Ply', [part(1, 'A')]),
+        sheetLayout('Garage scrap', [part(2, 'B')], 'offcut'),
+        sheetLayout('Maple Ply', [part(3, 'C')]),
+        sheetLayout('Attic scrap', [part(4, 'D')], 'offcut'),
+      ],
+      [],
+      mmFormat,
+    );
+    expect(cells.map((c) => c.boardId)).toEqual([
+      'Offcut: Attic scrap',
+      'Offcut: Garage scrap',
+      'Maple Ply 1',
+      'Oak Ply 1',
+    ]);
+  });
+
   it('keeps placed cells before unplaced leftover cells', () => {
     const cells = buildLabelCells(
       [sheetLayout('Ply', [part(1, 'Placed')])],

@@ -138,11 +138,12 @@ export type LabelPresetId = keyof typeof LABEL_PRESETS;
  * the originating stock: offcut boards read `Offcut: <stock name>`; every other
  * board reads `<stock name> <N>`, where N counts boards of that same stock
  * (so two identical general sheets are distinguishable). Each placement on a
- * board carries that id (FR-LBL-3). Cells are grouped by board name (numeric-
- * aware), and within each board run in reading order — top-to-bottom then
- * left-to-right for sheets, start-to-end for sticks. Parts that never got
- * placed (leftovers) still get a cell each, with the {@link UNPLACED_BOARD_ID}
- * fallback, appended after all placed cells.
+ * board carries that id (FR-LBL-3). Offcut boards print first, then everything
+ * else; within each section cells are grouped by board name (numeric-aware),
+ * and within each board run in reading order — top-to-bottom then left-to-right
+ * for sheets, start-to-end for sticks. Parts that never got placed (leftovers)
+ * still get a cell each, with the {@link UNPLACED_BOARD_ID} fallback, appended
+ * after all placed cells.
  *
  * Dimension text is formatted here via `formatSize` so the cell carries the
  * same unit/precision as the BOM and layout (FR-LBL-7).
@@ -161,21 +162,25 @@ export function buildLabelCells(
   const boardCounts = new Map<string, number>();
   const boards = layouts.map((layout) => {
     const stock = layout.stock;
+    const isOffcut = stock.role === 'offcut';
     let boardId: string;
-    if (stock.role === 'offcut') {
+    if (isOffcut) {
       boardId = `Offcut: ${stock.name}`;
     } else {
       const n = (boardCounts.get(stock.name) ?? 0) + 1;
       boardCounts.set(stock.name, n);
       boardId = `${stock.name} ${n}`;
     }
-    return { layout, boardId };
+    return { layout, boardId, isOffcut };
   });
 
-  // Group stickers by board name; numeric-aware so "Maple Ply 2" precedes
-  // "Maple Ply 10". Within a board, placements stay in reading order below.
-  boards.sort((a, b) =>
-    a.boardId.localeCompare(b.boardId, undefined, { numeric: true }),
+  // Offcuts print first (use up scrap before buying), then everything else.
+  // Within each section, group by board name (numeric-aware so "Maple Ply 2"
+  // precedes "Maple Ply 10"). Placements stay in reading order below.
+  boards.sort(
+    (a, b) =>
+      Number(b.isOffcut) - Number(a.isOffcut) ||
+      a.boardId.localeCompare(b.boardId, undefined, { numeric: true }),
   );
 
   for (const { layout, boardId } of boards) {
