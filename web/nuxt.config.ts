@@ -31,6 +31,7 @@ export default defineNuxtConfig({
   sentry: {
     org: 'cutlist',
     project: 'cutlist',
+    telemetry: false,
   },
   sourcemap: {
     client: 'hidden',

@@ -5,6 +5,7 @@ import { exportLabelsPdf } from '~/utils/exportLabelsPdf';
 import type { LabelPresetId } from '~/utils/pdf/labels';
 import type { BomRow as PdfBomRow } from '~/utils/pdf/bom';
 import { trackEvent } from '~/utils/analytics';
+import useLayoutFilters from '~/composables/useLayoutFilters';
 
 export default function () {
   const { data: layouts } = useBoardLayoutsQuery();
@@ -16,6 +17,7 @@ export default function () {
   const { measurements } = useRulerStore();
   const { totalLengthUm: bandingLengthUm, cost: bandingCost } =
     useBandingSummary();
+  const { filteredSheetLayouts, unusedOffcutLayouts } = useLayoutFilters();
 
   const isExporting = ref(false);
   const error = ref<string | undefined>();
@@ -47,7 +49,8 @@ export default function () {
         generatedAt: new Date(),
         scale,
         bomRows: bomRows.value,
-        layouts: layouts.value?.layouts ?? [],
+        layouts: filteredSheetLayouts.value,
+        unusedOffcutLayouts: unusedOffcutLayouts.value,
         linearLayouts: layouts.value?.linearLayouts ?? [],
         leftovers: layouts.value?.leftovers ?? [],
         formatSize: formatDistance,
@@ -113,7 +116,7 @@ export default function () {
       const name = activeProject.value?.name ?? 'Cutlist';
       const bytes = await exportLabelsPdf({
         layouts: [
-          ...(layouts.value?.layouts ?? []),
+          ...filteredSheetLayouts.value,
           ...(layouts.value?.linearLayouts ?? []),
         ],
         leftovers: layouts.value?.leftovers ?? [],

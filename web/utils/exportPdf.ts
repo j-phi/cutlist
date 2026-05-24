@@ -30,6 +30,13 @@ export interface ExportPdfOptions {
    */
   bomRows: BomRow[];
   layouts: SheetBoardLayout[];
+  /**
+   * Empty offcut boards visible in the Layout tab via the "Show unused offcuts"
+   * toggle. When provided, each board is rendered as a separate page (full
+   * offcut region, no placements) and the shopping list shows the correct
+   * offcutsAvailable count rather than treating used = available.
+   */
+  unusedOffcutLayouts?: SheetBoardLayout[];
   /** Linear (1D timber) layouts. Rendered as a separate section after sheets. */
   linearLayouts: LinearBoardLayout[];
   leftovers: BoardLayoutLeftover[];
@@ -109,9 +116,10 @@ export async function exportCutlistPdf(
   drawBomPages(ctx, opts.bomRows);
 
   // Sheet shopping list — how many sheets to buy, per material+thickness.
-  // Project stock isn't plumbed into export options, so this reports offcuts
-  // used (not total available); the aggregator falls back gracefully.
+  // Only placed (used) boards are passed so the shopping list counts are
+  // accurate. Unused offcut boards appear as separate board pages below.
   // Linear cost is folded into the sheet-page project total.
+  const unusedOffcutLayouts = opts.unusedOffcutLayouts ?? [];
   let linearCostTotal: number | undefined;
   for (const g of aggregateLinearShoppingList(opts.linearLayouts)) {
     if (g.materialCost !== undefined) {
@@ -124,11 +132,23 @@ export async function exportCutlistPdf(
     linearCost: linearCostTotal,
   });
 
-  // Pages: each board, possibly tiled
+  // Pages: each used board, possibly tiled
   const measurements = opts.measurements ?? [];
   opts.layouts.forEach((layout, i) => {
     const boardMeasurements = measurements.filter((m) => m.boardIndex === i);
     drawBoardTiles(ctx, layout, i + 1, opts.layouts.length, boardMeasurements);
+  });
+
+  // Pages: unused offcut boards (empty — full-board offcut region, no placements)
+  const totalUsed = opts.layouts.length;
+  unusedOffcutLayouts.forEach((layout, i) => {
+    drawBoardTiles(
+      ctx,
+      layout,
+      totalUsed + i + 1,
+      totalUsed + unusedOffcutLayouts.length,
+      [],
+    );
   });
 
   // Pages: linear (timber) shopping list + stick view, after the sheet section.
