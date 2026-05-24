@@ -1,4 +1,8 @@
-import { type PotentialBoardLayout, isLinearStock } from '../types';
+import {
+  type OptimizationObjective,
+  type PotentialBoardLayout,
+  isLinearStock,
+} from '../types';
 
 export interface LayoutScore {
   boardsUsed: number;
@@ -15,6 +19,14 @@ export interface LayoutScore {
    * layouts at equal fill.
    */
   cutComplexity: number;
+  /**
+   * Total material cost of the boards the user must *buy* for this candidate:
+   * Σ over `role === 'general'` boards of that board's stock `cost`. Offcuts
+   * contribute 0 — they're already owned. `undefined` when NO general board
+   * in the candidate carries a finite cost (i.e. the candidate is unpriced);
+   * never `0` for a priced-but-free arrangement vs. an unknown one (FR-COPT-1/3).
+   */
+  materialCost: number | undefined;
 }
 
 const RIP_WEIGHT = 10;
@@ -36,13 +48,51 @@ export function compareLayoutScores(a: LayoutScore, b: LayoutScore): number {
   return 0;
 }
 
+/**
+ * Objective-aware comparator (FR-COPT-1). When `objective === 'cost'` AND both
+ * candidates carry a defined `materialCost`, cost is the primary key; ties fall
+ * through to the lexicographic chain. `boards` and `waste` (and any group where
+ * cost isn't usable on both sides) defer entirely to {@link compareLayoutScores}.
+ *
+ * The "both defined" guard is the per-group fallback: the caller only passes
+ * `objective === 'cost'` when every usable stock size in the group is priced,
+ * but we additionally never let an `undefined` materialCost masquerade as a
+ * comparable value here — a missing cost is never treated as 0.
+ */
+export function compareLayoutScoresForObjective(
+  a: LayoutScore,
+  b: LayoutScore,
+  objective: OptimizationObjective,
+): number {
+  if (
+    objective === 'cost' &&
+    a.materialCost !== undefined &&
+    b.materialCost !== undefined &&
+    a.materialCost !== b.materialCost
+  ) {
+    return a.materialCost - b.materialCost;
+  }
+  return compareLayoutScores(a, b);
+}
+
 export function scoreLayouts(layouts: PotentialBoardLayout[]): LayoutScore {
   const boardsUsed = layouts.length;
   let wasteArea = 0;
   let wasteConcentration = 0;
   let cutComplexity = 0;
+  // Accumulate the cost of *bought* (general) boards. Stays `undefined`
+  // until the first finite-cost general board lands, so a candidate with no
+  // priced general board reports `undefined` rather than a misleading `0`.
+  let materialCost: number | undefined;
 
   for (const layout of layouts) {
+    if (layout.stock.role === 'general') {
+      const cost = layout.stock.cost;
+      if (cost !== undefined && Number.isFinite(cost)) {
+        materialCost = (materialCost ?? 0) + cost;
+      }
+    }
+
     const boardArea = isLinearStock(layout.stock)
       ? layout.stock.crossSectionWidth * layout.stock.length
       : layout.stock.width * layout.stock.length;
@@ -67,7 +117,13 @@ export function scoreLayouts(layouts: PotentialBoardLayout[]): LayoutScore {
     cutComplexity += ripCount * RIP_WEIGHT + crossCount;
   }
 
-  return { boardsUsed, wasteArea, wasteConcentration, cutComplexity };
+  return {
+    boardsUsed,
+    wasteArea,
+    wasteConcentration,
+    cutComplexity,
+    materialCost,
+  };
 }
 
 function countUniqueLevels(values: number[]): number {

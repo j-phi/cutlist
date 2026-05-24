@@ -40,6 +40,32 @@
 
     <section class="space-y-1.5">
       <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
+        Optimize for
+      </h3>
+      <p>
+        Sets the goal the packing engine ranks layouts by. Found in Optimization
+        settings (<span class="text-body">⚙</span> icon).
+      </p>
+      <ul class="list-disc pl-4 marker:text-dim space-y-1">
+        <li>
+          <span class="text-body">Fewest boards</span> — uses the smallest
+          number of boards, then the least waste. The default.
+        </li>
+        <li>
+          <span class="text-body">Least waste</span> — minimizes leftover
+          material area.
+        </li>
+        <li>
+          <span class="text-body">Lowest cost</span> — favors the cheapest mix
+          of boards to buy. Available only once at least one stock size has a
+          price (set per size in the Stock tab); materials with any unpriced
+          size fall back to fewest-boards.
+        </li>
+      </ul>
+    </section>
+
+    <section class="space-y-1.5">
+      <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
         Blade kerf
       </h3>
       <p>

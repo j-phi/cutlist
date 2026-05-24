@@ -8,9 +8,13 @@ import OptimizationSettingsPopover from '../OptimizationSettingsPopover.vue';
 
 // ── useProjectSettings mock (for defaultAlgorithm) ───────────────────────────
 const defaultAlgorithm = ref<string | undefined>('auto');
+const optimizationObjective = ref<string | undefined>('boards');
+const stocks = ref<unknown[]>([]);
 
 mockNuxtImport('useProjectSettings', () => () => ({
   defaultAlgorithm,
+  optimizationObjective,
+  stocks,
   bladeWidth: ref(undefined),
   distanceUnit: ref('mm'),
   margin: ref(undefined),
@@ -18,7 +22,6 @@ mockNuxtImport('useProjectSettings', () => () => ({
   showBomName: ref(true),
   isLoading: ref(false),
   precision: ref({ kind: 'decimal', step: 0.1 }),
-  stocks: ref([]),
 }));
 
 // ── useOptimizationSettings mock ─────────────────────────────────────────────
@@ -73,6 +76,8 @@ describe('OptimizationSettingsPopover', () => {
     reorderPass.mockClear();
     defaultAlgorithm.value = 'auto';
     panelOrder.value = 'board';
+    optimizationObjective.value = 'boards';
+    stocks.value = [];
   });
 
   function getComponent() {
@@ -92,6 +97,13 @@ describe('OptimizationSettingsPopover', () => {
             emits: ['update:modelValue'],
             template:
               '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="typeof item === \'string\' ? item : item.value" :value="typeof item === \'string\' ? item : item.value">{{ typeof item === \'string\' ? item : item.label }}</option></select>',
+          },
+          URadioGroup: {
+            name: 'URadioGroup',
+            props: ['modelValue', 'items'],
+            emits: ['update:modelValue'],
+            template:
+              '<div role="radiogroup"><label v-for="item in items" :key="item.value" :data-testid="`objective-${item.value}`"><input type="radio" :value="item.value" :checked="modelValue === item.value" :disabled="item.disabled" @change="$emit(\'update:modelValue\', item.value)" />{{ item.label }}</label></div>',
           },
         },
       },
@@ -164,5 +176,55 @@ describe('OptimizationSettingsPopover', () => {
     await wrapper.find('[data-testid="btn-reset"]').trigger('click');
     // resetToDefaults mock restores enabledPasses
     expect(enabledPasses.value.size).toBe(DEFAULT_PASS_ORDER.length);
+  });
+
+  describe('Optimize for (F11)', () => {
+    it('disables the cost option with a visible reason when no stock is priced', () => {
+      stocks.value = [
+        { kind: 'sheet', material: 'MDF', sizes: [{ width: 1, length: 1 }] },
+      ];
+      const wrapper = getComponent();
+      const costRadio = wrapper.find('[data-testid="objective-cost"] input');
+      expect(costRadio.attributes('disabled')).toBeDefined();
+      expect(
+        wrapper.find('[data-testid="cost-disabled-reason"]').exists(),
+      ).toBe(true);
+    });
+
+    it('enables the cost option once a stock size carries a positive price', () => {
+      stocks.value = [
+        {
+          kind: 'sheet',
+          material: 'MDF',
+          sizes: [{ width: 1, length: 1, cost: 42 }],
+        },
+      ];
+      const wrapper = getComponent();
+      const costRadio = wrapper.find('[data-testid="objective-cost"] input');
+      expect(costRadio.attributes('disabled')).toBeUndefined();
+      expect(
+        wrapper.find('[data-testid="cost-disabled-reason"]').exists(),
+      ).toBe(false);
+    });
+
+    it('writes the chosen objective back to settings', async () => {
+      stocks.value = [
+        {
+          kind: 'linear',
+          material: 'Pine',
+          size: {
+            crossSectionWidth: 1,
+            crossSectionThickness: 1,
+            lengths: [1],
+            cost: 5,
+          },
+        },
+      ];
+      const wrapper = getComponent();
+      await wrapper
+        .find('[data-testid="objective-cost"] input')
+        .trigger('change');
+      expect(optimizationObjective.value).toBe('cost');
+    });
   });
 });
