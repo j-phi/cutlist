@@ -27,6 +27,7 @@ const showAlignControls = computed(() => {
 });
 
 const { manualMode, snapping, pushOptimizeEntry } = useManualLayout();
+const { colorParts } = usePartColoring();
 const { isComputing, captureAndRecompute } = useBoardLayoutsQuery();
 
 function handleOptimize() {
@@ -123,6 +124,14 @@ const settingsOpen = ref(false);
         size="xs"
         label="Part names"
         data-testid="toggle-part-names"
+      />
+
+      <USwitch
+        v-model="colorParts"
+        size="xs"
+        label="Color parts"
+        title="Fill each piece with a stable per-part color (matches PDF export)"
+        data-testid="toggle-color-parts"
       />
 
       <div class="w-px h-4 bg-subtle shrink-0" />

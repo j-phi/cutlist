@@ -8,7 +8,7 @@ export default function () {
   const { activeProject } = useProjects();
   const { allRows } = useBomRows();
   const formatDistance = useFormatDistance();
-  const { showPartNumbers, showBomName } = useProjectSettings();
+  const { showPartNumbers, showBomName, bladeWidth } = useProjectSettings();
   const { measurements } = useRulerStore();
 
   const isExporting = ref(false);
@@ -24,7 +24,11 @@ export default function () {
     })),
   );
 
-  async function download(scale: PdfScale, showDimensions = false) {
+  async function download(
+    scale: PdfScale,
+    showDimensions = false,
+    colorParts = false,
+  ) {
     if (!bomRows.value.length) return;
     isExporting.value = true;
     error.value = undefined;
@@ -42,6 +46,8 @@ export default function () {
         showPartNumbers: !!showPartNumbers.value,
         showBomName: !!showBomName.value,
         showDimensions,
+        colorParts,
+        bladeWidthUm: bladeWidth.value,
         measurements: measurements.value,
       });
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });

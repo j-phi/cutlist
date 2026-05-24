@@ -100,6 +100,21 @@
 
     <section class="space-y-1.5">
       <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
+        Kerf vs offcut
+      </h3>
+      <p>
+        Not every gap on a board is waste. The thin strips between adjacent
+        parts are the
+        <span class="text-body">blade kerf</span> — material the saw turns to
+        dust on each cut — drawn distinctly from the larger
+        <span class="text-body">leftover</span> regions. Leftover regions are
+        the usable offcut beyond your packed parts and are labelled with their
+        dimensions so you can tell at a glance what is reusable.
+      </p>
+    </section>
+
+    <section class="space-y-1.5">
+      <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
         Part labels
       </h3>
       <ul class="list-disc pl-4 marker:text-dim space-y-1">
@@ -110,6 +125,12 @@
         <li>
           <span class="text-body">Part names</span> — shows the part name from
           the BOM instead. Toggle as needed for readability.
+        </li>
+        <li>
+          <span class="text-body">Color parts</span> — fills each piece with a
+          stable per-part color. The same color follows a part into the PDF
+          export (enable "Color pieces by part" there) so a piece is easy to
+          match across screen and print.
         </li>
       </ul>
     </section>

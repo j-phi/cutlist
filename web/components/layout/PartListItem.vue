@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import {
   ONE_INCH_UM,
+  partColorHsl,
   type Micrometres,
   type SheetBoardLayoutPlacement,
 } from 'cutlist';
@@ -63,6 +64,16 @@ const iconSize = computed(() => {
 });
 
 const { showPartNumbers, showBomName } = useProjectSettings();
+
+// FR-VIZ-3: when per-part colouring is on, fill the piece with its stable hue
+// (same `partColorHsl` the PDF derives from). Otherwise inherit the
+// material-based `--part-color` set on the board.
+const { colorParts } = usePartColoring();
+const pieceStyle = computed(() => {
+  const base = `width:${width.value};height:${height.value}`;
+  if (!colorParts.value) return base;
+  return `${base};--part-color:${partColorHsl(props.placement.partNumber)}`;
+});
 </script>
 
 <template>
@@ -82,7 +93,7 @@ const { showPartNumbers, showBomName } = useProjectSettings();
   >
     <div
       class="overflow-hidden relative rounded-xs part-piece transition-colors"
-      :style="`width:${width};height:${height}`"
+      :style="pieceStyle"
     >
       <div
         v-if="allowanceWidthPx"
