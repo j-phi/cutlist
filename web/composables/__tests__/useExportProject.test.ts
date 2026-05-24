@@ -231,6 +231,7 @@ describe('buildExportData', () => {
         layoutAlignH: 'left' as const,
         layoutAlignV: 'bottom' as const,
         labelPlacement: 'center' as const,
+        measurementMode: 'edge' as const,
         bandingThicknessUm: 0 as Micrometres,
         subtractBandingThickness: false,
         optimizationObjective: 'boards' as const,

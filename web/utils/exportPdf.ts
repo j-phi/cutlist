@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type {
   BoardLayoutLeftover,
   LinearBoardLayout,
+  MeasurementMode,
   Micrometres,
   SheetBoardLayout,
 } from 'cutlist';
@@ -34,7 +35,20 @@ export interface ExportPdfOptions {
   formatSize: (um: Micrometres) => string | undefined;
   showPartNumbers: boolean;
   showBomName: boolean;
+  /** Whether to render any measurements on pieces at all. */
   showDimensions: boolean;
+  /**
+   * How measurements render on each piece when `showDimensions` is true (F20
+   * Part B). Presentational — not a packing input. Defaults to `'edge'` (the
+   * F14 engineering-dimension behaviour).
+   */
+  measurementMode?: MeasurementMode;
+  /**
+   * Where the part name label anchors on a piece (F20): `'top'` band or
+   * `'center'` (default). Presentational. The shared `decideLabelLayout`
+   * yields `'top'` → `'center'` when edge dimensions are on for the part.
+   */
+  labelPlacement?: 'top' | 'center';
   /**
    * Blade kerf width in µm (project blade width). Used by the board renderer to
    * draw the kerf gap between adjacent parts as a distinct strip (F6 /

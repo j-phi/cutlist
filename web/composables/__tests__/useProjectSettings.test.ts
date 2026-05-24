@@ -25,6 +25,7 @@ interface MockProject {
   layoutAlignH: 'left' | 'right';
   layoutAlignV: 'top' | 'bottom';
   labelPlacement: 'top' | 'center';
+  measurementMode: 'edge' | 'outside' | 'inside' | 'text';
   optimizationObjective: 'boards' | 'waste' | 'cost';
 }
 
@@ -68,6 +69,7 @@ beforeEach(() => {
     layoutAlignH: DEFAULT_SETTINGS.layoutAlignH,
     layoutAlignV: DEFAULT_SETTINGS.layoutAlignV,
     labelPlacement: DEFAULT_SETTINGS.labelPlacement,
+    measurementMode: DEFAULT_SETTINGS.measurementMode,
     optimizationObjective: DEFAULT_SETTINGS.optimizationObjective,
   });
   updateCalls.length = 0;
@@ -115,6 +117,18 @@ describe('useProjectSettings', () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(updateCalls).toHaveLength(1);
     expect(updateCalls[0].patch.optimizationObjective).toBe('cost');
+  });
+
+  it('defaults measurementMode to "edge" and round-trips a write to "outside" (F20 Part B)', async () => {
+    const { measurementMode } = useProjectSettings();
+    expect(measurementMode.value).toBe('edge');
+
+    measurementMode.value = 'outside';
+    expect(measurementMode.value).toBe('outside');
+
+    await vi.advanceTimersByTimeAsync(400);
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0].patch.measurementMode).toBe('outside');
   });
 
   it('defaults layout alignment to bottom-left and round-trips a write to "right"', async () => {

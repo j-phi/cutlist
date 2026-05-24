@@ -34,6 +34,7 @@ import { v7Migration } from './v7';
 import { v8Migration } from './v8';
 import { v9Migration } from './v9';
 import { v10Migration } from './v10';
+import { v11Migration } from './v11';
 
 export type { IdbRecord, RecordMigration, StoreName } from './types';
 export { migrateProjectToMmStorage } from './v3';
@@ -49,6 +50,7 @@ export { migrateProjectStockRoles } from './v7';
 export { migrateProjectStockNames } from './v8';
 export { migrateProjectStockCost } from './v9';
 export { migrateProjectPhase1Fields } from './v10';
+export { migrateProjectMeasurementMode } from './v11';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
@@ -110,6 +112,12 @@ export const migrations: RecordMigration[] = [
   // `PartOverride` fields are migration-free (read-path safety net). Mirror of
   // the Dexie .version(10).upgrade() in `~/composables/useIdb/db`.
   v10Migration,
+
+  // v11 — project gains `measurementMode` (F20 Part B): how placed-part
+  // measurements render on the board diagram. Default `'edge'`. Presentational
+  // (never enters the layout fingerprint). Mirror of the Dexie
+  // .version(11).upgrade() in `~/composables/useIdb/db`.
+  v11Migration,
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

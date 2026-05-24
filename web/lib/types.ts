@@ -34,6 +34,22 @@ export type Algorithm = z.infer<typeof Algorithm>;
 export const OptimizationObjective = z.enum(['boards', 'waste', 'cost']);
 export type OptimizationObjective = z.infer<typeof OptimizationObjective>;
 
+/**
+ * How a placed part's measurements render on the board diagram (PDF + screen).
+ * Purely PRESENTATIONAL (post-pack) — it does NOT enter the layout fingerprint.
+ *
+ * - `'edge'` (default): engineering dimension lines with arrows on the piece's
+ *   own edges (F14 `drawPartDimensions`).
+ * - `'outside'`: extension lines run past the board boundary; the value sits in
+ *   the margin outside the stock so it never overlaps a piece.
+ * - `'inside'`: the value text is placed inside the piece, auto-positioned to
+ *   avoid the name label and other text; suppressed if no clear slot.
+ * - `'text'`: no dimension lines — just `W × H` text centered in each piece
+ *   (the pre-F14 behaviour), obeying the F20 horizontal-first label policy.
+ */
+export const MeasurementMode = z.enum(['edge', 'outside', 'inside', 'text']);
+export type MeasurementMode = z.infer<typeof MeasurementMode>;
+
 export const SearchPass = z.union([
   z.literal('tidy-rip-long-side'),
   z.literal('tidy-rip-area'),

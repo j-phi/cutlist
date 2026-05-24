@@ -10,6 +10,7 @@
 
 import {
   type Algorithm,
+  type MeasurementMode,
   type Micrometres,
   type OptimizationObjective,
   type Precision,
@@ -142,6 +143,15 @@ export default createSharedComposable(() => {
     },
   });
 
+  // ── F20 Part B: measurement display mode (presentational). ──
+  const measurementMode = computed<MeasurementMode | undefined>({
+    get: () => activeProject.value?.measurementMode,
+    set: (value) => {
+      if (value == null) return;
+      queueWrite({ measurementMode: value });
+    },
+  });
+
   // ── F7: edge-banding project defaults. ──
   const bandingThicknessUm = computed<Micrometres | undefined>({
     get: () => activeProject.value?.bandingThicknessUm,
@@ -228,6 +238,7 @@ export default createSharedComposable(() => {
     layoutAlignH,
     layoutAlignV,
     labelPlacement,
+    measurementMode,
     bandingThicknessUm,
     subtractBandingThickness,
     optimizationObjective,

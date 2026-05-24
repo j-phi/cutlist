@@ -1,5 +1,6 @@
 import type {
   Algorithm,
+  MeasurementMode,
   Micrometres,
   OptimizationObjective,
   Precision,
@@ -56,6 +57,8 @@ export interface Project {
   layoutAlignV: 'top' | 'bottom';
   /** Label placement (F20) — presentational. */
   labelPlacement: 'top' | 'center';
+  /** Measurement display mode (F20 Part B) — presentational. */
+  measurementMode: MeasurementMode;
   /** Project default edge-banding thickness (F7), integer µm. */
   bandingThicknessUm: Micrometres;
   /** Whether banding reduces the part's cut size (F7). */

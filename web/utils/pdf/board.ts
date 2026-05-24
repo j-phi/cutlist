@@ -33,6 +33,8 @@ import {
   type RegionGeom,
   type UmRect,
 } from './regions';
+import { decideLabelLayout } from './labelText';
+import { isOutsideBoardMode, planPartMeasurement } from './measurementMode';
 import { partColorRgb } from 'cutlist';
 
 /**
@@ -346,9 +348,13 @@ function drawBoardTilePage(
       });
     }
 
-    // Engineering dimension lines (F14): per-axis broken dimension line with
-    // extension lines, arrowheads, and centered value text via formatSize.
-    if (ctx.opts.showDimensions) {
+    // Measurements (F14 + F20 Part B). `measurementMode` selects HOW the
+    // piece's W×H render; `edge` is F14's engineering dimension lines. The
+    // other modes are handled below so they can share the piece interior with
+    // the name label via the occupancy set.
+    const mode = ctx.opts.measurementMode ?? 'edge';
+    const partPlan = planPartMeasurement(mode, !!ctx.opts.showDimensions);
+    if (partPlan.kind === 'edge') {
       const emit = makePartDimensionEmit(
         ctx,
         page,
@@ -357,7 +363,7 @@ function drawBoardTilePage(
         tileWpt,
         tileHpt,
       );
-      const geom: DimensionGeom = {
+      const dimGeom: DimensionGeom = {
         px,
         py,
         pw,
@@ -374,17 +380,16 @@ function drawBoardTilePage(
           bottomUm: placement.bottomUm,
           topUm: placement.topUm,
         },
-        geom,
+        dimGeom,
       );
     }
 
     // Part name label (dimensions handled above by drawPartDimensions).
+    // Uses the shared F20 horizontal-first / wrap / rotate-last decision so the
+    // PDF agrees with the on-screen layout.
     const nameToDraw = showBomName ? (placement.name ?? null) : null;
     if (nameToDraw) {
-      drawPartLabels(
-        ctx,
-        page,
-        nameToDraw,
+      drawPartLabels(ctx, page, nameToDraw, {
         px,
         py,
         pw,
@@ -396,8 +401,56 @@ function drawBoardTilePage(
         tileYpt,
         tileWpt,
         tileHpt,
-      );
+        placement: ctx.opts.labelPlacement ?? 'center',
+        dimensionsEnabled: partPlan.kind === 'edge',
+      });
     }
+
+    // F20 Part B — `text` / `inside` measurement value sits in the piece
+    // interior, after the name label has claimed its space, so the two never
+    // overwrite each other (occupancy clamp). `outside` is handled per-board
+    // below the placement loop.
+    if (partPlan.kind === 'interior') {
+      const sizeText = formatPartSizeText(
+        formatSize,
+        (placement.rightUm - placement.leftUm) as Micrometres,
+        (placement.topUm - placement.bottomUm) as Micrometres,
+      );
+      if (sizeText) {
+        drawInteriorMeasurement(ctx, page, sizeText, {
+          px,
+          py,
+          pw,
+          ph,
+          tileXpt,
+          tileYpt,
+          tileWpt,
+          tileHpt,
+        });
+      }
+    }
+  }
+
+  // F20 Part B — `outside` measurement mode: per-board overall dimensions with
+  // extension lines that run PAST the board boundary and value text in the
+  // margin outside the stock, so they never overlap any piece. Per-board
+  // (rather than per-part) keeps the margin legible — per-part outside dims
+  // get dense fast on a full sheet. Drawn once per tile.
+  if (
+    isOutsideBoardMode(
+      ctx.opts.measurementMode ?? 'edge',
+      !!ctx.opts.showDimensions,
+    )
+  ) {
+    drawOutsideBoardDimensions(ctx, page, {
+      boardX,
+      boardY,
+      boardWpt,
+      boardHpt,
+      widthUm: stock.widthUm,
+      lengthUm: stock.lengthUm,
+      formatSize,
+    });
   }
 
   // Kerf strips + leftover-region labels (F6). Derived purely from the placed
@@ -454,87 +507,326 @@ function drawBoardTilePage(
   }
 }
 
+interface PartLabelGeom {
+  px: number;
+  py: number;
+  pw: number;
+  ph: number;
+  placedWidthMm: number;
+  placedLengthMm: number;
+  scale: number;
+  tileXpt: number;
+  tileYpt: number;
+  tileWpt: number;
+  tileHpt: number;
+  placement: 'top' | 'center';
+  dimensionsEnabled: boolean;
+}
+
+const NAME_COLOR = rgb(0.2, 0.2, 0.2);
+
 /**
- * Draw the part name inside the placed rectangle.
+ * Draw the part name inside the placed rectangle using the shared F20
+ * horizontal-first decision ({@link decideLabelLayout}).
  *
- * Landscape pieces: name centered. Portrait pieces: name rotated 90° CCW,
- * centered on the narrow axis. Dimensions are NOT drawn here — engineering
- * dimension lines are emitted separately by {@link drawPartDimensions}.
+ * Horizontal-first: the name runs horizontally and wraps onto ≤ 3 lines; it
+ * rotates 90° only when even a wrapped horizontal block can't fit (FR-LBLT-1/3).
+ * The decision is shared with {@link PartListItem} on screen — only the
+ * coordinate mapping below is PDF-specific (FR-LBLT-7).
  *
- * Text is centered on the *visible* portion of the piece within the tile so
- * that pieces near tile edges still receive a label. Font sizes scale down to
- * a minimum before the label is dropped.
+ * Text is laid out on the *visible* portion of the piece within the tile so
+ * pieces near tile edges still receive a label, and clamped to that rect
+ * (FR-LBLT-6) so trailing lines drop rather than overflow a neighbour.
  */
 function drawPartLabels(
   ctx: Ctx,
-  page: ReturnType<Ctx['doc']['addPage']>,
+  page: PDFPage,
   name: string,
-  px: number,
-  py: number,
-  pw: number,
-  ph: number,
-  placedWidthMm: number,
-  placedLengthMm: number,
-  scale: number,
-  tileXpt: number,
-  tileYpt: number,
-  tileWpt: number,
-  tileHpt: number,
+  geom: PartLabelGeom,
 ) {
+  const {
+    px,
+    py,
+    pw,
+    ph,
+    placedWidthMm,
+    scale,
+    tileXpt,
+    tileYpt,
+    tileWpt,
+    tileHpt,
+  } = geom;
+
   // Clamp to visible portion — pieces near tile edges use their visible centre.
   const visX1 = Math.max(px, tileXpt);
   const visY1 = Math.max(py, tileYpt);
   const visX2 = Math.min(px + pw, tileXpt + tileWpt);
   const visY2 = Math.min(py + ph, tileYpt + tileHpt);
   if (visX2 <= visX1 || visY2 <= visY1) return;
+  const visW = visX2 - visX1;
+  const visH = visY2 - visY1;
 
-  const isPortrait = placedLengthMm > placedWidthMm;
-  const shortMm = Math.min(placedWidthMm, placedLengthMm);
-  const visLongPt = isPortrait ? visY2 - visY1 : visX2 - visX1;
   const ONE_INCH_MM = 25.4;
   const MIN_NAME_PT = 4;
+  const capMm = Math.min(placedWidthMm / 3, ONE_INCH_MM);
+  const pt = Math.min(14, Math.max(MIN_NAME_PT, (capMm / scale) * MM));
+  const lineHeight = pt * 1.1;
 
-  // Compute font size + rendered width, scaling down proportionally before
-  // dropping the label so small pieces still receive readable (if tiny) text.
-  const capMm = Math.min(shortMm / 3, ONE_INCH_MM);
-  let pt = Math.min(14, Math.max(MIN_NAME_PT, (capMm / scale) * MM));
-  let w = ctx.font.widthOfTextAtSize(name, pt);
-  if (w > visLongPt * 0.85) {
-    pt = Math.max(MIN_NAME_PT, (pt * visLongPt * 0.85) / w);
-    w = ctx.font.widthOfTextAtSize(name, pt);
-    if (w > visLongPt) return; // even min size won't fit
-  }
+  const layout = decideLabelLayout({
+    text: name,
+    width: visW,
+    height: visH,
+    fontPt: pt,
+    lineHeight,
+    placement: geom.placement,
+    dimensionsEnabled: geom.dimensionsEnabled,
+    measure: (t, size) => ctx.font.widthOfTextAtSize(t, size),
+  });
+  if (layout.lines.length === 0) return;
 
   const visCx = (visX1 + visX2) / 2;
-  const visCy = (visY1 + visY2) / 2;
+  // Block top: 'top' anchors to the visible top band; 'center' centres on Y.
+  const blockH = layout.lines.length * lineHeight;
+  const blockTopY =
+    layout.placement === 'top'
+      ? visY2 - pt
+      : (visY1 + visY2) / 2 + blockH / 2 - pt;
 
-  if (isPortrait) {
-    // Rotated 90° CCW, centered on both axes.
-    page.drawText(name, {
-      x: visCx + pt / 2,
-      y: visCy - w / 2,
-      size: pt,
-      font: ctx.font,
-      color: rgb(0.2, 0.2, 0.2),
-      rotate: degrees(90),
-    });
-  } else {
-    const lx = visCx - w / 2;
-    const ly = visCy - pt / 2;
-    if (
-      lx >= tileXpt &&
-      lx + w <= tileXpt + tileWpt &&
-      ly >= tileYpt &&
-      ly + pt <= tileYpt + tileHpt
-    ) {
-      page.drawText(name, {
+  for (let i = 0; i < layout.lines.length; i++) {
+    const line = layout.lines[i];
+    const w = ctx.font.widthOfTextAtSize(line, pt);
+    if (layout.rotate === 90) {
+      // 90° CCW: lines stack along X (right→left), glyphs run up +Y, centred.
+      const lineX = visCx + blockH / 2 - i * lineHeight - pt;
+      const lineY = (visY1 + visY2) / 2 - w / 2;
+      const bbox = { x: lineX, y: lineY, w: pt, h: w };
+      if (ctx.occupancy.intersects(bbox)) continue;
+      ctx.occupancy.add(bbox);
+      page.drawText(line, {
+        x: lineX + pt,
+        y: lineY,
+        size: pt,
+        font: ctx.font,
+        color: NAME_COLOR,
+        rotate: degrees(90),
+      });
+    } else {
+      const lx = visCx - w / 2;
+      const ly = blockTopY - i * lineHeight;
+      const bbox = { x: lx, y: ly, w, h: pt };
+      if (
+        lx < tileXpt ||
+        lx + w > tileXpt + tileWpt ||
+        ly < tileYpt ||
+        ly + pt > tileYpt + tileHpt
+      ) {
+        continue;
+      }
+      if (ctx.occupancy.intersects(bbox)) continue;
+      ctx.occupancy.add(bbox);
+      page.drawText(line, {
         x: lx,
         y: ly,
         size: pt,
         font: ctx.font,
-        color: rgb(0.2, 0.2, 0.2),
+        color: NAME_COLOR,
       });
     }
+  }
+}
+
+/** Build the "L × W" plain-text size string for `text`/`inside` modes. */
+function formatPartSizeText(
+  formatSize: (um: Micrometres) => string | undefined,
+  widthUm: Micrometres,
+  heightUm: Micrometres,
+): string | null {
+  const w = formatSize(widthUm);
+  const h = formatSize(heightUm);
+  if (!w || !h) return null;
+  return `${h} × ${w}`;
+}
+
+interface InteriorGeom {
+  px: number;
+  py: number;
+  pw: number;
+  ph: number;
+  tileXpt: number;
+  tileYpt: number;
+  tileWpt: number;
+  tileHpt: number;
+}
+
+/**
+ * F20 Part B — `text` / `inside` measurement value drawn inside the piece. The
+ * value text is occupancy-checked against the part rect's already-claimed name
+ * label and other text; if no clear slot is found within the piece it is
+ * SUPPRESSED rather than overwriting (FR-LBLT-6 + "do not write over existing
+ * text"). Placed below the centre when free, else nudged up.
+ */
+function drawInteriorMeasurement(
+  ctx: Ctx,
+  page: PDFPage,
+  text: string,
+  geom: InteriorGeom,
+) {
+  const { px, py, pw, ph, tileXpt, tileYpt, tileWpt, tileHpt } = geom;
+  const visX1 = Math.max(px, tileXpt);
+  const visY1 = Math.max(py, tileYpt);
+  const visX2 = Math.min(px + pw, tileXpt + tileWpt);
+  const visY2 = Math.min(py + ph, tileYpt + tileHpt);
+  if (visX2 <= visX1 || visY2 <= visY1) return;
+
+  const MIN_PT = 4;
+  const pt = Math.min(8, Math.max(MIN_PT, (visX2 - visX1) / 8));
+  const w = ctx.font.widthOfTextAtSize(text, pt);
+  if (w > visX2 - visX1) return; // won't fit horizontally
+
+  const cx = (visX1 + visX2) / 2;
+  const lx = cx - w / 2;
+  // Deterministic downward search for a clear horizontal slot inside the rect.
+  const candidates = [
+    (visY1 + visY2) / 2 - pt / 2, // centre
+    visY1 + pt, // bottom band
+    visY2 - 2 * pt, // upper band
+  ];
+  for (const ly of candidates) {
+    if (ly < visY1 || ly + pt > visY2) continue;
+    const bbox = { x: lx, y: ly, w, h: pt };
+    if (ctx.occupancy.intersects(bbox)) continue;
+    ctx.occupancy.add(bbox);
+    page.drawText(text, {
+      x: lx,
+      y: ly,
+      size: pt,
+      font: ctx.font,
+      color: rgb(0.25, 0.25, 0.25),
+    });
+    return;
+  }
+  // No clear slot — suppress (geometry retained, text not drawn).
+}
+
+interface OutsideGeom {
+  boardX: number;
+  boardY: number;
+  boardWpt: number;
+  boardHpt: number;
+  widthUm: Micrometres;
+  lengthUm: Micrometres;
+  formatSize: (um: Micrometres) => string | undefined;
+}
+
+/**
+ * F20 Part B — `outside` measurement mode (per-board). Extension lines run
+ * PAST the board boundary and the overall board W/L value text sits in the
+ * margin OUTSIDE the stock, so the value never overlaps any piece. Per-board
+ * (one width dim below the board, one length dim left of it) keeps the margin
+ * legible; per-part outside dims would crowd a full sheet.
+ */
+function drawOutsideBoardDimensions(
+  ctx: Ctx,
+  page: PDFPage,
+  geom: OutsideGeom,
+) {
+  const { boardX, boardY, boardWpt, boardHpt, widthUm, lengthUm, formatSize } =
+    geom;
+  const OUT = 14; // how far outside the board edge the dim line sits (pt)
+  const ARROW = 3;
+  const PT = 7;
+  const color = rgb(0.1, 0.1, 0.1);
+
+  // ── Width dim, below the board. ──
+  const xLineY = boardY - OUT;
+  // Extension lines from board corners down past the dim line.
+  page.drawLine({
+    start: { x: boardX, y: boardY },
+    end: { x: boardX, y: xLineY - 2 },
+    thickness: 0.3,
+    color,
+  });
+  page.drawLine({
+    start: { x: boardX + boardWpt, y: boardY },
+    end: { x: boardX + boardWpt, y: xLineY - 2 },
+    thickness: 0.3,
+    color,
+  });
+  drawArrowH(page, boardX, xLineY, 1, ARROW, -1e9, -1e9, 1e12, 1e12, color);
+  drawArrowH(
+    page,
+    boardX + boardWpt,
+    xLineY,
+    -1,
+    ARROW,
+    -1e9,
+    -1e9,
+    1e12,
+    1e12,
+    color,
+  );
+  page.drawLine({
+    start: { x: boardX, y: xLineY },
+    end: { x: boardX + boardWpt, y: xLineY },
+    thickness: 0.5,
+    color,
+  });
+  const wText = formatSize(widthUm);
+  if (wText) {
+    const ww = ctx.font.widthOfTextAtSize(wText, PT);
+    page.drawText(wText, {
+      x: boardX + boardWpt / 2 - ww / 2,
+      y: xLineY - PT - 2,
+      size: PT,
+      font: ctx.font,
+      color,
+    });
+  }
+
+  // ── Length dim, left of the board. ──
+  const yLineX = boardX - OUT;
+  page.drawLine({
+    start: { x: boardX, y: boardY },
+    end: { x: yLineX - 2, y: boardY },
+    thickness: 0.3,
+    color,
+  });
+  page.drawLine({
+    start: { x: boardX, y: boardY + boardHpt },
+    end: { x: yLineX - 2, y: boardY + boardHpt },
+    thickness: 0.3,
+    color,
+  });
+  drawArrowV(page, yLineX, boardY, 1, ARROW, -1e9, -1e9, 1e12, 1e12, color);
+  drawArrowV(
+    page,
+    yLineX,
+    boardY + boardHpt,
+    -1,
+    ARROW,
+    -1e9,
+    -1e9,
+    1e12,
+    1e12,
+    color,
+  );
+  page.drawLine({
+    start: { x: yLineX, y: boardY },
+    end: { x: yLineX, y: boardY + boardHpt },
+    thickness: 0.5,
+    color,
+  });
+  const lText = formatSize(lengthUm);
+  if (lText) {
+    const lw = ctx.font.widthOfTextAtSize(lText, PT);
+    page.drawText(lText, {
+      x: yLineX - PT - 2,
+      y: boardY + boardHpt / 2 - lw / 2,
+      size: PT,
+      font: ctx.font,
+      color,
+      rotate: degrees(90),
+    });
   }
 }
 

@@ -6,6 +6,7 @@
 
 import type {
   Algorithm,
+  MeasurementMode,
   Micrometres,
   OptimizationObjective,
   Precision,
@@ -88,6 +89,7 @@ export async function createProject(
     layoutAlignH?: 'left' | 'right';
     layoutAlignV?: 'top' | 'bottom';
     labelPlacement?: 'top' | 'center';
+    measurementMode?: MeasurementMode;
     bandingThicknessUm?: Micrometres;
     subtractBandingThickness?: boolean;
     optimizationObjective?: OptimizationObjective;
@@ -113,6 +115,7 @@ export async function createProject(
     layoutAlignH: opts?.layoutAlignH ?? DEFAULT_SETTINGS.layoutAlignH,
     layoutAlignV: opts?.layoutAlignV ?? DEFAULT_SETTINGS.layoutAlignV,
     labelPlacement: opts?.labelPlacement ?? DEFAULT_SETTINGS.labelPlacement,
+    measurementMode: opts?.measurementMode ?? DEFAULT_SETTINGS.measurementMode,
     bandingThicknessUm:
       opts?.bandingThicknessUm ?? DEFAULT_SETTINGS.bandingThicknessUm,
     subtractBandingThickness:

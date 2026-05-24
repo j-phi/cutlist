@@ -5,6 +5,8 @@ import {
   type Micrometres,
   type SheetBoardLayoutPlacement,
 } from 'cutlist';
+import { decideLabelLayout } from '~/utils/pdf/labelText';
+import { PX_PER_UM } from '~/composables/useGetPx';
 
 const props = defineProps<{
   placement: SheetBoardLayoutPlacement;
@@ -63,7 +65,30 @@ const iconSize = computed(() => {
   return `${Math.max(14, Math.min(28, raw))}px`;
 });
 
-const { showPartNumbers, showBomName } = useProjectSettings();
+const { showPartNumbers, showBomName, labelPlacement, measurementMode } =
+  useProjectSettings();
+
+// F20 — horizontal-first label decision, shared with the PDF renderer via the
+// same pure `decideLabelLayout`. CSS handles the actual line flow; we consume
+// the decision's rotation + placement so screen and PDF agree (FR-LBLT-7).
+const fontPx = computed(() =>
+  Math.min(widthUm.value * PX_PER_UM * 0.5, ONE_INCH_UM * PX_PER_UM),
+);
+const nameLayout = computed(() =>
+  decideLabelLayout({
+    text: props.placement.name ?? '',
+    width: widthUm.value * PX_PER_UM,
+    height: heightUm.value * PX_PER_UM,
+    fontPt: Math.max(1, fontPx.value),
+    lineHeight: Math.max(1, fontPx.value) * 1.1,
+    placement: labelPlacement.value ?? 'center',
+    // Edge-mode dimensions render on the piece edges; yield 'top' → 'center'.
+    dimensionsEnabled: (measurementMode.value ?? 'edge') === 'edge',
+    // Proportional oracle mirrors the PDF Helvetica width estimate so the
+    // rotate/placement decision matches across engines.
+    measure: (t, pt) => t.length * pt * 0.5,
+  }),
+);
 
 // FR-VIZ-3: when per-part colouring is on, fill the piece with its stable hue
 // (same `partColorHsl` the PDF derives from). Otherwise inherit the
@@ -116,7 +141,13 @@ const pieceStyle = computed(() => {
       </p>
       <p
         v-if="showBomName"
-        class="absolute inset-x-0 bottom-0 part-name part-number text-center px-px pb-px font-medium overflow-hidden break-words"
+        class="absolute part-name part-number px-px font-medium overflow-hidden break-words"
+        :class="[
+          nameLayout.placement === 'top'
+            ? 'inset-x-0 top-0 text-center'
+            : 'inset-0 flex items-center justify-center text-center',
+          { 'is-rotated': nameLayout.rotate === 90 },
+        ]"
         :style="`font-size:${fontSize};line-height:${fontSize}`"
         :title="placement.name"
       >
@@ -194,6 +225,12 @@ const pieceStyle = computed(() => {
   word-break: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
+}
+/* F20: rotate the label 90° only when the shared decision says so (the part
+   is too narrow for horizontal even when wrapped). */
+.part-name.is-rotated {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
 }
 .is-hovered .part-number {
   color: var(--part-text-hover, #111);

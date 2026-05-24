@@ -36,6 +36,7 @@ function makeProject(id: string, models: Project['models'] = []): Project {
     layoutAlignH: DEFAULT_SETTINGS.layoutAlignH,
     layoutAlignV: DEFAULT_SETTINGS.layoutAlignV,
     labelPlacement: DEFAULT_SETTINGS.labelPlacement,
+    measurementMode: DEFAULT_SETTINGS.measurementMode,
     bandingThicknessUm: DEFAULT_SETTINGS.bandingThicknessUm,
     subtractBandingThickness: DEFAULT_SETTINGS.subtractBandingThickness,
     optimizationObjective: DEFAULT_SETTINGS.optimizationObjective,

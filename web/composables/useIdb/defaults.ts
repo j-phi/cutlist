@@ -46,6 +46,7 @@ export function applyProjectDefaults(
     layoutAlignH: p.layoutAlignH ?? DEFAULT_SETTINGS.layoutAlignH,
     layoutAlignV: p.layoutAlignV ?? DEFAULT_SETTINGS.layoutAlignV,
     labelPlacement: p.labelPlacement ?? DEFAULT_SETTINGS.labelPlacement,
+    measurementMode: p.measurementMode ?? DEFAULT_SETTINGS.measurementMode,
     bandingThicknessUm:
       p.bandingThicknessUm ?? DEFAULT_SETTINGS.bandingThicknessUm,
     subtractBandingThickness:

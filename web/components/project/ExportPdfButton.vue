@@ -1,8 +1,10 @@
 <script lang="ts" setup>
+import type { MeasurementMode } from 'cutlist';
 import type { PdfScale } from '~/utils/exportPdf';
 
 const { download, isExporting, error, canExport } = useExportPdf();
 const { isComputing } = useBoardLayoutsQuery();
+const { measurementMode } = useProjectSettings();
 
 const isOpen = ref(false);
 const scale = ref<PdfScale>('auto');
@@ -18,8 +20,28 @@ const scaleOptions: { label: string; value: PdfScale }[] = [
   { label: '1:50', value: 50 },
 ];
 
+const measurementOptions: { label: string; value: MeasurementMode }[] = [
+  { label: 'Edge — dimension lines on each piece', value: 'edge' },
+  { label: 'Outside — dimensions in the margin', value: 'outside' },
+  { label: 'Inside — size text inside each piece', value: 'inside' },
+  { label: 'Text — plain W × H, no dimension lines', value: 'text' },
+];
+
+// Drive the persisted per-project setting; the next export reflects it.
+const measurementModeValue = computed<MeasurementMode>({
+  get: () => measurementMode.value ?? 'edge',
+  set: (v) => {
+    measurementMode.value = v;
+  },
+});
+
 async function onDownload() {
-  await download(scale.value, showDimensions.value, colorParts.value);
+  await download(
+    scale.value,
+    showDimensions.value,
+    colorParts.value,
+    measurementModeValue.value,
+  );
   if (!error.value) isOpen.value = false;
 }
 </script>
@@ -83,6 +105,20 @@ async function onDownload() {
             <UCheckbox v-model="showDimensions" />
             <span class="text-sm text-body">Show dimensions on pieces</span>
           </label>
+
+          <UFormField
+            v-if="showDimensions"
+            label="Measurement style"
+            class="w-full"
+          >
+            <USelect
+              v-model="measurementModeValue"
+              :items="measurementOptions"
+              value-key="value"
+              label-key="label"
+              class="w-full"
+            />
+          </UFormField>
 
           <label class="flex items-center gap-2 cursor-pointer select-none">
             <UCheckbox v-model="colorParts" />

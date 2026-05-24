@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nuxt';
+import type { MeasurementMode } from 'cutlist';
 import { exportCutlistPdf, type PdfScale } from '~/utils/exportPdf';
 import type { BomRow as PdfBomRow } from '~/utils/pdf/bom';
 import { trackEvent } from '~/utils/analytics';
@@ -8,7 +9,8 @@ export default function () {
   const { activeProject } = useProjects();
   const { allRows } = useBomRows();
   const formatDistance = useFormatDistance();
-  const { showPartNumbers, showBomName, bladeWidth } = useProjectSettings();
+  const { showPartNumbers, showBomName, bladeWidth, labelPlacement } =
+    useProjectSettings();
   const { measurements } = useRulerStore();
   const { totalLengthUm: bandingLengthUm, cost: bandingCost } =
     useBandingSummary();
@@ -30,6 +32,7 @@ export default function () {
     scale: PdfScale,
     showDimensions = false,
     colorParts = false,
+    measurementMode: MeasurementMode = 'edge',
   ) {
     if (!bomRows.value.length) return;
     isExporting.value = true;
@@ -49,6 +52,8 @@ export default function () {
         showBomName: !!showBomName.value,
         showDimensions,
         colorParts,
+        measurementMode,
+        labelPlacement: labelPlacement.value ?? 'center',
         bladeWidthUm: bladeWidth.value,
         measurements: measurements.value,
         bandingLengthUm: bandingLengthUm.value,

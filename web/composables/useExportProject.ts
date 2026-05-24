@@ -1,5 +1,6 @@
 import type {
   Algorithm,
+  MeasurementMode,
   Micrometres,
   OptimizationObjective,
   Precision,
@@ -49,6 +50,7 @@ export interface ProjectExport {
     layoutAlignH: 'left' | 'right';
     layoutAlignV: 'top' | 'bottom';
     labelPlacement: 'top' | 'center';
+    measurementMode: MeasurementMode;
     bandingThicknessUm: Micrometres;
     subtractBandingThickness: boolean;
     optimizationObjective: OptimizationObjective;
@@ -157,6 +159,7 @@ export async function buildExportData(
       layoutAlignH: idbProject.layoutAlignH,
       layoutAlignV: idbProject.layoutAlignV,
       labelPlacement: idbProject.labelPlacement,
+      measurementMode: idbProject.measurementMode,
       bandingThicknessUm: idbProject.bandingThicknessUm,
       subtractBandingThickness: idbProject.subtractBandingThickness,
       optimizationObjective: idbProject.optimizationObjective,

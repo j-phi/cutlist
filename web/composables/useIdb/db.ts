@@ -24,6 +24,7 @@ import {
   migrateProjectStockNames,
   migrateProjectStockCost,
   migrateProjectPhase1Fields,
+  migrateProjectMeasurementMode,
 } from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
@@ -203,6 +204,21 @@ export class CutlistDB extends Dexie {
           .toCollection()
           .modify((p: Record<string, unknown>) => {
             Object.assign(p, migrateProjectPhase1Fields(p));
+          });
+      });
+
+    // v11 — project gains `measurementMode` (F20 Part B): how placed-part
+    // measurements render on the board diagram. Default `'edge'`.
+    // Presentational (never enters the layout fingerprint). The export
+    // pipeline runs the same transform via `migrateProjectMeasurementMode`.
+    this.version(11)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateProjectMeasurementMode(p));
           });
       });
   }

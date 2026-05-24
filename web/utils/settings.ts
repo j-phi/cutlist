@@ -5,6 +5,7 @@ import {
   um,
   type Algorithm,
   type LinearStockMatrix,
+  type MeasurementMode,
   type Micrometres,
   type OptimizationObjective,
   type Precision,
@@ -26,6 +27,8 @@ export interface CutlistSettings {
   layoutAlignV: 'top' | 'bottom';
   /** Label placement (F20). Presentational. */
   labelPlacement: 'top' | 'center';
+  /** Measurement display mode (F20 Part B). Presentational. */
+  measurementMode: MeasurementMode;
   /** Project default edge-banding thickness (F7), integer µm. */
   bandingThicknessUm: Micrometres;
   /** Whether banding reduces cut size (F7). */
@@ -727,6 +730,7 @@ export const DEFAULT_SETTINGS: CutlistSettings = {
   layoutAlignH: 'left',
   layoutAlignV: 'bottom',
   labelPlacement: 'center',
+  measurementMode: 'edge',
   bandingThicknessUm: um(0),
   subtractBandingThickness: false,
   optimizationObjective: 'boards',

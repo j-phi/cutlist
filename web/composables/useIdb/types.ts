@@ -11,6 +11,7 @@
 import type { JSONContent } from '@tiptap/core';
 import type {
   Algorithm,
+  MeasurementMode,
   Micrometres,
   OptimizationObjective,
   Precision,
@@ -64,6 +65,12 @@ export interface IdbProject {
    * Presentational — does NOT bust the layout cache. Default `'center'`.
    */
   labelPlacement: 'top' | 'center';
+  /**
+   * How placed-part measurements render on the board diagram (PDF + screen)
+   * (F20 Part B). Presentational — does NOT bust the layout cache. Default
+   * `'edge'`.
+   */
+  measurementMode: MeasurementMode;
   /**
    * Project default edge-banding thickness (F7), integer micrometres. Used
    * when a part has banded edges but no per-part override. `0` ≡ no banding.

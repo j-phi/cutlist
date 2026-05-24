@@ -32,6 +32,7 @@ function makePayload(): ProjectExport {
       layoutAlignH: 'left',
       layoutAlignV: 'bottom',
       labelPlacement: 'center',
+      measurementMode: 'edge',
       bandingThicknessUm: um(0),
       subtractBandingThickness: false,
       optimizationObjective: 'boards',

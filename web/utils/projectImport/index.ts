@@ -30,6 +30,7 @@ import { DEFAULT_SETTINGS, defaultPrecisionForUnit } from '~/utils/settings';
 import {
   MicrometresSchema,
   StockMatrix,
+  type MeasurementMode,
   type Micrometres,
   type OptimizationObjective,
   type Precision,
@@ -249,6 +250,9 @@ const ProjectExportSchema = z.object({
     labelPlacement: z
       .enum(['top', 'center'])
       .default(DEFAULT_SETTINGS.labelPlacement),
+    measurementMode: z
+      .enum(['edge', 'outside', 'inside', 'text'])
+      .default(DEFAULT_SETTINGS.measurementMode),
     bandingThicknessUm: MicrometresSchema.default(
       DEFAULT_SETTINGS.bandingThicknessUm,
     ),
@@ -289,6 +293,7 @@ export interface ProjectImportDb {
       layoutAlignH?: 'left' | 'right';
       layoutAlignV?: 'top' | 'bottom';
       labelPlacement?: 'top' | 'center';
+      measurementMode?: MeasurementMode;
       bandingThicknessUm?: Micrometres;
       subtractBandingThickness?: boolean;
       optimizationObjective?: OptimizationObjective;
@@ -361,6 +366,7 @@ export async function importProjectData(
     layoutAlignH: data.project.layoutAlignH,
     layoutAlignV: data.project.layoutAlignV,
     labelPlacement: data.project.labelPlacement,
+    measurementMode: data.project.measurementMode,
     bandingThicknessUm: data.project.bandingThicknessUm,
     subtractBandingThickness: data.project.subtractBandingThickness,
     optimizationObjective: data.project.optimizationObjective,
@@ -518,6 +524,8 @@ function transactionalImportDb(
         layoutAlignH: opts?.layoutAlignH ?? DEFAULT_SETTINGS.layoutAlignH,
         layoutAlignV: opts?.layoutAlignV ?? DEFAULT_SETTINGS.layoutAlignV,
         labelPlacement: opts?.labelPlacement ?? DEFAULT_SETTINGS.labelPlacement,
+        measurementMode:
+          opts?.measurementMode ?? DEFAULT_SETTINGS.measurementMode,
         bandingThicknessUm:
           opts?.bandingThicknessUm ?? DEFAULT_SETTINGS.bandingThicknessUm,
         subtractBandingThickness:

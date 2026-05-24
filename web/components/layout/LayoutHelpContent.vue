@@ -185,6 +185,42 @@
           match across screen and print.
         </li>
       </ul>
+      <p>
+        Names read <span class="text-body">horizontally first</span>: a label
+        runs left-to-right and wraps onto up to three lines, rotating to
+        vertical only when a piece is too narrow to hold the wrapped name.
+        Screen and PDF make the same decision, so a label looks the same in
+        both.
+      </p>
+    </section>
+
+    <section class="space-y-1.5">
+      <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
+        Measurement style
+      </h3>
+      <p>
+        When you enable "Show dimensions on pieces" in the PDF export dialog,
+        choose how each piece's size is drawn. Your choice is saved with the
+        project.
+      </p>
+      <ul class="list-disc pl-4 marker:text-dim space-y-1">
+        <li>
+          <span class="text-body">Edge</span> (the default) — engineering
+          dimension lines with arrows along each piece's own edges.
+        </li>
+        <li>
+          <span class="text-body">Outside</span> — overall board dimensions in
+          the margin outside the sheet, so the numbers never sit on a piece.
+        </li>
+        <li>
+          <span class="text-body">Inside</span> — the size printed inside each
+          piece, tucked into a clear spot so it never overwrites the name.
+        </li>
+        <li>
+          <span class="text-body">Text</span> — just the plain W × H size
+          centered in each piece, with no dimension lines.
+        </li>
+      </ul>
     </section>
 
     <section class="space-y-1.5">
