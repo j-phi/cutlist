@@ -132,6 +132,26 @@ describe('board regions (F6)', () => {
     expect(deriveKerfStrips(placements, 0)).toEqual([]);
   });
 
+  it('showOffcutDimensions:false suppresses labels and dotted flag', () => {
+    const usable: UmRect = {
+      leftUm: 0,
+      rightUm: mm(1000),
+      bottomUm: 0,
+      topUm: mm(400),
+    };
+    const placements: UmRect[] = [
+      { leftUm: 0, rightUm: mm(400), bottomUm: 0, topUm: mm(400) },
+    ];
+    const { emit, regions, labels } = recorder();
+    const geom = { ...makeGeom(usable), showOffcutDimensions: false };
+    drawBoardRegions(emit, placements, geom, 0);
+
+    expect(labels).toHaveLength(0);
+    const leftovers = regions.filter((r) => r.kind === 'leftover');
+    expect(leftovers.length).toBeGreaterThan(0);
+    expect(leftovers.every((r) => !r.dotted)).toBe(true);
+  });
+
   it('leftover label yields the slot to an occupied region', () => {
     // Pre-claim the entire right strip so the label cannot place.
     const usable: UmRect = {

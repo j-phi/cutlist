@@ -65,6 +65,12 @@ export interface ExportPdfOptions {
   colorParts?: boolean;
   measurements?: RulerMeasurement[];
   /**
+   * When true (default), each leftover / offcut region on the board diagram is
+   * labelled with its W×H dimensions inside and outlined with a dotted border.
+   * When false, offcut regions show only the hatch fill (no label, no border).
+   */
+  showOffcutDimensions?: boolean;
+  /**
    * Total edge-banding length in µm (F7 FR-BND-2). Printed in the sheet
    * shopping list. 0 / undefined ⇒ no banding line.
    */

@@ -174,6 +174,55 @@ export function drawClippedHatch(
   }
 }
 
+/**
+ * Draw a dashed border around a rectangle, clipped to a tile. Each of the four
+ * edges is broken into dash-gap segments using `drawClippedLine`.
+ */
+export function drawClippedDashedBorder(
+  page: PDFPage,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  cx: number,
+  cy: number,
+  cw: number,
+  ch: number,
+  color: ReturnType<typeof rgb>,
+  thickness = 0.6,
+  dashLen = 2.5,
+  gapLen = 2,
+) {
+  function dashLine(x1: number, y1: number, x2: number, y2: number) {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (len <= 0) return;
+    const ux = (x2 - x1) / len;
+    const uy = (y2 - y1) / len;
+    let t = 0;
+    while (t < len) {
+      const t2 = Math.min(t + dashLen, len);
+      drawClippedLine(
+        page,
+        x1 + ux * t,
+        y1 + uy * t,
+        x1 + ux * t2,
+        y1 + uy * t2,
+        cx,
+        cy,
+        cw,
+        ch,
+        thickness,
+        color,
+      );
+      t += dashLen + gapLen;
+    }
+  }
+  dashLine(x, y, x + w, y); // bottom
+  dashLine(x + w, y, x + w, y + h); // right
+  dashLine(x + w, y + h, x, y + h); // top
+  dashLine(x, y + h, x, y); // left
+}
+
 // Draw a rectangle clipped to a clip rectangle. Fill is drawn for the visible
 // intersection, but borders are drawn on the original rectangle's edges only
 // where they fall inside the clip region (i.e., dropped if not visible).

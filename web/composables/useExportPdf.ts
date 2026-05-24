@@ -35,6 +35,7 @@ export default function () {
     showDimensions = false,
     colorParts = false,
     measurementMode: MeasurementMode = 'edge',
+    showOffcutDimensions = true,
   ) {
     if (!bomRows.value.length) return;
     isExporting.value = true;
@@ -58,6 +59,7 @@ export default function () {
         labelPlacement: labelPlacement.value ?? 'center',
         bladeWidthUm: bladeWidth.value,
         measurements: measurements.value,
+        showOffcutDimensions,
         bandingLengthUm: bandingLengthUm.value,
         bandingCost: bandingCost.value,
       });

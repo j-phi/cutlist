@@ -10,6 +10,7 @@ const isOpen = ref(false);
 const scale = ref<PdfScale>('auto');
 const showDimensions = ref(false);
 const colorParts = ref(false);
+const showOffcutDimensions = ref(true);
 
 const scaleOptions: { label: string; value: PdfScale }[] = [
   { label: 'Auto (fit each board to page)', value: 'auto' },
@@ -41,6 +42,7 @@ async function onDownload() {
     showDimensions.value,
     colorParts.value,
     measurementModeValue.value,
+    showOffcutDimensions.value,
   );
   if (!error.value) isOpen.value = false;
 }
@@ -124,6 +126,14 @@ async function onDownload() {
             <UCheckbox v-model="colorParts" />
             <span class="text-sm text-body"
               >Color pieces by part (matches the on-screen layout)</span
+            >
+          </label>
+
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <UCheckbox v-model="showOffcutDimensions" />
+            <span class="text-sm text-body"
+              >Show offcut dimensions (W × H label + dotted border on leftover
+              regions)</span
             >
           </label>
 

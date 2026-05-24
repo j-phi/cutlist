@@ -39,6 +39,8 @@ export interface RegionPrimitive {
   y: number;
   w: number;
   h: number;
+  /** When true, the emit layer should draw a dotted border around this region. */
+  dotted?: boolean;
 }
 
 export interface RegionLabelPrimitive {
@@ -77,6 +79,11 @@ export interface RegionGeom {
   /** Page-level occupancy set; the label bbox is tested against it and added on
    * success so it never sits on a part rect or a dimension label. */
   occupancy: OccupancySet;
+  /**
+   * When true (default), each leftover region gets a W×H label inside it and a
+   * dotted border drawn around it. When false, no label and no dotted border.
+   */
+  showOffcutDimensions?: boolean;
 }
 
 const REGION_LABEL_PT = 7;
@@ -252,10 +259,13 @@ export function drawBoardRegions(
     emit.region({ kind: 'kerf', ...box });
   }
 
+  const showDims = geom.showOffcutDimensions !== false;
   for (const r of deriveLeftoverRegions(placements, geom.usable)) {
     const box = umRectToPage(r, geom);
     if (box.w <= 0 || box.h <= 0) continue;
-    emit.region({ kind: 'leftover', ...box });
+    emit.region({ kind: 'leftover', dotted: showDims, ...box });
+
+    if (!showDims) continue;
 
     // Label with the region's dimensions: "L × W <unit>".
     const wLabel = geom.formatSize((r.rightUm - r.leftUm) as Micrometres);
