@@ -362,22 +362,22 @@ describe('CutlistPreview', () => {
       // Two offcut boards → one "Offcuts" option, not two individual ones.
       const offcutBtns = component
         .findAll('button')
-        .filter((b) => b.text().includes('Offcuts'));
+        .filter(
+          (b) => b.text().includes('Offcuts') && !b.text().includes('Unused'),
+        );
       expect(offcutBtns).toHaveLength(1);
       expect(offcutBtns[0].text()).toContain('2 boards');
     });
 
-    it('Should not include linear stock in the sheet stock filter', () => {
+    it('Shows filter when there is one sheet stock plus one linear stock', () => {
       data.value = {
         layouts: [makeLayout('Plywood', 0.018)],
         linearLayouts: [makeLinearLayout('Pine 2x4', 2.4384)],
         leftovers: [],
       };
-      // One sheet stock + one linear stock → sheet filter is hidden because
-      // the sheet side has only one option. Linear stock must not pad the
-      // sheet's option count.
+      // One sheet + one linear = two total options → filter is visible.
       expect(getComponent().find('[data-testid="stock-filter"]').exists()).toBe(
-        false,
+        true,
       );
     });
   });

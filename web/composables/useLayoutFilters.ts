@@ -1,4 +1,4 @@
-import type { SheetBoardLayout } from 'cutlist';
+import type { SheetBoardLayout, LinearBoardLayout } from 'cutlist';
 import { reduceStockMatrix, isSheetStock } from 'cutlist';
 import {
   STORAGE_KEYS,
@@ -23,6 +23,10 @@ export default createGlobalState(() => {
     () => data.value?.layouts ?? [],
   );
 
+  const linearLayouts = computed<LinearBoardLayout[]>(
+    () => data.value?.linearLayouts ?? [],
+  );
+
   // --- Stock type filter ---
 
   function stockKey(stock: {
@@ -32,6 +36,14 @@ export default createGlobalState(() => {
     lengthUm: number;
   }): string {
     return `${stock.material}__${stock.thicknessUm}__${stock.widthUm}__${stock.lengthUm}`;
+  }
+
+  function linearStockKey(stock: {
+    material: string;
+    crossSectionWidthUm: number;
+    crossSectionThicknessUm: number;
+  }): string {
+    return `linear__${stock.material}__${stock.crossSectionWidthUm}__${stock.crossSectionThicknessUm}`;
   }
 
   const stockOptions = computed(() => {
@@ -63,6 +75,21 @@ export default createGlobalState(() => {
       }
     }
 
+    for (const layout of linearLayouts.value) {
+      const key = linearStockKey(layout.stock);
+      if (!seen.has(key)) {
+        seen.add(key);
+        const w = formatDistance(layout.stock.crossSectionWidthUm);
+        const t = formatDistance(layout.stock.crossSectionThicknessUm);
+        options.push({
+          label: layout.stock.name,
+          sublabel: `${w} × ${t}`,
+          value: key,
+          role: 'linear',
+        });
+      }
+    }
+
     if (offcutCount > 0) {
       options.push({
         label: 'Offcuts',
@@ -77,6 +104,8 @@ export default createGlobalState(() => {
 
   const appliedKeys = ref(new Set<string>());
   const pendingKeys = ref(new Set<string>());
+  const allUsedPending = ref(true);
+  const pendingUnused = ref(false);
   const stockDropdownOpen = ref(false);
 
   // Prune stale keys when the layout changes (e.g. on project switch).
@@ -97,11 +126,15 @@ export default createGlobalState(() => {
   });
 
   watch(stockDropdownOpen, (open) => {
-    if (open) pendingKeys.value = new Set(appliedKeys.value);
+    if (open) {
+      pendingKeys.value = new Set(appliedKeys.value);
+      allUsedPending.value = appliedKeys.value.size === 0;
+      pendingUnused.value = showUnused.value;
+    }
   });
 
   const selectedLabel = computed(() => {
-    if (appliedKeys.value.size === 0) return 'All';
+    if (appliedKeys.value.size === 0) return 'All Used';
     if (appliedKeys.value.size === 1) {
       const key = [...appliedKeys.value][0];
       return stockOptions.value.find((o) => o.value === key)?.label ?? 'Stock';
@@ -109,15 +142,39 @@ export default createGlobalState(() => {
     return `${appliedKeys.value.size} selected`;
   });
 
+  function toggleAllUsed(): void {
+    allUsedPending.value = !allUsedPending.value;
+    pendingKeys.value = new Set();
+  }
+
   function togglePending(key: string): void {
-    const next = new Set(pendingKeys.value);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    pendingKeys.value = next;
+    if (allUsedPending.value) {
+      // "All Used" is active — uncheck this key, switch to explicit selection of all others
+      allUsedPending.value = false;
+      const allKeys = stockOptions.value.map((o) => o.value);
+      pendingKeys.value = new Set(allKeys.filter((k) => k !== key));
+    } else {
+      const next = new Set(pendingKeys.value);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+        // Collapse back to "All Used" when every option is now checked
+        if (next.size === stockOptions.value.length) {
+          allUsedPending.value = true;
+          pendingKeys.value = new Set();
+          return;
+        }
+      }
+      pendingKeys.value = next;
+    }
   }
 
   function applyFilter(): void {
-    appliedKeys.value = new Set(pendingKeys.value);
+    appliedKeys.value = allUsedPending.value
+      ? new Set()
+      : new Set(pendingKeys.value);
+    showUnused.value = pendingUnused.value;
     stockDropdownOpen.value = false;
   }
 
@@ -127,6 +184,13 @@ export default createGlobalState(() => {
       l.stock.role === 'offcut'
         ? appliedKeys.value.has(LAYOUT_OFFCUTS_KEY)
         : appliedKeys.value.has(stockKey(l.stock)),
+    );
+  });
+
+  const filteredLinearLayouts = computed<LinearBoardLayout[]>(() => {
+    if (appliedKeys.value.size === 0) return linearLayouts.value;
+    return linearLayouts.value.filter((l) =>
+      appliedKeys.value.has(linearStockKey(l.stock)),
     );
   });
 
@@ -196,11 +260,15 @@ export default createGlobalState(() => {
     stockOptions,
     appliedKeys,
     pendingKeys,
+    allUsedPending,
+    pendingUnused,
     stockDropdownOpen,
     selectedLabel,
+    toggleAllUsed,
     togglePending,
     applyFilter,
     filteredSheetLayouts,
+    filteredLinearLayouts,
     showUnused,
     unusedOffcutLayouts,
   };

@@ -40,12 +40,15 @@ const {
   stockOptions,
   appliedKeys,
   pendingKeys,
+  allUsedPending,
+  pendingUnused,
   stockDropdownOpen,
   selectedLabel,
+  toggleAllUsed,
   togglePending,
   applyFilter,
   filteredSheetLayouts,
-  showUnused,
+  filteredLinearLayouts,
   unusedOffcutLayouts,
 } = useLayoutFilters();
 
@@ -298,7 +301,7 @@ function startPartDrag(
 provide('startPartDrag', startPartDrag);
 
 const totalVisibleLayouts = computed(
-  () => filteredSheetLayouts.value.length + linearLayouts.value.length,
+  () => filteredSheetLayouts.value.length + filteredLinearLayouts.value.length,
 );
 
 const unplacedCount = computed(() => data.value?.leftovers.length ?? 0);
@@ -451,8 +454,8 @@ watch(shoppingListHidden, (value) => {
                   :unused-layouts="unusedOffcutLayouts"
                 />
                 <LinearLayoutList
-                  v-if="linearLayouts.length > 0"
-                  :layouts="linearLayouts"
+                  v-if="filteredLinearLayouts.length > 0"
+                  :layouts="filteredLinearLayouts"
                 />
               </div>
             </div>
@@ -522,7 +525,7 @@ watch(shoppingListHidden, (value) => {
         <div
           class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
         >
-          <PreviewToolbar v-model:show-unused="showUnused">
+          <PreviewToolbar>
             <template #row1-end>
               <div class="ml-auto flex items-center gap-2">
                 <ExportLabelsButton />
@@ -600,33 +603,31 @@ watch(shoppingListHidden, (value) => {
                     Apply
                   </UButton>
                 </div>
-                <!-- All option -->
+                <!-- All Used option -->
                 <button
                   type="button"
                   class="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-mist-700/50 transition-colors text-left"
-                  @click="pendingKeys = new Set()"
+                  @click="toggleAllUsed()"
                 >
                   <div
                     class="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors"
                     :class="
-                      pendingKeys.size === 0
+                      allUsedPending
                         ? 'bg-primary-500 border-primary-500'
                         : 'border-mist-600'
                     "
                   >
                     <UIcon
-                      v-if="pendingKeys.size === 0"
+                      v-if="allUsedPending"
                       name="i-lucide-check"
                       class="w-2.5 h-2.5 text-white"
                     />
                   </div>
                   <span
                     :class="
-                      pendingKeys.size === 0
-                        ? 'text-hi font-medium'
-                        : 'text-body'
+                      allUsedPending ? 'text-hi font-medium' : 'text-body'
                     "
-                    >All</span
+                    >All Used</span
                   >
                 </button>
                 <!-- Individual stock options -->
@@ -640,13 +641,13 @@ watch(shoppingListHidden, (value) => {
                   <div
                     class="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors"
                     :class="
-                      pendingKeys.has(opt.value)
+                      allUsedPending || pendingKeys.has(opt.value)
                         ? 'bg-primary-500 border-primary-500'
                         : 'border-mist-600'
                     "
                   >
                     <UIcon
-                      v-if="pendingKeys.has(opt.value)"
+                      v-if="allUsedPending || pendingKeys.has(opt.value)"
                       name="i-lucide-check"
                       class="w-2.5 h-2.5 text-white"
                     />
@@ -655,7 +656,7 @@ watch(shoppingListHidden, (value) => {
                     <div
                       class="truncate"
                       :class="
-                        pendingKeys.has(opt.value)
+                        allUsedPending || pendingKeys.has(opt.value)
                           ? 'text-hi font-medium'
                           : 'text-body'
                       "
@@ -663,6 +664,42 @@ watch(shoppingListHidden, (value) => {
                       {{ opt.label }}
                     </div>
                     <div class="text-xs text-dim">{{ opt.sublabel }}</div>
+                  </div>
+                </button>
+                <!-- Separator before Unused Offcuts -->
+                <div class="border-t border-subtle mx-0 my-1" />
+                <!-- Unused Offcuts option (not part of All Used) -->
+                <button
+                  type="button"
+                  class="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-mist-700/50 transition-colors text-left"
+                  @click="pendingUnused = !pendingUnused"
+                >
+                  <div
+                    class="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors"
+                    :class="
+                      pendingUnused
+                        ? 'bg-primary-500 border-primary-500'
+                        : 'border-mist-600'
+                    "
+                  >
+                    <UIcon
+                      v-if="pendingUnused"
+                      name="i-lucide-check"
+                      class="w-2.5 h-2.5 text-white"
+                    />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div
+                      class="truncate"
+                      :class="
+                        pendingUnused ? 'text-hi font-medium' : 'text-body'
+                      "
+                    >
+                      Unused Offcuts
+                    </div>
+                    <div class="text-xs text-dim">
+                      Inventory not needed in layout
+                    </div>
                   </div>
                 </button>
               </div>

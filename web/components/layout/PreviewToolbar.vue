@@ -2,9 +2,6 @@
 import { useDimensionInput } from '~/composables/useDimensionInput';
 import useBoardLayoutsQuery from '~/composables/useBoardLayoutsQuery';
 
-const props = defineProps<{ showUnused?: boolean }>();
-const emit = defineEmits<{ 'update:showUnused': [value: boolean] }>();
-
 const {
   bladeWidth,
   distanceUnit,
@@ -152,17 +149,6 @@ const settingsOpen = ref(false);
         size="xs"
         label="Snapping"
         data-testid="toggle-snapping"
-      />
-
-      <div class="w-px h-4 bg-subtle shrink-0" />
-
-      <USwitch
-        :model-value="props.showUnused ?? false"
-        size="xs"
-        label="Unused offcuts"
-        title="Show offcuts from your inventory that weren't needed in the layout"
-        data-testid="toggle-show-unused"
-        @update:model-value="emit('update:showUnused', $event)"
       />
 
       <template v-if="showAlignControls">

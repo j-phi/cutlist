@@ -17,7 +17,8 @@ export default function () {
   const { measurements } = useRulerStore();
   const { totalLengthUm: bandingLengthUm, cost: bandingCost } =
     useBandingSummary();
-  const { filteredSheetLayouts, unusedOffcutLayouts } = useLayoutFilters();
+  const { filteredSheetLayouts, filteredLinearLayouts, unusedOffcutLayouts } =
+    useLayoutFilters();
 
   const isExporting = ref(false);
   const error = ref<string | undefined>();
@@ -51,7 +52,7 @@ export default function () {
         bomRows: bomRows.value,
         layouts: filteredSheetLayouts.value,
         unusedOffcutLayouts: unusedOffcutLayouts.value,
-        linearLayouts: layouts.value?.linearLayouts ?? [],
+        linearLayouts: filteredLinearLayouts.value,
         leftovers: layouts.value?.leftovers ?? [],
         formatSize: formatDistance,
         showPartNumbers: !!showPartNumbers.value,
@@ -117,7 +118,7 @@ export default function () {
       const bytes = await exportLabelsPdf({
         layouts: [
           ...filteredSheetLayouts.value,
-          ...(layouts.value?.linearLayouts ?? []),
+          ...filteredLinearLayouts.value,
         ],
         leftovers: layouts.value?.leftovers ?? [],
         formatSize: formatDistance,
