@@ -8,6 +8,7 @@ import {
   type LinearBoardLayout,
   type LinearBoardLayoutPlacement,
   type LinearStock,
+  type OptimizationObjective,
   type Oversize,
   type PartToCut,
   type PotentialBoardLayout,
@@ -26,7 +27,7 @@ import { Rectangle } from './geometry';
 import { areStocksEquivalent, canPartFitStock } from './utils/stock-utils';
 import { type Micrometres, mmToUm, um } from './utils/units';
 import {
-  compareLayoutScores,
+  compareLayoutScoresForObjective,
   createCompactPacker,
   createLinearPacker,
   createTidyPacker,
@@ -167,9 +168,7 @@ export function generateBoardLayouts(
 } {
   const normalizedConfig = Config.parse(config);
 
-  const boards = reduceStockMatrix(stock).toSorted(
-    (a, b) => stockSortMetric(b) - stockSortMetric(a),
-  );
+  const boards = reduceStockMatrix(stock).toSorted(compareStockTotalOrder);
   if (boards.length === 0) throw Error('You must include at least 1 stock.');
 
   const searchResult = runMultiPassSearch(normalizedConfig, parts, boards);
@@ -189,6 +188,24 @@ export function generateBoardLayouts(
 function stockSortMetric(stock: Stock): number {
   if (isLinearStock(stock)) return stock.length;
   return stock.width * stock.length;
+}
+
+/**
+ * Total order over stock (FR-COPT-5): size descending, then name/material
+ * ascending, then cost ascending — enough to make the engine's output
+ * independent of the order stock arrives in. Used wherever stock is sorted
+ * "largest first"; negate for "smallest first".
+ */
+function compareStockTotalOrder(a: Stock, b: Stock): number {
+  const metric = stockSortMetric(b) - stockSortMetric(a);
+  if (metric !== 0) return metric;
+  const nameCompare = (a.name ?? a.material).localeCompare(
+    b.name ?? b.material,
+  );
+  if (nameCompare !== 0) return nameCompare;
+  const materialCompare = a.material.localeCompare(b.material);
+  if (materialCompare !== 0) return materialCompare;
+  return (a.cost ?? 0) - (b.cost ?? 0);
 }
 
 /**
@@ -283,9 +300,20 @@ function runMultiPassSearch(
     const isLinearGroup =
       group.stock.length > 0 && isLinearStock(group.stock[0]);
 
+    // Resolve the objective for this group (FR-COPT-2/3). `cost` only stays in
+    // effect when every usable general stock size in the group carries a
+    // finite, positive price; otherwise the group falls back to the default
+    // boards-first ranking. `waste` shares the default lexicographic chain
+    // (waste is already the second key), so it collapses to `boards` here.
+    const objective: OptimizationObjective =
+      config.optimizationObjective === 'cost' &&
+      groupCostUsable(group.parts, group.stock)
+        ? 'cost'
+        : 'boards';
+
     let best: SearchPassResult | undefined;
     if (isLinearGroup) {
-      best = runLinearPass(config, group.parts, group.stock);
+      best = runLinearPass(config, group.parts, group.stock, objective);
     } else {
       const algorithm: Algorithm =
         group.stock.find(
@@ -299,9 +327,15 @@ function runMultiPassSearch(
           : passOrder.length;
       for (let i = 0; i < passLimit; i++) {
         const pass = SEARCH_PASS_DEFINITIONS[passOrder[i]];
-        const candidate = runSearchPass(config, group.parts, group.stock, pass);
+        const candidate = runSearchPass(
+          config,
+          group.parts,
+          group.stock,
+          pass,
+          objective,
+        );
 
-        if (best == null || isBetterSearchResult(candidate, best)) {
+        if (best == null || isBetterSearchResult(candidate, best, objective)) {
           best = candidate;
         }
       }
@@ -325,6 +359,7 @@ function runSearchPass(
   parts: PartToCut[],
   stock: Stock[],
   pass: SearchPassDefinition,
+  objective: OptimizationObjective,
 ): SearchPassResult {
   const packer = PACKERS[pass.packerKind](pass);
   const packerOptions = getPackerOptions(config);
@@ -342,7 +377,14 @@ function runSearchPass(
     algorithm,
   }));
   const minimizedLayouts = sheetLayouts.map((layout) =>
-    minimizeLayoutStock(config, layout, stock, packer, packerOptions),
+    minimizeLayoutStock(
+      config,
+      layout,
+      stock,
+      packer,
+      packerOptions,
+      objective,
+    ),
   );
 
   return {
@@ -356,6 +398,7 @@ function runLinearPass(
   config: Config,
   parts: PartToCut[],
   stock: Stock[],
+  objective: OptimizationObjective,
 ): SearchPassResult {
   const packer = createLinearPacker<PartToCut>();
   const packerOptions = getPackerOptions(config);
@@ -370,7 +413,14 @@ function runLinearPass(
     placements: l.placements,
   }));
   const minimizedLayouts = linearLayouts.map((layout) =>
-    minimizeLayoutStock(config, layout, stock, packer, packerOptions),
+    minimizeLayoutStock(
+      config,
+      layout,
+      stock,
+      packer,
+      packerOptions,
+      objective,
+    ),
   );
 
   return {
@@ -383,11 +433,31 @@ function runLinearPass(
 function isBetterSearchResult(
   candidate: SearchPassResult,
   best: SearchPassResult,
+  objective: OptimizationObjective,
 ): boolean {
   if (candidate.leftovers.length !== best.leftovers.length) {
     return candidate.leftovers.length < best.leftovers.length;
   }
-  return compareLayoutScores(candidate.score, best.score) < 0;
+  return (
+    compareLayoutScoresForObjective(candidate.score, best.score, objective) < 0
+  );
+}
+
+/**
+ * Cost-objective gate (FR-COPT-2/3) for a (material, thickness) group: cost
+ * ranking is only valid when every *general* (buyable) stock size a part in
+ * the group could fit carries a finite, positive price, and at least one such
+ * size exists. A missing or non-positive price on any usable size disqualifies
+ * the whole group — we never treat a missing cost as 0.
+ */
+function groupCostUsable(parts: PartToCut[], stock: Stock[]): boolean {
+  const general = stock.filter(
+    (s) => s.role !== 'offcut' && parts.some((p) => canPartFitStock(s, p)),
+  );
+  if (general.length === 0) return false;
+  return general.every(
+    (s) => s.cost !== undefined && Number.isFinite(s.cost) && s.cost > 0,
+  );
 }
 
 type PlaceOptions = {
@@ -428,10 +498,10 @@ function placeAllParts(
   const openGeneralBoards: OpenBoard[] = [];
   const offcutStock = stock
     .filter((s) => s.role === 'offcut')
-    .toSorted((a, b) => stockSortMetric(a) - stockSortMetric(b));
+    .toSorted((a, b) => -compareStockTotalOrder(a, b));
   const generalStock = stock
     .filter((s) => s.role !== 'offcut')
-    .toSorted((a, b) => stockSortMetric(b) - stockSortMetric(a));
+    .toSorted(compareStockTotalOrder);
   // Remaining physical sheets per offcut stock. General stock is omitted →
   // treated as infinite.
   const offcutRemaining = new Map<Stock, number>(
@@ -632,6 +702,7 @@ function minimizeLayoutStock<L extends PotentialBoardLayout>(
   stock: Stock[],
   packer: Packer<PartToCut>,
   packerOptions: PackOptions<PartToCut>,
+  objective: OptimizationObjective,
 ): L {
   const margin = config.margin;
 
@@ -641,21 +712,36 @@ function minimizeLayoutStock<L extends PotentialBoardLayout>(
   // placement ledger never accounted for).
   if (originalLayout.stock.role === 'offcut') return originalLayout;
 
+  // Candidate replacement boards (same material+thickness, general only).
+  // For boards/waste: prefer the smallest footprint that still fits all
+  // placements (tightening reduces waste / shrinks the buy). For cost
+  // (FR-COPT-2): prefer the cheapest board that fits, tie-broken by smaller
+  // footprint — never trade up in price just to tighten the cut.
+  const compare =
+    objective === 'cost'
+      ? (a: Stock, b: Stock) => {
+          const costA = a.cost ?? Number.POSITIVE_INFINITY;
+          const costB = b.cost ?? Number.POSITIVE_INFINITY;
+          if (costA !== costB) return costA - costB;
+          return -compareStockTotalOrder(a, b); // smaller footprint first
+        }
+      : (a: Stock, b: Stock) => -compareStockTotalOrder(a, b);
+
   const altStock = stock
     .filter(
       (s) =>
         s.role !== 'offcut' && areStocksEquivalent(originalLayout.stock, s),
     )
-    .toSorted((a, b) => stockSortMetric(a) - stockSortMetric(b));
+    .toSorted(compare);
 
-  for (const smallerStock of altStock) {
-    const bin = makeBoardRect(smallerStock, margin);
+  for (const candidate of altStock) {
+    const bin = makeBoardRect(candidate, margin);
     const res = packer.pack(bin, [...originalLayout.placements], packerOptions);
 
     if (res.leftovers.length === 0) {
       return {
         ...originalLayout,
-        stock: smallerStock,
+        stock: candidate,
         placements: res.placements,
       } as L;
     }

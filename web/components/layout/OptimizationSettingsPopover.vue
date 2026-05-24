@@ -1,7 +1,10 @@
 <script lang="ts" setup>
+import type { StockMatrix } from 'cutlist';
+
 const emit = defineEmits<{ close: [] }>();
 
-const { defaultAlgorithm } = useProjectSettings();
+const { defaultAlgorithm, optimizationObjective, stocks } =
+  useProjectSettings();
 
 const {
   passOrder,
@@ -24,6 +27,42 @@ const PANEL_ORDER_ITEMS = [
   { label: 'Board order', value: 'board' },
   { label: 'Fullest first', value: 'fullest' },
 ];
+
+// ── F11: optimization objective ─────────────────────────────────────────────
+/**
+ * True when at least one stock size carries a positive cost. Cost optimization
+ * is meaningless with no prices, so the "Lowest cost" option stays disabled
+ * until the user prices something (FR-COPT-7).
+ */
+const hasPricedStock = computed(() =>
+  (stocks.value ?? []).some((m: StockMatrix) =>
+    m.kind === 'linear'
+      ? typeof m.size.cost === 'number' && m.size.cost > 0
+      : m.sizes.some((s) => typeof s.cost === 'number' && s.cost > 0),
+  ),
+);
+
+const COST_DISABLED_REASON =
+  'Add a price to at least one stock size (Stock tab) to optimize for cost.';
+
+const OBJECTIVE_ITEMS = computed(() => [
+  { label: 'Fewest boards', value: 'boards', disabled: false },
+  { label: 'Least waste', value: 'waste', disabled: false },
+  {
+    label: 'Lowest cost',
+    value: 'cost',
+    disabled: !hasPricedStock.value,
+  },
+]);
+
+// `optimizationObjective` may be undefined before a project loads; the radio
+// group needs a concrete value, so fall back to the engine default 'boards'.
+const objectiveModel = computed<string>({
+  get: () => optimizationObjective.value ?? 'boards',
+  set: (value) => {
+    optimizationObjective.value = value as typeof optimizationObjective.value;
+  },
+});
 
 // Drag-and-drop state
 let dragPassId = '';
@@ -79,6 +118,26 @@ function onDragEnd() {
         size="xs"
         class="flex-1"
       />
+    </div>
+
+    <!-- Optimize for (F11) -->
+    <div class="flex flex-col gap-1.5" data-testid="optimize-for">
+      <label class="text-xs text-muted">Optimize for</label>
+      <URadioGroup
+        v-model="objectiveModel"
+        :items="OBJECTIVE_ITEMS"
+        value-key="value"
+        label-key="label"
+        size="xs"
+        :ui="{ fieldset: 'gap-1' }"
+      />
+      <p
+        v-if="!hasPricedStock"
+        class="text-xs text-dim"
+        data-testid="cost-disabled-reason"
+      >
+        {{ COST_DISABLED_REASON }}
+      </p>
     </div>
 
     <!-- Panel order -->
