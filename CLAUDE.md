@@ -24,6 +24,8 @@ Use `bunx vitest` (not bare `vitest`) — vitest is not globally installed, only
 
 Formatting runs automatically via lint-staged on commit (Prettier).
 
+**After a new release** — `nuxt.config.ts` reads `package.json` at startup, so the footer version only updates on restart. Whenever a new release is cut, remind the user to kill and relaunch the local dev server (`bun dev`).
+
 **Git commits — always prepend bun to PATH.** The pre-commit hook requires `bun`. Every `git commit` command must be prefixed with `export PATH="$HOME/.bun/bin:$PATH" &&`:
 
 ```bash

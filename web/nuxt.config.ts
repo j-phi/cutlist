@@ -6,7 +6,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
   telemetry: false,
   appConfig: {
-    version: pkg.version,
+    version: process.env.NUXT_APP_VERSION || pkg.version,
   },
   modules: ['@nuxt/ui', '@vueuse/nuxt', '@sentry/nuxt/module'],
   components: [

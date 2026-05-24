@@ -27,6 +27,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
+          fetch-tags: true
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -39,11 +40,18 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Get release version
+        id: version
+        run: |
+          tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
       - name: Build static site
         run: bun run build:static
         env:
           NUXT_PUBLIC_SENTRY_DSN: ${{ secrets.NUXT_PUBLIC_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          NUXT_APP_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
