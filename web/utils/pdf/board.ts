@@ -15,6 +15,7 @@ import { addPage, type Ctx } from './context';
 import {
   drawArrowH,
   drawArrowV,
+  drawClippedDashedBorder,
   drawClippedHatch,
   drawClippedLine,
   drawClippedRect,
@@ -33,35 +34,48 @@ import {
   type RegionGeom,
   type UmRect,
 } from './regions';
-import { decideLabelLayout } from './labelText';
+import { decideLabelLayout, wrapLabel } from './labelText';
 import { isOutsideBoardMode, planPartMeasurement } from './measurementMode';
 import { partColorRgb } from 'cutlist';
 
 /**
  * Find the smallest integer scale ≥ 1 that fits the board on a single page.
  * Orientation (portrait/landscape) follows the board's own aspect ratio.
+ *
+ * `dimAnnotationMm` reserves space on the left and bottom for dimension
+ * annotation lines (used when `edge` or `outside` mode is active).
  */
 export function computeBoardScale(
   boardWmm: number,
   boardHmm: number,
   margin: number,
+  dimAnnotationMm = 0,
 ): number {
   const landscape = boardWmm > boardHmm;
   const pageWmm = landscape ? LETTER_H_MM : LETTER_W_MM;
   const pageHmm = landscape ? LETTER_W_MM : LETTER_H_MM;
-  const printableWmm = pageWmm - 2 * margin - LEGEND_BAND_MM;
+  const printableWmm = pageWmm - 2 * margin - LEGEND_BAND_MM - dimAnnotationMm;
   const printableHmm =
     pageHmm -
     2 * margin -
     HEADER_BAND_MM -
     BOARD_TITLE_BAND_MM -
-    FOOTER_BAND_MM;
+    FOOTER_BAND_MM -
+    dimAnnotationMm;
   const minScale = Math.max(boardWmm / printableWmm, boardHmm / printableHmm);
   return Math.max(1, Math.ceil(minScale));
 }
 
 /** Indigo-500 (Tailwind) for material-allowance hatching. */
 const ALLOWANCE_COLOR = rgb(0.388, 0.4, 0.945);
+
+/**
+ * Space (mm) reserved on the left and bottom of the board for dimension
+ * annotation lines when `edge` or `outside` measurement mode is active.
+ * Guarantees leader lines and outside-board dimension text land within the
+ * printable area rather than running into the page margin.
+ */
+export const DIM_ANNOTATION_MM = 15;
 
 interface TileGeom {
   pageWmm: number;
@@ -70,6 +84,7 @@ interface TileGeom {
   paperHmm: number; // full board height on paper at scale
   printableWmm: number;
   printableHmm: number;
+  dimAnnotationMm: number; // space reserved on left/bottom for dimension annotations
 }
 
 export function drawBoardTiles(
@@ -83,9 +98,16 @@ export function drawBoardTiles(
   const boardWmm = umToMm(stock.widthUm);
   const boardLmm = umToMm(stock.lengthUm);
 
+  // Reserve annotation space when edge/outside dimension lines are active so
+  // leaders and outside-board text land inside the printable area.
+  const mode = ctx.opts.measurementMode ?? 'edge';
+  const showDims = !!ctx.opts.showDimensions;
+  const dimAnnotationMm =
+    showDims && (mode === 'edge' || mode === 'outside') ? DIM_ANNOTATION_MM : 0;
+
   const effectiveScale =
     ctx.opts.scale === 'auto'
-      ? computeBoardScale(boardWmm, boardLmm, ctx.opts.margin)
+      ? computeBoardScale(boardWmm, boardLmm, ctx.opts.margin, dimAnnotationMm)
       : ctx.opts.scale;
 
   // Paper dimensions (mm) at the chosen scale
@@ -107,8 +129,11 @@ export function drawBoardTiles(
     BOARD_TITLE_BAND_MM -
     FOOTER_BAND_MM;
 
-  const stepWmm = Math.max(1, printableWmm - overlap);
-  const stepHmm = Math.max(1, printableHmm - overlap);
+  // Board area = printable minus annotation space on left and bottom.
+  const boardAreaWmm = printableWmm - dimAnnotationMm;
+  const boardAreaHmm = printableHmm - dimAnnotationMm;
+  const stepWmm = Math.max(1, boardAreaWmm - overlap);
+  const stepHmm = Math.max(1, boardAreaHmm - overlap);
   const cols = Math.max(1, Math.ceil((paperWmm - overlap) / stepWmm));
   const rows = Math.max(1, Math.ceil((paperHmm - overlap) / stepHmm));
 
@@ -123,7 +148,15 @@ export function drawBoardTiles(
         row,
         cols,
         rows,
-        { pageWmm, pageHmm, paperWmm, paperHmm, printableWmm, printableHmm },
+        {
+          pageWmm,
+          pageHmm,
+          paperWmm,
+          paperHmm,
+          printableWmm,
+          printableHmm,
+          dimAnnotationMm,
+        },
         measurements,
         effectiveScale,
       );
@@ -209,17 +242,24 @@ function drawBoardTilePage(
   const tileYpt = tileYmm * MM;
   const tileTopYpt = tileYpt + tileHpt;
 
-  const stepWpt = (geom.printableWmm - overlap) * MM;
-  const stepHpt = (geom.printableHmm - overlap) * MM;
+  // Board area is printable minus annotation space. Step uses board area so
+  // the annotation space (left/bottom strip) is consistently available.
+  const boardAreaWmm = geom.printableWmm - geom.dimAnnotationMm;
+  const boardAreaHmm = geom.printableHmm - geom.dimAnnotationMm;
+  const dimAnnotationPt = geom.dimAnnotationMm * MM;
+  const stepWpt = Math.max(1, boardAreaWmm - overlap) * MM;
+  const stepHpt = Math.max(1, boardAreaHmm - overlap) * MM;
 
   // Board outline in board-paper coordinates
   const boardWpt = geom.paperWmm * MM;
   const boardHpt = geom.paperHmm * MM;
 
-  // Anchor the board's top-left to the tile's top-left for tile (0,0).
-  // Each column step shifts the board left; each row step shifts it up so
-  // the next section below is revealed in the fixed tile window.
-  const boardX = tileXpt - col * stepWpt;
+  // Anchor the board inset from the tile edge by dimAnnotationPt on the left
+  // so dimension annotations (leaders, outside-board lines) land in the
+  // reserved strip rather than running into the page margin. The bottom
+  // annotation strip is guaranteed by computeBoardScale: boardHpt ≤
+  // boardAreaHmm * MM, so boardY = tileTopYpt - boardHpt ≥ tileYpt + dimAnnotationPt.
+  const boardX = tileXpt + dimAnnotationPt - col * stepWpt;
   const boardY = tileTopYpt - boardHpt + row * stepHpt;
 
   // Clip everything to the tile rectangle by drawing a clip box. pdf-lib
@@ -384,40 +424,19 @@ function drawBoardTilePage(
       );
     }
 
-    // Part name label (dimensions handled above by drawPartDimensions).
-    // Uses the shared F20 horizontal-first / wrap / rotate-last decision so the
-    // PDF agrees with the on-screen layout.
+    // Part name label and interior measurement.
     const nameToDraw = showBomName ? (placement.name ?? null) : null;
-    if (nameToDraw) {
-      drawPartLabels(ctx, page, nameToDraw, {
-        px,
-        py,
-        pw,
-        ph,
-        placedWidthMm,
-        placedLengthMm,
-        scale,
-        tileXpt,
-        tileYpt,
-        tileWpt,
-        tileHpt,
-        placement: ctx.opts.labelPlacement ?? 'center',
-        dimensionsEnabled: partPlan.kind === 'edge',
-      });
-    }
 
-    // F20 Part B — `text` / `inside` measurement value sits in the piece
-    // interior, after the name label has claimed its space, so the two never
-    // overwrite each other (occupancy clamp). `outside` is handled per-board
-    // below the placement loop.
-    if (partPlan.kind === 'interior') {
+    if (mode === 'text' && partPlan.kind === 'interior') {
+      // 'text' mode: BOM name + WxH measurement as one vertically- and
+      // horizontally-centred block. Name lines on top, measurement below.
       const sizeText = formatPartSizeText(
         formatSize,
         (placement.rightUm - placement.leftUm) as Micrometres,
         (placement.topUm - placement.bottomUm) as Micrometres,
       );
       if (sizeText) {
-        drawInteriorMeasurement(ctx, page, sizeText, {
+        drawTextModeCenteredBlock(ctx, page, nameToDraw, sizeText, {
           px,
           py,
           pw,
@@ -427,6 +446,47 @@ function drawBoardTilePage(
           tileWpt,
           tileHpt,
         });
+      }
+    } else {
+      // All other modes: F20 horizontal-first name label + optional interior
+      // measurement for 'inside' mode.
+      if (nameToDraw) {
+        drawPartLabels(ctx, page, nameToDraw, {
+          px,
+          py,
+          pw,
+          ph,
+          placedWidthMm,
+          placedLengthMm,
+          scale,
+          tileXpt,
+          tileYpt,
+          tileWpt,
+          tileHpt,
+          placement: ctx.opts.labelPlacement ?? 'center',
+          dimensionsEnabled: partPlan.kind === 'edge',
+        });
+      }
+      // F20 Part B — `inside` measurement value after the name label has
+      // claimed its space. `outside` is handled per-board below.
+      if (partPlan.kind === 'interior') {
+        const sizeText = formatPartSizeText(
+          formatSize,
+          (placement.rightUm - placement.leftUm) as Micrometres,
+          (placement.topUm - placement.bottomUm) as Micrometres,
+        );
+        if (sizeText) {
+          drawInteriorMeasurement(ctx, page, sizeText, {
+            px,
+            py,
+            pw,
+            ph,
+            tileXpt,
+            tileYpt,
+            tileWpt,
+            tileHpt,
+          });
+        }
       }
     }
   }
@@ -481,6 +541,7 @@ function drawBoardTilePage(
       formatSize,
       widthOf: (text, size) => ctx.font.widthOfTextAtSize(text, size),
       occupancy: ctx.occupancy,
+      showOffcutDimensions: ctx.opts.showOffcutDimensions ?? true,
     };
     drawBoardRegions(
       makeRegionEmit(ctx, page, tileXpt, tileYpt, tileWpt, tileHpt),
@@ -706,6 +767,77 @@ function drawInteriorMeasurement(
     return;
   }
   // No clear slot — suppress (geometry retained, text not drawn).
+}
+
+/**
+ * 'text' measurement mode — BOM name (if provided) + WxH size string drawn as
+ * a vertically-and-horizontally-centred block inside the piece. Name lines
+ * appear on top; the measurement string is on the bottom line. Bypasses
+ * occupancy checking because both elements live within the piece's own
+ * already-claimed rect; tile-bounds guards prevent spill into adjacent tiles.
+ */
+function drawTextModeCenteredBlock(
+  ctx: Ctx,
+  page: PDFPage,
+  name: string | null,
+  sizeText: string,
+  geom: InteriorGeom,
+) {
+  const { px, py, pw, ph, tileXpt, tileYpt, tileWpt, tileHpt } = geom;
+  const visX1 = Math.max(px, tileXpt);
+  const visY1 = Math.max(py, tileYpt);
+  const visX2 = Math.min(px + pw, tileXpt + tileWpt);
+  const visY2 = Math.min(py + ph, tileYpt + tileHpt);
+  if (visX2 <= visX1 || visY2 <= visY1) return;
+
+  const visW = visX2 - visX1;
+  const visH = visY2 - visY1;
+  const cx = (visX1 + visX2) / 2;
+
+  const MIN_PT = 4;
+  const MAX_PT = 14;
+  const pt = Math.min(MAX_PT, Math.max(MIN_PT, visW / 8));
+  const lineHeight = pt * 1.2;
+  const budgetW = visW * 0.88;
+
+  const measureFn = (t: string, size: number) =>
+    ctx.font.widthOfTextAtSize(t, size);
+
+  if (measureFn(sizeText, pt) > budgetW) return;
+
+  const nameLines: string[] = name
+    ? wrapLabel(name, budgetW, pt, measureFn, 3)
+    : [];
+
+  // Name lines first, measurement last.
+  const allLines = [...nameLines, sizeText];
+
+  // Drop name lines (from the bottom of the name block) until the block fits.
+  const maxH = visH * 0.88;
+  while (allLines.length > 1 && allLines.length * lineHeight > maxH) {
+    allLines.splice(allLines.length - 2, 1);
+  }
+
+  const totalH = allLines.length * lineHeight;
+  // blockTopY = baseline of the first (topmost) line in PDF Y-up coordinates.
+  const blockTopY = (visY1 + visY2) / 2 + totalH / 2 - pt;
+
+  const color = rgb(0.2, 0.2, 0.2);
+  for (let i = 0; i < allLines.length; i++) {
+    const line = allLines[i];
+    const w = measureFn(line, pt);
+    const lx = cx - w / 2;
+    const ly = blockTopY - i * lineHeight;
+    if (lx < tileXpt || lx + w > tileXpt + tileWpt) continue;
+    if (ly < tileYpt || ly + pt > tileYpt + tileHpt) continue;
+    page.drawText(line, {
+      x: lx,
+      y: ly,
+      size: pt,
+      font: ctx.font,
+      color,
+    });
+  }
 }
 
 interface OutsideGeom {
@@ -953,10 +1085,25 @@ function makeRegionEmit(
           spacing: 4,
           thickness: 0.4,
         });
-        drawClippedRect(page, p.x, p.y, p.w, p.h, cx, cy, cw, ch, {
-          borderColor: style.color,
-          borderWidth: 0.4,
-        });
+        if (p.dotted) {
+          drawClippedDashedBorder(
+            page,
+            p.x,
+            p.y,
+            p.w,
+            p.h,
+            cx,
+            cy,
+            cw,
+            ch,
+            rgb(0.25, 0.45, 0.25),
+          );
+        } else {
+          drawClippedRect(page, p.x, p.y, p.w, p.h, cx, cy, cw, ch, {
+            borderColor: style.color,
+            borderWidth: 0.4,
+          });
+        }
       }
     },
     label(p) {

@@ -3,7 +3,7 @@ import { mmToUm, type Micrometres } from 'cutlist';
 import type { LinearBoardLayout } from 'cutlist';
 import { exportCutlistPdf, type ExportPdfOptions } from '../exportPdf';
 import { aggregateBom } from '../pdf/bom';
-import { computeBoardScale } from '../pdf/board';
+import { computeBoardScale, DIM_ANNOTATION_MM } from '../pdf/board';
 import {
   BOARD_TITLE_BAND_MM,
   FOOTER_BAND_MM,
@@ -553,5 +553,24 @@ describe('computeBoardScale', () => {
       BOARD_TITLE_BAND_MM -
       FOOTER_BAND_MM;
     expect(2400 / portraitScale).toBeLessThanOrEqual(printableHmm + 0.001);
+  });
+
+  it('reserves annotation space: board fits in reduced area when dimAnnotationMm is set', () => {
+    const ann = DIM_ANNOTATION_MM;
+    const scale = computeBoardScale(1220, 2440, margin, ann);
+    // Board must fit within the annotation-reduced area, not the full printable area.
+    const boardAreaHmm =
+      LETTER_H_MM -
+      2 * margin -
+      HEADER_BAND_MM -
+      BOARD_TITLE_BAND_MM -
+      FOOTER_BAND_MM -
+      ann;
+    const boardAreaWmm = LETTER_W_MM - 2 * margin - LEGEND_BAND_MM - ann;
+    expect(1220 / scale).toBeLessThanOrEqual(boardAreaWmm + 0.001);
+    expect(2440 / scale).toBeLessThanOrEqual(boardAreaHmm + 0.001);
+    // Scale must be at least as large as without annotation space.
+    const scaleWithout = computeBoardScale(1220, 2440, margin);
+    expect(scale).toBeGreaterThanOrEqual(scaleWithout);
   });
 });
