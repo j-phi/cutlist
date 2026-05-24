@@ -205,7 +205,14 @@ describe('OptimizationSettingsPopover', () => {
         {
           kind: 'sheet',
           material: 'MDF',
-          sizes: [{ width: 1, length: 1, cost: 42 }],
+          sizes: [
+            {
+              width: 1,
+              length: 1,
+              thickness: [18],
+              thicknessCosts: { '18': 42 },
+            },
+          ],
         },
       ];
       const wrapper = getComponent();
@@ -225,7 +232,7 @@ describe('OptimizationSettingsPopover', () => {
             crossSectionWidth: 1,
             crossSectionThickness: 1,
             lengths: [1],
-            cost: 5,
+            lengthCosts: { '1': 5 },
           },
         },
       ];

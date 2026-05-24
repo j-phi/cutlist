@@ -36,11 +36,16 @@ export function drawSheetShoppingPages(
   ctx: Ctx,
   layouts: SheetBoardLayout[],
   stock?: Stock[],
-  banding?: { bandingLengthUm?: Micrometres; bandingCost?: number },
+  banding?: {
+    bandingLengthUm?: Micrometres;
+    bandingCost?: number;
+    linearCost?: number;
+  },
 ): void {
   const groups = aggregateSheetShoppingList(layouts, stock);
   const bandingLengthUm = banding?.bandingLengthUm;
   const bandingCost = banding?.bandingCost;
+  const linearCost = banding?.linearCost;
   const hasBanding = bandingLengthUm != null && bandingLengthUm > 0;
   // Nothing to print at all → bail (keeps the PDF free of an empty section).
   if (groups.length === 0 && !hasBanding) return;
@@ -83,10 +88,11 @@ export function drawSheetShoppingPages(
   }
 
   // Project material total (omitted when nothing is priced — FR-COST-2).
-  // Folds in the banding cost when present (FR-BND-3).
+  // Folds in banding and linear costs when present (FR-BND-3).
   const totalText = projectTotalLine(
     sheetShoppingProjectCost(groups),
     bandingCost,
+    linearCost,
   );
   if (totalText) {
     if (cursorY - 14 < bottomY(page, margin)) {
@@ -144,14 +150,20 @@ export function bandingSummaryLine(
 
 /**
  * Pure: the project material total line (FR-COST-1/2 + FR-BND-3), or `null`
- * when nothing is priced. Folds the banding cost into the sheet cost.
+ * when nothing is priced. Folds banding and linear costs into the sheet total.
  */
 export function projectTotalLine(
   sheetCost: number | undefined,
   bandingCost: number | undefined,
+  linearCost?: number,
 ): string | null {
-  if (sheetCost === undefined && bandingCost === undefined) return null;
-  const total = (sheetCost ?? 0) + (bandingCost ?? 0);
+  if (
+    sheetCost === undefined &&
+    bandingCost === undefined &&
+    linearCost === undefined
+  )
+    return null;
+  const total = (sheetCost ?? 0) + (bandingCost ?? 0) + (linearCost ?? 0);
   return `Total material cost: ${formatCost(total)}`;
 }
 
@@ -204,7 +216,9 @@ function drawGroup(
 ): void {
   const { formatSize } = ctx.opts;
   const x = marginMm * MM;
-  page.drawText(group.material, {
+  const groupHeader =
+    `${group.material} ${formatSize(group.thicknessUm) ?? ''}`.trim();
+  page.drawText(groupHeader, {
     x,
     y: topYpt - 9,
     size: 11,

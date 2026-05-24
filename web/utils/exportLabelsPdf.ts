@@ -51,7 +51,7 @@ export async function exportLabelsPdf(
   for (const labelPage of pages) {
     const page = doc.addPage([preset.pageWmm * MM, preset.pageHmm * MM]);
     for (const cell of labelPage.cells) {
-      const geom = cellGeometry(cell.col, cell.row, preset, page, font);
+      const geom = cellGeometry(cell.col, cell.row, preset, page, fontBold);
       drawCellBorder(page, geom);
       drawLabelCell(makeLabelEmit(page, font, fontBold), cell, geom);
     }

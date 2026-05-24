@@ -15,6 +15,11 @@ export interface LinearShoppingListGroup {
   lengths: LinearShoppingListLength[];
   /** All sticks for this material, ordered by ascending stick length. */
   layouts: LinearBoardLayout[];
+  /**
+   * Σ over all sticks of their stock-size `cost`. `undefined` when no stick
+   * in the group carries a `cost` — the UI omits cost rather than showing `$0`.
+   */
+  materialCost?: number;
 }
 
 /**
@@ -29,19 +34,26 @@ export function aggregateLinearShoppingList(
 ): LinearShoppingListGroup[] {
   const byMaterial = new Map<
     string,
-    { counts: Map<Micrometres, number>; layouts: LinearBoardLayout[] }
+    {
+      counts: Map<Micrometres, number>;
+      layouts: LinearBoardLayout[];
+      cost: number | undefined;
+    }
   >();
 
   for (const layout of layouts) {
     const material = layout.stock.material;
     let entry = byMaterial.get(material);
     if (!entry) {
-      entry = { counts: new Map(), layouts: [] };
+      entry = { counts: new Map(), layouts: [], cost: undefined };
       byMaterial.set(material, entry);
     }
     const len = layout.stock.lengthUm;
     entry.counts.set(len, (entry.counts.get(len) ?? 0) + 1);
     entry.layouts.push(layout);
+    if (typeof layout.stock.cost === 'number') {
+      entry.cost = (entry.cost ?? 0) + layout.stock.cost;
+    }
   }
 
   const groups = [...byMaterial.entries()].map<LinearShoppingListGroup>(
@@ -54,6 +66,7 @@ export function aggregateLinearShoppingList(
       layouts: [...entry.layouts].sort(
         (a, b) => a.stock.lengthUm - b.stock.lengthUm,
       ),
+      materialCost: entry.cost,
     }),
   );
 

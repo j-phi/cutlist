@@ -1,10 +1,12 @@
 import { rgb } from 'pdf-lib';
 import {
   isSheetBoardLayout,
+  isLinearBoardLayout,
   type BoardLayout,
   type BoardLayoutLeftover,
   type Micrometres,
 } from 'cutlist';
+import { wrapLabel } from './labelText';
 
 /**
  * F1 — part-label / cut-sticker PDF export.
@@ -155,7 +157,15 @@ export function buildLabelCells(
     const boardId = isSheetBoardLayout(layout)
       ? `Sheet ${++sheetIndex}`
       : `Stick ${++stickIndex}`;
-    for (const p of layout.placements) {
+
+    // Sort placements in reading order: top-to-bottom then left-to-right.
+    const sorted = isSheetBoardLayout(layout)
+      ? [...layout.placements].sort(
+          (a, b) => b.bottomUm - a.bottomUm || a.leftUm - b.leftUm,
+        )
+      : [...layout.placements].sort((a, b) => a.offsetUm - b.offsetUm);
+
+    for (const p of sorted) {
       cells.push({
         partNumber: p.partNumber,
         instanceNumber: p.instanceNumber,
@@ -269,14 +279,19 @@ const PAD = 6; // inner padding (pt)
 const NAME_PT = 10;
 const META_PT = 7;
 const LINE_GAP = 2;
+// Width strip reserved on the right for the grain-direction arrow.
+const GRAIN_RESERVE = 10;
 
 /**
- * Draw one label cell's content (FR-LBL-3 + FR-LBL-4). Text rows top-to-bottom:
- *   line 1: name + #number   (bold)
- *   line 2: L × W × T         (finished dims, pre-formatted)
- *   line 3: material · boardId
- * When grain is locked, a direction arrow is drawn at the right edge aligned to
- * the part's long axis (FR-LBL-4). Pure: emits primitives, no pdf-lib.
+ * Draw one label cell's content (FR-LBL-3 + FR-LBL-4).
+ *
+ * Layout:
+ *   top row    — boardId bold upper-left · #number bold upper-right (fixed NAME_PT)
+ *   center     — part name (bold, wrapping) horizontally + vertically centered
+ *   below name — dims row, then material row, also centered
+ *
+ * If the name + two meta rows would overflow the content area, font sizes are
+ * stepped down until everything fits. Pure: emits primitives only.
  */
 export function drawLabelCell(
   emit: LabelCellEmit,
@@ -284,36 +299,90 @@ export function drawLabelCell(
   geom: LabelCellGeom,
 ): void {
   const { x, y, w, h } = geom;
-  const left = x + PAD;
-  let baseline = y + h - PAD - NAME_PT;
+  const arrowReserve = cell.grainLock ? GRAIN_RESERVE : 0;
+  const centerX = x + w / 2;
 
-  // Line 1 — name + #number (bold).
+  // --- Top row (fixed at NAME_PT, never shrinks) ---
+  const topBaseline = y + h - PAD - NAME_PT;
+
   emit.text({
-    text: `${cell.name}  #${cell.number}`,
-    x: left,
-    y: baseline,
+    text: cell.boardId,
+    x: x + PAD,
+    y: topBaseline,
     size: NAME_PT,
     color: NAME_COLOR,
     bold: true,
   });
-  baseline -= NAME_PT + LINE_GAP;
 
-  // Line 2 — finished dimensions L × W × T.
+  const numberStr = `#${cell.number}`;
+  const numW = geom.widthOf(numberStr, NAME_PT);
   emit.text({
-    text: `${cell.lengthLabel} × ${cell.widthLabel} × ${cell.thicknessLabel}`,
-    x: left,
-    y: baseline,
-    size: META_PT,
-    color: META_COLOR,
+    text: numberStr,
+    x: x + w - PAD - numW - arrowReserve,
+    y: topBaseline,
+    size: NAME_PT,
+    color: NAME_COLOR,
+    bold: true,
   });
-  baseline -= META_PT + LINE_GAP;
 
-  // Line 3 — material · board id.
+  // --- Centered content block: name + dims + material ---
+
+  // Content area: between top row and bottom padding.
+  const contentBottom = y + PAD;
+  const contentTop = topBaseline - LINE_GAP;
+  const contentH = contentTop - contentBottom;
+  const nameW = w - 2 * PAD;
+
+  const computeBlock = (np: number, mp: number) => {
+    const nameLines = wrapLabel(cell.name, nameW, np, geom.widthOf, 99);
+    // blockSpan: distance from top of first name line down to baseline of the
+    // single combined meta line. Each name step moves the baseline down by
+    // (np + LINE_GAP); the meta line sits at the final baseline position.
+    const blockSpan = np + nameLines.length * (np + LINE_GAP);
+    return { nameLines, blockSpan };
+  };
+
+  let namePt = NAME_PT;
+  let metaPt = META_PT;
+  let block = computeBlock(namePt, metaPt);
+
+  // Shrink if name exceeds 2 lines or the block overflows the content area.
+  while (
+    (block.nameLines.length > 2 || block.blockSpan > contentH) &&
+    namePt > 5
+  ) {
+    namePt = Math.max(5, namePt - 1);
+    metaPt = Math.max(4, metaPt - 0.75);
+    block = computeBlock(namePt, metaPt);
+  }
+
+  const { nameLines, blockSpan } = block;
+
+  // Vertical center: first name baseline so block midpoint aligns with content midpoint.
+  const contentCenter = contentBottom + contentH / 2;
+  let baseline = contentCenter + blockSpan / 2 - namePt;
+
+  // Name lines — horizontally centered.
+  for (const line of nameLines) {
+    const lw = geom.widthOf(line, namePt);
+    emit.text({
+      text: line,
+      x: centerX - lw / 2,
+      y: baseline,
+      size: namePt,
+      color: NAME_COLOR,
+      bold: true,
+    });
+    baseline -= namePt + LINE_GAP;
+  }
+
+  // Single combined meta line: dims | material — centered.
+  const metaText = `${cell.lengthLabel} × ${cell.widthLabel} × ${cell.thicknessLabel} | ${cell.material}`;
   emit.text({
-    text: `${cell.material} · ${cell.boardId}`,
-    x: left,
+    text: metaText,
+    x: centerX - geom.widthOf(metaText, metaPt) / 2,
     y: baseline,
-    size: META_PT,
+    size: metaPt,
     color: META_COLOR,
   });
 

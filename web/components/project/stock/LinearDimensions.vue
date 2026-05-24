@@ -31,6 +31,8 @@ const hasAllowance = computed(() => {
 function emitLengths(next: number[]) {
   // Index-keyed length drafts shift on add/remove; clear before re-emit.
   drafts.reset();
+  lengthCostDrafts.value = {};
+  lengthCostErrors.value = {};
   emit('update:modelValue', {
     ...props.modelValue,
     size: { ...props.modelValue.size, lengths: next },
@@ -92,6 +94,68 @@ function footLabel(mm: number): string {
   }
   return '';
 }
+
+// ─── Per-length cost ────────────────────────────────────────────────────────
+// Currency-agnostic positive number keyed by `${idx}`. Empty clears the cost;
+// negative or non-finite values are rejected with a validation message.
+const lengthCostDrafts = ref<Record<number, string>>({});
+const lengthCostErrors = ref<Record<number, boolean>>({});
+
+function lengthCostDisplay(idx: number, mm: number): string {
+  return (
+    lengthCostDrafts.value[idx] ??
+    (props.modelValue.size.lengthCosts?.[String(mm)] != null
+      ? String(props.modelValue.size.lengthCosts![String(mm)])
+      : '')
+  );
+}
+
+function onLengthCostInput(idx: number, value: string) {
+  lengthCostDrafts.value[idx] = value;
+  lengthCostErrors.value[idx] = false;
+}
+
+function commitLengthCost(idx: number, mm: number) {
+  const draft = lengthCostDrafts.value[idx];
+  if (draft === undefined) return;
+  const trimmed = draft.trim();
+  const key = String(mm);
+  if (trimmed === '') {
+    delete lengthCostDrafts.value[idx];
+    lengthCostErrors.value[idx] = false;
+    if (props.modelValue.size.lengthCosts?.[key] !== undefined) {
+      const { [key]: _drop, ...restCosts } = props.modelValue.size.lengthCosts!;
+      emit('update:modelValue', {
+        ...props.modelValue,
+        size: {
+          ...props.modelValue.size,
+          ...(Object.keys(restCosts).length > 0
+            ? { lengthCosts: restCosts }
+            : { lengthCosts: undefined }),
+        },
+      });
+    }
+    return;
+  }
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n <= 0) {
+    lengthCostErrors.value[idx] = true;
+    delete lengthCostDrafts.value[idx];
+    return;
+  }
+  delete lengthCostDrafts.value[idx];
+  lengthCostErrors.value[idx] = false;
+  emit('update:modelValue', {
+    ...props.modelValue,
+    size: {
+      ...props.modelValue.size,
+      lengthCosts: {
+        ...(props.modelValue.size.lengthCosts ?? {}),
+        [key]: n,
+      },
+    },
+  });
+}
 </script>
 
 <template>
@@ -145,32 +209,50 @@ function footLabel(mm: number): string {
         <div
           v-for="(mm, idx) in modelValue.size.lengths"
           :key="idx"
-          class="flex items-center gap-2"
+          class="flex flex-col gap-0"
           data-testid="linear-length-row"
         >
-          <UInput
-            :model-value="drafts.display(lengthKey(idx), mm)"
-            class="flex-1 font-mono"
-            :placeholder="unit === 'in' ? 'e.g. 96” or 8ft' : 'e.g. 2400'"
-            :data-length-mm="mm"
-            @update:model-value="(v: string) => drafts.set(lengthKey(idx), v)"
-            @blur="commitLength(idx)"
-            @keydown.enter="commitLength(idx)"
-          />
-          <span
-            v-if="footLabel(mm)"
-            class="text-xs text-dim font-mono min-w-[3rem] text-right"
+          <div class="flex items-center gap-2">
+            <UInput
+              :model-value="drafts.display(lengthKey(idx), mm)"
+              class="flex-1 font-mono"
+              :placeholder="unit === 'in' ? 'e.g. 96” or 8ft' : 'e.g. 2400'"
+              :data-length-mm="mm"
+              @update:model-value="(v: string) => drafts.set(lengthKey(idx), v)"
+              @blur="commitLength(idx)"
+              @keydown.enter="commitLength(idx)"
+            />
+            <span
+              v-if="footLabel(mm)"
+              class="text-xs text-dim font-mono min-w-[3rem] text-right"
+            >
+              {{ footLabel(mm) }}
+            </span>
+            <UInput
+              :model-value="lengthCostDisplay(idx, mm)"
+              class="w-20 font-mono"
+              placeholder="cost"
+              :data-testid="`linear-length-cost-${idx}`"
+              @update:model-value="(v: string) => onLengthCostInput(idx, v)"
+              @blur="commitLengthCost(idx, mm)"
+              @keydown.enter="commitLengthCost(idx, mm)"
+            />
+            <UButton
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-trash-2"
+              size="xs"
+              data-testid="linear-length-remove"
+              @click="removeLength(idx)"
+            />
+          </div>
+          <p
+            v-if="lengthCostErrors[idx]"
+            class="text-[11px] text-error ml-0 mt-0.5"
+            :data-testid="`linear-length-cost-error-${idx}`"
           >
-            {{ footLabel(mm) }}
-          </span>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-trash-2"
-            size="xs"
-            data-testid="linear-length-remove"
-            @click="removeLength(idx)"
-          />
+            Cost must be a positive number.
+          </p>
         </div>
       </div>
       <UButton

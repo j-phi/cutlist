@@ -4,7 +4,11 @@ import type {
   LinearBoardLayout,
   SheetBoardLayoutPlacement,
 } from 'cutlist';
-import { reduceStockMatrix, isSheetStock } from 'cutlist';
+import {
+  reduceStockMatrix,
+  isSheetStock,
+  aggregateLinearShoppingList,
+} from 'cutlist';
 import { projectPath } from '~/utils/projectTabs';
 import {
   STORAGE_KEYS,
@@ -50,6 +54,16 @@ const sheetLayouts = computed<SheetBoardLayout[]>(
 const linearLayouts = computed<LinearBoardLayout[]>(
   () => data.value?.linearLayouts ?? [],
 );
+
+const linearCost = computed<number | undefined>(() => {
+  const groups = aggregateLinearShoppingList(linearLayouts.value);
+  let total: number | undefined;
+  for (const g of groups) {
+    if (g.materialCost === undefined) continue;
+    total = (total ?? 0) + g.materialCost;
+  }
+  return total;
+});
 
 // Clear overrides when the engine produces a new result.
 watch(data, () => resetOverrides());
@@ -657,125 +671,19 @@ const unusedOffcutLayouts = computed<SheetBoardLayout[]>(() => {
         </div>
       </div>
 
-      <!-- Single row so the right group wraps below the left on narrow
-         viewports instead of overlapping it. -->
-      <div
-        class="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-start justify-between gap-2"
-      >
+      <!-- Toolbar pill: contains all layout controls including stock filter and export actions -->
+      <div class="absolute top-3 left-3 right-3 z-10 flex items-start">
         <div
           class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2"
         >
-          <PreviewToolbar v-model:show-unused="showUnused" />
-        </div>
-
-        <div class="flex items-center gap-2 ml-auto">
-          <div
-            v-if="stockOptions.length > 1"
-            data-testid="stock-filter"
-            class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
-          >
-            <label class="text-xs text-muted whitespace-nowrap">Stock</label>
-            <UPopover
-              v-model:open="stockDropdownOpen"
-              :content="{ side: 'bottom', align: 'end', sideOffset: 4 }"
-            >
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="soft"
-                trailing-icon="i-lucide-chevron-down"
-                class="min-w-[110px] justify-between"
-              >
-                {{ selectedLabel }}
-              </UButton>
-              <template #content>
-                <div
-                  class="min-w-[220px] max-h-80 overflow-y-auto flex flex-col"
-                >
-                  <!-- Apply button pinned at top -->
-                  <div
-                    class="sticky top-0 z-10 px-2 py-2 border-b border-subtle bg-elevated"
-                  >
-                    <UButton
-                      size="xs"
-                      color="primary"
-                      block
-                      @click="applyFilter"
-                    >
-                      Apply
-                    </UButton>
-                  </div>
-                  <!-- All option -->
-                  <button
-                    type="button"
-                    class="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-mist-700/50 transition-colors text-left"
-                    @click="pendingKeys = new Set()"
-                  >
-                    <div
-                      class="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors"
-                      :class="
-                        pendingKeys.size === 0
-                          ? 'bg-primary-500 border-primary-500'
-                          : 'border-mist-600'
-                      "
-                    >
-                      <UIcon
-                        v-if="pendingKeys.size === 0"
-                        name="i-lucide-check"
-                        class="w-2.5 h-2.5 text-white"
-                      />
-                    </div>
-                    <span
-                      :class="
-                        pendingKeys.size === 0
-                          ? 'text-hi font-medium'
-                          : 'text-body'
-                      "
-                      >All</span
-                    >
-                  </button>
-                  <!-- Individual stock options -->
-                  <button
-                    v-for="opt in stockOptions"
-                    :key="opt.value"
-                    type="button"
-                    class="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-mist-700/50 transition-colors text-left"
-                    @click="togglePending(opt.value)"
-                  >
-                    <div
-                      class="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors"
-                      :class="
-                        pendingKeys.has(opt.value)
-                          ? 'bg-primary-500 border-primary-500'
-                          : 'border-mist-600'
-                      "
-                    >
-                      <UIcon
-                        v-if="pendingKeys.has(opt.value)"
-                        name="i-lucide-check"
-                        class="w-2.5 h-2.5 text-white"
-                      />
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div
-                        class="truncate"
-                        :class="
-                          pendingKeys.has(opt.value)
-                            ? 'text-hi font-medium'
-                            : 'text-body'
-                        "
-                      >
-                        {{ opt.label }}
-                      </div>
-                      <div class="text-xs text-dim">{{ opt.sublabel }}</div>
-                    </div>
-                  </button>
-                </div>
-              </template>
-            </UPopover>
-          </div>
-          <ExportLabelsButton />
-          <ExportPdfButton />
+          <PreviewToolbar v-model:show-unused="showUnused">
+            <template #row1-end>
+              <div class="ml-auto flex items-center gap-2">
+                <ExportLabelsButton />
+                <ExportPdfButton />
+              </div>
+            </template>
+          </PreviewToolbar>
         </div>
       </div>
 
@@ -794,6 +702,7 @@ const unusedOffcutLayouts = computed<SheetBoardLayout[]>(() => {
           :stocks="stocks"
           :banding-length-um="bandingLengthUm"
           :banding-cost="bandingCost"
+          :linear-cost="linearCost"
         />
       </div>
 
@@ -814,7 +723,107 @@ const unusedOffcutLayouts = computed<SheetBoardLayout[]>(() => {
       </Teleport>
 
       <!-- Controls -->
-      <div class="absolute bottom-4 right-4 flex gap-3 z-10">
+      <div class="absolute bottom-4 right-4 flex gap-3 z-10 items-center">
+        <!-- Stock filter -->
+        <div
+          v-if="stockOptions.length > 1"
+          data-testid="stock-filter"
+          class="bg-overlay backdrop-blur border border-subtle rounded-lg px-3 py-2 flex items-center gap-2"
+        >
+          <label class="text-xs text-muted whitespace-nowrap">Stock</label>
+          <UPopover
+            v-model:open="stockDropdownOpen"
+            :content="{ side: 'top', align: 'end', sideOffset: 4 }"
+          >
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="soft"
+              trailing-icon="i-lucide-chevron-down"
+              class="min-w-[110px] justify-between"
+            >
+              {{ selectedLabel }}
+            </UButton>
+            <template #content>
+              <div class="min-w-[220px] max-h-80 overflow-y-auto flex flex-col">
+                <!-- Apply button pinned at top -->
+                <div
+                  class="sticky top-0 z-10 px-2 py-2 border-b border-subtle bg-elevated"
+                >
+                  <UButton size="xs" color="primary" block @click="applyFilter">
+                    Apply
+                  </UButton>
+                </div>
+                <!-- All option -->
+                <button
+                  type="button"
+                  class="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-mist-700/50 transition-colors text-left"
+                  @click="pendingKeys = new Set()"
+                >
+                  <div
+                    class="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors"
+                    :class="
+                      pendingKeys.size === 0
+                        ? 'bg-primary-500 border-primary-500'
+                        : 'border-mist-600'
+                    "
+                  >
+                    <UIcon
+                      v-if="pendingKeys.size === 0"
+                      name="i-lucide-check"
+                      class="w-2.5 h-2.5 text-white"
+                    />
+                  </div>
+                  <span
+                    :class="
+                      pendingKeys.size === 0
+                        ? 'text-hi font-medium'
+                        : 'text-body'
+                    "
+                    >All</span
+                  >
+                </button>
+                <!-- Individual stock options -->
+                <button
+                  v-for="opt in stockOptions"
+                  :key="opt.value"
+                  type="button"
+                  class="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-mist-700/50 transition-colors text-left"
+                  @click="togglePending(opt.value)"
+                >
+                  <div
+                    class="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors"
+                    :class="
+                      pendingKeys.has(opt.value)
+                        ? 'bg-primary-500 border-primary-500'
+                        : 'border-mist-600'
+                    "
+                  >
+                    <UIcon
+                      v-if="pendingKeys.has(opt.value)"
+                      name="i-lucide-check"
+                      class="w-2.5 h-2.5 text-white"
+                    />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div
+                      class="truncate"
+                      :class="
+                        pendingKeys.has(opt.value)
+                          ? 'text-hi font-medium'
+                          : 'text-body'
+                      "
+                    >
+                      {{ opt.label }}
+                    </div>
+                    <div class="text-xs text-dim">{{ opt.sublabel }}</div>
+                  </div>
+                </button>
+              </div>
+            </template>
+          </UPopover>
+        </div>
+
         <div
           v-if="!error && data && filteredSheetLayouts.length > 0"
           class="bg-overlay backdrop-blur border border-subtle rounded-lg"

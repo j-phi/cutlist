@@ -155,6 +155,11 @@ function drawSectionTitle(
   });
 }
 
+/** Plain numeric format for currency-agnostic costs (trim trailing zeros). */
+function formatCost(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 function formatShoppingSummary(
   group: ReturnType<typeof aggregateLinearShoppingList>[number],
   formatSize: (um: Micrometres) => string | undefined,
@@ -163,7 +168,11 @@ function formatShoppingSummary(
     (l) => `${l.count}× ${formatSize(l.lengthUm) ?? ''}`,
   );
   const stickWord = group.totalSticks === 1 ? 'stick' : 'sticks';
-  return `${parts.join(', ')}  (${group.totalSticks} ${stickWord} total)`;
+  let summary = `${parts.join(', ')}  (${group.totalSticks} ${stickWord} total)`;
+  if (group.materialCost !== undefined) {
+    summary += `  ·  Cost: ${formatCost(group.materialCost)}`;
+  }
+  return summary;
 }
 
 function drawGroupHeader(

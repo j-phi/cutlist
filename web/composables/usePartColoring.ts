@@ -3,7 +3,7 @@ import { ref } from 'vue';
 /**
  * F6 / FR-VIZ-3 — module-scoped, NON-persisted toggle for per-part colouring of
  * the on-screen layout diagram. When on, each part fills with its stable
- * per-part hue ({@link partColorHsl}) — the same hue the PDF uses — so a part
+ * per-part hue ({@link partColorCss}) — the same hue the PDF uses — so a part
  * reads identically across screen and PDF.
  *
  * Deliberately not in `useProjectSettings` / IDB: this is a presentational view

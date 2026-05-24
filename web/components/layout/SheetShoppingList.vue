@@ -16,6 +16,8 @@ const props = defineProps<{
   bandingLengthUm?: Micrometres;
   /** Edge-banding cost (F7 FR-BND-3); folded into the project total. */
   bandingCost?: number;
+  /** Total linear (timber) material cost; folded into the project total. */
+  linearCost?: number;
 }>();
 
 const formatDistance = useFormatDistance();
@@ -27,6 +29,7 @@ function formatCost(n: number): string {
 
 interface DisplayGroup {
   material: string;
+  thicknessUm: Micrometres;
   /** Present only when offcuts exist for this group. */
   offcutSummary: string | null;
   buySummary: string;
@@ -59,6 +62,7 @@ const groups = computed<DisplayGroup[]>(() =>
 
     return {
       material: g.material,
+      thicknessUm: g.thicknessUm,
       offcutSummary,
       buySummary,
       yieldSummary: `Yield: ${Math.round(g.yieldRatio * 100)}%`,
@@ -91,8 +95,10 @@ const bandingSummary = computed(() => {
 const projectCost = computed(() => {
   const sheetTotal = sheetShoppingProjectCost(aggregated.value);
   const band = props.bandingCost;
-  if (sheetTotal === undefined && band === undefined) return null;
-  const total = (sheetTotal ?? 0) + (band ?? 0);
+  const linear = props.linearCost;
+  if (sheetTotal === undefined && band === undefined && linear === undefined)
+    return null;
+  const total = (sheetTotal ?? 0) + (band ?? 0) + (linear ?? 0);
   return `Total material cost: ${formatCost(total)}`;
 });
 </script>
@@ -101,10 +107,12 @@ const projectCost = computed(() => {
   <div v-if="groups.length > 0 || bandingSummary" class="flex flex-col gap-3">
     <section
       v-for="group in groups"
-      :key="group.material"
+      :key="`${group.material}_${group.thicknessUm}`"
       class="flex flex-col"
     >
-      <h3 class="text-sm font-semibold text-teal-400">{{ group.material }}</h3>
+      <h3 class="text-sm font-semibold text-teal-400">
+        {{ group.material }} {{ formatDistance(group.thicknessUm) }}
+      </h3>
       <p v-if="group.offcutSummary" class="text-xs text-muted mt-0.5">
         {{ group.offcutSummary }}
       </p>

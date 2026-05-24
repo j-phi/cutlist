@@ -197,10 +197,12 @@ const SheetStockMatrixSchema = z.object({
        */
       quantity: PositiveCount.optional(),
       /**
-       * Optional, currency-agnostic per-board cost for material-cost reporting
-       * (F2). Must be positive and finite; absent ≡ unpriced.
+       * Per-thickness costs for material-cost reporting (F2). Keys are the
+       * thickness value stringified exactly as it appears in `thickness[]`
+       * (e.g. `"18"` for 18 mm, `"0.75"` for ¾ inch). Must be positive and
+       * finite; absent key ≡ unpriced for that thickness.
        */
-      cost: PositiveCost.optional(),
+      thicknessCosts: z.record(z.string(), PositiveCost).optional(),
     }),
   ),
   role: StockRoleSchema,
@@ -220,10 +222,12 @@ export const LinearStockSize = z.object({
   crossSectionThickness: PositiveDimension,
   lengths: z.array(PositiveDimension),
   /**
-   * Optional, currency-agnostic per-stick cost for material-cost reporting
-   * (F2). Must be positive and finite; absent ≡ unpriced.
+   * Per-length costs for material-cost reporting (F2). Keys are the length
+   * value stringified exactly as it appears in `lengths[]` (e.g. `"2400"` for
+   * 2400 mm). Must be positive and finite; absent key ≡ unpriced for that
+   * length.
    */
-  cost: PositiveCost.optional(),
+  lengthCosts: z.record(z.string(), PositiveCost).optional(),
 });
 export type LinearStockSize = z.infer<typeof LinearStockSize>;
 

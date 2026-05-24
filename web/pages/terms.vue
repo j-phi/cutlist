@@ -81,10 +81,6 @@
           </p>
         </div>
       </section>
-
-      <p class="mt-12 text-dim text-xs">
-        Built by Matt &mdash; {{ new Date().getFullYear() }}
-      </p>
     </div>
   </div>
 </template>

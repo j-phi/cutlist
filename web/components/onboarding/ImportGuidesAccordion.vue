@@ -69,7 +69,14 @@ const items = computed(() =>
     <template #onshape-body>
       <div class="space-y-3 text-sm text-muted leading-relaxed">
         <p>
-          <strong class="text-body">Onshape</strong> exports natively to
+          <a
+            href="https://cad.onshape.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-body font-bold hover:underline"
+            >Onshape</a
+          >
+          exports natively to
           <span class="font-mono text-dim">.gltf</span>
           &mdash; the format Cutlist Studio reads best.
         </p>

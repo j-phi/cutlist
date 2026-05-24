@@ -239,7 +239,7 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
         color: item.color,
         oversize,
         role,
-        cost: item.size.cost,
+        cost: item.size.lengthCosts?.[String(lenMm)],
       }));
     }
     return item.sizes.flatMap<Stock>((size) =>
@@ -257,7 +257,7 @@ export function reduceStockMatrix(matrix: StockMatrix[]): Stock[] {
         // Offcuts: a missing count means one physical sheet. General stock is
         // infinite, so quantity stays undefined regardless of any stray value.
         quantity: role === 'offcut' ? (size.quantity ?? 1) : undefined,
-        cost: size.cost,
+        cost: size.thicknessCosts?.[String(thickness)],
       })),
     );
   });

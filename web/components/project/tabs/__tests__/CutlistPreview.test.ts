@@ -175,7 +175,9 @@ function getComponent() {
             '<div data-testid="linear-layout-list" :data-count="layouts.length" />',
           props: ['layouts'],
         },
-        PreviewToolbar: true,
+        PreviewToolbar: {
+          template: '<div><slot name="row1-end" /></div>',
+        },
         RulerToggle: true,
         ScaleController: true,
         ExportPdfButton: true,

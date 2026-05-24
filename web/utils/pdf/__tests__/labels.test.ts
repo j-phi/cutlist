@@ -139,6 +139,54 @@ describe('buildLabelCells — instance expansion (FR-LBL-2)', () => {
   });
 });
 
+describe('buildLabelCells — board reading order', () => {
+  /** Sheet layout with explicit placement coordinates. */
+  function sheetAt(
+    placements: Array<{ name: string; leftUm: number; bottomUm: number }>,
+  ): SheetBoardLayout {
+    return {
+      kind: 'sheet',
+      stock: {
+        name: 'Sheet 1',
+        material: 'Plywood',
+        widthUm: um(1220),
+        lengthUm: um(2440),
+        thicknessUm: um(18),
+        role: 'general',
+      },
+      marginUm: um(0) as Micrometres,
+      algorithm: 'tidy',
+      placements: placements.map((p, i) => ({
+        partNumber: i + 1,
+        instanceNumber: 0,
+        name: p.name,
+        material: 'Plywood',
+        widthUm: um(100) as Micrometres,
+        lengthUm: um(200) as Micrometres,
+        thicknessUm: um(18) as Micrometres,
+        leftUm: um(p.leftUm) as Micrometres,
+        rightUm: um(p.leftUm + 100) as Micrometres,
+        bottomUm: um(p.bottomUm) as Micrometres,
+        topUm: um(p.bottomUm + 200) as Micrometres,
+        allowanceWidthUm: um(0) as Micrometres,
+        allowanceLengthUm: um(0) as Micrometres,
+      })),
+    };
+  }
+
+  it('orders cells top-to-bottom then left-to-right within each board', () => {
+    // Layout: D is top-left, C is top-right, B is mid-left, A is bottom-left.
+    const layout = sheetAt([
+      { name: 'A', leftUm: 0, bottomUm: 0 },
+      { name: 'B', leftUm: 0, bottomUm: 300 },
+      { name: 'C', leftUm: 600, bottomUm: 800 },
+      { name: 'D', leftUm: 0, bottomUm: 800 },
+    ]);
+    const cells = buildLabelCells([layout], [], mmFormat);
+    expect(cells.map((c) => c.name)).toEqual(['D', 'C', 'B', 'A']);
+  });
+});
+
 describe('buildLabelCells — content completeness (FR-LBL-3)', () => {
   it("includes name, number, dims, material and board id in the cell's text", () => {
     const layout = sheetLayout('Sheet 1', [
@@ -214,6 +262,81 @@ describe('drawLabelCell — grain arrow (FR-LBL-4)', () => {
 
   it('draws no grain arrow when grain is unconstrained', () => {
     expect(arrowsFor(undefined)).toHaveLength(0);
+  });
+});
+
+describe('drawLabelCell — title wrapping and font shrink', () => {
+  /** Collect all text primitives for a cell drawn into a w×h box. */
+  function cellPrimitives(
+    name: string,
+    w: number,
+    h: number,
+    number = 1,
+  ): LabelTextPrimitive[] {
+    const texts: LabelTextPrimitive[] = [];
+    const cell: LabelCell = {
+      partNumber: number,
+      instanceNumber: 0,
+      name,
+      number,
+      material: 'Plywood',
+      boardId: 'Sheet 1',
+      lengthLabel: '600 mm',
+      widthLabel: '300 mm',
+      thicknessLabel: '18 mm',
+    };
+    drawLabelCell(
+      { text: (p) => texts.push(p), arrow: () => {}, line: () => {} },
+      cell,
+      { x: 0, y: 0, w, h, widthOf: (t, s) => t.length * s * 0.5 },
+    );
+    return texts;
+  }
+
+  it('boardId is upper-left, #number is upper-right, name wraps centered below', () => {
+    const name = 'Back Wall | Bottom Right Box: Toe Kick: Front/Back';
+    const texts = cellPrimitives(name, 200, 72, 27);
+    const bold = texts.filter((t) => t.bold);
+
+    const numPrim = bold.find((t) => t.text === '#27');
+    const boardPrim = bold.find((t) => t.text === 'Sheet 1');
+    expect(numPrim).toBeDefined();
+    expect(boardPrim).toBeDefined();
+
+    // Number is to the right of the boardId — both in the top row.
+    expect(numPrim!.x).toBeGreaterThan(boardPrim!.x);
+
+    // Name wraps into at most 2 centered lines below the top row.
+    const nameLines = bold.filter(
+      (t) => t.text !== '#27' && t.text !== 'Sheet 1',
+    );
+    expect(nameLines.length).toBeGreaterThanOrEqual(1);
+    expect(nameLines.length).toBeLessThanOrEqual(2);
+
+    const combined = nameLines.map((t) => t.text).join(' ');
+    expect(combined).toContain('Back Wall');
+    expect(combined).toContain('Toe Kick');
+
+    // Single combined meta line contains dims and material joined by |.
+    const nonBold = texts.filter((t) => !t.bold);
+    const metaLine = nonBold.find((t) => t.text.includes('|'));
+    expect(metaLine?.text).toContain('600 mm');
+    expect(metaLine?.text).toContain('Plywood');
+  });
+
+  it('shrinks name font when name exceeds 2 lines', () => {
+    // An extremely long name forces the 2-line cap to trigger shrinking.
+    const name =
+      'A Very Long Cabinet Component Name That Definitely Will Not Fit At Default Size';
+    const texts = cellPrimitives(name, 200, 72);
+    const bold = texts.filter((t) => t.bold);
+    const nameLines = bold.filter(
+      (t) => t.text !== '#1' && t.text !== 'Sheet 1',
+    );
+    // Capped at 2 lines.
+    expect(nameLines.length).toBeLessThanOrEqual(2);
+    // Font was reduced from the default 10.
+    expect(nameLines[0].size).toBeLessThan(10);
   });
 });
 

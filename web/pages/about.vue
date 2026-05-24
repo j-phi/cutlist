@@ -17,18 +17,21 @@
       <section class="space-y-8 text-sm text-body leading-relaxed">
         <div>
           <p>
-            Thanks for stopping by! I wanted a simple way to take a 3D model and
-            lay it out onto sheet goods and dimensional lumber &mdash; something
-            that would tell me exactly how to cut my boards and sticks with
-            minimal waste. The tools that existed were either expensive, clunky,
-            or didn't produce cuts you could actually make with a track saw.
+            Cutlist Generator is built on the foundation of
+            <a
+              href="https://github.com/matthewcobb/cutlist"
+              target="_blank"
+              class="text-teal-400 hover:text-teal-300 underline"
+              >Matthew Cobb's exceptional Cutlist app</a
+            >
+            &mdash; a beautifully simple browser-based cutting plan tool. We've
+            extended it with a multi-strategy packing tournament, 3D model
+            import, edge banding, cost optimization, part label export, a
+            rich-text build doc, and more.
           </p>
           <p class="mt-3">
-            I'm currently building out my own workshop and have been using
-            Cutlist to plan and cut all of my workbenches.
-          </p>
-          <p class="mt-3">
-            I've found it incredibly useful already and I hope you do too.
+            Everything runs entirely in your browser. No server, no accounts, no
+            sign-up required. We hope you find it as useful as we do.
           </p>
         </div>
 
@@ -39,17 +42,19 @@
             What it does
           </h2>
           <p>
-            I typically work in OnShape, and wanted a simple way to generate a
-            cut list for my projects. Cutlist Studio currently supports Onshape
-            and Sketchup imports: (<strong class="text-white">GLTF</strong>,
-            <strong class="text-white">GLB</strong>, or
-            <strong class="text-white">COLLADA/.dae</strong>) or enter parts by
-            hand. Assign stock materials &mdash; sheet goods like plywood or
-            MDF, or dimensional lumber like 2×4s &mdash; and the app figures out
+            Whether you model in Onshape, Fusion 360, SketchUp, or FreeCAD,
+            Cutlist Generator speaks your language. Import
+            <strong class="text-white">GLTF</strong>,
+            <strong class="text-white">GLB</strong>,
+            <strong class="text-white">FBX</strong>, or
+            <strong class="text-white">COLLADA/.dae</strong> files and parts are
+            extracted automatically &mdash; or enter them by hand if you prefer.
+            Assign stock materials &mdash; sheet goods like plywood or MDF, or
+            dimensional lumber like 2&times;4s &mdash; and the app figures out
             how to fit everything onto the fewest boards and sticks possible.
             Export a PDF cutting diagram to take to the workshop, or save the
             project as a <code class="text-teal-300">.cutlist</code> file to
-            share with others.
+            share with a cut service or a collaborator.
           </p>
         </div>
 
@@ -63,32 +68,41 @@
             For sheet stock, the engine runs a
             <strong class="text-white">tournament</strong> &mdash; multiple
             packing strategies compete against each other and the best layout
-            wins. There are three voices:
-            <strong class="text-white">Tidy</strong> (a two-stage guillotine
-            packer that aligns similar-width parts into clean columns),
-            <strong class="text-white">Compact</strong> (an n-stage free-rect
-            guillotine packer that maximises yield), and
+            wins. Three strategies enter, one leaves:
+            <strong class="text-white">Tidy</strong> (a guillotine packer that
+            aligns similar-width parts into clean columns &mdash; the closest
+            thing to laying parts out by hand on a table saw),
+            <strong class="text-white">Compact</strong> (a free-rect guillotine
+            packer that squeezes every last millimetre of yield), and
             <strong class="text-white">CNC</strong> (non-guillotine, for routers
-            that can cut anywhere on a sheet). You can pin a strategy per
-            project, or per material if one stock prefers one style and another
-            stock prefers another.
+            that can cut anywhere on a sheet). Pin a strategy per project, or
+            per material when one stock suits one style and another suits
+            another.
+          </p>
+          <p class="mt-3">
+            Scoring is multi-dimensional: fewest boards first, then least waste,
+            then tightest concentration &mdash; and if you've added sheet
+            prices,
+            <strong class="text-white">material cost</strong> enters the
+            objective too. The tournament finds the layout that's genuinely
+            cheapest to build, not just the one that uses the fewest cuts.
           </p>
           <p class="mt-3">
             For dimensional lumber, the engine runs a
             <strong class="text-white">1D first-fit-decreasing</strong> packer:
             parts are matched to sticks of the same cross-section and laid out
             longest-first with kerf between cuts. Short offcuts get reused on
-            earlier sticks via the same multi-board lookback as the sheet
-            packers, and the shopping list tells you how many sticks of each
-            length to buy.
+            earlier sticks via multi-board lookback, and the shopping list tells
+            you exactly how many sticks of each length to buy.
           </p>
           <p class="mt-3">
-            Tidy is the closest to how I'd actually lay parts out by hand on a
-            table saw. The cuts come out column-aligned and
-            <strong class="text-white">dead simple to follow</strong>
-            with a track saw or circular saw, and the score gives Tidy a small
-            bonus when board count and waste tie, so the cleanest layout usually
-            wins by default.
+            When edge banding is enabled, the engine
+            <strong class="text-white">subtracts banding thickness</strong> from
+            part cut sizes automatically &mdash; so the diagram shows the
+            dimension you actually cut, not the finished size. Measurement
+            labels on the board diagram can be switched between edge, outside,
+            inside, or text-only mode to match whatever your workshop workflow
+            demands.
           </p>
         </div>
 
@@ -130,29 +144,10 @@
             cross-site tracking, no ad networks.
           </p>
           <p class="mt-3">
-            I use
-            <a
-              href="https://www.simpleanalytics.com/"
-              target="_blank"
-              class="text-teal-400 hover:text-teal-300 underline"
-              >Simple Analytics</a
-            >
-            &mdash; a privacy-friendly, GDPR-compliant service that doesn't use
-            cookies and doesn't store IP addresses or personal data &mdash; to
-            collect a small set of aggregate stats so I can tell whether the
-            product is useful and where it's breaking. Specifically:
-          </p>
-          <ul class="space-y-1 mt-3 ml-4 list-disc text-muted">
-            <li>Anonymous page views (which pages get visited)</li>
-            <li>A project was created (and the unit, mm or in)</li>
-            <li>A project was imported (and the file size)</li>
-            <li>A project was exported</li>
-            <li>A PDF was exported (and how many rows it contained)</li>
-          </ul>
-          <p class="mt-3">
-            I also use <strong class="text-white">Sentry</strong> for error
-            reports so I can fix bugs. That's it &mdash; no behavioural
-            profiles, no third-party sharing, no advertising.
+            All third-party data collection is currently
+            <strong class="text-white">disabled</strong>. No analytics scripts
+            load, no error reports are sent, and no usage data of any kind
+            leaves your machine. The app runs fully offline once loaded.
           </p>
         </div>
 
@@ -163,7 +158,7 @@
             app is still in active development &mdash; if you have feedback or
             ideas,
             <a
-              href="https://github.com/matthewcobb/cutlist/issues"
+              href="https://github.com/j-phi/cutlist/issues"
               target="_blank"
               class="text-teal-400 hover:text-teal-300 underline"
               >open an issue on GitHub</a
@@ -171,8 +166,6 @@
           </p>
         </div>
       </section>
-
-      <p class="mt-12 text-dim text-xs">Built by Matt!</p>
     </div>
   </div>
 </template>
@@ -183,7 +176,7 @@ const features = [
     icon: 'i-lucide-box',
     title: '3D model import',
     description:
-      'GLTF, GLB, and COLLADA (.dae) from Blender, Fusion 360, SketchUp, FreeCAD, and others. Parts are extracted automatically.',
+      'GLTF, GLB, FBX, and COLLADA (.dae) from Blender, Fusion 360, SketchUp, Onshape, FreeCAD, and others. Parts are extracted automatically.',
   },
   {
     icon: 'i-lucide-pencil',
@@ -231,6 +224,36 @@ const features = [
     title: 'Offline & private',
     description:
       'No server, no accounts, no invasive tracking. Your data stays on your machine.',
+  },
+  {
+    icon: 'i-lucide-tag',
+    title: 'Part label stickers',
+    description:
+      'Export a printable sticker sheet — one label per part — to stick directly onto your boards as you cut.',
+  },
+  {
+    icon: 'i-lucide-frame',
+    title: 'Edge banding',
+    description:
+      'Mark banded faces per part. The shopping list and PDF report total banding length and estimated cost.',
+  },
+  {
+    icon: 'i-lucide-circle-dollar-sign',
+    title: 'Cost optimization',
+    description:
+      'Set a price per sheet and let the optimizer minimize material cost, not just board count.',
+  },
+  {
+    icon: 'i-lucide-notebook-pen',
+    title: 'Build doc',
+    description:
+      'Write step-by-step assembly instructions alongside your project, with images and embedded 3D viewer scenes.',
+  },
+  {
+    icon: 'i-lucide-film',
+    title: 'Scene timeline',
+    description:
+      'Capture named viewer states — exploded views, step callouts, hidden parts — and play them back as a build sequence.',
   },
 ];
 

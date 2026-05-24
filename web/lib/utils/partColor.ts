@@ -1,15 +1,14 @@
 /**
- * F6 / FR-VIZ-3 — stable per-part hue shared across the 3D viewer key, the
- * on-screen layout diagram, and the PDF board renderer.
+ * F6 / FR-VIZ-3 — stable per-part color shared across the on-screen layout
+ * diagram and the PDF board renderer.
  *
- * Today the viewer and the layout diagram colour parts by *material* (stock
- * colour), not per part. This module provides an OPTIONAL per-part colouring
- * scheme: a part keeps the SAME hue wherever it is drawn because every path
- * derives its colour from one pure function keyed on `partNumber`.
+ * `partHue` is the single source of truth (golden-angle hue). `partColorCss`
+ * (screen path) and `partColorRgb` (PDF path) both derive from it via OKLCH so
+ * the two color paths cannot drift: same `partNumber` → same hue → same color.
  *
- * `partHue` is the single source of truth. `partColorHsl` (screen / viewer key)
- * and `partColorRgb` (PDF, 0..1 channels) both call it, so the two colour paths
- * cannot drift: same `partNumber` → same hue → same rendered colour.
+ * OKLCH is perceptually uniform, so equal hue steps produce genuinely equal
+ * perceived differences — unlike HSL where blue-indigo-purple and yellow-green
+ * compress into narrow perceptual bands at constant S/L.
  */
 
 /** Golden-angle step keeps successive part numbers visually far apart. */
@@ -17,27 +16,17 @@ const GOLDEN_ANGLE = 137.508;
 
 /**
  * Deterministic hue in [0, 360) for a part number. Pure: same input → same
- * output, no global state. Negative / non-integer inputs are floored to a
- * non-negative integer index first so the function is total.
+ * output. Negative / non-integer inputs are floored to a non-negative integer
+ * index first so the function is total.
  */
 export function partHue(partNumber: number): number {
   const idx = Math.abs(Math.floor(partNumber));
   return (idx * GOLDEN_ANGLE) % 360;
 }
 
-/** Fixed saturation / lightness for the per-part palette (screen + PDF). */
-export const PART_SATURATION = 0.6;
-export const PART_LIGHTNESS = 0.62;
-
-/** CSS `hsl(...)` colour for a part — used by the screen layout diagram and as
- * the viewer colour key. */
-export function partColorHsl(
-  partNumber: number,
-  s: number = PART_SATURATION,
-  l: number = PART_LIGHTNESS,
-): string {
-  return `hsl(${partHue(partNumber).toFixed(1)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%)`;
-}
+/** OKLCH lightness and chroma for the per-part palette (screen + PDF). */
+export const PART_OKLCH_L = 0.7;
+export const PART_OKLCH_C = 0.13;
 
 export interface Rgb01 {
   r: number;
@@ -45,31 +34,138 @@ export interface Rgb01 {
   b: number;
 }
 
-/** HSL → RGB, all channels in [0, 1]. Standard conversion. */
-export function hslToRgb01(h: number, s: number, l: number): Rgb01 {
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const hp = (((h % 360) + 360) % 360) / 60;
-  const x = c * (1 - Math.abs((hp % 2) - 1));
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  if (hp < 1) [r, g, b] = [c, x, 0];
-  else if (hp < 2) [r, g, b] = [x, c, 0];
-  else if (hp < 3) [r, g, b] = [0, c, x];
-  else if (hp < 4) [r, g, b] = [0, x, c];
-  else if (hp < 5) [r, g, b] = [x, 0, c];
-  else [r, g, b] = [c, 0, x];
-  const m = l - c / 2;
-  return { r: r + m, g: g + m, b: b + m };
+function srgbGamma(x: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  return x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
 }
 
-/** Per-part colour as RGB channels in [0, 1] — used by the PDF board renderer
- * (pdf-lib's `rgb()` takes 0..1). Derives from {@link partHue}, the SAME key the
- * screen path uses, so #5 matches across screen and PDF. */
+/** OKLCH → linear sRGB → gamma sRGB. Out-of-gamut values are clamped to [0, 1]. */
+export function oklchToRgb01(l: number, c: number, h: number): Rgb01 {
+  const hRad = (h * Math.PI) / 180;
+  const a = c * Math.cos(hRad);
+  const b = c * Math.sin(hRad);
+  // OKLab → LMS (cube-root compressed)
+  const lc = l + 0.3963377774 * a + 0.2158037573 * b;
+  const mc = l - 0.1055613458 * a - 0.0638541728 * b;
+  const sc = l - 0.0894841775 * a - 1.291485548 * b;
+  const l3 = lc * lc * lc;
+  const m3 = mc * mc * mc;
+  const s3 = sc * sc * sc;
+  return {
+    r: srgbGamma(+4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3),
+    g: srgbGamma(-1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3),
+    b: srgbGamma(-0.0041960863 * l3 - 0.7034186147 * m3 + 1.707614701 * s3),
+  };
+}
+
+/** CSS `oklch(...)` color for a part — used by the screen layout diagram. */
+export function partColorCss(
+  partNumber: number,
+  l: number = PART_OKLCH_L,
+  c: number = PART_OKLCH_C,
+): string {
+  return `oklch(${l} ${c} ${partHue(partNumber).toFixed(1)})`;
+}
+
+/** Per-part color as RGB channels in [0, 1] — used by the PDF board renderer
+ * (pdf-lib's `rgb()` takes 0..1). Derives from {@link partHue}, the SAME key
+ * the screen path uses, so part #5 matches across screen and PDF. */
 export function partColorRgb(
   partNumber: number,
-  s: number = PART_SATURATION,
-  l: number = PART_LIGHTNESS,
+  l: number = PART_OKLCH_L,
+  c: number = PART_OKLCH_C,
 ): Rgb01 {
-  return hslToRgb01(partHue(partNumber), s, l);
+  return oklchToRgb01(l, c, partHue(partNumber));
+}
+
+// ---------------------------------------------------------------------------
+// Board-local proximity-aware color assignment (screen layout diagram only)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the hue (0–360°) at the centre of the largest arc-gap in a circular
+ * arrangement of taken hues. Used by the greedy board-colour assignment to
+ * pick the hue that maximises minimum distance from all neighbours.
+ */
+export function maxGapHue(takenHues: number[]): number {
+  const sorted = [...takenHues].sort((a, b) => a - b);
+  let maxGap = 0;
+  let bestMid = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const start = sorted[i];
+    const end = i < sorted.length - 1 ? sorted[i + 1] : sorted[0] + 360;
+    const gap = end - start;
+    if (gap > maxGap) {
+      maxGap = gap;
+      bestMid = (start + gap / 2) % 360;
+    }
+  }
+  return bestMid;
+}
+
+type Rect = {
+  partNumber: number;
+  leftUm: number;
+  rightUm: number;
+  topUm: number;
+  bottomUm: number;
+};
+
+/**
+ * Per-board greedy hue assignment that maximises contrast between spatially
+ * adjacent parts. Returns a `Map<partNumber, hue>`. Parts with no adjacency
+ * constraints fall back to their global golden-angle hue so unchanged boards
+ * look identical to the single-hue scheme.
+ *
+ * Complexity: O(n²) on placements, fine for the typical <200 parts per board.
+ */
+export function assignBoardColors(
+  placements: ReadonlyArray<Rect>,
+): Map<number, number> {
+  // 1 µm tolerance — the packing engine uses exact integer arithmetic so
+  // shared boundaries are exact; this just absorbs any rounding at the call site.
+  const TOL = 1;
+
+  // Build part-number–level adjacency (skip duplicate pn pairs).
+  const adjParts = new Map<number, Set<number>>();
+  for (const p of placements) {
+    if (!adjParts.has(p.partNumber)) adjParts.set(p.partNumber, new Set());
+  }
+  for (let i = 0; i < placements.length; i++) {
+    for (let j = i + 1; j < placements.length; j++) {
+      const a = placements[i];
+      const b = placements[j];
+      if (a.partNumber === b.partNumber) continue;
+
+      const hShare =
+        Math.abs(a.rightUm - b.leftUm) <= TOL ||
+        Math.abs(b.rightUm - a.leftUm) <= TOL;
+      const hOverlap = a.topUm > b.bottomUm + TOL && b.topUm > a.bottomUm + TOL;
+
+      const vShare =
+        Math.abs(a.topUm - b.bottomUm) <= TOL ||
+        Math.abs(b.topUm - a.bottomUm) <= TOL;
+      const vOverlap = a.rightUm > b.leftUm + TOL && b.rightUm > a.leftUm + TOL;
+
+      if ((hShare && hOverlap) || (vShare && vOverlap)) {
+        adjParts.get(a.partNumber)!.add(b.partNumber);
+        adjParts.get(b.partNumber)!.add(a.partNumber);
+      }
+    }
+  }
+
+  // Greedy: most-constrained part number first.
+  const order = [...adjParts.keys()].sort(
+    (a, b) => (adjParts.get(b)?.size ?? 0) - (adjParts.get(a)?.size ?? 0),
+  );
+
+  const hues = new Map<number, number>();
+  for (const pn of order) {
+    const takenHues = [...(adjParts.get(pn) ?? [])]
+      .filter((adj) => hues.has(adj))
+      .map((adj) => hues.get(adj)!);
+    hues.set(pn, takenHues.length > 0 ? maxGapHue(takenHues) : partHue(pn));
+  }
+  return hues;
 }

@@ -35,6 +35,7 @@ import { v8Migration } from './v8';
 import { v9Migration } from './v9';
 import { v10Migration } from './v10';
 import { v11Migration } from './v11';
+import { v12Migration } from './v12';
 
 export type { IdbRecord, RecordMigration, StoreName } from './types';
 export { migrateProjectToMmStorage } from './v3';
@@ -51,6 +52,7 @@ export { migrateProjectStockNames } from './v8';
 export { migrateProjectStockCost } from './v9';
 export { migrateProjectPhase1Fields } from './v10';
 export { migrateProjectMeasurementMode } from './v11';
+export { migrateProjectStockPerItemCost } from './v12';
 
 /** Ordered, append-only record migration list. */
 export const migrations: RecordMigration[] = [
@@ -118,6 +120,13 @@ export const migrations: RecordMigration[] = [
   // (never enters the layout fingerprint). Mirror of the Dexie
   // .version(11).upgrade() in `~/composables/useIdb/db`.
   v11Migration,
+
+  // v12 — per-board/stick cost moves from the size-level `cost` field to a
+  // per-thickness / per-length record (`thicknessCosts` / `lengthCosts`).
+  // Sheet: `sizes[].cost` → `sizes[].thicknessCosts[String(thickness)]`.
+  // Linear: `size.cost` → `size.lengthCosts[String(length)]`. Mirror of the
+  // Dexie .version(12).upgrade() in `~/composables/useIdb/db`.
+  v12Migration,
 ];
 
 /** Apply all migrations for a store from `fromVersion` to SCHEMA_VERSION. */

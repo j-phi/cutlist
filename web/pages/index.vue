@@ -358,13 +358,58 @@ async function onDrop(e: DragEvent) {
 
               <div class="flex gap-3">
                 <UIcon
-                  name="i-lucide-rotate-3d"
+                  name="i-lucide-tag"
                   class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
                 />
                 <div>
-                  <p class="text-body font-medium text-hi">Grain direction</p>
+                  <p class="text-body font-medium text-hi">
+                    Part label stickers
+                  </p>
                   <p class="text-sm text-muted mt-0.5">
-                    Lock grain per part so the optimizer won't rotate it.
+                    Export a printable sticker sheet &mdash; one label per part
+                    &mdash; to stick directly onto your boards as you cut.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex gap-3">
+                <UIcon
+                  name="i-lucide-frame"
+                  class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
+                />
+                <div>
+                  <p class="text-body font-medium text-hi">Edge banding</p>
+                  <p class="text-sm text-muted mt-0.5">
+                    Mark banded faces per part, get total banding length and
+                    cost in the shopping list and PDF export.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex gap-3">
+                <UIcon
+                  name="i-lucide-circle-dollar-sign"
+                  class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
+                />
+                <div>
+                  <p class="text-body font-medium text-hi">Cost optimization</p>
+                  <p class="text-sm text-muted mt-0.5">
+                    Set a price per sheet and let the optimizer minimize
+                    material cost, not just board count.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex gap-3">
+                <UIcon
+                  name="i-lucide-notebook-pen"
+                  class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
+                />
+                <div>
+                  <p class="text-body font-medium text-hi">Build doc</p>
+                  <p class="text-sm text-muted mt-0.5">
+                    Write step-by-step assembly instructions alongside your
+                    project, with images and embedded 3D viewer scenes.
                   </p>
                 </div>
               </div>
@@ -385,20 +430,6 @@ async function onDrop(e: DragEvent) {
 
               <div class="flex gap-3">
                 <UIcon
-                  name="i-lucide-eye"
-                  class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
-                />
-                <div>
-                  <p class="text-body font-medium text-hi">3D viewer</p>
-                  <p class="text-sm text-muted mt-0.5">
-                    Inspect your imported model with orbit, zoom, and part
-                    selection.
-                  </p>
-                </div>
-              </div>
-
-              <div class="flex gap-3">
-                <UIcon
                   name="i-lucide-hard-drive"
                   class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
                 />
@@ -411,6 +442,33 @@ async function onDrop(e: DragEvent) {
                   </p>
                 </div>
               </div>
+
+              <div class="flex gap-3">
+                <UIcon
+                  name="i-lucide-rotate-3d"
+                  class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
+                />
+                <div>
+                  <p class="text-body font-medium text-hi">Grain direction</p>
+                  <p class="text-sm text-muted mt-0.5">
+                    Lock grain per part so the optimizer won't rotate it.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex gap-3">
+                <UIcon
+                  name="i-lucide-eye"
+                  class="w-4 h-4 text-teal-400 shrink-0 mt-0.5"
+                />
+                <div>
+                  <p class="text-body font-medium text-hi">3D viewer</p>
+                  <p class="text-sm text-muted mt-0.5">
+                    Inspect your imported model with orbit, zoom, and part
+                    selection.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -418,7 +476,6 @@ async function onDrop(e: DragEvent) {
         <!-- Footer -->
         <footer class="py-8 px-4 border-t border-subtle text-center">
           <p class="text-xs text-dim">
-            Built by Matt &mdash;
             <NuxtLink
               to="/about"
               class="text-muted hover:text-body transition-colors underline"

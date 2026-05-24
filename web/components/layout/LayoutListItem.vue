@@ -4,6 +4,7 @@ import type {
   SheetBoardLayout,
   SheetBoardLayoutPlacement,
 } from 'cutlist';
+import { assignBoardColors } from 'cutlist';
 import { inject, computed, type ComputedRef } from 'vue';
 import PartListItem from './PartListItem.vue';
 
@@ -69,6 +70,11 @@ const boardStyle = computed(() =>
 const board = ref<HTMLDivElement>();
 const hoveredIndex = ref<number | null>(null);
 provide('layoutHoveredIndex', hoveredIndex);
+
+const { colorParts } = usePartColoring();
+const boardColorHue = computed(() =>
+  colorParts.value ? assignBoardColors(props.layout.placements) : undefined,
+);
 
 function togglePartGrainLock(index: number) {
   const placement = props.layout.placements[index];
@@ -243,6 +249,7 @@ const { x: mouseX, y: mouseY } = useMouse();
         :key="`${placement.partNumber}-${i}`"
         :placement="placement"
         :index="i"
+        :board-color-hues="boardColorHue"
       />
       <BoardRulerOverlay
         v-if="isRulerActive || boardMeasurements.length > 0"

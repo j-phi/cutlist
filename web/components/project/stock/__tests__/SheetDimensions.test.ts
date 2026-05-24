@@ -153,32 +153,36 @@ describe('SheetDimensions', () => {
     });
   });
 
-  describe('Per-size cost', () => {
-    it('commits a valid positive cost on blur', async () => {
+  describe('Per-thickness cost', () => {
+    // makePlywood() sizes[0] has thickness [18], so the cost input
+    // data-testid is "sheet-thickness-cost-0-18".
+    it('commits a valid positive cost for a thickness on blur', async () => {
       const wrapper = mountInput(makePlywood(), 'mm');
-      const input = wrapper.find('[data-testid="sheet-size-cost-0"]');
+      const input = wrapper.find('[data-testid="sheet-thickness-cost-0-18"]');
       await input.setValue('60');
       await input.trigger('blur');
-      expect(emittedLatest(wrapper)?.sizes[0].cost).toBe(60);
+      expect(emittedLatest(wrapper)?.sizes[0].thicknessCosts?.['18']).toBe(60);
     });
 
     it('clears cost when the field is emptied', async () => {
       const priced = makePlywood();
-      priced.sizes[0].cost = 60;
+      priced.sizes[0].thicknessCosts = { '18': 60 };
       const wrapper = mountInput(priced, 'mm');
-      const input = wrapper.find('[data-testid="sheet-size-cost-0"]');
+      const input = wrapper.find('[data-testid="sheet-thickness-cost-0-18"]');
       await input.setValue('');
       await input.trigger('blur');
-      expect(emittedLatest(wrapper)?.sizes[0]).not.toHaveProperty('cost');
+      expect(
+        emittedLatest(wrapper)?.sizes[0].thicknessCosts?.['18'],
+      ).toBeUndefined();
     });
 
     it.each(['-5', 'abc', 'Infinity'])(
       'rejects invalid cost %s, retaining the prior value and showing a message',
       async (bad) => {
         const priced = makePlywood();
-        priced.sizes[0].cost = 42;
+        priced.sizes[0].thicknessCosts = { '18': 42 };
         const wrapper = mountInput(priced, 'mm');
-        const input = wrapper.find('[data-testid="sheet-size-cost-0"]');
+        const input = wrapper.find('[data-testid="sheet-thickness-cost-0-18"]');
         await input.setValue(bad);
         await input.trigger('blur');
         // No mutation emitted — stored value retained.
@@ -187,7 +191,7 @@ describe('SheetDimensions', () => {
         expect(wrapper.text()).toContain('Cost must be a positive number');
         // Field snaps back to the retained value.
         const el = wrapper.find<HTMLInputElement>(
-          '[data-testid="sheet-size-cost-0"]',
+          '[data-testid="sheet-thickness-cost-0-18"]',
         ).element;
         expect(el.value).toBe('42');
       },

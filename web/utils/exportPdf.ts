@@ -6,6 +6,7 @@ import type {
   Micrometres,
   SheetBoardLayout,
 } from 'cutlist';
+import { aggregateLinearShoppingList } from 'cutlist';
 import type { RulerMeasurement } from '~/composables/useRulerStore';
 import { drawBomPages, type BomRow } from './pdf/bom';
 import { drawBoardTiles } from './pdf/board';
@@ -104,9 +105,17 @@ export async function exportCutlistPdf(
   // Sheet shopping list — how many sheets to buy, per material+thickness.
   // Project stock isn't plumbed into export options, so this reports offcuts
   // used (not total available); the aggregator falls back gracefully.
+  // Linear cost is folded into the sheet-page project total.
+  let linearCostTotal: number | undefined;
+  for (const g of aggregateLinearShoppingList(opts.linearLayouts)) {
+    if (g.materialCost !== undefined) {
+      linearCostTotal = (linearCostTotal ?? 0) + g.materialCost;
+    }
+  }
   drawSheetShoppingPages(ctx, opts.layouts, undefined, {
     bandingLengthUm: opts.bandingLengthUm,
     bandingCost: opts.bandingCost,
+    linearCost: linearCostTotal,
   });
 
   // Pages: each board, possibly tiled

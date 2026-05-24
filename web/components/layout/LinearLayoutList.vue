@@ -7,9 +7,15 @@ const props = defineProps<{
 
 const formatDistance = useFormatDistance();
 
+/** Plain numeric format for currency-agnostic costs (trim trailing zeros). */
+function formatCost(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 interface DisplayGroup {
   material: string;
   shoppingSummary: string;
+  costSummary: string | null;
   layouts: LinearBoardLayout[];
 }
 
@@ -24,6 +30,10 @@ const groups = computed<DisplayGroup[]>(() =>
     return {
       material: g.material,
       shoppingSummary: summary,
+      costSummary:
+        g.materialCost === undefined
+          ? null
+          : `Cost: ${formatCost(g.materialCost)}`,
       layouts: g.layouts,
     };
   }),
@@ -40,6 +50,9 @@ const groups = computed<DisplayGroup[]>(() =>
       <header class="zoom-stable origin-bottom-left mb-8">
         <h2 class="text-2xl font-bold text-teal-400">{{ group.material }}</h2>
         <p class="text-sm text-muted mt-1">{{ group.shoppingSummary }}</p>
+        <p v-if="group.costSummary" class="text-sm text-muted mt-0.5">
+          {{ group.costSummary }}
+        </p>
       </header>
       <ul class="flex flex-col gap-6 items-start">
         <LinearLayoutListItem

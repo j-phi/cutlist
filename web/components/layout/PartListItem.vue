@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import {
   ONE_INCH_UM,
-  partColorHsl,
+  partHue,
+  PART_OKLCH_L,
+  PART_OKLCH_C,
   type Micrometres,
   type SheetBoardLayoutPlacement,
 } from 'cutlist';
@@ -11,6 +13,7 @@ import { PX_PER_UM } from '~/composables/useGetPx';
 const props = defineProps<{
   placement: SheetBoardLayoutPlacement;
   index: number;
+  boardColorHues?: Map<number, number>;
 }>();
 
 const hoveredIndex = inject<Ref<number | null>>(
@@ -90,14 +93,18 @@ const nameLayout = computed(() =>
   }),
 );
 
-// FR-VIZ-3: when per-part colouring is on, fill the piece with its stable hue
-// (same `partColorHsl` the PDF derives from). Otherwise inherit the
-// material-based `--part-color` set on the board.
+// FR-VIZ-3: when per-part colouring is on, fill each piece with a hue that
+// maximises contrast against its spatial neighbours on this board
+// (assignBoardColors, passed as boardColorHues prop from LayoutListItem).
+// Falls back to the global golden-angle hue when no board context is available.
 const { colorParts } = usePartColoring();
 const pieceStyle = computed(() => {
   const base = `width:${width.value};height:${height.value}`;
   if (!colorParts.value) return base;
-  return `${base};--part-color:${partColorHsl(props.placement.partNumber)}`;
+  const hue =
+    props.boardColorHues?.get(props.placement.partNumber) ??
+    partHue(props.placement.partNumber);
+  return `${base};--part-color:oklch(${PART_OKLCH_L} ${PART_OKLCH_C} ${hue.toFixed(1)})`;
 });
 </script>
 

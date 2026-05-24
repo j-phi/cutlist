@@ -29,8 +29,8 @@ function emitSizes(sizes: SheetStockMatrix['sizes']) {
   // can't end up displayed against the wrong row after a remove.
   drafts.reset();
   newThickness.value = {};
-  costDrafts.value = {};
-  costErrors.value = {};
+  thicknessCostDrafts.value = {};
+  thicknessCostErrors.value = {};
   emit('update:modelValue', { ...props.modelValue, sizes });
 }
 
@@ -132,39 +132,66 @@ function commitSizeQty(idx: number, raw: number | string) {
   );
 }
 
-// ─── Per-size cost ──────────────────────────────────────────────────────────
-// Currency-agnostic positive number. Empty clears the cost; a negative or
-// non-finite value is rejected (prior value retained) with a validation
-// message (FR-COST-4). Draft state keeps the field editable while typing.
-const costDrafts = ref<Record<number, string>>({});
-const costErrors = ref<Record<number, boolean>>({});
+// ─── Per-thickness cost ─────────────────────────────────────────────────────
+// Currency-agnostic positive number, keyed by `${sizeIndex}-${thicknessValue}`.
+// Empty clears the cost; a negative or non-finite value is rejected (prior
+// value retained) with a validation message (FR-COST-4).
+const thicknessCostDrafts = ref<Record<string, string>>({});
+const thicknessCostErrors = ref<Record<string, boolean>>({});
 
-function costDisplay(
-  idx: number,
+// In offcut mode, costs are hidden by default and revealed per-size via a
+// toggle — offcuts are already owned, so pricing is an opt-in exception.
+const showOffcutCosts = ref<Record<number, boolean>>({});
+
+function thicknessCostKey(sizeIdx: number, thickness: number): string {
+  return `${sizeIdx}-${thickness}`;
+}
+
+function thicknessCostDisplay(
+  sizeIdx: number,
+  thickness: number,
   size: SheetStockMatrix['sizes'][number],
 ): string {
-  return costDrafts.value[idx] ?? (size.cost != null ? String(size.cost) : '');
+  const key = thicknessCostKey(sizeIdx, thickness);
+  return (
+    thicknessCostDrafts.value[key] ??
+    (size.thicknessCosts?.[String(thickness)] != null
+      ? String(size.thicknessCosts[String(thickness)])
+      : '')
+  );
 }
 
-function onCostInput(idx: number, value: string) {
-  costDrafts.value[idx] = value;
-  costErrors.value[idx] = false;
+function onThicknessCostInput(
+  sizeIdx: number,
+  thickness: number,
+  value: string,
+) {
+  const key = thicknessCostKey(sizeIdx, thickness);
+  thicknessCostDrafts.value[key] = value;
+  thicknessCostErrors.value[key] = false;
 }
 
-function commitSizeCost(idx: number) {
-  const draft = costDrafts.value[idx];
+function commitThicknessCost(sizeIdx: number, thickness: number) {
+  const key = thicknessCostKey(sizeIdx, thickness);
+  const draft = thicknessCostDrafts.value[key];
   if (draft === undefined) return;
   const trimmed = draft.trim();
+  const thStr = String(thickness);
   if (trimmed === '') {
-    // Empty clears the cost (unprice the size).
-    delete costDrafts.value[idx];
-    costErrors.value[idx] = false;
-    if (props.modelValue.sizes[idx]?.cost !== undefined) {
+    delete thicknessCostDrafts.value[key];
+    thicknessCostErrors.value[key] = false;
+    const existing = props.modelValue.sizes[sizeIdx]?.thicknessCosts;
+    if (existing && thStr in existing) {
       emitSizes(
         props.modelValue.sizes.map((s, i) => {
-          if (i !== idx) return s;
-          const { cost: _drop, ...rest } = s;
-          return rest;
+          if (i !== sizeIdx) return s;
+          const { [thStr]: _drop, ...restCosts } = s.thicknessCosts ?? {};
+          return Object.keys(restCosts).length > 0
+            ? { ...s, thicknessCosts: restCosts }
+            : (() => {
+                const { thicknessCosts: _c, ...rest } = s;
+                return rest;
+              })();
         }),
       );
     }
@@ -172,15 +199,20 @@ function commitSizeCost(idx: number) {
   }
   const n = Number(trimmed);
   if (!Number.isFinite(n) || n <= 0) {
-    // Reject: retain prior value, surface the reason, snap the field back.
-    costErrors.value[idx] = true;
-    delete costDrafts.value[idx];
+    thicknessCostErrors.value[key] = true;
+    delete thicknessCostDrafts.value[key];
     return;
   }
-  delete costDrafts.value[idx];
-  costErrors.value[idx] = false;
+  delete thicknessCostDrafts.value[key];
+  thicknessCostErrors.value[key] = false;
   emitSizes(
-    props.modelValue.sizes.map((s, i) => (i === idx ? { ...s, cost: n } : s)),
+    props.modelValue.sizes.map((s, i) => {
+      if (i !== sizeIdx) return s;
+      return {
+        ...s,
+        thicknessCosts: { ...(s.thicknessCosts ?? {}), [thStr]: n },
+      };
+    }),
   );
 }
 </script>
@@ -275,31 +307,6 @@ function commitSizeCost(idx: number) {
         </div>
       </div>
 
-      <div class="flex flex-col gap-0.5">
-        <div class="flex items-center gap-2">
-          <span
-            class="text-[11px] uppercase tracking-wider text-dim font-medium shrink-0"
-            >Cost</span
-          >
-          <UInput
-            :model-value="costDisplay(sizeIndex, size)"
-            class="w-24 font-mono"
-            placeholder="per board"
-            :data-testid="`sheet-size-cost-${sizeIndex}`"
-            @update:model-value="(v: string) => onCostInput(sizeIndex, v)"
-            @blur="commitSizeCost(sizeIndex)"
-            @keydown.enter="commitSizeCost(sizeIndex)"
-          />
-        </div>
-        <p
-          v-if="costErrors[sizeIndex]"
-          class="text-[11px] text-error"
-          :data-testid="`sheet-size-cost-error-${sizeIndex}`"
-        >
-          Cost must be a positive number.
-        </p>
-      </div>
-
       <div class="flex flex-col gap-1">
         <div class="flex items-center gap-1">
           <label
@@ -359,6 +366,58 @@ function commitSizeCost(idx: number) {
           />
         </div>
       </div>
+
+      <!-- Per-thickness cost inputs ─────────────────────────────────────── -->
+      <!-- In offcut mode, hide behind an opt-in toggle (offcuts are owned). -->
+      <template v-if="size.thickness.length > 0">
+        <div v-if="isOffcut && !showOffcutCosts[sizeIndex]" class="flex">
+          <button
+            class="text-[11px] text-dim hover:text-muted transition-colors underline underline-offset-2"
+            :data-testid="`sheet-size-show-costs-${sizeIndex}`"
+            @click="showOffcutCosts[sizeIndex] = true"
+          >
+            Manually enter costs
+          </button>
+        </div>
+        <template v-else-if="!isOffcut || showOffcutCosts[sizeIndex]">
+          <div class="flex flex-col gap-0.5">
+            <span
+              class="text-[11px] uppercase tracking-wider text-dim font-medium"
+              >Cost per board</span
+            >
+            <div
+              v-for="dim in size.thickness"
+              :key="dim"
+              class="flex flex-col gap-0"
+            >
+              <div class="flex items-center gap-2">
+                <span
+                  class="text-[11px] text-muted font-mono shrink-0 w-16 text-right"
+                  >{{ drafts.format(dim) }}{{ unit }}</span
+                >
+                <UInput
+                  :model-value="thicknessCostDisplay(sizeIndex, dim, size)"
+                  class="w-24 font-mono"
+                  placeholder="optional"
+                  :data-testid="`sheet-thickness-cost-${sizeIndex}-${dim}`"
+                  @update:model-value="
+                    (v: string) => onThicknessCostInput(sizeIndex, dim, v)
+                  "
+                  @blur="commitThicknessCost(sizeIndex, dim)"
+                  @keydown.enter="commitThicknessCost(sizeIndex, dim)"
+                />
+              </div>
+              <p
+                v-if="thicknessCostErrors[thicknessCostKey(sizeIndex, dim)]"
+                class="text-[11px] text-error ml-20"
+                :data-testid="`sheet-thickness-cost-error-${sizeIndex}-${dim}`"
+              >
+                Cost must be a positive number.
+              </p>
+            </div>
+          </div>
+        </template>
+      </template>
     </div>
 
     <UButton

@@ -25,6 +25,7 @@ import {
   migrateProjectStockCost,
   migrateProjectPhase1Fields,
   migrateProjectMeasurementMode,
+  migrateProjectStockPerItemCost,
 } from '~/utils/projectImport/migrations';
 import type {
   IdbProject,
@@ -219,6 +220,23 @@ export class CutlistDB extends Dexie {
           .toCollection()
           .modify((p: Record<string, unknown>) => {
             Object.assign(p, migrateProjectMeasurementMode(p));
+          });
+      });
+
+    // v12 — per-board/stick cost moves from the size-level `cost` to a
+    // per-thickness / per-length record (`thicknessCosts` / `lengthCosts`).
+    // Sheet: `sizes[].cost` → `sizes[].thicknessCosts[String(thickness)]`.
+    // Linear: `size.cost` → `size.lengthCosts[String(length)]`.
+    // The export pipeline runs the same transform via
+    // `migrateProjectStockPerItemCost`.
+    this.version(12)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('projects')
+          .toCollection()
+          .modify((p: Record<string, unknown>) => {
+            Object.assign(p, migrateProjectStockPerItemCost(p));
           });
       });
   }

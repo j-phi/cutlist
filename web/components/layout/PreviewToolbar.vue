@@ -108,6 +108,8 @@ const settingsOpen = ref(false);
           @blur="commitMargin"
         />
       </div>
+
+      <slot name="row1-end" />
     </div>
 
     <!-- Row 2: Toggles -->
@@ -145,11 +147,10 @@ const settingsOpen = ref(false);
       />
 
       <USwitch
+        v-if="manualMode"
         v-model="snapping"
         size="xs"
         label="Snapping"
-        :disabled="!manualMode"
-        :class="{ 'opacity-50': !manualMode }"
         data-testid="toggle-snapping"
       />
 

@@ -17,7 +17,7 @@
           >Terms of Use</NuxtLink
         >
       </div>
-      <span>Built by Matt</span>
+      <span></span>
     </footer>
   </div>
 </template>

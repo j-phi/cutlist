@@ -85,8 +85,10 @@ const PANEL_ORDER_ITEMS = [
 const hasPricedStock = computed(() =>
   (stocks.value ?? []).some((m: StockMatrix) =>
     m.kind === 'linear'
-      ? typeof m.size.cost === 'number' && m.size.cost > 0
-      : m.sizes.some((s) => typeof s.cost === 'number' && s.cost > 0),
+      ? Object.values(m.size.lengthCosts ?? {}).some((v) => v > 0)
+      : m.sizes.some((s) =>
+          Object.values(s.thicknessCosts ?? {}).some((v) => v > 0),
+        ),
   ),
 );
 
