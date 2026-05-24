@@ -4,6 +4,7 @@ import {
   BOM_CSV_TEMPLATE,
   parseBomTable,
   parseDimCell,
+  parseGrainCell,
   type BomParseOptions,
 } from '../bomCsv';
 
@@ -68,16 +69,16 @@ describe('BOM_CSV_TEMPLATE', () => {
   it('round-trips through parseBomTable with no errors', () => {
     const { rows, errors } = parseBomTable(BOM_CSV_TEMPLATE, mmOpts);
     expect(errors).toEqual([]);
-    expect(rows).toEqual([
-      {
-        name: 'Side Panel',
-        qty: 2,
-        lengthUm: mmToUm(600),
-        widthUm: mmToUm(300),
-        thicknessUm: mmToUm(18),
-        material: 'Plywood',
-      },
-    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      name: 'Side Panel',
+      qty: 2,
+      lengthUm: mmToUm(600),
+      widthUm: mmToUm(300),
+      thicknessUm: mmToUm(18),
+      material: 'Plywood',
+    });
+    expect('grainLock' in rows[0]).toBe(false);
   });
 });
 
@@ -190,6 +191,74 @@ describe('parseBomTable thickness handling', () => {
     const csv = 'name,qty,length,width,material\nA,1,10mm,10mm,Oak';
     const { rows } = parseBomTable(csv, mmOpts);
     expect(rows[0].thicknessUm).toBe(mmOpts.defaultThicknessUm);
+  });
+});
+
+describe('parseGrainCell', () => {
+  it('returns undefined for blank input', () => {
+    expect(parseGrainCell('')).toBeUndefined();
+    expect(parseGrainCell('  ')).toBeUndefined();
+  });
+
+  it('maps length aliases case-insensitively', () => {
+    expect(parseGrainCell('l')).toBe('length');
+    expect(parseGrainCell('len')).toBe('length');
+    expect(parseGrainCell('length')).toBe('length');
+    expect(parseGrainCell('LENGTH')).toBe('length');
+    expect(parseGrainCell('  Length  ')).toBe('length');
+  });
+
+  it('maps width aliases case-insensitively', () => {
+    expect(parseGrainCell('w')).toBe('width');
+    expect(parseGrainCell('wid')).toBe('width');
+    expect(parseGrainCell('width')).toBe('width');
+    expect(parseGrainCell('WIDTH')).toBe('width');
+  });
+
+  it('returns null for unrecognized non-blank input', () => {
+    expect(parseGrainCell('along grain')).toBeNull();
+    expect(parseGrainCell('yes')).toBeNull();
+    expect(parseGrainCell('horizontal')).toBeNull();
+  });
+});
+
+describe('parseBomTable grain column', () => {
+  it('parses grain=length and grain=width into grainLock on the row', () => {
+    const csv =
+      'name,qty,length,width,material,grain\nDoor Rail,2,700mm,70mm,Oak,length\nCross Rail,2,400mm,70mm,Oak,w';
+    const { rows, errors } = parseBomTable(csv, mmOpts);
+    expect(errors).toEqual([]);
+    expect(rows[0].grainLock).toBe('length');
+    expect(rows[1].grainLock).toBe('width');
+  });
+
+  it('leaves grainLock absent when the grain column is absent', () => {
+    const csv = 'name,qty,length,width,material\nShelf,1,600mm,300mm,Plywood';
+    const { rows } = parseBomTable(csv, mmOpts);
+    expect('grainLock' in rows[0]).toBe(false);
+  });
+
+  it('leaves grainLock absent when the grain cell is blank', () => {
+    const csv =
+      'name,qty,length,width,material,grain\nShelf,1,600mm,300mm,Plywood,';
+    const { rows } = parseBomTable(csv, mmOpts);
+    expect('grainLock' in rows[0]).toBe(false);
+  });
+
+  it('fails the row on an unrecognized grain value', () => {
+    const csv =
+      'name,qty,length,width,material,grain\nPanel,1,600mm,300mm,Oak,diagonal';
+    const { rows, errors } = parseBomTable(csv, mmOpts);
+    expect(rows).toHaveLength(0);
+    expect(errors[0].message).toMatch(/grain/i);
+  });
+
+  it('recognises grain column aliases', () => {
+    const csv =
+      'Part Name,Qty,Length,Width,Material,Grain Direction\nPanel,1,600mm,300mm,Oak,length';
+    const { rows, errors } = parseBomTable(csv, mmOpts);
+    expect(errors).toEqual([]);
+    expect(rows[0].grainLock).toBe('length');
   });
 });
 

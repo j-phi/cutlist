@@ -63,6 +63,7 @@ const ALIASES = {
   width: ['width', 'w'],
   material: ['material', 'mat', 'stock'],
   thickness: ['thickness', 'thick', 't'],
+  grain: ['grain', 'grain direction', 'grain lock', 'grain dir'],
 } as const;
 
 const REQUIRED = ['name', 'qty', 'length', 'width', 'material'];
@@ -71,14 +72,35 @@ const REQUIRED = ['name', 'qty', 'length', 'width', 'material'];
  * Tab-separated starter template for the BOM import. Tabs (not commas) so a
  * paste into Google Sheets / Excel lands each field in its own column; the
  * importer auto-detects the delimiter either way. Header row + one example
- * row. Thickness is optional (omit the column to use the project default).
+ * row. Thickness and Grain are optional (omit either column or leave blank).
  */
 export const BOM_CSV_TEMPLATE = [
-  ['Part Name', 'Quantity', 'Length', 'Width', 'Thickness', 'Material'].join(
-    '\t',
-  ),
-  ['Side Panel', '2', '600', '300', '18', 'Plywood'].join('\t'),
+  [
+    'Part Name',
+    'Quantity',
+    'Length',
+    'Width',
+    'Thickness',
+    'Material',
+    'Grain',
+  ].join('\t'),
+  ['Side Panel', '2', '600', '300', '18', 'Plywood', ''].join('\t'),
 ].join('\n');
+
+/**
+ * Parse a grain cell. Returns undefined for blank (free rotation), the lock
+ * direction for recognized values, or null for unrecognized non-blank input
+ * (caller should fail the row).
+ */
+export function parseGrainCell(
+  cell: string,
+): 'length' | 'width' | null | undefined {
+  const s = cell.trim().toLowerCase();
+  if (s === '') return undefined;
+  if (s === 'l' || s === 'len' || s === 'length') return 'length';
+  if (s === 'w' || s === 'wid' || s === 'width') return 'width';
+  return null;
+}
 
 function parseQty(cell: string): number | null {
   const s = cell.trim();
@@ -119,6 +141,7 @@ export function parseBomTable(
   const rows: ManualPartInput[] = [];
   const errors: BomRowError[] = [];
   const hasThickness = table.columns.thickness !== undefined;
+  const hasGrain = table.columns.grain !== undefined;
 
   for (const { dataRow, raw, cell } of table.dataRows) {
     const fail = (message: string) =>
@@ -167,7 +190,25 @@ export function parseBomTable(
       continue;
     }
 
-    rows.push({ name, widthUm, lengthUm, thicknessUm, qty, material });
+    let grainLock: 'length' | 'width' | undefined;
+    if (hasGrain) {
+      const g = parseGrainCell(cell('grain'));
+      if (g === null) {
+        fail("invalid grain value — use 'length', 'width', or leave blank");
+        continue;
+      }
+      grainLock = g;
+    }
+
+    rows.push({
+      name,
+      widthUm,
+      lengthUm,
+      thicknessUm,
+      qty,
+      material,
+      ...(grainLock !== undefined ? { grainLock } : {}),
+    });
   }
 
   return { rows, errors };
