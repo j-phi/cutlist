@@ -172,7 +172,8 @@ describe('buildLabelCells — board id names the originating stock', () => {
     expect(cell.boardId).toBe('Offcut: Garage scrap');
   });
 
-  it('counts each stock independently', () => {
+  it('counts each stock independently (numbering tied to engine order)', () => {
+    // Engine order Maple, Oak, Maple ⇒ the two Maple boards are 1 and 2.
     const cells = buildLabelCells(
       [
         sheetLayout('Maple Ply', [part(1)]),
@@ -182,11 +183,54 @@ describe('buildLabelCells — board id names the originating stock', () => {
       [],
       mmFormat,
     );
+    // Grouped by board name after numbering: both Maple boards, then Oak.
     expect(cells.map((c) => c.boardId)).toEqual([
       'Maple Ply 1',
-      'Oak Ply 1',
       'Maple Ply 2',
+      'Oak Ply 1',
     ]);
+  });
+});
+
+describe('buildLabelCells — sticker ordering', () => {
+  const part = (partNumber: number, name: string) => ({
+    partNumber,
+    instanceNumber: 0,
+    name,
+    material: 'Plywood',
+    widthUm: um(300),
+    lengthUm: um(600),
+    thicknessUm: um(18),
+  });
+
+  it('groups stickers by board name, numeric-aware (Ply 2 before Ply 10)', () => {
+    // Engine emits boards 1..10 in order, but cells must group 1,2,…,10.
+    const layouts = Array.from({ length: 10 }, (_, i) =>
+      sheetLayout('Ply', [part(i + 1, `P${i + 1}`)]),
+    );
+    const cells = buildLabelCells(layouts, [], mmFormat);
+    expect(cells.map((c) => c.boardId)).toEqual(
+      Array.from({ length: 10 }, (_, i) => `Ply ${i + 1}`),
+    );
+  });
+
+  it('keeps placed cells before unplaced leftover cells', () => {
+    const cells = buildLabelCells(
+      [sheetLayout('Ply', [part(1, 'Placed')])],
+      [
+        {
+          partNumber: 9,
+          instanceNumber: 0,
+          name: 'Unplaced',
+          material: 'Plywood',
+          widthUm: um(200),
+          lengthUm: um(500),
+          thicknessUm: um(18),
+        },
+      ],
+      mmFormat,
+    );
+    expect(cells.map((c) => c.name)).toEqual(['Placed', 'Unplaced']);
   });
 });
 

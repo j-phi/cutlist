@@ -138,8 +138,11 @@ export type LabelPresetId = keyof typeof LABEL_PRESETS;
  * the originating stock: offcut boards read `Offcut: <stock name>`; every other
  * board reads `<stock name> <N>`, where N counts boards of that same stock
  * (so two identical general sheets are distinguishable). Each placement on a
- * board carries that id (FR-LBL-3). Parts that never got placed (leftovers)
- * still get a cell each, with the {@link UNPLACED_BOARD_ID} fallback.
+ * board carries that id (FR-LBL-3). Cells are grouped by board name (numeric-
+ * aware), and within each board run in reading order — top-to-bottom then
+ * left-to-right for sheets, start-to-end for sticks. Parts that never got
+ * placed (leftovers) still get a cell each, with the {@link UNPLACED_BOARD_ID}
+ * fallback, appended after all placed cells.
  *
  * Dimension text is formatted here via `formatSize` so the cell carries the
  * same unit/precision as the BOM and layout (FR-LBL-7).
@@ -152,9 +155,11 @@ export function buildLabelCells(
   const cells: LabelCell[] = [];
   const fmt = (um: Micrometres) => formatSize(um) ?? '';
 
-  // Per-stock board counter so identical general boards get sequential ids.
+  // Assign each board its id first, in the engine's board order, so the
+  // per-stock counter stays tied to physical board identity. Numbering is done
+  // before the by-name sort below — re-sorting must not renumber boards.
   const boardCounts = new Map<string, number>();
-  for (const layout of layouts) {
+  const boards = layouts.map((layout) => {
     const stock = layout.stock;
     let boardId: string;
     if (stock.role === 'offcut') {
@@ -164,7 +169,16 @@ export function buildLabelCells(
       boardCounts.set(stock.name, n);
       boardId = `${stock.name} ${n}`;
     }
+    return { layout, boardId };
+  });
 
+  // Group stickers by board name; numeric-aware so "Maple Ply 2" precedes
+  // "Maple Ply 10". Within a board, placements stay in reading order below.
+  boards.sort((a, b) =>
+    a.boardId.localeCompare(b.boardId, undefined, { numeric: true }),
+  );
+
+  for (const { layout, boardId } of boards) {
     // Sort placements in reading order: top-to-bottom then left-to-right.
     const sorted = isSheetBoardLayout(layout)
       ? [...layout.placements].sort(
