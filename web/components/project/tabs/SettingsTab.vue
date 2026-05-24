@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 const { activeProject, activeId, renameProject, closeProject } = useProjects();
 const { distanceUnit, precision } = useProjectSettings();
+const { enabled: costTrackingEnabled } = useCostTracking();
 
 const projectName = ref('');
 watch(
@@ -59,6 +60,22 @@ function deleteProject() {
         help="How dimensions are rounded for display. Storage is unaffected — switch precision any time to see more or fewer digits."
       >
         <USelect v-model="precisionModel" :items="precisionItems" />
+      </UFormField>
+    </div>
+
+    <div class="flex flex-col gap-4 border-t border-subtle pt-8">
+      <h3 class="text-sm font-medium text-muted uppercase tracking-wide">
+        Display
+      </h3>
+      <UFormField
+        label="Cost tracking"
+        help="Show cost inputs for sheet thicknesses and timber lengths. Disable to simplify the UI for projects where material cost isn't relevant."
+      >
+        <USwitch
+          v-model="costTrackingEnabled"
+          size="sm"
+          data-testid="cost-tracking-switch"
+        />
       </UFormField>
     </div>
 

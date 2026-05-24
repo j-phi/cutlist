@@ -2,11 +2,16 @@
 import { convertUnits, type LinearStockMatrix, type Precision } from 'cutlist';
 import { useDimensionDrafts } from '~/composables/useDimensionDrafts';
 
-const props = defineProps<{
-  modelValue: LinearStockMatrix;
-  distanceUnit: 'in' | 'mm';
-  precision: Precision;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: LinearStockMatrix;
+    distanceUnit: 'in' | 'mm';
+    precision: Precision;
+    /** When false, cost inputs are hidden globally. */
+    costsEnabled?: boolean;
+  }>(),
+  { costsEnabled: true },
+);
 
 const emit = defineEmits<{
   'update:modelValue': [next: LinearStockMatrix];
@@ -229,9 +234,10 @@ function commitLengthCost(idx: number, mm: number) {
               {{ footLabel(mm) }}
             </span>
             <UInput
+              v-if="costsEnabled !== false"
               :model-value="lengthCostDisplay(idx, mm)"
               class="w-20 font-mono"
-              placeholder="cost"
+              placeholder="opt"
               :data-testid="`linear-length-cost-${idx}`"
               @update:model-value="(v: string) => onLengthCostInput(idx, v)"
               @blur="commitLengthCost(idx, mm)"

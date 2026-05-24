@@ -57,6 +57,10 @@ export const STORAGE_KEYS = {
     // Whether the "back up your work" durability banner has been dismissed. Global.
     storageBackupBannerDismissed:
       '@cutlist/ui/storage-backup-banner-dismissed/v1',
+    // Whether cost-tracking inputs (per-thickness and per-length costs) are
+    // globally visible. Disabled by users who don't care about material costs.
+    // Default: true (costs visible). Global.
+    costTrackingEnabled: '@cutlist/ui/cost-tracking-enabled/v1',
   },
 } as const;
 

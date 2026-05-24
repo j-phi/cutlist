@@ -17,12 +17,17 @@ const props = defineProps<{
    * row shows a name field and a per-board quantity input.
    */
   showQuantity?: boolean;
+  /** When true, a per-card "Manually enter costs" toggle appears next to the trash. */
+  costsEnabled?: boolean;
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [next: StockMatrix];
   remove: [];
 }>();
+
+// Per-card cost visibility — only meaningful in offcut mode.
+const showCosts = ref(false);
 
 const isLinear = computed(() => props.modelValue.kind === 'linear');
 const typeLabel = computed(() => (isLinear.value ? 'timber' : 'sheet'));
@@ -87,6 +92,16 @@ function onColor(color: string | undefined) {
         {{ typeLabel }}
       </span>
       <UButton
+        v-if="showQuantity && costsEnabled"
+        color="neutral"
+        :variant="showCosts ? 'soft' : 'ghost'"
+        icon="i-lucide-dollar-sign"
+        size="sm"
+        :title="showCosts ? 'Hide costs' : 'Manually enter costs'"
+        data-testid="stock-costs-toggle"
+        @click="showCosts = !showCosts"
+      />
+      <UButton
         color="neutral"
         variant="ghost"
         icon="i-lucide-trash-2"
@@ -132,6 +147,7 @@ function onColor(color: string | undefined) {
       :model-value="modelValue"
       :distance-unit="distanceUnit"
       :precision="precision"
+      :costs-enabled="costsEnabled"
       @update:model-value="(next) => emit('update:modelValue', next)"
     />
     <SheetDimensions
@@ -140,6 +156,8 @@ function onColor(color: string | undefined) {
       :distance-unit="distanceUnit"
       :precision="precision"
       :is-offcut="showQuantity"
+      :show-costs="showQuantity ? showCosts : undefined"
+      :costs-enabled="costsEnabled"
       @update:model-value="(next) => emit('update:modelValue', next)"
     />
   </div>

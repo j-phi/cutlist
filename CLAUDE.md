@@ -22,6 +22,12 @@ cd web && vitest run lib/__tests__/generateBoardLayouts.edge.test.ts
 
 Formatting runs automatically via lint-staged on commit (Prettier).
 
+**Git commits — always prepend bun to PATH.** The pre-commit hook requires `bun`. Every `git commit` command must be prefixed with `export PATH="$HOME/.bun/bin:$PATH" &&`:
+
+```bash
+export PATH="$HOME/.bun/bin:$PATH" && git commit -m "..."
+```
+
 ## Code Change Workflow
 
 **Every code change must follow this checklist before reporting done:**

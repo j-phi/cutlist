@@ -2,16 +2,29 @@
 import { convertUnits, type Precision, type SheetStockMatrix } from 'cutlist';
 import { useDimensionDrafts } from '~/composables/useDimensionDrafts';
 
-const props = defineProps<{
-  modelValue: SheetStockMatrix;
-  distanceUnit: 'in' | 'mm';
-  precision: Precision;
-  /**
-   * Offcut mode: changes the section header to "Board Offcut List" and adds
-   * an editable name field to each board row.
-   */
-  isOffcut?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: SheetStockMatrix;
+    distanceUnit: 'in' | 'mm';
+    precision: Precision;
+    /**
+     * Offcut mode: changes the section header to "Board Offcut List" and adds
+     * an editable name field to each board row.
+     */
+    isOffcut?: boolean;
+    /**
+     * Whether to show cost inputs inline next to thickness chips.
+     * Only meaningful in offcut mode — controlled by the per-card toggle in StockCard.
+     */
+    showCosts?: boolean;
+    /**
+     * Whether cost tracking is globally enabled.
+     * When false, all cost inputs are hidden regardless of offcut mode.
+     */
+    costsEnabled?: boolean;
+  }>(),
+  { costsEnabled: true },
+);
 
 const emit = defineEmits<{
   'update:modelValue': [next: SheetStockMatrix];
@@ -139,9 +152,12 @@ function commitSizeQty(idx: number, raw: number | string) {
 const thicknessCostDrafts = ref<Record<string, string>>({});
 const thicknessCostErrors = ref<Record<string, boolean>>({});
 
-// In offcut mode, costs are hidden by default and revealed per-size via a
-// toggle — offcuts are already owned, so pricing is an opt-in exception.
-const showOffcutCosts = ref<Record<number, boolean>>({});
+// effectiveShowCosts: true when costs should render inline in this component.
+// For offcut mode, this is driven by the parent (StockCard) toggle via showCosts prop.
+// For general stock, costs render when costsEnabled !== false.
+const effectiveShowCosts = computed(() =>
+  props.isOffcut ? !!props.showCosts : props.costsEnabled,
+);
 
 function thicknessCostKey(sizeIdx: number, thickness: number): string {
   return `${sizeIdx}-${thickness}`;
@@ -324,21 +340,47 @@ function commitThicknessCost(sizeIdx: number, thickness: number) {
           />
         </div>
         <div class="flex flex-wrap items-center gap-1.5">
-          <span
-            v-for="(dim, i) in size.thickness"
-            :key="i"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-subtle bg-default text-[12px] text-teal-300/80 font-mono"
-            data-testid="sheet-thickness-chip"
-          >
-            {{ drafts.format(dim) }}{{ unit }}
-            <button
-              class="text-dim hover:text-body leading-none ml-0.5 transition-colors"
-              data-testid="sheet-thickness-remove"
-              @click="removeThickness(sizeIndex, i)"
+          <template v-for="(dim, i) in size.thickness" :key="i">
+            <span
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-subtle bg-default text-[12px] text-teal-300/80 font-mono"
+              data-testid="sheet-thickness-chip"
             >
-              &times;
-            </button>
-          </span>
+              {{ drafts.format(dim) }}{{ unit }}
+              <button
+                class="text-dim hover:text-body leading-none ml-0.5 transition-colors"
+                data-testid="sheet-thickness-remove"
+                @click="removeThickness(sizeIndex, i)"
+              >
+                &times;
+              </button>
+            </span>
+            <!-- Inline cost input — offcut mode only, when costs are enabled -->
+            <template v-if="isOffcut && effectiveShowCosts">
+              <span class="text-dim text-[11px] font-medium shrink-0">$</span>
+              <input
+                type="text"
+                :value="thicknessCostDisplay(sizeIndex, dim, size)"
+                placeholder="opt"
+                class="bg-default rounded px-1.5 py-0.5 text-[12px] font-mono w-16 outline-none border transition-colors placeholder:text-dim"
+                :class="
+                  thicknessCostErrors[thicknessCostKey(sizeIndex, dim)]
+                    ? 'border-red-500 focus:border-red-400'
+                    : 'border-subtle focus:border-teal-600'
+                "
+                :data-testid="`sheet-thickness-cost-${sizeIndex}-${dim}`"
+                @input="
+                  (e) =>
+                    onThicknessCostInput(
+                      sizeIndex,
+                      dim,
+                      (e.target as HTMLInputElement).value,
+                    )
+                "
+                @blur="commitThicknessCost(sizeIndex, dim)"
+                @keydown.enter="commitThicknessCost(sizeIndex, dim)"
+              />
+            </template>
+          </template>
           <input
             v-if="showThicknessInput[sizeIndex]"
             :ref="
@@ -367,56 +409,47 @@ function commitThicknessCost(sizeIdx: number, thickness: number) {
         </div>
       </div>
 
-      <!-- Per-thickness cost inputs ─────────────────────────────────────── -->
-      <!-- In offcut mode, hide behind an opt-in toggle (offcuts are owned). -->
-      <template v-if="size.thickness.length > 0">
-        <div v-if="isOffcut && !showOffcutCosts[sizeIndex]" class="flex">
-          <button
-            class="text-[11px] text-dim hover:text-muted transition-colors underline underline-offset-2"
-            :data-testid="`sheet-size-show-costs-${sizeIndex}`"
-            @click="showOffcutCosts[sizeIndex] = true"
+      <!-- Per-thickness cost inputs (general stock only) ──────────────────── -->
+      <!-- In offcut mode, costs appear inline next to each chip (see above). -->
+      <template
+        v-if="!isOffcut && effectiveShowCosts && size.thickness.length > 0"
+      >
+        <div class="flex flex-col gap-0.5">
+          <span
+            class="text-[11px] uppercase tracking-wider text-dim font-medium"
+            >Cost per board</span
           >
-            Manually enter costs
-          </button>
-        </div>
-        <template v-else-if="!isOffcut || showOffcutCosts[sizeIndex]">
-          <div class="flex flex-col gap-0.5">
-            <span
-              class="text-[11px] uppercase tracking-wider text-dim font-medium"
-              >Cost per board</span
-            >
-            <div
-              v-for="dim in size.thickness"
-              :key="dim"
-              class="flex flex-col gap-0"
-            >
-              <div class="flex items-center gap-2">
-                <span
-                  class="text-[11px] text-muted font-mono shrink-0 w-16 text-right"
-                  >{{ drafts.format(dim) }}{{ unit }}</span
-                >
-                <UInput
-                  :model-value="thicknessCostDisplay(sizeIndex, dim, size)"
-                  class="w-24 font-mono"
-                  placeholder="optional"
-                  :data-testid="`sheet-thickness-cost-${sizeIndex}-${dim}`"
-                  @update:model-value="
-                    (v: string) => onThicknessCostInput(sizeIndex, dim, v)
-                  "
-                  @blur="commitThicknessCost(sizeIndex, dim)"
-                  @keydown.enter="commitThicknessCost(sizeIndex, dim)"
-                />
-              </div>
-              <p
-                v-if="thicknessCostErrors[thicknessCostKey(sizeIndex, dim)]"
-                class="text-[11px] text-error ml-20"
-                :data-testid="`sheet-thickness-cost-error-${sizeIndex}-${dim}`"
+          <div
+            v-for="dim in size.thickness"
+            :key="dim"
+            class="flex flex-col gap-0"
+          >
+            <div class="flex items-center gap-2">
+              <span
+                class="text-[11px] text-muted font-mono shrink-0 w-16 text-right"
+                >{{ drafts.format(dim) }}{{ unit }}</span
               >
-                Cost must be a positive number.
-              </p>
+              <UInput
+                :model-value="thicknessCostDisplay(sizeIndex, dim, size)"
+                class="w-24 font-mono"
+                placeholder="opt"
+                :data-testid="`sheet-thickness-cost-${sizeIndex}-${dim}`"
+                @update:model-value="
+                  (v: string) => onThicknessCostInput(sizeIndex, dim, v)
+                "
+                @blur="commitThicknessCost(sizeIndex, dim)"
+                @keydown.enter="commitThicknessCost(sizeIndex, dim)"
+              />
             </div>
+            <p
+              v-if="thicknessCostErrors[thicknessCostKey(sizeIndex, dim)]"
+              class="text-[11px] text-error ml-20"
+              :data-testid="`sheet-thickness-cost-error-${sizeIndex}-${dim}`"
+            >
+              Cost must be a positive number.
+            </p>
           </div>
-        </template>
+        </div>
       </template>
     </div>
 

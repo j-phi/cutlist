@@ -20,6 +20,7 @@ import {
 
 const { stocks, distanceUnit, precision } = useProjectSettings();
 const { activeId } = useProjects();
+const { enabled: costsEnabled } = useCostTracking();
 const unit = computed<'mm' | 'in'>(() => distanceUnit.value ?? 'mm');
 const { add, update, remove, consolidate } = useStockMutations();
 const toast = useToast();
@@ -478,6 +479,7 @@ function onConsolidate() {
             :precision="precision"
             :material-options="materialOptions"
             :duplicate-name="duplicateNames.has(entry.name ?? '')"
+            :costs-enabled="costsEnabled"
             show-quantity
             @update:model-value="(next) => update(idx, next)"
             @remove="remove(idx)"
@@ -524,6 +526,7 @@ function onConsolidate() {
             :precision="precision"
             :material-options="materialOptions"
             :duplicate-name="duplicateNames.has(entry.name ?? '')"
+            :costs-enabled="costsEnabled"
             @update:model-value="(next) => update(idx, next)"
             @remove="remove(idx)"
           />
