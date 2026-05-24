@@ -4,8 +4,8 @@ import { isOutsideBoardMode, planPartMeasurement } from '../measurementMode';
 /**
  * F20 Part B — the per-mode render plan governs which primitive family each
  * placed part emits. These assert the user-visible behaviour that differs by
- * mode (not a mock): `text`/`inside` must NOT produce edge dimension lines;
- * `outside` is drawn per-board (per-part `none`); `edge` keeps F14.
+ * mode (not a mock): each enabled mode resolves to a distinct primitive family,
+ * and `outside` is drawn per-board (per-part `none`).
  */
 describe('planPartMeasurement (F20 Part B mode dispatch)', () => {
   it('disabled → none for every mode (no measurements drawn)', () => {
@@ -18,12 +18,17 @@ describe('planPartMeasurement (F20 Part B mode dispatch)', () => {
     expect(planPartMeasurement('edge', true)).toEqual({ kind: 'edge' });
   });
 
-  it('text and inside → interior value text (no edge dim lines)', () => {
-    expect(planPartMeasurement('text', true)).toEqual({ kind: 'interior' });
-    expect(planPartMeasurement('inside', true)).toEqual({ kind: 'interior' });
+  it('inside → W + H dimension lines inside the piece', () => {
+    expect(planPartMeasurement('inside', true)).toEqual({
+      kind: 'inside-dims',
+    });
   });
 
-  it('outside → none per part (overall dims drawn per board)', () => {
+  it('text → centred value text (no dimension lines)', () => {
+    expect(planPartMeasurement('text', true)).toEqual({ kind: 'interior' });
+  });
+
+  it('outside → none per part (waterfall dims drawn per board)', () => {
     expect(planPartMeasurement('outside', true)).toEqual({ kind: 'none' });
   });
 });

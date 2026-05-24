@@ -6,8 +6,9 @@
  *
  * The four modes map to distinct render strategies:
  *   - `edge`    → engineering dimension lines on the piece edges (F14).
- *   - `outside` → per-board overall dims in the margin OUTSIDE the stock.
- *   - `inside`  → size value text inside the piece (occupancy-avoided).
+ *   - `outside` → per-board waterfall dims in the margin OUTSIDE the stock:
+ *                 every piece's W/H stacked so dimension lines never cross.
+ *   - `inside`  → W + H dimension lines + arrows drawn INSIDE each piece.
  *   - `text`    → plain `W × H` text centered in the piece (pre-F14 behaviour).
  *
  * This module only classifies; the actual geometry lives in the renderer.
@@ -18,7 +19,8 @@ import type { MeasurementMode } from 'cutlist';
 /** What the renderer should produce for a single placed part. */
 export type PartMeasurementPlan =
   | { kind: 'edge' } // F14 drawPartDimensions on the piece
-  | { kind: 'interior' } // value text inside the piece (text / inside modes)
+  | { kind: 'inside-dims' } // W + H dimension lines inside the piece
+  | { kind: 'interior' } // value text inside the piece (text mode)
   | { kind: 'none' }; // per-board outside dims handle it elsewhere
 
 /**
@@ -34,8 +36,9 @@ export function planPartMeasurement(
   switch (mode) {
     case 'edge':
       return { kind: 'edge' };
-    case 'text':
     case 'inside':
+      return { kind: 'inside-dims' };
+    case 'text':
       return { kind: 'interior' };
     case 'outside':
       return { kind: 'none' };

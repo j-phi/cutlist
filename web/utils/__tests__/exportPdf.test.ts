@@ -557,7 +557,7 @@ describe('computeBoardScale', () => {
 
   it('reserves annotation space: board fits in reduced area when dimAnnotationMm is set', () => {
     const ann = DIM_ANNOTATION_MM;
-    const scale = computeBoardScale(1220, 2440, margin, ann);
+    const scale = computeBoardScale(1220, 2440, margin, ann, ann);
     // Board must fit within the annotation-reduced area, not the full printable area.
     const boardAreaHmm =
       LETTER_H_MM -

@@ -36,32 +36,42 @@ import {
 } from './regions';
 import { decideLabelLayout, wrapLabel } from './labelText';
 import { isOutsideBoardMode, planPartMeasurement } from './measurementMode';
+import {
+  drawOutsideWaterfall,
+  planOutsideWaterfall,
+  waterfallStripPt,
+  type OutsideWaterfallPlan,
+} from './outsideDimensions';
+import { drawInsidePartDimensions } from './insideDimensions';
 import { partColorRgb } from 'cutlist';
 
 /**
  * Find the smallest integer scale ≥ 1 that fits the board on a single page.
  * Orientation (portrait/landscape) follows the board's own aspect ratio.
  *
- * `dimAnnotationMm` reserves space on the left and bottom for dimension
- * annotation lines (used when `edge` or `outside` mode is active).
+ * `dimLeftMm` / `dimBottomMm` reserve space on the left and bottom for
+ * dimension annotation lines (used when `edge` or `outside` mode is active).
+ * They differ for `outside` mode, where the height-waterfall (left) and
+ * width-waterfall (bottom) can stack to different depths.
  */
 export function computeBoardScale(
   boardWmm: number,
   boardHmm: number,
   margin: number,
-  dimAnnotationMm = 0,
+  dimLeftMm = 0,
+  dimBottomMm = 0,
 ): number {
   const landscape = boardWmm > boardHmm;
   const pageWmm = landscape ? LETTER_H_MM : LETTER_W_MM;
   const pageHmm = landscape ? LETTER_W_MM : LETTER_H_MM;
-  const printableWmm = pageWmm - 2 * margin - LEGEND_BAND_MM - dimAnnotationMm;
+  const printableWmm = pageWmm - 2 * margin - LEGEND_BAND_MM - dimLeftMm;
   const printableHmm =
     pageHmm -
     2 * margin -
     HEADER_BAND_MM -
     BOARD_TITLE_BAND_MM -
     FOOTER_BAND_MM -
-    dimAnnotationMm;
+    dimBottomMm;
   const minScale = Math.max(boardWmm / printableWmm, boardHmm / printableHmm);
   return Math.max(1, Math.ceil(minScale));
 }
@@ -84,7 +94,8 @@ interface TileGeom {
   paperHmm: number; // full board height on paper at scale
   printableWmm: number;
   printableHmm: number;
-  dimAnnotationMm: number; // space reserved on left/bottom for dimension annotations
+  dimLeftMm: number; // space reserved on the left for dimension annotations
+  dimBottomMm: number; // space reserved on the bottom for dimension annotations
 }
 
 export function drawBoardTiles(
@@ -99,15 +110,34 @@ export function drawBoardTiles(
   const boardLmm = umToMm(stock.lengthUm);
 
   // Reserve annotation space when edge/outside dimension lines are active so
-  // leaders and outside-board text land inside the printable area.
+  // leaders and outside-board text land inside the printable area. `edge` uses
+  // a fixed strip (leaders); `outside` sizes each strip to its waterfall depth.
   const mode = ctx.opts.measurementMode ?? 'edge';
   const showDims = !!ctx.opts.showDimensions;
-  const dimAnnotationMm =
-    showDims && (mode === 'edge' || mode === 'outside') ? DIM_ANNOTATION_MM : 0;
+  const outsidePlan: OutsideWaterfallPlan | undefined =
+    showDims && mode === 'outside'
+      ? planOutsideWaterfall(layout.placements)
+      : undefined;
+
+  let dimLeftMm = 0;
+  let dimBottomMm = 0;
+  if (showDims && mode === 'edge') {
+    dimLeftMm = DIM_ANNOTATION_MM;
+    dimBottomMm = DIM_ANNOTATION_MM;
+  } else if (showDims && mode === 'outside' && outsidePlan) {
+    dimLeftMm = waterfallStripPt(outsidePlan.heightLevelCount) / MM;
+    dimBottomMm = waterfallStripPt(outsidePlan.widthLevelCount) / MM;
+  }
 
   const effectiveScale =
     ctx.opts.scale === 'auto'
-      ? computeBoardScale(boardWmm, boardLmm, ctx.opts.margin, dimAnnotationMm)
+      ? computeBoardScale(
+          boardWmm,
+          boardLmm,
+          ctx.opts.margin,
+          dimLeftMm,
+          dimBottomMm,
+        )
       : ctx.opts.scale;
 
   // Paper dimensions (mm) at the chosen scale
@@ -130,8 +160,8 @@ export function drawBoardTiles(
     FOOTER_BAND_MM;
 
   // Board area = printable minus annotation space on left and bottom.
-  const boardAreaWmm = printableWmm - dimAnnotationMm;
-  const boardAreaHmm = printableHmm - dimAnnotationMm;
+  const boardAreaWmm = printableWmm - dimLeftMm;
+  const boardAreaHmm = printableHmm - dimBottomMm;
   const stepWmm = Math.max(1, boardAreaWmm - overlap);
   const stepHmm = Math.max(1, boardAreaHmm - overlap);
   const cols = Math.max(1, Math.ceil((paperWmm - overlap) / stepWmm));
@@ -155,10 +185,12 @@ export function drawBoardTiles(
           paperHmm,
           printableWmm,
           printableHmm,
-          dimAnnotationMm,
+          dimLeftMm,
+          dimBottomMm,
         },
         measurements,
         effectiveScale,
+        outsidePlan,
       );
     }
   }
@@ -176,6 +208,7 @@ function drawBoardTilePage(
   geom: TileGeom,
   measurements: RulerMeasurement[],
   effectiveScale: number,
+  outsidePlan: OutsideWaterfallPlan | undefined,
 ) {
   const { formatSize, showPartNumbers, showBomName } = ctx.opts;
   const margin = ctx.opts.margin;
@@ -244,9 +277,9 @@ function drawBoardTilePage(
 
   // Board area is printable minus annotation space. Step uses board area so
   // the annotation space (left/bottom strip) is consistently available.
-  const boardAreaWmm = geom.printableWmm - geom.dimAnnotationMm;
-  const boardAreaHmm = geom.printableHmm - geom.dimAnnotationMm;
-  const dimAnnotationPt = geom.dimAnnotationMm * MM;
+  const boardAreaWmm = geom.printableWmm - geom.dimLeftMm;
+  const boardAreaHmm = geom.printableHmm - geom.dimBottomMm;
+  const dimLeftPt = geom.dimLeftMm * MM;
   const stepWpt = Math.max(1, boardAreaWmm - overlap) * MM;
   const stepHpt = Math.max(1, boardAreaHmm - overlap) * MM;
 
@@ -254,12 +287,12 @@ function drawBoardTilePage(
   const boardWpt = geom.paperWmm * MM;
   const boardHpt = geom.paperHmm * MM;
 
-  // Anchor the board inset from the tile edge by dimAnnotationPt on the left
-  // so dimension annotations (leaders, outside-board lines) land in the
-  // reserved strip rather than running into the page margin. The bottom
-  // annotation strip is guaranteed by computeBoardScale: boardHpt ≤
-  // boardAreaHmm * MM, so boardY = tileTopYpt - boardHpt ≥ tileYpt + dimAnnotationPt.
-  const boardX = tileXpt + dimAnnotationPt - col * stepWpt;
+  // Anchor the board inset from the tile edge by dimLeftPt on the left so
+  // dimension annotations (leaders, outside-board lines) land in the reserved
+  // strip rather than running into the page margin. The bottom annotation strip
+  // is guaranteed by computeBoardScale: boardHpt ≤ boardAreaHmm * MM, so
+  // boardY = tileTopYpt - boardHpt ≥ tileYpt + dimBottomMm * MM.
+  const boardX = tileXpt + dimLeftPt - col * stepWpt;
   const boardY = tileTopYpt - boardHpt + row * stepHpt;
 
   // Clip everything to the tile rectangle by drawing a clip box. pdf-lib
@@ -422,6 +455,29 @@ function drawBoardTilePage(
         },
         dimGeom,
       );
+    } else if (partPlan.kind === 'inside-dims') {
+      // F20 Part B — `inside` mode: W + H dimension lines drawn inside the
+      // piece. Drawn before the name label so the label avoids their text
+      // (occupancy). Uses the on-board footprint extents (matches the box).
+      const emit = makePartDimensionEmit(
+        ctx,
+        page,
+        tileXpt,
+        tileYpt,
+        tileWpt,
+        tileHpt,
+      );
+      drawInsidePartDimensions(emit, {
+        px,
+        py,
+        pw,
+        ph,
+        widthUm: (placement.rightUm - placement.leftUm) as Micrometres,
+        heightUm: (placement.topUm - placement.bottomUm) as Micrometres,
+        formatSize,
+        widthOf: (text, size) => ctx.font.widthOfTextAtSize(text, size),
+        occupancy: ctx.occupancy,
+      });
     }
 
     // Part name label and interior measurement.
@@ -447,69 +503,61 @@ function drawBoardTilePage(
           tileHpt,
         });
       }
-    } else {
-      // All other modes: F20 horizontal-first name label + optional interior
-      // measurement for 'inside' mode.
-      if (nameToDraw) {
-        drawPartLabels(ctx, page, nameToDraw, {
-          px,
-          py,
-          pw,
-          ph,
-          placedWidthMm,
-          placedLengthMm,
-          scale,
-          tileXpt,
-          tileYpt,
-          tileWpt,
-          tileHpt,
-          placement: ctx.opts.labelPlacement ?? 'center',
-          dimensionsEnabled: partPlan.kind === 'edge',
-        });
-      }
-      // F20 Part B — `inside` measurement value after the name label has
-      // claimed its space. `outside` is handled per-board below.
-      if (partPlan.kind === 'interior') {
-        const sizeText = formatPartSizeText(
-          formatSize,
-          (placement.rightUm - placement.leftUm) as Micrometres,
-          (placement.topUm - placement.bottomUm) as Micrometres,
-        );
-        if (sizeText) {
-          drawInteriorMeasurement(ctx, page, sizeText, {
-            px,
-            py,
-            pw,
-            ph,
-            tileXpt,
-            tileYpt,
-            tileWpt,
-            tileHpt,
-          });
-        }
-      }
+    } else if (nameToDraw) {
+      // F20 horizontal-first name label. In `inside` mode the W/H dimensions own
+      // the bottom + left bands, so the name anchors to the top to stay clear.
+      drawPartLabels(ctx, page, nameToDraw, {
+        px,
+        py,
+        pw,
+        ph,
+        placedWidthMm,
+        placedLengthMm,
+        scale,
+        tileXpt,
+        tileYpt,
+        tileWpt,
+        tileHpt,
+        placement:
+          partPlan.kind === 'inside-dims'
+            ? 'top'
+            : (ctx.opts.labelPlacement ?? 'center'),
+        dimensionsEnabled:
+          partPlan.kind === 'edge' || partPlan.kind === 'inside-dims',
+      });
     }
   }
 
-  // F20 Part B — `outside` measurement mode: per-board overall dimensions with
-  // extension lines that run PAST the board boundary and value text in the
-  // margin outside the stock, so they never overlap any piece. Per-board
-  // (rather than per-part) keeps the margin legible — per-part outside dims
-  // get dense fast on a full sheet. Drawn once per tile.
+  // F20 Part B — `outside` measurement mode: waterfall dimensioning. Every
+  // distinct piece WIDTH is dimensioned below the board and every distinct
+  // HEIGHT to its left, stacked smallest-innermost so dimension lines never
+  // cross (BP 9). Extension lines run PAST the board edge into the reserved
+  // strip; value text sits outside the stock, never overlapping a piece.
   if (
+    outsidePlan &&
     isOutsideBoardMode(
       ctx.opts.measurementMode ?? 'edge',
       !!ctx.opts.showDimensions,
     )
   ) {
-    drawOutsideBoardDimensions(ctx, page, {
+    const emit = makePartDimensionEmit(
+      ctx,
+      page,
+      tileXpt,
+      tileYpt,
+      tileWpt,
+      tileHpt,
+    );
+    drawOutsideWaterfall(emit, {
       boardX,
       boardY,
       boardWpt,
       boardHpt,
-      widthUm: stock.widthUm,
-      lengthUm: stock.lengthUm,
+      toPageX: (um) => boardX + (umToMm(um as Micrometres) / scale) * MM,
+      toPageY: (um) => boardY + (umToMm(um as Micrometres) / scale) * MM,
+      plan: outsidePlan,
       formatSize,
+      widthOf: (text, size) => ctx.font.widthOfTextAtSize(text, size),
     });
   }
 
@@ -720,56 +768,6 @@ interface InteriorGeom {
 }
 
 /**
- * F20 Part B — `text` / `inside` measurement value drawn inside the piece. The
- * value text is occupancy-checked against the part rect's already-claimed name
- * label and other text; if no clear slot is found within the piece it is
- * SUPPRESSED rather than overwriting (FR-LBLT-6 + "do not write over existing
- * text"). Placed below the centre when free, else nudged up.
- */
-function drawInteriorMeasurement(
-  ctx: Ctx,
-  page: PDFPage,
-  text: string,
-  geom: InteriorGeom,
-) {
-  const { px, py, pw, ph, tileXpt, tileYpt, tileWpt, tileHpt } = geom;
-  const visX1 = Math.max(px, tileXpt);
-  const visY1 = Math.max(py, tileYpt);
-  const visX2 = Math.min(px + pw, tileXpt + tileWpt);
-  const visY2 = Math.min(py + ph, tileYpt + tileHpt);
-  if (visX2 <= visX1 || visY2 <= visY1) return;
-
-  const MIN_PT = 4;
-  const pt = Math.min(8, Math.max(MIN_PT, (visX2 - visX1) / 8));
-  const w = ctx.font.widthOfTextAtSize(text, pt);
-  if (w > visX2 - visX1) return; // won't fit horizontally
-
-  const cx = (visX1 + visX2) / 2;
-  const lx = cx - w / 2;
-  // Deterministic downward search for a clear horizontal slot inside the rect.
-  const candidates = [
-    (visY1 + visY2) / 2 - pt / 2, // centre
-    visY1 + pt, // bottom band
-    visY2 - 2 * pt, // upper band
-  ];
-  for (const ly of candidates) {
-    if (ly < visY1 || ly + pt > visY2) continue;
-    const bbox = { x: lx, y: ly, w, h: pt };
-    if (ctx.occupancy.intersects(bbox)) continue;
-    ctx.occupancy.add(bbox);
-    page.drawText(text, {
-      x: lx,
-      y: ly,
-      size: pt,
-      font: ctx.font,
-      color: rgb(0.25, 0.25, 0.25),
-    });
-    return;
-  }
-  // No clear slot — suppress (geometry retained, text not drawn).
-}
-
-/**
  * 'text' measurement mode — BOM name (if provided) + WxH size string drawn as
  * a vertically-and-horizontally-centred block inside the piece. Name lines
  * appear on top; the measurement string is on the bottom line. Bypasses
@@ -836,128 +834,6 @@ function drawTextModeCenteredBlock(
       size: pt,
       font: ctx.font,
       color,
-    });
-  }
-}
-
-interface OutsideGeom {
-  boardX: number;
-  boardY: number;
-  boardWpt: number;
-  boardHpt: number;
-  widthUm: Micrometres;
-  lengthUm: Micrometres;
-  formatSize: (um: Micrometres) => string | undefined;
-}
-
-/**
- * F20 Part B — `outside` measurement mode (per-board). Extension lines run
- * PAST the board boundary and the overall board W/L value text sits in the
- * margin OUTSIDE the stock, so the value never overlaps any piece. Per-board
- * (one width dim below the board, one length dim left of it) keeps the margin
- * legible; per-part outside dims would crowd a full sheet.
- */
-function drawOutsideBoardDimensions(
-  ctx: Ctx,
-  page: PDFPage,
-  geom: OutsideGeom,
-) {
-  const { boardX, boardY, boardWpt, boardHpt, widthUm, lengthUm, formatSize } =
-    geom;
-  const OUT = 14; // how far outside the board edge the dim line sits (pt)
-  const ARROW = 3;
-  const PT = 7;
-  const color = rgb(0.1, 0.1, 0.1);
-
-  // ── Width dim, below the board. ──
-  const xLineY = boardY - OUT;
-  // Extension lines from board corners down past the dim line.
-  page.drawLine({
-    start: { x: boardX, y: boardY },
-    end: { x: boardX, y: xLineY - 2 },
-    thickness: 0.3,
-    color,
-  });
-  page.drawLine({
-    start: { x: boardX + boardWpt, y: boardY },
-    end: { x: boardX + boardWpt, y: xLineY - 2 },
-    thickness: 0.3,
-    color,
-  });
-  drawArrowH(page, boardX, xLineY, 1, ARROW, -1e9, -1e9, 1e12, 1e12, color);
-  drawArrowH(
-    page,
-    boardX + boardWpt,
-    xLineY,
-    -1,
-    ARROW,
-    -1e9,
-    -1e9,
-    1e12,
-    1e12,
-    color,
-  );
-  page.drawLine({
-    start: { x: boardX, y: xLineY },
-    end: { x: boardX + boardWpt, y: xLineY },
-    thickness: 0.5,
-    color,
-  });
-  const wText = formatSize(widthUm);
-  if (wText) {
-    const ww = ctx.font.widthOfTextAtSize(wText, PT);
-    page.drawText(wText, {
-      x: boardX + boardWpt / 2 - ww / 2,
-      y: xLineY - PT - 2,
-      size: PT,
-      font: ctx.font,
-      color,
-    });
-  }
-
-  // ── Length dim, left of the board. ──
-  const yLineX = boardX - OUT;
-  page.drawLine({
-    start: { x: boardX, y: boardY },
-    end: { x: yLineX - 2, y: boardY },
-    thickness: 0.3,
-    color,
-  });
-  page.drawLine({
-    start: { x: boardX, y: boardY + boardHpt },
-    end: { x: yLineX - 2, y: boardY + boardHpt },
-    thickness: 0.3,
-    color,
-  });
-  drawArrowV(page, yLineX, boardY, 1, ARROW, -1e9, -1e9, 1e12, 1e12, color);
-  drawArrowV(
-    page,
-    yLineX,
-    boardY + boardHpt,
-    -1,
-    ARROW,
-    -1e9,
-    -1e9,
-    1e12,
-    1e12,
-    color,
-  );
-  page.drawLine({
-    start: { x: yLineX, y: boardY },
-    end: { x: yLineX, y: boardY + boardHpt },
-    thickness: 0.5,
-    color,
-  });
-  const lText = formatSize(lengthUm);
-  if (lText) {
-    const lw = ctx.font.widthOfTextAtSize(lText, PT);
-    page.drawText(lText, {
-      x: yLineX - PT - 2,
-      y: boardY + boardHpt / 2 - lw / 2,
-      size: PT,
-      font: ctx.font,
-      color,
-      rotate: degrees(90),
     });
   }
 }

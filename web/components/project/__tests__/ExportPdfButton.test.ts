@@ -96,7 +96,7 @@ describe('ExportPdfButton', () => {
       await component.get('select').setValue('20');
       await getButton(component, 'Download').trigger('click');
 
-      expect(download).toHaveBeenCalledWith(20, false, false, 'edge');
+      expect(download).toHaveBeenCalledWith(20, false, false, 'edge', true);
     });
 
     it('Should close the modal on success', async () => {

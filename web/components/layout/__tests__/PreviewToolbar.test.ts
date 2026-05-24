@@ -239,7 +239,8 @@ describe('PreviewToolbar', () => {
       ).toBe(true);
     });
 
-    it('renders the Snapping toggle', () => {
+    it('renders the Snapping toggle when manualMode is enabled', () => {
+      manualMode.value = true;
       const wrapper = getComponent();
       expect(wrapper.find('[data-testid="toggle-snapping"]').exists()).toBe(
         true,
@@ -252,19 +253,21 @@ describe('PreviewToolbar', () => {
     });
   });
 
-  describe('Snapping toggle disabled state', () => {
-    it('disables the Snapping toggle when manualMode is false', async () => {
+  describe('Snapping toggle visibility', () => {
+    it('hides the Snapping toggle when manualMode is false', async () => {
       manualMode.value = false;
       const wrapper = getComponent();
-      const toggle = wrapper.find('[data-testid="toggle-snapping"]');
-      expect(toggle.attributes('disabled')).toBeDefined();
+      expect(wrapper.find('[data-testid="toggle-snapping"]').exists()).toBe(
+        false,
+      );
     });
 
-    it('enables the Snapping toggle when manualMode is true', async () => {
+    it('shows the Snapping toggle when manualMode is true', async () => {
       manualMode.value = true;
       const wrapper = getComponent();
-      const toggle = wrapper.find('[data-testid="toggle-snapping"]');
-      expect(toggle.attributes('disabled')).toBeUndefined();
+      expect(wrapper.find('[data-testid="toggle-snapping"]').exists()).toBe(
+        true,
+      );
     });
   });
 

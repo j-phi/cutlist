@@ -209,12 +209,16 @@
           dimension lines with arrows along each piece's own edges.
         </li>
         <li>
-          <span class="text-body">Outside</span> — overall board dimensions in
-          the margin outside the sheet, so the numbers never sit on a piece.
+          <span class="text-body">Outside</span> — every piece's width and
+          height dimensioned in the margin outside the sheet. Shared edges
+          collapse to one dimension and nested sizes stack outward (smallest
+          nearest the board) so the lines never cross — the numbers never sit on
+          a piece.
         </li>
         <li>
-          <span class="text-body">Inside</span> — the size printed inside each
-          piece, tucked into a clear spot so it never overwrites the name.
+          <span class="text-body">Inside</span> — every piece's width and height
+          drawn as dimension lines with arrows inside the piece itself (width
+          along the bottom, height up the left edge).
         </li>
         <li>
           <span class="text-body">Text</span> — just the plain W × H size
