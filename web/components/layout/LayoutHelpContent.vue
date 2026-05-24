@@ -243,5 +243,21 @@
         numbers, and material information for each board.
       </p>
     </section>
+
+    <section class="space-y-1.5">
+      <h3 class="text-xs font-medium text-hi uppercase tracking-wider">
+        Label export
+      </h3>
+      <p>
+        <span class="text-body">Labels</span> generates a separate PDF of cut
+        stickers — one label per part instance (a quantity of 3 prints 3
+        stickers). Each label carries the part name and number, the finished
+        length × width × thickness, the material, and which board the piece is
+        cut from. Parts with a locked grain direction show a grain arrow along
+        the long axis. Choose an Avery label-stock preset (5160 / 30-up or 5163
+        / 10-up) to print onto sticker sheets. The button is disabled until you
+        have generated a layout, since a label needs to know its board.
+      </p>
+    </section>
   </div>
 </template>

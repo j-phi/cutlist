@@ -774,6 +774,7 @@ const unusedOffcutLayouts = computed<SheetBoardLayout[]>(() => {
               </template>
             </UPopover>
           </div>
+          <ExportLabelsButton />
           <ExportPdfButton />
         </div>
       </div>
