@@ -11,6 +11,8 @@ import { STOCK_PRESETS, presetToMmStock } from '~/utils/settings';
 import { FALLBACK_PALETTE } from '~/utils/materialColors';
 import { useStockMutations } from '~/composables/useStockMutations';
 import { useStockCsvImport } from '~/composables/useStockCsvImport';
+import { STOCK_CSV_TEMPLATE } from '~/utils/stockCsv';
+import { copyText } from '~/utils/clipboard';
 import ViewerSidePanel from '~/components/viewer/ViewerSidePanel.vue';
 import {
   STORAGE_KEYS,
@@ -45,6 +47,23 @@ async function onImportPaste() {
   if (csvImport.result.value && csvImport.result.value.imported > 0) {
     pastedRows.value = '';
   }
+}
+
+async function onCopyTemplate() {
+  const ok = await copyText(STOCK_CSV_TEMPLATE);
+  toast.add(
+    ok
+      ? {
+          title: 'Template copied',
+          description:
+            'Paste into Google Sheets or Excel to fill in your offcuts.',
+        }
+      : {
+          title: 'Copy failed',
+          description: 'Could not access the clipboard.',
+          color: 'error',
+        },
+  );
 }
 
 // Reset the paste summary each time the import modal opens.
@@ -567,7 +586,17 @@ function onConsolidate() {
             placeholder="Name	Width	Height	Thickness	Material	Quantity"
             aria-label="Paste offcut rows"
           />
-          <div class="flex justify-end">
+          <div class="flex justify-end gap-2">
+            <UButton
+              size="sm"
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-copy"
+              data-testid="stock-copy-template"
+              @click="onCopyTemplate"
+            >
+              Copy template
+            </UButton>
             <UButton
               size="sm"
               :disabled="!pastedRows.trim()"

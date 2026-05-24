@@ -1,8 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { parseStockTable, type StockParseOptions } from '../stockCsv';
+import {
+  STOCK_CSV_TEMPLATE,
+  parseStockTable,
+  type StockParseOptions,
+} from '../stockCsv';
 
 const mmOpts: StockParseOptions = { defaultUnit: 'mm' };
 const inOpts: StockParseOptions = { defaultUnit: 'in' };
+
+describe('STOCK_CSV_TEMPLATE', () => {
+  // Guards against drift: the copy-to-clipboard template headers must keep
+  // parsing cleanly through the importer the user pastes them back into.
+  it('round-trips through parseStockTable with no errors', () => {
+    const { rows, errors } = parseStockTable(STOCK_CSV_TEMPLATE, mmOpts);
+    expect(errors).toEqual([]);
+    expect(rows).toEqual([
+      {
+        name: 'Offcut A',
+        material: 'Plywood',
+        widthMm: 1200,
+        lengthMm: 600,
+        thicknessMm: 18,
+        quantity: 1,
+      },
+    ]);
+  });
+});
 
 describe('parseStockTable valid input', () => {
   it('parses a CSV header + rows to mm numbers', () => {

@@ -67,6 +67,19 @@ const ALIASES = {
 
 const REQUIRED = ['name', 'qty', 'length', 'width', 'material'];
 
+/**
+ * Tab-separated starter template for the BOM import. Tabs (not commas) so a
+ * paste into Google Sheets / Excel lands each field in its own column; the
+ * importer auto-detects the delimiter either way. Header row + one example
+ * row. Thickness is optional (omit the column to use the project default).
+ */
+export const BOM_CSV_TEMPLATE = [
+  ['Part Name', 'Quantity', 'Length', 'Width', 'Thickness', 'Material'].join(
+    '\t',
+  ),
+  ['Side Panel', '2', '600', '300', '18', 'Plywood'].join('\t'),
+].join('\n');
+
 function parseQty(cell: string): number | null {
   const s = cell.trim();
   if (s === '') return null;

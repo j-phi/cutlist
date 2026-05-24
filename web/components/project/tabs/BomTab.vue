@@ -6,6 +6,8 @@ import {
   getLocalStorageJson,
   setLocalStorageJson,
 } from '~/utils/localStorage';
+import { BOM_CSV_TEMPLATE } from '~/utils/bomCsv';
+import { copyText } from '~/utils/clipboard';
 import type { ManualPartInput } from '~/composables/useProjects';
 import type { BomRow } from '~/composables/useBomRows';
 import type { SortKey } from '~/composables/useBomFilter';
@@ -110,6 +112,23 @@ async function onImportPaste() {
   if (csvImport.result.value && csvImport.result.value.imported > 0) {
     pastedRows.value = '';
   }
+}
+
+async function onCopyTemplate() {
+  const ok = await copyText(BOM_CSV_TEMPLATE);
+  toast.add(
+    ok
+      ? {
+          title: 'Template copied',
+          description:
+            'Paste into Google Sheets or Excel to fill in your parts.',
+        }
+      : {
+          title: 'Copy failed',
+          description: 'Could not access the clipboard.',
+          color: 'error',
+        },
+  );
 }
 
 /**
@@ -1244,7 +1263,17 @@ onUnmounted(() => {
               placeholder="Part Name	Quantity	Length	Width	Material"
               aria-label="Paste BOM rows"
             />
-            <div class="flex justify-end">
+            <div class="flex justify-end gap-2">
+              <UButton
+                size="sm"
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-copy"
+                data-testid="bom-copy-template"
+                @click="onCopyTemplate"
+              >
+                Copy template
+              </UButton>
               <UButton
                 size="sm"
                 :disabled="!pastedRows.trim()"

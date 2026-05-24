@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { mmToUm, type Micrometres } from 'cutlist';
-import { parseBomTable, parseDimCell, type BomParseOptions } from '../bomCsv';
+import {
+  BOM_CSV_TEMPLATE,
+  parseBomTable,
+  parseDimCell,
+  type BomParseOptions,
+} from '../bomCsv';
 
 const mmOpts: BomParseOptions = {
   defaultUnit: 'mm',
@@ -54,6 +59,25 @@ describe('parseBomTable delimiter detection', () => {
       thicknessUm: mmToUm(18),
       material: 'Plywood',
     });
+  });
+});
+
+describe('BOM_CSV_TEMPLATE', () => {
+  // Guards against drift: the copy-to-clipboard template headers must keep
+  // parsing cleanly through the importer the user pastes them back into.
+  it('round-trips through parseBomTable with no errors', () => {
+    const { rows, errors } = parseBomTable(BOM_CSV_TEMPLATE, mmOpts);
+    expect(errors).toEqual([]);
+    expect(rows).toEqual([
+      {
+        name: 'Side Panel',
+        qty: 2,
+        lengthUm: mmToUm(600),
+        widthUm: mmToUm(300),
+        thicknessUm: mmToUm(18),
+        material: 'Plywood',
+      },
+    ]);
   });
 });
 

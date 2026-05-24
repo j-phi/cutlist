@@ -45,6 +45,17 @@ const ALIASES: Record<string, string[]> = {
 // name is given. Only the dimensions are mandatory.
 const REQUIRED = ['width', 'length', 'thickness'];
 
+/**
+ * Tab-separated starter template for the offcut-stock import. Tabs (not commas)
+ * so a paste into Google Sheets / Excel lands each field in its own column; the
+ * importer auto-detects the delimiter either way. Header row + one example row.
+ * Name, Material, and Quantity are optional (Quantity defaults to 1).
+ */
+export const STOCK_CSV_TEMPLATE = [
+  ['Name', 'Width', 'Height', 'Thickness', 'Material', 'Quantity'].join('\t'),
+  ['Offcut A', '1200', '600', '18', 'Plywood', '1'].join('\t'),
+].join('\n');
+
 /** Parse an optional quantity cell to a positive integer; default 1. */
 function parseQuantity(raw: string): number {
   const trimmed = raw.trim();

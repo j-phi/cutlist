@@ -30,7 +30,9 @@
         <li>
           <span class="text-body">Paste from a spreadsheet</span> — copy rows
           from a spreadsheet (Name, Quantity, Length, Width, Material) and paste
-          them in the Add Part dialog.
+          them in the Add Part dialog. Use
+          <span class="text-body">Copy template</span> there to grab a
+          ready-made header row for Google Sheets or Excel.
         </li>
       </ul>
     </section>
