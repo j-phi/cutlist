@@ -17,8 +17,10 @@ bun run check        # Vue + TypeScript type check (vue-tsc --noEmit)
 Run a single test file:
 
 ```bash
-cd web && vitest run lib/__tests__/generateBoardLayouts.edge.test.ts
+export PATH="$HOME/.bun/bin:$PATH" && cd web && bunx vitest run lib/__tests__/generateBoardLayouts.edge.test.ts
 ```
+
+Use `bunx vitest` (not bare `vitest`) — vitest is not globally installed, only bun has it.
 
 Formatting runs automatically via lint-staged on commit (Prettier).
 
